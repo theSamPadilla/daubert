@@ -17,7 +17,10 @@ function App() {
       </header>
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 bg-gray-900">
-          <GraphCanvas investigation={investigation} />
+          <GraphCanvas
+            investigation={investigation}
+            onSelectItem={setSelectedItem}
+          />
         </div>
         <SidePanel selectedItem={selectedItem} />
       </div>

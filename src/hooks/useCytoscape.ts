@@ -2,7 +2,10 @@ import { useEffect, useRef } from 'react';
 import cytoscape, { Core } from 'cytoscape';
 import { Investigation } from '../types/investigation';
 
-export function useCytoscape(investigation: Investigation | null) {
+export function useCytoscape(
+  investigation: Investigation | null,
+  onSelectItem?: (item: any) => void
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
 
@@ -107,10 +110,54 @@ export function useCytoscape(investigation: Investigation | null) {
     cy.add(elements);
     cy.fit();
 
+    // Add click handlers
+    cy.on('tap', 'node', (event) => {
+      const node = event.target;
+      const data = node.data();
+
+      // Check if it's a wallet node or trace parent
+      const isParent = node.isParent();
+
+      if (isParent) {
+        // Trace selected
+        const trace = investigation.traces.find((t) => t.id === data.id);
+        onSelectItem?.({ type: 'trace', data: trace });
+      } else {
+        // Wallet node selected
+        const trace = investigation.traces.find((t) => t.id === data.parent);
+        const walletNode = trace?.nodes.find((n) => n.id === data.id);
+        onSelectItem?.({ type: 'wallet', data: walletNode });
+      }
+    });
+
+    cy.on('tap', 'edge', (event) => {
+      const edge = event.target;
+      const data = edge.data();
+
+      // Find the transaction
+      let transaction = null;
+      for (const trace of investigation.traces) {
+        const tx = trace.edges.find((e) => e.id === data.id);
+        if (tx) {
+          transaction = tx;
+          break;
+        }
+      }
+
+      onSelectItem?.({ type: 'transaction', data: transaction });
+    });
+
+    // Click on background to deselect
+    cy.on('tap', (event) => {
+      if (event.target === cy) {
+        onSelectItem?.(null);
+      }
+    });
+
     return () => {
       cy.destroy();
     };
-  }, [investigation]);
+  }, [investigation, onSelectItem]);
 
   return { containerRef, cy: cyRef.current };
 }

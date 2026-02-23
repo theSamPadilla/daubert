@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { mockInvestigation } from './data/mockInvestigation';
 import { GraphCanvas } from './components/GraphCanvas';
+import { SidePanel } from './components/SidePanel';
 import { Investigation } from './types/investigation';
 
 function App() {
   const [investigation, setInvestigation] = useState<Investigation | null>(mockInvestigation);
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
   return (
     <div className="h-screen flex flex-col bg-gray-900 text-white">
@@ -17,9 +19,7 @@ function App() {
         <div className="flex-1 bg-gray-900">
           <GraphCanvas investigation={investigation} />
         </div>
-        <div className="w-96 bg-gray-800 border-l border-gray-700">
-          <p className="p-4">Side panel</p>
-        </div>
+        <SidePanel selectedItem={selectedItem} />
       </div>
     </div>
   );

@@ -1,4 +1,8 @@
+import { mockInvestigation } from './data/mockInvestigation';
+
 function App() {
+  console.log('Mock investigation:', mockInvestigation);
+
   return (
     <div className="h-screen flex flex-col bg-gray-900 text-white">
       <header className="bg-gray-800 border-b border-gray-700 p-4">

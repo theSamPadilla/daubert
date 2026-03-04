@@ -1,0 +1,87 @@
+/cases/{caseId}/conversations:
+  post:
+    summary: Create a new conversation for a case
+    operationId: createConversation
+    tags: [AI]
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '201':
+        description: Conversation created
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ai.yaml#/Conversation'
+  get:
+    summary: List conversations for a case
+    operationId: listConversations
+    tags: [AI]
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: List of conversations
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/ai.yaml#/Conversation'
+
+/conversations/{id}/messages:
+  get:
+    summary: Get message history for a conversation
+    operationId: getConversationMessages
+    tags: [AI]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Message list
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/ai.yaml#/Message'
+
+/conversations/{id}/chat:
+  post:
+    summary: Send a message and receive an SSE stream
+    operationId: chatStream
+    tags: [AI]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ai.yaml#/ChatRequest'
+    responses:
+      '200':
+        description: SSE stream of chat events (text/event-stream)
+        content:
+          text/event-stream:
+            schema:
+              $ref: '../schemas/ai.yaml#/ChatSseEvent'

@@ -1,0 +1,77 @@
+FetchHistoryRequest:
+  type: object
+  required:
+    - address
+    - chain
+  properties:
+    address:
+      type: string
+      description: Wallet address to fetch history for
+    chain:
+      type: string
+      description: Blockchain network (ethereum, polygon, arbitrum, base)
+    options:
+      type: object
+      properties:
+        startBlock:
+          type: integer
+        endBlock:
+          type: integer
+        page:
+          type: integer
+        offset:
+          type: integer
+        sort:
+          type: string
+          enum: [asc, desc]
+
+FetchHistoryResponse:
+  type: object
+  properties:
+    transactions:
+      type: array
+      items:
+        $ref: '#/TransactionResult'
+    chain:
+      type: string
+    address:
+      type: string
+
+TransactionResult:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+    from:
+      type: string
+    to:
+      type: string
+    txHash:
+      type: string
+    chain:
+      type: string
+    timestamp:
+      type: string
+      format: date-time
+    amount:
+      type: string
+    token:
+      type: object
+      properties:
+        address:
+          type: string
+        symbol:
+          type: string
+        decimals:
+          type: integer
+    blockNumber:
+      type: integer
+    notes:
+      type: string
+    tags:
+      type: array
+      items:
+        type: string
+    crossTrace:
+      type: boolean

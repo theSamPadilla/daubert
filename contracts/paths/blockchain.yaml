@@ -1,0 +1,25 @@
+/blockchain/fetch-history:
+  post:
+    summary: Fetch wallet transaction history
+    operationId: fetchHistory
+    tags:
+      - Blockchain
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/blockchain.yaml#/FetchHistoryRequest'
+    responses:
+      '200':
+        description: Transaction history
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/blockchain.yaml#/FetchHistoryResponse'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

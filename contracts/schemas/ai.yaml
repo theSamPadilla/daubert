@@ -1,0 +1,59 @@
+Conversation:
+  type: object
+  required: [id, caseId, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    caseId:
+      type: string
+      format: uuid
+    title:
+      type: string
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+Message:
+  type: object
+  required: [id, conversationId, role, content, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    conversationId:
+      type: string
+      format: uuid
+    role:
+      type: string
+      enum: [user, assistant]
+    content:
+      type: array
+      items:
+        type: object
+    createdAt:
+      type: string
+      format: date-time
+
+ChatRequest:
+  type: object
+  required: [message]
+  properties:
+    message:
+      type: string
+      minLength: 1
+
+# SSE stream — documents the event types emitted on the chat endpoint.
+# Actual response is text/event-stream, not JSON.
+ChatSseEvent:
+  type: object
+  properties:
+    type:
+      type: string
+      enum: [text_delta, tool_start, tool_done, done, error]
+    data:
+      type: object

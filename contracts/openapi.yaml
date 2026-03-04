@@ -1,0 +1,45 @@
+openapi: 3.0.3
+info:
+  title: Daubert API
+  version: 0.1.0
+  description: Blockchain investigation tool API
+
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /cases:
+    $ref: './paths/cases.yaml#/~1cases'
+  /cases/{id}:
+    $ref: './paths/cases.yaml#/~1cases~1{id}'
+  /cases/{caseId}/investigations:
+    $ref: './paths/investigations.yaml#/~1cases~1{caseId}~1investigations'
+  /investigations/{id}:
+    $ref: './paths/investigations.yaml#/~1investigations~1{id}'
+  /investigations/{investigationId}/traces:
+    $ref: './paths/traces.yaml#/~1investigations~1{investigationId}~1traces'
+  /traces/{id}:
+    $ref: './paths/traces.yaml#/~1traces~1{id}'
+
+components:
+  schemas:
+    ErrorResponse:
+      $ref: './schemas/common.yaml#/ErrorResponse'
+    Case:
+      $ref: './schemas/cases.yaml#/Case'
+    CreateCaseRequest:
+      $ref: './schemas/cases.yaml#/CreateCaseRequest'
+    UpdateCaseRequest:
+      $ref: './schemas/cases.yaml#/UpdateCaseRequest'
+    Investigation:
+      $ref: './schemas/investigations.yaml#/Investigation'
+    CreateInvestigationRequest:
+      $ref: './schemas/investigations.yaml#/CreateInvestigationRequest'
+    UpdateInvestigationRequest:
+      $ref: './schemas/investigations.yaml#/UpdateInvestigationRequest'
+    Trace:
+      $ref: './schemas/traces.yaml#/Trace'
+    CreateTraceRequest:
+      $ref: './schemas/traces.yaml#/CreateTraceRequest'
+    UpdateTraceRequest:
+      $ref: './schemas/traces.yaml#/UpdateTraceRequest'

@@ -1,0 +1,116 @@
+/cases/{caseId}/investigations:
+  get:
+    summary: List investigations for a case
+    operationId: listInvestigations
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Array of investigations
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/investigations.yaml#/Investigation'
+  post:
+    summary: Create an investigation in a case
+    operationId: createInvestigation
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/investigations.yaml#/CreateInvestigationRequest'
+    responses:
+      '201':
+        description: Created investigation
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/investigations.yaml#/Investigation'
+
+/investigations/{id}:
+  get:
+    summary: Get an investigation with traces
+    operationId: getInvestigation
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Investigation with traces
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/investigations.yaml#/Investigation'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  patch:
+    summary: Update an investigation
+    operationId: updateInvestigation
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/investigations.yaml#/UpdateInvestigationRequest'
+    responses:
+      '200':
+        description: Updated investigation
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/investigations.yaml#/Investigation'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    summary: Delete an investigation
+    operationId: deleteInvestigation
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Deleted
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

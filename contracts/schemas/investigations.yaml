@@ -1,0 +1,52 @@
+InvestigationSummary:
+  type: object
+  required: [id, name]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+
+Investigation:
+  type: object
+  required: [id, name, caseId, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    notes:
+      type: string
+      nullable: true
+    caseId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    traces:
+      type: array
+      items:
+        $ref: '../schemas/traces.yaml#/Trace'
+
+CreateInvestigationRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+    notes:
+      type: string
+
+UpdateInvestigationRequest:
+  type: object
+  properties:
+    name:
+      type: string
+    notes:
+      type: string

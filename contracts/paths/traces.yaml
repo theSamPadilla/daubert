@@ -1,0 +1,116 @@
+/investigations/{investigationId}/traces:
+  get:
+    summary: List traces for an investigation
+    operationId: listTraces
+    parameters:
+      - name: investigationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Array of traces
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/traces.yaml#/Trace'
+  post:
+    summary: Create a trace in an investigation
+    operationId: createTrace
+    parameters:
+      - name: investigationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/traces.yaml#/CreateTraceRequest'
+    responses:
+      '201':
+        description: Created trace
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/traces.yaml#/Trace'
+
+/traces/{id}:
+  get:
+    summary: Get a trace
+    operationId: getTrace
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Trace
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/traces.yaml#/Trace'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  patch:
+    summary: Update a trace
+    operationId: updateTrace
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/traces.yaml#/UpdateTraceRequest'
+    responses:
+      '200':
+        description: Updated trace
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/traces.yaml#/Trace'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    summary: Delete a trace
+    operationId: deleteTrace
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Deleted
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

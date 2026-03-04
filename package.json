@@ -1,27 +1,14 @@
 {
-  "name": "tracker",
+  "name": "daubert",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "version": "0.1.0",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "cytoscape": "^3.30.4"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@types/cytoscape": "^3.21.8",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "~5.6.2",
-    "vite": "^6.0.1",
-    "tailwindcss": "^3.4.17",
-    "postcss": "^8.4.49",
-    "autoprefixer": "^10.4.20"
+    "fe": "npm run dev --prefix frontend",
+    "be": "npm run start:dev --prefix backend",
+    "db": "docker compose -f backend/docker-compose.yml up -d",
+    "db:down": "docker compose -f backend/docker-compose.yml down",
+    "gen": "npm run gen --prefix frontend && npm run gen --prefix backend",
+    "build:fe": "npm run build --prefix frontend",
+    "build:be": "npm run build --prefix backend"
   }
 }

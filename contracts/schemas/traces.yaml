@@ -1,0 +1,59 @@
+Trace:
+  type: object
+  required: [id, name, visible, collapsed, data, investigationId, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    color:
+      type: string
+      nullable: true
+    visible:
+      type: boolean
+    collapsed:
+      type: boolean
+    data:
+      type: object
+      additionalProperties: true
+    investigationId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateTraceRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+    color:
+      type: string
+    visible:
+      type: boolean
+    collapsed:
+      type: boolean
+    data:
+      type: object
+      additionalProperties: true
+
+UpdateTraceRequest:
+  type: object
+  properties:
+    name:
+      type: string
+    color:
+      type: string
+    visible:
+      type: boolean
+    collapsed:
+      type: boolean
+    data:
+      type: object
+      additionalProperties: true

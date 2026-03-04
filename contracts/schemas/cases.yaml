@@ -1,0 +1,74 @@
+Link:
+  type: object
+  required: [url, label]
+  properties:
+    url:
+      type: string
+    label:
+      type: string
+
+Case:
+  type: object
+  required: [id, name, links, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    startDate:
+      type: string
+      format: date-time
+      nullable: true
+    links:
+      type: array
+      items:
+        $ref: '#/Link'
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    investigations:
+      type: array
+      items:
+        $ref: '../schemas/investigations.yaml#/InvestigationSummary'
+
+InvestigationSummary:
+  type: object
+  required: [id, name]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+
+CreateCaseRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+    startDate:
+      type: string
+      format: date-time
+    links:
+      type: array
+      items:
+        $ref: '#/Link'
+
+UpdateCaseRequest:
+  type: object
+  properties:
+    name:
+      type: string
+    startDate:
+      type: string
+      format: date-time
+      nullable: true
+    links:
+      type: array
+      items:
+        $ref: '#/Link'

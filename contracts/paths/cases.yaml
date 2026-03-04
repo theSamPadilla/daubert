@@ -1,0 +1,102 @@
+/cases:
+  get:
+    summary: List all cases
+    operationId: listCases
+    responses:
+      '200':
+        description: Array of cases
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/cases.yaml#/Case'
+  post:
+    summary: Create a case
+    operationId: createCase
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/cases.yaml#/CreateCaseRequest'
+    responses:
+      '201':
+        description: Created case
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/cases.yaml#/Case'
+
+/cases/{id}:
+  get:
+    summary: Get a case with investigation summaries
+    operationId: getCase
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Case with investigations
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/cases.yaml#/Case'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  patch:
+    summary: Update a case
+    operationId: updateCase
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/cases.yaml#/UpdateCaseRequest'
+    responses:
+      '200':
+        description: Updated case
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/cases.yaml#/Case'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    summary: Delete a case
+    operationId: deleteCase
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Deleted
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

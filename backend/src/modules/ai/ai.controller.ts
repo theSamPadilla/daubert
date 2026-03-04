@@ -1,7 +1,5 @@
+// backend/src/modules/ai/ai.controller.ts
 import { Controller } from '@nestjs/common';
-import { AiService } from './ai.service';
 
 @Controller('ai')
-export class AiController {
-  constructor(private readonly aiService: AiService) {}
-}
+export class AiController {}

@@ -15,8 +15,8 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(8080);
-  console.log('Daubert backend running on http://localhost:8080');
+  await app.listen(8081);
+  console.log('Daubert backend running on http://localhost:8081');
 }
 
 bootstrap();

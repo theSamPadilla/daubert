@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -14,6 +14,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 // Types matching the backend entities
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface Case {
   id: string;
   name: string;
@@ -47,6 +53,9 @@ export interface Trace {
 }
 
 export const apiClient = {
+  // User
+  getMe: () => request<User>('/users/me'),
+
   // Cases
   listCases: () => request<Case[]>('/cases'),
   getCase: (id: string) => request<Case>(`/cases/${id}`),
@@ -77,4 +86,18 @@ export const apiClient = {
   updateTrace: (id: string, body: Partial<{ name: string; color: string | null; visible: boolean; collapsed: boolean; data: Record<string, unknown> }>) =>
     request<Trace>(`/traces/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteTrace: (id: string) => request<void>(`/traces/${id}`, { method: 'DELETE' }),
+
+  // Blockchain
+  fetchHistory: (address: string, chain: string, options?: { startBlock?: number; endBlock?: number; page?: number; offset?: number }) =>
+    request<{ transactions: any[]; chain: string; address: string }>('/blockchain/fetch-history', {
+      method: 'POST',
+      body: JSON.stringify({ address, chain, options }),
+    }),
+
+  // AI
+  chat: (message: string) =>
+    request<{ message: string }>('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
 };

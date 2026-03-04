@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CaseEntity } from '../../database/entities/case.entity';
+import { UsersService } from '../users/users.service';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { UpdateCaseDto } from './dto/update-case.dto';
 
@@ -10,10 +11,15 @@ export class CasesService {
   constructor(
     @InjectRepository(CaseEntity)
     private readonly repo: Repository<CaseEntity>,
+    private readonly usersService: UsersService,
   ) {}
 
-  findAll() {
-    return this.repo.find({ order: { createdAt: 'DESC' } });
+  async findAll() {
+    const user = await this.usersService.getDefaultUser();
+    return this.repo.find({
+      where: { userId: user.id },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async findOne(id: string) {
@@ -25,11 +31,13 @@ export class CasesService {
     return c;
   }
 
-  create(dto: CreateCaseDto) {
+  async create(dto: CreateCaseDto) {
+    const user = await this.usersService.getDefaultUser();
     const entity = this.repo.create({
       name: dto.name,
       startDate: dto.startDate ? new Date(dto.startDate) : null,
       links: dto.links || [],
+      userId: user.id,
     });
     return this.repo.save(entity);
   }

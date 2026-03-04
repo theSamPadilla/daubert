@@ -7,7 +7,7 @@ export class TraceEntity extends BaseEntity {
   @Column()
   name: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   color: string | null;
 
   @Column({ default: true })

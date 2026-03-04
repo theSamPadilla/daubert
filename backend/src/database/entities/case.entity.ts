@@ -1,6 +1,8 @@
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { InvestigationEntity } from './investigation.entity';
+import { UserEntity } from './user.entity';
+import { ConversationEntity } from './conversation.entity';
 
 @Entity('cases')
 export class CaseEntity extends BaseEntity {
@@ -13,6 +15,16 @@ export class CaseEntity extends BaseEntity {
   @Column({ type: 'jsonb', default: '[]' })
   links: { url: string; label: string }[];
 
+  @Column({ name: 'user_id' })
+  userId: string;
+
+  @ManyToOne(() => UserEntity, (u) => u.cases, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user: UserEntity;
+
   @OneToMany(() => InvestigationEntity, (inv) => inv.case, { cascade: true })
   investigations: InvestigationEntity[];
+
+  @OneToMany(() => ConversationEntity, (c) => c.case, { cascade: true })
+  conversations: ConversationEntity[];
 }

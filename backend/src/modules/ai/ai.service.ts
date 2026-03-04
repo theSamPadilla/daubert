@@ -4,7 +4,6 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
-import { ConversationEntity } from '../../database/entities/conversation.entity';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { ConversationsService } from './conversations.service';
@@ -59,7 +58,7 @@ export class AiService {
         content: [{ type: 'text', text: userMessage }],
       }),
     );
-    messages.push({ role: 'user', content: userMessage });
+    messages.push({ role: 'user', content: [{ type: 'text', text: userMessage }] });
 
     let prevToolKey = '';
     let isFirstTurn = true;

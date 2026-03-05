@@ -52,6 +52,34 @@ export interface Trace {
   updatedAt: string;
 }
 
+export interface Conversation {
+  id: string;
+  caseId: string;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant';
+  content: Array<{ type: string; text?: string; [key: string]: unknown }>;
+  createdAt: string;
+}
+
+export interface ScriptRun {
+  id: string;
+  name: string;
+  code: string;
+  output: string | null;
+  status: 'success' | 'error' | 'timeout';
+  durationMs: number;
+  investigationId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const apiClient = {
   // User
   getMe: () => request<User>('/users/me'),
@@ -94,10 +122,55 @@ export const apiClient = {
       body: JSON.stringify({ address, chain, options }),
     }),
 
+  getTransaction: (txHash: string, chain: string) =>
+    request<{
+      txHash: string;
+      from: string;
+      to: string;
+      chain: string;
+      amount: string;
+      timestamp: string;
+      blockNumber: number;
+      token: { address: string; symbol: string; decimals: number };
+      tokenTransfers: Array<{
+        from: string;
+        to: string;
+        amount: string;
+        token: { address: string; symbol: string; decimals: number };
+      }>;
+      isError: boolean;
+    }>('/blockchain/get-transaction', {
+      method: 'POST',
+      body: JSON.stringify({ txHash, chain }),
+    }),
+
+  getAddressInfo: (address: string, chain: string) =>
+    request<{
+      address: string;
+      addressType: 'wallet' | 'contract';
+      balance: string;
+      label?: string;
+    }>('/blockchain/get-address-info', {
+      method: 'POST',
+      body: JSON.stringify({ address, chain }),
+    }),
+
   // AI
   chat: (message: string) =>
     request<{ message: string }>('/ai/chat', {
       method: 'POST',
       body: JSON.stringify({ message }),
     }),
+
+  // Conversations
+  listConversations: () =>
+    request<Conversation[]>('/conversations'),
+  createConversation: () =>
+    request<Conversation>('/conversations', { method: 'POST' }),
+  getConversationMessages: (conversationId: string) =>
+    request<ChatMessage[]>(`/conversations/${conversationId}/messages`),
+
+  // Script Runs
+  listScriptRuns: (investigationId: string) =>
+    request<ScriptRun[]>(`/investigations/${investigationId}/script-runs`),
 };

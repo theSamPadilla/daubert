@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TransactionEdge, WalletNode, Trace } from '../types/investigation';
 import { ColorPicker } from './ColorPicker';
 import { TagInput } from './TagInput';
-import { CHAIN_CONFIGS } from '../services/types';
+import { SUPPORTED_CHAINS } from '../services/types';
 
 interface TransactionFormProps {
   transaction?: TransactionEdge;
@@ -11,11 +11,83 @@ interface TransactionFormProps {
   onSave: (traceId: string, data: Partial<TransactionEdge>) => void;
   onDelete?: (traceId: string) => void;
   onCancel: () => void;
+  onCreateTrace?: () => Promise<string | undefined>;
+  prefill?: Partial<TransactionEdge>;
 }
 
 function truncateAddr(addr: string) {
   if (addr.length <= 12) return addr;
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+function AddressField({
+  label,
+  value,
+  onChange,
+  allWallets,
+  isKnownWallet,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  allWallets: { wallet: WalletNode; traceId: string }[];
+  isKnownWallet: (v: string) => boolean;
+}) {
+  const [manualEntry, setManualEntry] = useState(!isKnownWallet(value) && value !== '');
+
+  // Display label for a resolved wallet
+  const walletLabel = (id: string) => {
+    const w = allWallets.find((e) => e.wallet.id === id);
+    return w ? `${w.wallet.label} (${truncateAddr(w.wallet.address)})` : '';
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-semibold text-gray-400 uppercase">{label}</span>
+        {allWallets.length > 0 && (
+          <button
+            type="button"
+            onClick={() => { setManualEntry(!manualEntry); if (!manualEntry) onChange(''); }}
+            className="text-[10px] text-blue-400 hover:text-blue-300"
+          >
+            {manualEntry ? 'Select existing' : 'New address'}
+          </button>
+        )}
+      </div>
+      {manualEntry ? (
+        <>
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs font-mono"
+            placeholder="Paste address"
+            required
+          />
+          {value && !isKnownWallet(value) && (
+            <p className="text-[10px] text-gray-500 mt-0.5">
+              New node: <span className="font-mono">{truncateAddr(value)}</span>
+            </p>
+          )}
+        </>
+      ) : (
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
+          required
+        >
+          <option value="">Select address</option>
+          {allWallets.map(({ wallet }) => (
+            <option key={wallet.id} value={wallet.id}>
+              {wallet.label} ({truncateAddr(wallet.address)})
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
 }
 
 export function TransactionForm({
@@ -25,25 +97,48 @@ export function TransactionForm({
   onSave,
   onDelete,
   onCancel,
+  onCreateTrace,
+  prefill,
 }: TransactionFormProps) {
-  const [from, setFrom] = useState(transaction?.from || '');
-  const [to, setTo] = useState(transaction?.to || '');
-  const [txHash, setTxHash] = useState(transaction?.txHash || '');
-  const [chain, setChain] = useState(transaction?.chain || 'ethereum');
-  const [amount, setAmount] = useState(transaction?.amount || '');
-  const [tokenSymbol, setTokenSymbol] = useState(transaction?.token.symbol || 'ETH');
-  const [tokenAddress, setTokenAddress] = useState(transaction?.token.address || '0x');
-  const [tokenDecimals, setTokenDecimals] = useState(String(transaction?.token.decimals ?? 18));
-  const [usdValue, setUsdValue] = useState(transaction?.usdValue != null ? String(transaction.usdValue) : '');
-  const [label, setLabel] = useState(transaction?.label || '');
+  const source = transaction || prefill;
+
+  // Resolve prefilled raw addresses to existing wallet IDs
+  const resolveToWalletId = (val: string) => {
+    if (!val) return val;
+    // Already a wallet ID?
+    if (allWallets.some((w) => w.wallet.id === val)) return val;
+    // Match by address
+    const match = allWallets.find((w) => w.wallet.address.toLowerCase() === val.toLowerCase());
+    return match ? match.wallet.id : val;
+  };
+
+  const [from, setFrom] = useState(resolveToWalletId(source?.from || ''));
+  const [to, setTo] = useState(resolveToWalletId(source?.to || ''));
+  const [txHash, setTxHash] = useState(source?.txHash || '');
+  const [chain, setChain] = useState(source?.chain || 'ethereum');
+  const [amount, setAmount] = useState(source?.amount || '');
+  const [tokenSymbol, setTokenSymbol] = useState(source?.token?.symbol || (chain === 'tron' ? 'TRX' : 'ETH'));
+  const [tokenAddress, setTokenAddress] = useState(source?.token?.address || '0x');
+  const [tokenDecimals, setTokenDecimals] = useState(String(source?.token?.decimals ?? 18));
+  const [usdValue, setUsdValue] = useState(source?.usdValue != null ? String(source.usdValue) : '');
+  const [label, setLabel] = useState(source?.label || '');
   const [timestamp, setTimestamp] = useState(
-    transaction?.timestamp ? transaction.timestamp.slice(0, 16) : ''
+    source?.timestamp ? source.timestamp.slice(0, 16) : ''
   );
-  const [blockNumber, setBlockNumber] = useState(String(transaction?.blockNumber || ''));
-  const [color, setColor] = useState(transaction?.color || '#10b981');
-  const [notes, setNotes] = useState(transaction?.notes || '');
-  const [tags, setTags] = useState<string[]>(transaction?.tags || []);
+  const [blockNumber, setBlockNumber] = useState(String(source?.blockNumber || ''));
+  const [color, setColor] = useState(source?.color || '#10b981');
+  const [notes, setNotes] = useState(source?.notes || '');
+  const [tags, setTags] = useState<string[]>(source?.tags || []);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [traceId, setTraceId] = useState(traces[0]?.id || '');
+  const [creatingTrace, setCreatingTrace] = useState(false);
+
+  // Sync traceId when traces list changes (e.g. after inline create)
+  useEffect(() => {
+    if (!traceId && traces.length > 0) {
+      setTraceId(traces[traces.length - 1].id);
+    }
+  }, [traces, traceId]);
 
   // Determine trace for this transaction (from wallet's trace)
   const findTraceForWallet = (walletId: string) => {
@@ -56,9 +151,9 @@ export function TransactionForm({
     const fromTrace = findTraceForWallet(from);
     const toTrace = findTraceForWallet(to);
     const crossTrace = !!(fromTrace && toTrace && fromTrace !== toTrace);
-    const traceId = fromTrace || traces[0]?.id || '';
+    const resolvedTraceId = fromTrace || traceId || traces[0]?.id || '';
 
-    onSave(traceId, {
+    onSave(resolvedTraceId, {
       from,
       to,
       txHash,
@@ -85,41 +180,78 @@ export function TransactionForm({
     ? (findTraceForWallet(transaction.from) || traces[0]?.id || '')
     : '';
 
+  // Check if value is an existing wallet (by ID or address)
+  const isKnownWallet = (val: string) =>
+    allWallets.some((w) => w.wallet.id === val || w.wallet.address.toLowerCase() === val.toLowerCase());
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
+      {/* Trace selector for new transactions */}
+      {!transaction && (
+        <div>
+          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Trace</label>
+          {traces.length === 0 ? (
+            <button
+              type="button"
+              disabled={creatingTrace}
+              onClick={async () => {
+                if (!onCreateTrace) return;
+                setCreatingTrace(true);
+                const newId = await onCreateTrace();
+                setCreatingTrace(false);
+                if (newId) setTraceId(newId);
+              }}
+              className="w-full px-2 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded text-sm text-center"
+            >
+              {creatingTrace ? 'Creating...' : '+ Create Trace'}
+            </button>
+          ) : (
+            <div className="flex gap-1.5">
+              <select
+                value={traceId}
+                onChange={(e) => setTraceId(e.target.value)}
+                className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+              >
+                {traces.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              {onCreateTrace && (
+                <button
+                  type="button"
+                  disabled={creatingTrace}
+                  onClick={async () => {
+                    setCreatingTrace(true);
+                    const newId = await onCreateTrace();
+                    setCreatingTrace(false);
+                    if (newId) setTraceId(newId);
+                  }}
+                  className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded text-sm shrink-0"
+                  title="New trace"
+                >
+                  +
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">From</label>
-          <select
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
-            required
-          >
-            <option value="">Select wallet</option>
-            {allWallets.map(({ wallet }) => (
-              <option key={wallet.id} value={wallet.id}>
-                {wallet.label} ({truncateAddr(wallet.address)})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">To</label>
-          <select
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
-            required
-          >
-            <option value="">Select wallet</option>
-            {allWallets.map(({ wallet }) => (
-              <option key={wallet.id} value={wallet.id}>
-                {wallet.label} ({truncateAddr(wallet.address)})
-              </option>
-            ))}
-          </select>
-        </div>
+        <AddressField
+          label="From"
+          value={from}
+          onChange={setFrom}
+          allWallets={allWallets}
+          isKnownWallet={isKnownWallet}
+        />
+        <AddressField
+          label="To"
+          value={to}
+          onChange={setTo}
+          allWallets={allWallets}
+          isKnownWallet={isKnownWallet}
+        />
       </div>
 
       <div>
@@ -141,7 +273,7 @@ export function TransactionForm({
             onChange={(e) => setChain(e.target.value)}
             className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
           >
-            {Object.values(CHAIN_CONFIGS).map((c) => (
+            {Object.values(SUPPORTED_CHAINS).map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>

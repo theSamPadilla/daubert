@@ -12,7 +12,7 @@ interface TraceFormProps {
 export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps) {
   const [name, setName] = useState(trace?.name || '');
   const [type, setType] = useState<'time' | 'wallet-group' | 'custom'>(trace?.criteria.type || 'custom');
-  const [color, setColor] = useState(trace?.color || '#3b82f6');
+  const [color, setColor] = useState(trace?.color || '');
   const [startTime, setStartTime] = useState(trace?.criteria.timeRange?.start?.slice(0, 16) || '');
   const [endTime, setEndTime] = useState(trace?.criteria.timeRange?.end?.slice(0, 16) || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -21,7 +21,7 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
     e.preventDefault();
     const data: Partial<Trace> = {
       name,
-      color,
+      color: color || undefined,
       criteria: {
         type,
         ...(type === 'time' && startTime && endTime
@@ -83,7 +83,7 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
 
       <div>
         <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Color</label>
-        <ColorPicker value={color} onChange={setColor} />
+        <ColorPicker value={color} onChange={setColor} allowNone />
       </div>
 
       <div className="flex gap-2 pt-2">

@@ -3,25 +3,30 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { GraphCanvas } from '@/components/GraphCanvas';
-import { SidePanel } from '@/components/SidePanel';
+import { AIChat } from '@/components/AIChat';
 import { Header } from '@/components/Header';
+import { DetailsPanel } from '@/components/DetailsPanel';
+import { BatchEditPanel } from '@/components/BatchEditPanel';
+import { StagingPanel } from '@/components/StagingPanel';
 import { ContextMenu, ContextMenuItem } from '@/components/ContextMenu';
 import { WalletForm } from '@/components/WalletForm';
 import { TransactionForm } from '@/components/TransactionForm';
+import { LinkInputModal, type LinkInputResult } from '@/components/LinkInputModal';
 import { WalletNode, TransactionEdge, Trace, Investigation } from '@/types/investigation';
-import { saveInvestigation, loadInvestigation } from '@/utils/fileOperations';
-import { importFile } from '@/utils/importData';
 import { useInvestigation } from '@/hooks/useInvestigation';
 import { CytoscapeCallbacks } from '@/hooks/useCytoscape';
-import { apiClient, type Investigation as ApiInvestigation } from '@/lib/api-client';
+import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } from '@/lib/api-client';
+import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
 
 type PanelMode =
   | { type: 'none' }
-  | { type: 'createWallet'; position?: { x: number; y: number } }
-  | { type: 'createTransaction' };
+  | { type: 'linkInput'; intent: 'address' | 'transaction'; position?: { x: number; y: number } }
+  | { type: 'createWallet'; position?: { x: number; y: number }; prefill?: Partial<WalletNode> }
+  | { type: 'createTransaction'; prefill?: Partial<TransactionEdge> };
 
 export default function AppShell() {
   const [activeInvestigationId, setActiveInvestigationId] = useState<string | null>(null);
+  const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
 
   const {
     investigation,
@@ -41,12 +46,13 @@ export default function AppShell() {
   } = useInvestigation(null);
 
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
-  const [activeChain, setActiveChain] = useState('ethereum');
+  const [selectedNodeIds, setSelectedNodeIds] = useState<{ id: string; traceId: string }[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   const [panelMode, setPanelMode] = useState<PanelMode>({ type: 'none' });
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
   const [fetchLoading, setFetchLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
 
   // Load investigation from backend when selection changes
   const loadInvestigationFromApi = useCallback(async (id: string) => {
@@ -67,7 +73,19 @@ export default function AppShell() {
           visible: t.visible,
           collapsed: t.collapsed,
           color: t.color || undefined,
-          nodes: (t.data as any)?.nodes || [],
+          nodes: ((t.data as any)?.nodes || []).map((n: any) => {
+            // Fix legacy nodes where address field contains a full explorer URL
+            const parsed = parseAddressInput(n.address);
+            const address = parsed.chain ? parsed.address : n.address;
+            const chain = parsed.chain || n.chain;
+            return {
+              ...n,
+              address,
+              chain,
+              explorerUrl: n.explorerUrl || parsed.explorerUrl || buildExplorerUrl(chain, address),
+              addressType: n.addressType || 'unknown',
+            };
+          }),
           edges: (t.data as any)?.edges || [],
           position: (t.data as any)?.position || { x: 0, y: 0 },
         })),
@@ -84,10 +102,22 @@ export default function AppShell() {
   useEffect(() => {
     if (activeInvestigationId) {
       loadInvestigationFromApi(activeInvestigationId);
+      apiClient.listScriptRuns(activeInvestigationId).then(setScriptRuns).catch(console.error);
     } else {
       setInvestigation(null);
+      setScriptRuns([]);
     }
   }, [activeInvestigationId, loadInvestigationFromApi, setInvestigation]);
+
+  // Refresh script runs periodically while an investigation is active
+  // (the AI might create new runs in the background via chat)
+  useEffect(() => {
+    if (!activeInvestigationId) return;
+    const interval = setInterval(() => {
+      apiClient.listScriptRuns(activeInvestigationId).then(setScriptRuns).catch(console.error);
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [activeInvestigationId]);
 
   // Auto-save traces to backend
   const saveTimeoutRef = useMemo(() => ({ current: null as ReturnType<typeof setTimeout> | null }), []);
@@ -151,44 +181,12 @@ export default function AppShell() {
   // Sidebar callback
   const handleSelectInvestigation = useCallback((inv: ApiInvestigation) => {
     setActiveInvestigationId(inv.id);
+    setActiveCaseId(inv.caseId);
   }, []);
 
-  // File operations (export/import)
-  const handleSave = useCallback(() => {
-    if (investigation) saveInvestigation(investigation);
-  }, [investigation]);
-
-  const handleOpen = useCallback(async () => {
-    try {
-      const loaded = await loadInvestigation();
-      setInvestigation(loaded);
-      setSelectedItem(null);
-      setStagedItems([]);
-    } catch (error) {
-      console.error('Failed to load investigation:', error);
-    }
-  }, [setInvestigation]);
-
-  const handleImport = useCallback(() => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.csv,.json';
-    input.onchange = async (e: any) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      try {
-        const transactions = await importFile(file);
-        setStagedItems((prev) => [...prev, ...transactions]);
-      } catch (err) {
-        console.error('Import failed:', err);
-      }
-    };
-    input.click();
-  }, []);
-
-  // Trace operations
-  const handleAddTrace = useCallback(async () => {
-    if (!activeInvestigationId) return;
+  // Trace operations — returns the new trace ID (used by inline create in WalletForm)
+  const handleAddTrace = useCallback(async (): Promise<string | undefined> => {
+    if (!activeInvestigationId) return undefined;
     const colors = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#ef4444'];
     const color = colors[(investigation?.traces.length || 0) % colors.length];
     const name = `Trace ${(investigation?.traces.length || 0) + 1}`;
@@ -208,8 +206,10 @@ export default function AppShell() {
       };
       addTrace(trace);
       setSelectedItem({ type: 'trace', data: trace });
+      return trace.id;
     } catch (err) {
       console.error('Failed to create trace:', err);
+      return undefined;
     }
   }, [addTrace, investigation?.traces.length, activeInvestigationId]);
 
@@ -217,12 +217,16 @@ export default function AppShell() {
     setSelectedItem({ type: 'trace', data: trace });
   }, []);
 
+  const handleSelectScriptRun = useCallback((run: ScriptRun) => {
+    setSelectedItem({ type: 'scriptRun', data: run });
+  }, []);
+
   const handleAddWallet = useCallback(() => {
-    setPanelMode({ type: 'createWallet' });
+    setPanelMode({ type: 'linkInput', intent: 'address' });
   }, []);
 
   const handleCreateWalletAtPosition = useCallback((position: { x: number; y: number }) => {
-    setPanelMode({ type: 'createWallet', position });
+    setPanelMode({ type: 'linkInput', intent: 'address', position });
   }, []);
 
   const handleSaveNewWallet = useCallback(
@@ -231,36 +235,103 @@ export default function AppShell() {
         ? panelMode.position
         : { x: Math.random() * 400, y: Math.random() * 400 };
 
+      const addr = data.address || '';
+      const ch = data.chain || 'ethereum';
       const wallet: WalletNode = {
         id: crypto.randomUUID(),
-        label: data.label || 'New Wallet',
-        address: data.address || '',
-        chain: data.chain || activeChain,
+        label: data.label || 'New Node',
+        address: addr,
+        chain: ch,
         color: data.color || '#60a5fa',
+        size: data.size,
         notes: data.notes || '',
         tags: data.tags || [],
         position,
         parentTrace: traceId,
+        addressType: addr ? 'unknown' : undefined,
+        explorerUrl: addr ? buildExplorerUrl(ch, addr) : undefined,
       };
       addWallet(traceId, wallet);
       setPanelMode({ type: 'none' });
       setSelectedItem({ type: 'wallet', data: wallet });
+
+      // Look up address info in the background
+      if (addr) {
+        apiClient.getAddressInfo(addr, ch).then((info) => {
+          updateWallet(traceId, wallet.id, { addressType: info.addressType });
+        }).catch(() => {});
+      }
     },
-    [addWallet, panelMode, activeChain]
+    [addWallet, updateWallet, panelMode]
   );
 
   const handleAddTransaction = useCallback(() => {
-    setPanelMode({ type: 'createTransaction' });
+    setPanelMode({ type: 'linkInput', intent: 'transaction' });
   }, []);
+
+  /** Find an existing wallet by address or create one in the given trace */
+  const findOrCreateWallet = useCallback(
+    (address: string, chain: string, traceId: string): string => {
+      // Check existing wallets
+      const existing = allWallets.find(
+        (w) => w.wallet.address.toLowerCase() === address.toLowerCase()
+      );
+      if (existing) return existing.wallet.id;
+
+      // Create new wallet
+      const walletId = crypto.randomUUID();
+      const wallet: WalletNode = {
+        id: walletId,
+        label: address.length > 10 ? `${address.slice(0, 6)}...${address.slice(-4)}` : address,
+        address,
+        chain,
+        notes: '',
+        tags: [],
+        position: { x: Math.random() * 400, y: Math.random() * 400 },
+        parentTrace: traceId,
+        addressType: 'unknown',
+        explorerUrl: buildExplorerUrl(chain, address),
+      };
+      addWallet(traceId, wallet);
+
+      // Look up address info in the background and update the wallet
+      apiClient.getAddressInfo(address, chain).then((info) => {
+        updateWallet(traceId, walletId, { addressType: info.addressType });
+      }).catch(() => {
+        // Address info unavailable — keep as unknown
+      });
+
+      return wallet.id;
+    },
+    [allWallets, addWallet, updateWallet]
+  );
 
   const handleSaveNewTransaction = useCallback(
     (traceId: string, data: Partial<TransactionEdge>) => {
+      const ch = data.chain || 'ethereum';
+
+      // from/to may be wallet IDs or raw addresses — resolve them
+      let fromId = data.from || '';
+      let toId = data.to || '';
+      const isExistingWallet = (val: string) =>
+        allWallets.some((w) => w.wallet.id === val || w.wallet.address.toLowerCase() === val.toLowerCase());
+      if (fromId && !isExistingWallet(fromId)) {
+        fromId = findOrCreateWallet(fromId, ch, traceId);
+      }
+      if (toId && !isExistingWallet(toId)) {
+        toId = findOrCreateWallet(toId, ch, traceId);
+      }
+
+      const fromTrace = allWallets.find((w) => w.wallet.id === fromId)?.traceId;
+      const toTrace = allWallets.find((w) => w.wallet.id === toId)?.traceId;
+      const crossTrace = !!(fromTrace && toTrace && fromTrace !== toTrace);
+
       const transaction: TransactionEdge = {
         id: crypto.randomUUID(),
-        from: data.from || '',
-        to: data.to || '',
+        from: fromId,
+        to: toId,
         txHash: data.txHash || '0x',
-        chain: data.chain || activeChain,
+        chain: ch,
         timestamp: data.timestamp || new Date().toISOString(),
         amount: data.amount || '0',
         token: data.token || { address: '0x', symbol: 'ETH', decimals: 18 },
@@ -270,13 +341,13 @@ export default function AppShell() {
         notes: data.notes || '',
         tags: data.tags || [],
         blockNumber: data.blockNumber || 0,
-        crossTrace: data.crossTrace || false,
+        crossTrace,
       };
       addTransaction(traceId, transaction);
       setPanelMode({ type: 'none' });
       setSelectedItem({ type: 'transaction', data: transaction });
     },
-    [addTransaction, activeChain]
+    [addTransaction, allWallets, findOrCreateWallet]
   );
 
   const handleFetchHistory = useCallback(async (address: string, chain: string) => {
@@ -352,6 +423,28 @@ export default function AppShell() {
     [investigation, addWallet, addTransaction]
   );
 
+  // Batch edit handlers for multi-select
+  const handleBatchRename = useCallback((prefix: string) => {
+    selectedNodeIds.forEach(({ id, traceId }, i) => {
+      updateWallet(traceId, id, { label: `${prefix} ${i + 1}` });
+    });
+    setSelectedNodeIds([]);
+  }, [selectedNodeIds, updateWallet]);
+
+  const handleBatchRecolor = useCallback((color: string) => {
+    selectedNodeIds.forEach(({ id, traceId }) => {
+      updateWallet(traceId, id, { color });
+    });
+    setSelectedNodeIds([]);
+  }, [selectedNodeIds, updateWallet]);
+
+  const handleBatchDelete = useCallback(() => {
+    selectedNodeIds.forEach(({ id, traceId }) => {
+      deleteWallet(traceId, id);
+    });
+    setSelectedNodeIds([]);
+  }, [selectedNodeIds, deleteWallet]);
+
   const handleContextMenu = useCallback(
     (event: { type: 'node' | 'edge' | 'background'; id?: string; x: number; y: number }) => {
       if (!investigation) return;
@@ -375,9 +468,9 @@ export default function AppShell() {
           }
           if (walletData) {
             items.push(
-              { label: 'Edit Wallet', onClick: () => setSelectedItem({ type: 'wallet', data: walletData!.wallet }) },
+              { label: 'Edit Address', onClick: () => setSelectedItem({ type: 'wallet', data: walletData!.wallet }) },
               { label: 'Fetch History', onClick: () => handleFetchHistory(walletData!.wallet.address, walletData!.wallet.chain) },
-              { label: 'Delete Wallet', onClick: () => deleteWallet(walletData!.traceId, walletData!.wallet.id), danger: true }
+              { label: 'Delete Address', onClick: () => deleteWallet(walletData!.traceId, walletData!.wallet.id), danger: true }
             );
           }
         }
@@ -395,7 +488,7 @@ export default function AppShell() {
         }
       } else if (event.type === 'background') {
         items.push(
-          { label: 'Add Wallet Here', onClick: () => handleCreateWalletAtPosition({ x: event.x, y: event.y }) },
+          { label: 'Add Address Here', onClick: () => handleCreateWalletAtPosition({ x: event.x, y: event.y }) },
           { label: 'Add Trace', onClick: handleAddTrace }
         );
       }
@@ -409,7 +502,14 @@ export default function AppShell() {
 
   const cytoscapeCallbacks: CytoscapeCallbacks = useMemo(
     () => ({
-      onSelectItem: setSelectedItem,
+      onSelectItem: (item: any) => {
+        setSelectedItem(item);
+        setSelectedNodeIds([]);
+      },
+      onMultiSelect: (nodes) => {
+        setSelectedNodeIds(nodes);
+        setSelectedItem(null);
+      },
       onNodeDrag: updateNodePosition,
       onContextMenu: handleContextMenu,
       onDoubleClickBackground: handleCreateWalletAtPosition,
@@ -419,19 +519,46 @@ export default function AppShell() {
 
   const selectedTraceId = selectedItem?.type === 'trace' ? selectedItem.data?.id : undefined;
 
+  const handleLinkResolved = useCallback((result: LinkInputResult, position?: { x: number; y: number }) => {
+    if (result.type === 'transaction' && result.txPrefill) {
+      setPanelMode({ type: 'createTransaction', prefill: result.txPrefill });
+    } else if (result.addressPrefill) {
+      setPanelMode({ type: 'createWallet', position, prefill: result.addressPrefill });
+    }
+  }, []);
+
   const renderCreationPanel = () => {
     if (!investigation) return null;
+
+    if (panelMode.type === 'linkInput') {
+      return (
+        <LinkInputModal
+          intent={panelMode.intent}
+          onResolved={(result) => handleLinkResolved(result, panelMode.position)}
+          onSkip={() => {
+            if (panelMode.intent === 'transaction') {
+              setPanelMode({ type: 'createTransaction' });
+            } else {
+              setPanelMode({ type: 'createWallet', position: panelMode.position });
+            }
+          }}
+          onCancel={() => setPanelMode({ type: 'none' })}
+        />
+      );
+    }
 
     if (panelMode.type === 'createWallet') {
       return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40">
           <div className="bg-gray-800 rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
-            <h3 className="text-sm font-semibold text-gray-300 uppercase mb-4">New Wallet</h3>
+            <h3 className="text-sm font-semibold text-gray-300 uppercase mb-4">New Address</h3>
             <WalletForm
               traces={investigation.traces}
               selectedTraceId={investigation.traces[0]?.id}
               onSave={handleSaveNewWallet}
               onCancel={() => setPanelMode({ type: 'none' })}
+              onCreateTrace={handleAddTrace}
+              prefill={panelMode.prefill}
             />
           </div>
         </div>
@@ -448,6 +575,8 @@ export default function AppShell() {
               allWallets={allWallets}
               onSave={handleSaveNewTransaction}
               onCancel={() => setPanelMode({ type: 'none' })}
+              onCreateTrace={handleAddTrace}
+              prefill={panelMode.prefill}
             />
           </div>
         </div>
@@ -462,6 +591,15 @@ export default function AppShell() {
       <Sidebar
         activeInvestigationId={activeInvestigationId}
         onSelectInvestigation={handleSelectInvestigation}
+        traces={investigation?.traces}
+        selectedTraceId={selectedTraceId}
+        onAddTrace={handleAddTrace}
+        onSelectTrace={handleSelectTrace}
+        onToggleVisibility={toggleTraceVisibility}
+        onToggleCollapsed={toggleTraceCollapsed}
+        scriptRuns={scriptRuns}
+        selectedScriptRunId={selectedItem?.type === 'scriptRun' ? selectedItem.data?.id : undefined}
+        onSelectScriptRun={handleSelectScriptRun}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -469,16 +607,10 @@ export default function AppShell() {
           <>
             <Header
               investigation={investigation}
-              activeChain={activeChain}
-              onOpen={handleOpen}
-              onSave={handleSave}
-              onImport={handleImport}
-              onChainChange={setActiveChain}
-              onAddWallet={handleAddWallet}
+              onAddAddress={handleAddWallet}
               onAddTransaction={handleAddTransaction}
             />
-            <div className="flex-1 flex overflow-hidden">
-              <div className="flex-1 bg-gray-900">
+            <div className="flex-1 bg-gray-900 relative overflow-hidden">
                 {loading ? (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-gray-400">Loading...</p>
@@ -489,37 +621,74 @@ export default function AppShell() {
                     callbacks={cytoscapeCallbacks}
                   />
                 )}
-              </div>
-              <SidePanel
-                selectedItem={selectedItem}
-                traces={investigation.traces}
-                allWallets={allWallets}
-                selectedTraceId={selectedTraceId}
-                stagedItems={stagedItems}
-                fetchLoading={fetchLoading}
-                onSelectTrace={handleSelectTrace}
-                onToggleVisibility={toggleTraceVisibility}
-                onToggleCollapsed={toggleTraceCollapsed}
-                onAddTrace={handleAddTrace}
-                onUpdateWallet={updateWallet}
-                onDeleteWallet={(traceId, walletId) => {
-                  deleteWallet(traceId, walletId);
-                  setSelectedItem(null);
-                }}
-                onUpdateTransaction={updateTransaction}
-                onDeleteTransaction={(traceId, txId) => {
-                  deleteTransaction(traceId, txId);
-                  setSelectedItem(null);
-                }}
-                onUpdateTrace={updateTrace}
-                onDeleteTrace={(traceId) => {
-                  deleteTrace(traceId);
-                  setSelectedItem(null);
-                }}
-                onFetchHistory={handleFetchHistory}
-                onAddStagedToTrace={handleAddStagedToTrace}
-                onClearStaged={() => setStagedItems([])}
-              />
+
+                {/* Batch edit floating panel */}
+                {selectedNodeIds.length >= 2 && (
+                  <div className="absolute bottom-4 left-4 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl max-h-[60vh] flex flex-col z-20">
+                    <BatchEditPanel
+                      count={selectedNodeIds.length}
+                      onRename={handleBatchRename}
+                      onRecolor={handleBatchRecolor}
+                      onDelete={handleBatchDelete}
+                      onDeselect={() => setSelectedNodeIds([])}
+                    />
+                  </div>
+                )}
+
+                {/* Details floating panel */}
+                {selectedItem && selectedNodeIds.length < 2 && (
+                  <div className="absolute bottom-4 left-4 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl max-h-[60vh] flex flex-col z-20">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 shrink-0">
+                      <span className="text-xs font-semibold text-gray-400 uppercase">
+                        {selectedItem.type === 'wallet' ? 'Address'
+                          : selectedItem.type === 'scriptRun' ? 'Script'
+                          : selectedItem.type} Details
+                      </span>
+                      <button
+                        onClick={() => setSelectedItem(null)}
+                        className="text-gray-500 hover:text-white text-sm leading-none"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="overflow-y-auto">
+                      <DetailsPanel
+                        selectedItem={selectedItem}
+                        traces={investigation.traces}
+                        allWallets={allWallets}
+                        onUpdateWallet={updateWallet}
+                        onDeleteWallet={(traceId, walletId) => {
+                          deleteWallet(traceId, walletId);
+                          setSelectedItem(null);
+                        }}
+                        onUpdateTransaction={updateTransaction}
+                        onDeleteTransaction={(traceId, txId) => {
+                          deleteTransaction(traceId, txId);
+                          setSelectedItem(null);
+                        }}
+                        onUpdateTrace={updateTrace}
+                        onDeleteTrace={(traceId) => {
+                          deleteTrace(traceId);
+                          setSelectedItem(null);
+                        }}
+                        onFetchHistory={handleFetchHistory}
+                        fetchLoading={fetchLoading}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Staging floating panel */}
+                {stagedItems.length > 0 && (
+                  <div className="absolute bottom-0 left-0 right-0 z-20">
+                    <StagingPanel
+                      items={stagedItems}
+                      traces={investigation.traces}
+                      onAddToTrace={handleAddStagedToTrace}
+                      onClear={() => setStagedItems([])}
+                    />
+                  </div>
+                )}
             </div>
           </>
         ) : (
@@ -531,6 +700,14 @@ export default function AppShell() {
           </div>
         )}
       </div>
+
+      <AIChat
+        activeCaseId={activeCaseId}
+        activeInvestigationId={activeInvestigationId}
+        onGraphUpdated={() => {
+          if (activeInvestigationId) loadInvestigationFromApi(activeInvestigationId);
+        }}
+      />
 
       {contextMenu && (
         <ContextMenu

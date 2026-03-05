@@ -1,8 +1,9 @@
 import {
   RawTransaction,
   RawTokenTransfer,
-  TokenMetadata,
   FetchOptions,
+  RawTransactionDetail,
+  RawAddressInfo,
 } from './types';
 
 export interface BlockchainProvider {
@@ -14,5 +15,6 @@ export interface BlockchainProvider {
     address: string,
     options?: FetchOptions,
   ): Promise<RawTokenTransfer[]>;
-  getTokenMetadata(tokenAddress: string): Promise<TokenMetadata | null>;
+  getTransaction(txHash: string): Promise<RawTransactionDetail>;
+  getAddressInfo(address: string): Promise<RawAddressInfo>;
 }

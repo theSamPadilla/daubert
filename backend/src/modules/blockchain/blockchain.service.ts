@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { ProviderRegistry } from './provider-registry';
-import { PriceService } from './price.service';
 import { TokenResolver } from './token-resolver';
 import { CHAIN_CONFIGS, FetchOptions } from './types';
 import { randomUUID } from 'crypto';
@@ -30,14 +29,36 @@ export interface FetchHistoryResult {
   address: string;
 }
 
+export interface AddressInfoResult {
+  address: string;
+  addressType: 'wallet' | 'contract';
+  balance: string;
+  label?: string;
+}
+
+export interface TransactionDetailResult {
+  txHash: string;
+  from: string;
+  to: string;
+  chain: string;
+  amount: string;
+  timestamp: string;
+  blockNumber: number;
+  token: { address: string; symbol: string; decimals: number };
+  tokenTransfers: Array<{
+    from: string;
+    to: string;
+    amount: string;
+    token: { address: string; symbol: string; decimals: number };
+  }>;
+  isError: boolean;
+}
+
 @Injectable()
 export class BlockchainService {
   private tokenResolver = new TokenResolver();
-  private priceService: PriceService;
 
-  constructor(private providerRegistry: ProviderRegistry) {
-    this.priceService = new PriceService(providerRegistry.getCache());
-  }
+  constructor(private providerRegistry: ProviderRegistry) {}
 
   async fetchHistory(
     address: string,
@@ -126,5 +147,62 @@ export class BlockchainService {
     );
 
     return { transactions, chain, address };
+  }
+
+  async getTransaction(
+    txHash: string,
+    chain: string,
+  ): Promise<TransactionDetailResult> {
+    const provider = this.providerRegistry.get(chain);
+    const chainConfig = CHAIN_CONFIGS[chain];
+    const detail = await provider.getTransaction(txHash);
+
+    const tokenTransfers = detail.tokenTransfers.map((t) => {
+      const meta = this.tokenResolver.resolveFromTransfer(
+        chain,
+        t.contractAddress,
+        t.tokenSymbol,
+        Number(t.tokenDecimal),
+      );
+      return {
+        from: t.from,
+        to: t.to,
+        amount: t.value,
+        token: { address: meta.address, symbol: meta.symbol, decimals: meta.decimals },
+      };
+    });
+
+    return {
+      txHash: detail.hash,
+      from: detail.from,
+      to: detail.to,
+      chain,
+      amount: detail.value,
+      timestamp: detail.timeStamp !== '0'
+        ? new Date(Number(detail.timeStamp) * 1000).toISOString()
+        : new Date().toISOString(),
+      blockNumber: Number(detail.blockNumber),
+      token: {
+        address: chain === 'tron' ? '' : '0x',
+        symbol: chainConfig.nativeCurrency.symbol,
+        decimals: chainConfig.nativeCurrency.decimals,
+      },
+      tokenTransfers,
+      isError: detail.isError === '1',
+    };
+  }
+
+  async getAddressInfo(
+    address: string,
+    chain: string,
+  ): Promise<AddressInfoResult> {
+    const provider = this.providerRegistry.get(chain);
+    const raw = await provider.getAddressInfo(address);
+    return {
+      address: raw.address,
+      addressType: raw.addressType,
+      balance: raw.balance,
+      label: raw.label,
+    };
   }
 }

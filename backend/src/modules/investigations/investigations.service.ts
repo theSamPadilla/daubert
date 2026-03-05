@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
+import { ScriptRunEntity } from '../../database/entities/script-run.entity';
 import { CreateInvestigationDto } from './dto/create-investigation.dto';
 import { UpdateInvestigationDto } from './dto/update-investigation.dto';
 
@@ -13,6 +14,8 @@ export class InvestigationsService {
     private readonly repo: Repository<InvestigationEntity>,
     @InjectRepository(CaseEntity)
     private readonly caseRepo: Repository<CaseEntity>,
+    @InjectRepository(ScriptRunEntity)
+    private readonly scriptRunRepo: Repository<ScriptRunEntity>,
   ) {}
 
   async findAllForCase(caseId: string) {
@@ -55,5 +58,14 @@ export class InvestigationsService {
   async remove(id: string) {
     const inv = await this.findOne(id);
     await this.repo.remove(inv);
+  }
+
+  async listScriptRuns(investigationId: string) {
+    await this.findOne(investigationId);
+    return this.scriptRunRepo.find({
+      where: { investigationId },
+      order: { createdAt: 'DESC' },
+      take: 50,
+    });
   }
 }

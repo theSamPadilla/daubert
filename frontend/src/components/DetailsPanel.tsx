@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { WalletNode, TransactionEdge, Trace } from '../types/investigation';
+import { type ScriptRun } from '@/lib/api-client';
 import { WalletForm } from './WalletForm';
 import { TransactionForm } from './TransactionForm';
 import { TraceForm } from './TraceForm';
 import { FetchHistoryPanel } from './FetchHistoryPanel';
+import { formatTokenAmount } from '../utils/formatAmount';
 
 interface DetailsPanelProps {
   selectedItem: any | null;
@@ -19,6 +21,18 @@ interface DetailsPanelProps {
   fetchLoading: boolean;
 }
 
+const ADDRESS_TYPE_LABELS: Record<string, string> = {
+  wallet: 'Wallet',
+  contract: 'Contract',
+  unknown: 'Unknown',
+};
+
+const ADDRESS_TYPE_COLORS: Record<string, string> = {
+  wallet: 'bg-blue-500/20 text-blue-300',
+  contract: 'bg-purple-500/20 text-purple-300',
+  unknown: 'bg-gray-500/20 text-gray-400',
+};
+
 function WalletDetails({
   wallet,
   onEdit,
@@ -30,21 +44,44 @@ function WalletDetails({
   onFetchHistory: (address: string, chain: string) => void;
   fetchLoading: boolean;
 }) {
+  const hasAddress = !!wallet.address;
+  const addrType = wallet.addressType || 'unknown';
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-semibold text-gray-400 uppercase">Wallet</h4>
+        <div className="flex items-center gap-2">
+          <h4 className="text-xs font-semibold text-gray-400 uppercase">{hasAddress ? 'Address' : 'Node'}</h4>
+          {hasAddress && (
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${ADDRESS_TYPE_COLORS[addrType]}`}>
+              {ADDRESS_TYPE_LABELS[addrType]}
+            </span>
+          )}
+        </div>
         <button onClick={onEdit} className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
       </div>
       <p className="text-sm font-semibold">{wallet.label}</p>
-      <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Address</h4>
-        <p className="text-xs font-mono text-gray-300 break-all">{wallet.address}</p>
-      </div>
-      <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Chain</h4>
-        <p className="text-sm text-gray-300">{wallet.chain}</p>
-      </div>
+      {hasAddress && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Address</h4>
+          <p className="text-xs font-mono text-gray-300 break-all">{wallet.address}</p>
+          {wallet.explorerUrl && (
+            <a
+              href={wallet.explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block"
+            >
+              View on explorer ↗
+            </a>
+          )}
+        </div>
+      )}
+      {hasAddress && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Chain</h4>
+          <p className="text-sm text-gray-300">{wallet.chain}</p>
+        </div>
+      )}
       {wallet.tags.length > 0 && (
         <div>
           <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Tags</h4>
@@ -61,25 +98,44 @@ function WalletDetails({
           <p className="text-sm text-gray-300">{wallet.notes}</p>
         </div>
       )}
-      <div className="pt-2 border-t border-gray-700">
-        <FetchHistoryPanel
-          initialAddress={wallet.address}
-          initialChain={wallet.chain}
-          onFetch={onFetchHistory}
-          loading={fetchLoading}
-        />
-      </div>
+      {hasAddress && (
+        <div className="pt-2 border-t border-gray-700">
+          <FetchHistoryPanel
+            initialAddress={wallet.address}
+            initialChain={wallet.chain}
+            onFetch={onFetchHistory}
+            loading={fetchLoading}
+          />
+        </div>
+      )}
     </div>
   );
+}
+
+function resolveWalletDisplay(id: string, allWallets: { wallet: WalletNode; traceId: string }[]) {
+  const match = allWallets.find((w) => w.wallet.id === id);
+  if (match) {
+    const addr = match.wallet.address;
+    const truncated = addr.length > 12 ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : addr;
+    return { label: match.wallet.label, address: truncated };
+  }
+  // Fallback: treat as raw address
+  const truncated = id.length > 12 ? `${id.slice(0, 6)}...${id.slice(-4)}` : id;
+  return { label: truncated, address: '' };
 }
 
 function TransactionDetails({
   transaction,
   onEdit,
+  allWallets,
 }: {
   transaction: TransactionEdge;
   onEdit: () => void;
+  allWallets: { wallet: WalletNode; traceId: string }[];
 }) {
+  const fromDisplay = resolveWalletDisplay(transaction.from, allWallets);
+  const toDisplay = resolveWalletDisplay(transaction.to, allWallets);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -87,7 +143,7 @@ function TransactionDetails({
         <button onClick={onEdit} className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
       </div>
       <p className="text-sm font-semibold">
-        {transaction.amount} {transaction.token.symbol}
+        {formatTokenAmount(transaction.amount, transaction.token.decimals)} {transaction.token.symbol}
       </p>
       {transaction.usdValue && (
         <p className="text-xs text-gray-400">${transaction.usdValue.toLocaleString()}</p>
@@ -98,9 +154,11 @@ function TransactionDetails({
       </div>
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">From → To</h4>
-        <p className="text-xs font-mono text-gray-300">{transaction.from}</p>
+        <p className="text-xs text-gray-300">{fromDisplay.label}</p>
+        {fromDisplay.address && <p className="text-[10px] font-mono text-gray-500">{fromDisplay.address}</p>}
         <p className="text-xs text-gray-500 my-1">↓</p>
-        <p className="text-xs font-mono text-gray-300">{transaction.to}</p>
+        <p className="text-xs text-gray-300">{toDisplay.label}</p>
+        {toDisplay.address && <p className="text-[10px] font-mono text-gray-500">{toDisplay.address}</p>}
       </div>
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Timestamp</h4>
@@ -154,12 +212,88 @@ function TraceDetails({ trace, onEdit }: { trace: Trace; onEdit: () => void }) {
       )}
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Stats</h4>
-        <p className="text-sm text-gray-300">{trace.nodes.length} wallets</p>
+        <p className="text-sm text-gray-300">{trace.nodes.length} addresses</p>
         <p className="text-sm text-gray-300">{trace.edges.length} transactions</p>
       </div>
     </div>
   );
 }
+
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  success: { label: 'Success', cls: 'bg-emerald-500/20 text-emerald-300' },
+  error: { label: 'Error', cls: 'bg-red-500/20 text-red-300' },
+  timeout: { label: 'Timeout', cls: 'bg-amber-500/20 text-amber-300' },
+};
+
+function ScriptRunDetails({ scriptRun }: { scriptRun: ScriptRun }) {
+  const [showCode, setShowCode] = useState(true);
+  const badge = STATUS_BADGE[scriptRun.status] || STATUS_BADGE.error;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h4 className="text-xs font-semibold text-gray-400 uppercase">Script</h4>
+        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${badge.cls}`}>
+          {badge.label}
+        </span>
+        <span className="text-[10px] text-gray-500 ml-auto">
+          {scriptRun.durationMs}ms
+        </span>
+      </div>
+
+      <p className="text-sm font-semibold">{scriptRun.name}</p>
+
+      <div className="text-[10px] text-gray-500">
+        {new Date(scriptRun.createdAt).toLocaleString()}
+      </div>
+
+      {/* Tab toggle */}
+      <div className="flex gap-1 border-b border-gray-700">
+        <button
+          onClick={() => setShowCode(true)}
+          className={`px-2 py-1 text-xs transition-colors ${
+            showCode
+              ? 'text-blue-400 border-b border-blue-400 -mb-px'
+              : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          Code
+        </button>
+        <button
+          onClick={() => setShowCode(false)}
+          className={`px-2 py-1 text-xs transition-colors ${
+            !showCode
+              ? 'text-blue-400 border-b border-blue-400 -mb-px'
+              : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          Output
+        </button>
+      </div>
+
+      {showCode ? (
+        <pre className="text-[11px] font-mono text-gray-300 bg-gray-900 rounded p-2 overflow-x-auto max-h-60 overflow-y-auto whitespace-pre-wrap break-all [scrollbar-width:thin]">
+          {scriptRun.code}
+        </pre>
+      ) : (
+        <pre className={`text-[11px] font-mono rounded p-2 overflow-x-auto max-h-60 overflow-y-auto whitespace-pre-wrap break-all [scrollbar-width:thin] ${
+          scriptRun.status === 'error' || scriptRun.status === 'timeout'
+            ? 'text-red-300 bg-red-950/30'
+            : 'text-gray-300 bg-gray-900'
+        }`}>
+          {scriptRun.output || '(no output)'}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+const TYPE_DISPLAY: Record<string, string> = {
+  wallet: 'Address',
+  transaction: 'Transaction',
+  trace: 'Trace',
+  scriptRun: 'Script',
+};
 
 export function DetailsPanel({
   selectedItem,
@@ -187,7 +321,7 @@ export function DetailsPanel({
   if (!selectedItem) {
     return (
       <div className="p-4 text-gray-400 text-sm">
-        Select a wallet, transaction, or trace to view details
+        Select an address, transaction, or trace to view details
       </div>
     );
   }
@@ -196,7 +330,7 @@ export function DetailsPanel({
     const wallet = selectedItem.data as WalletNode;
     return (
       <div className="p-4">
-        <h3 className="text-sm font-semibold text-gray-300 uppercase mb-4">Edit Wallet</h3>
+        <h3 className="text-sm font-semibold text-gray-300 uppercase mb-4">Edit Address</h3>
         <WalletForm
           wallet={wallet}
           traces={traces}
@@ -264,7 +398,7 @@ export function DetailsPanel({
   return (
     <div className="p-4">
       <h3 className="text-sm font-semibold text-gray-300 uppercase mb-4">
-        {selectedItem.type} Details
+        {TYPE_DISPLAY[selectedItem.type] || selectedItem.type} Details
       </h3>
 
       {selectedItem.type === 'wallet' && (
@@ -279,10 +413,14 @@ export function DetailsPanel({
         <TransactionDetails
           transaction={selectedItem.data}
           onEdit={() => setEditing(true)}
+          allWallets={allWallets}
         />
       )}
       {selectedItem.type === 'trace' && (
         <TraceDetails trace={selectedItem.data} onEdit={() => setEditing(true)} />
+      )}
+      {selectedItem.type === 'scriptRun' && (
+        <ScriptRunDetails scriptRun={selectedItem.data} />
       )}
     </div>
   );

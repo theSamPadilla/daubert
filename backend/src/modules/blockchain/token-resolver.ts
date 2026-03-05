@@ -1,5 +1,4 @@
 import { TokenMetadata } from './types';
-import { BlockchainProvider } from './blockchain-provider';
 
 const WELL_KNOWN: Record<string, Record<string, TokenMetadata>> = {
   ethereum: {
@@ -53,24 +52,6 @@ export class TokenResolver {
     }
 
     return null;
-  }
-
-  async resolveAsync(
-    chain: string,
-    tokenAddress: string,
-    provider: BlockchainProvider,
-  ): Promise<TokenMetadata | null> {
-    const immediate = this.resolve(chain, tokenAddress);
-    if (immediate) return immediate;
-
-    const result = await provider.getTokenMetadata(tokenAddress);
-    if (result) {
-      this.memoryCache.set(
-        `${chain}:${tokenAddress.toLowerCase()}`,
-        result,
-      );
-    }
-    return result;
   }
 
   resolveFromTransfer(

@@ -30,10 +30,13 @@ export interface WalletNode {
   address: string;
   chain: string;
   color?: string;
+  size?: number;
   notes: string;
   tags: string[];
   position: { x: number; y: number };
   parentTrace: string;
+  addressType?: 'wallet' | 'contract' | 'unknown';
+  explorerUrl?: string;
 }
 
 export interface TransactionEdge {

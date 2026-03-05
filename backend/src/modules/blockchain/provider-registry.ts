@@ -50,8 +50,4 @@ export class ProviderRegistry {
   getCache(): ResponseCache {
     return this.cache;
   }
-
-  getAvailableChains(): string[] {
-    return Object.keys(CHAIN_CONFIGS);
-  }
 }

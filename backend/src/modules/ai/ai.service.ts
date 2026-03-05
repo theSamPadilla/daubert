@@ -1,17 +1,26 @@
-// backend/src/modules/ai/ai.service.ts
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
+import * as fs from 'fs';
+import * as path from 'path';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
+import { INVESTIGATOR_PROMPT } from '../../prompts/investigator';
 import { ConversationsService } from './conversations.service';
-import { SYSTEM_PROMPT } from './prompts';
-import { AGENT_TOOLS, GET_CASE_DATA_TOOL } from './tools';
+import { ScriptExecutionService } from './services/script-execution.service';
+import { AnthropicProvider } from './providers/anthropic.provider';
+import {
+  AGENT_TOOLS,
+  GET_CASE_DATA_TOOL,
+  GET_SKILL_TOOL,
+  EXECUTE_SCRIPT_TOOL,
+  LIST_SCRIPT_RUNS_TOOL,
+  SKILL_NAMES,
+} from './tools';
 
 export interface SseEvent {
-  type: 'text_delta' | 'tool_start' | 'tool_done' | 'done' | 'error';
+  type: 'text_delta' | 'tool_start' | 'tool_done' | 'graph_updated' | 'done' | 'error';
   data: unknown;
 }
 
@@ -19,26 +28,23 @@ const MAX_ITERATIONS = 10;
 
 @Injectable()
 export class AiService {
-  private client: Anthropic;
-
   constructor(
-    private readonly configService: ConfigService,
+    private readonly llm: AnthropicProvider,
     private readonly conversationsService: ConversationsService,
+    private readonly scriptExecutionService: ScriptExecutionService,
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
     @InjectRepository(InvestigationEntity)
     private readonly investigationRepo: Repository<InvestigationEntity>,
-  ) {
-    const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
-    this.client = new Anthropic({ apiKey });
-  }
+  ) {}
 
   async *streamChat(
     conversationId: string,
     userMessage: string,
+    caseId?: string,
+    investigationId?: string,
   ): AsyncGenerator<SseEvent> {
-    const conversation =
-      await this.conversationsService.findOne(conversationId);
+    await this.conversationsService.findOne(conversationId);
 
     // Load history and reconstruct MessageParam[] verbatim.
     // Compaction blocks stored in assistant content are preserved automatically.
@@ -65,31 +71,24 @@ export class AiService {
     let firstAssistantText = '';
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const stream = this.client.beta.messages.stream({
-        betas: ['compact-2026-01-12'],
-        model: 'claude-opus-4-6',
-        max_tokens: 4096,
-        thinking: { type: 'adaptive' },
-        system: SYSTEM_PROMPT,
+      // Stream from LLM provider
+      let response: Anthropic.Beta.BetaMessage | undefined;
+
+      for await (const event of this.llm.streamChat({
+        system: INVESTIGATOR_PROMPT,
         messages,
         tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
-      } as Parameters<typeof this.client.beta.messages.stream>[0]);
-
-      // Stream text tokens to client
-      stream.on('text', (delta) => {
-        if (isFirstTurn) firstAssistantText += delta;
-      });
-
-      for await (const event of stream) {
-        if (
-          event.type === 'content_block_delta' &&
-          event.delta.type === 'text_delta'
-        ) {
-          yield { type: 'text_delta', data: { content: event.delta.text } };
+      })) {
+        if (event.type === 'text') {
+          if (isFirstTurn) firstAssistantText += event.content;
+          yield { type: 'text_delta', data: { content: event.content } };
+        } else if (event.type === 'end_turn') {
+          response = event.response;
         }
       }
 
-      const response = await stream.finalMessage();
+      if (!response) break;
+
       const responseContent =
         response.content as unknown as Anthropic.Beta.BetaContentBlock[];
 
@@ -129,25 +128,24 @@ export class AiService {
       }
       prevToolKey = toolKey;
 
-      // Execute user-defined tools
+      // Execute tools
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
       for (const toolUse of toolUseBlocks) {
-        if (toolUse.name === GET_CASE_DATA_TOOL.name) {
-          yield { type: 'tool_start', data: { name: toolUse.name, input: toolUse.input } };
+        yield { type: 'tool_start', data: { name: toolUse.name, input: toolUse.input } };
 
-          const result = await this.executeCaseDataTool(
-            conversation.caseId,
-            toolUse.input as { investigationId?: string },
-          );
+        const result = await this.executeTool(toolUse, caseId, investigationId);
 
-          yield { type: 'tool_done', data: { name: toolUse.name } };
+        yield { type: 'tool_done', data: { name: toolUse.name } };
 
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolUse.id,
-            content: JSON.stringify(result),
-          });
+        if (toolUse.name === EXECUTE_SCRIPT_TOOL.name) {
+          yield { type: 'graph_updated', data: {} };
         }
+
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          content: JSON.stringify(result),
+        });
       }
 
       // Atomic save: assistant message + tool results together.
@@ -183,6 +181,62 @@ export class AiService {
     yield { type: 'done', data: { conversationId } };
   }
 
+  // ---- Tool dispatch ----
+
+  private async executeTool(
+    toolUse: Anthropic.ToolUseBlock,
+    caseId?: string,
+    investigationId?: string,
+  ): Promise<unknown> {
+    switch (toolUse.name) {
+      case GET_CASE_DATA_TOOL.name: {
+        if (!caseId) {
+          return { error: 'No case context. Ask the user to select an investigation.' };
+        }
+        const toolInput = toolUse.input as { investigationId?: string };
+        return this.executeCaseDataTool(
+          caseId,
+          investigationId ? { investigationId } : toolInput,
+        );
+      }
+
+      case GET_SKILL_TOOL.name: {
+        const { name } = toolUse.input as { name: string };
+        return this.loadSkill(name);
+      }
+
+      case EXECUTE_SCRIPT_TOOL.name: {
+        if (!investigationId) {
+          return { error: 'No investigation context. Ask the user to select an investigation.' };
+        }
+        const { name, code } = toolUse.input as { name: string; code: string };
+        return this.scriptExecutionService.execute(investigationId, name, code);
+      }
+
+      case LIST_SCRIPT_RUNS_TOOL.name: {
+        if (!investigationId) {
+          return { error: 'No investigation context. Ask the user to select an investigation.' };
+        }
+        const runs = await this.scriptExecutionService.listRuns(investigationId);
+        return runs.map((r) => ({
+          id: r.id,
+          name: r.name,
+          status: r.status,
+          durationMs: r.durationMs,
+          createdAt: r.createdAt,
+          output: r.output && r.output.length > 2000
+            ? r.output.slice(0, 2000) + '\n...[truncated]'
+            : r.output,
+        }));
+      }
+
+      default:
+        return { error: `Unknown tool: ${toolUse.name}` };
+    }
+  }
+
+  // ---- Tool implementations ----
+
   private async executeCaseDataTool(
     caseId: string,
     input: { investigationId?: string },
@@ -208,34 +262,39 @@ export class AiService {
     }));
   }
 
-  private generateTitle(
+  private loadSkill(name: string): { content: string } | { error: string } {
+    if (!(SKILL_NAMES as readonly string[]).includes(name)) {
+      return { error: `Unknown skill: ${name}. Available: ${SKILL_NAMES.join(', ')}` };
+    }
+    const skillPath = path.join(__dirname, '..', '..', 'skills', `${name}.md`);
+    try {
+      const content = fs.readFileSync(skillPath, 'utf-8');
+      return { content };
+    } catch {
+      return { error: `Failed to load skill file: ${name}` };
+    }
+  }
+
+  private async generateTitle(
     conversationId: string,
     userMessage: string,
     assistantResponse: string,
   ): Promise<void> {
-    const run = async () => {
-      try {
-        const response = await this.client.messages.create({
-          model: 'claude-haiku-4-5',
-          max_tokens: 20,
-          messages: [
-            {
-              role: 'user',
-              content: `Summarize this conversation exchange in 5 words or fewer. Return only the title, no punctuation.\n\nUser: ${userMessage}\n\nAssistant: ${assistantResponse.slice(0, 500)}`,
-            },
-          ],
-        });
-        const title =
-          response.content[0].type === 'text'
-            ? response.content[0].text.trim()
-            : null;
-        if (title) {
-          await this.conversationsService.updateTitle(conversationId, title);
-        }
-      } catch {
-        // Best-effort — title generation failure is non-fatal
+    try {
+      const title = await this.llm.generateText({
+        maxTokens: 20,
+        messages: [
+          {
+            role: 'user',
+            content: `Summarize this conversation exchange in 5 words or fewer. Return only the title, no punctuation.\n\nUser: ${userMessage}\n\nAssistant: ${assistantResponse.slice(0, 500)}`,
+          },
+        ],
+      });
+      if (title) {
+        await this.conversationsService.updateTitle(conversationId, title);
       }
-    };
-    return run();
+    } catch {
+      // Best-effort — title generation failure is non-fatal
+    }
   }
 }

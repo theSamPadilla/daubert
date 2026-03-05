@@ -2,6 +2,7 @@ import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { CaseEntity } from './case.entity';
 import { TraceEntity } from './trace.entity';
+import { ScriptRunEntity } from './script-run.entity';
 
 @Entity('investigations')
 export class InvestigationEntity extends BaseEntity {
@@ -20,4 +21,7 @@ export class InvestigationEntity extends BaseEntity {
 
   @OneToMany(() => TraceEntity, (t) => t.investigation, { cascade: true })
   traces: TraceEntity[];
+
+  @OneToMany(() => ScriptRunEntity, (s) => s.investigation)
+  scriptRuns: ScriptRunEntity[];
 }

@@ -41,6 +41,28 @@ export interface RawTokenTransfer {
   nonce: string;
 }
 
+export interface RawTransactionDetail {
+  hash: string;
+  from: string;
+  to: string;
+  value: string;
+  timeStamp: string;
+  blockNumber: string;
+  gas: string;
+  gasUsed: string;
+  gasPrice: string;
+  isError: string;
+  contractAddress: string;
+  tokenTransfers: RawTokenTransfer[];
+}
+
+export interface RawAddressInfo {
+  address: string;
+  addressType: 'wallet' | 'contract';
+  balance: string;
+  label?: string;
+}
+
 export interface TokenMetadata {
   address: string;
   symbol: string;

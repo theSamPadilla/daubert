@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { apiClient, type User, type Case, type Investigation } from '@/lib/api-client';
+import { apiClient, type User, type Case, type Investigation, type ScriptRun } from '@/lib/api-client';
+import type { Trace } from '@/types/investigation';
+import { ScriptsPanel } from './ScriptsPanel';
 
 interface CaseWithInvestigations extends Case {
   investigations?: Investigation[];
@@ -11,9 +13,30 @@ interface CaseWithInvestigations extends Case {
 interface SidebarProps {
   activeInvestigationId: string | null;
   onSelectInvestigation: (inv: Investigation) => void;
+  traces?: Trace[];
+  selectedTraceId?: string;
+  onAddTrace?: () => void;
+  onSelectTrace?: (trace: Trace) => void;
+  onToggleVisibility?: (traceId: string) => void;
+  onToggleCollapsed?: (traceId: string) => void;
+  scriptRuns?: ScriptRun[];
+  selectedScriptRunId?: string;
+  onSelectScriptRun?: (run: ScriptRun) => void;
 }
 
-export function Sidebar({ activeInvestigationId, onSelectInvestigation }: SidebarProps) {
+export function Sidebar({
+  activeInvestigationId,
+  onSelectInvestigation,
+  traces,
+  selectedTraceId,
+  onAddTrace,
+  onSelectTrace,
+  onToggleVisibility,
+  onToggleCollapsed,
+  scriptRuns,
+  selectedScriptRunId,
+  onSelectScriptRun,
+}: SidebarProps) {
   const [user, setUser] = useState<User | null>(null);
   const [cases, setCases] = useState<CaseWithInvestigations[]>([]);
   const [newCaseName, setNewCaseName] = useState('');
@@ -219,6 +242,66 @@ export function Sidebar({ activeInvestigationId, onSelectInvestigation }: Sideba
           <p className="text-gray-500 text-xs p-3">No cases yet.</p>
         )}
       </div>
+
+      {/* Traces section — shown when an investigation is active */}
+      {activeInvestigationId && traces && (
+        <div className="border-t border-gray-700 flex flex-col">
+          <div className="flex items-center justify-between px-3 py-2">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase">Traces</h3>
+            {onAddTrace && (
+              <button
+                onClick={onAddTrace}
+                className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded text-sm"
+                title="Add Trace"
+              >
+                +
+              </button>
+            )}
+          </div>
+          <div className="overflow-y-auto max-h-48">
+            {traces.map((trace) => (
+              <div
+                key={trace.id}
+                onClick={() => onSelectTrace?.(trace)}
+                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-700 text-sm ${
+                  selectedTraceId === trace.id ? 'bg-gray-700' : ''
+                }`}
+              >
+                <span
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: trace.color || '#3b82f6' }}
+                />
+                <span className="flex-1 truncate text-xs">{trace.name}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleVisibility?.(trace.id); }}
+                  className={`text-xs px-0.5 ${trace.visible ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-400'}`}
+                  title={trace.visible ? 'Hide' : 'Show'}
+                >
+                  {trace.visible ? 'V' : 'H'}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleCollapsed?.(trace.id); }}
+                  className="text-xs text-gray-400 hover:text-white px-0.5"
+                  title={trace.collapsed ? 'Expand' : 'Collapse'}
+                >
+                  {trace.collapsed ? '›' : '⌄'}
+                </button>
+              </div>
+            ))}
+            {traces.length === 0 && (
+              <p className="text-gray-500 text-xs px-3 pb-2">No traces yet.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeInvestigationId && scriptRuns && onSelectScriptRun && (
+        <ScriptsPanel
+          scriptRuns={scriptRuns}
+          selectedScriptRunId={selectedScriptRunId}
+          onSelectScriptRun={onSelectScriptRun}
+        />
+      )}
     </div>
   );
 }

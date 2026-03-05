@@ -12,29 +12,29 @@ import { ConversationsService } from './conversations.service';
 import { AiService } from './ai.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
 
-@Controller()
+@Controller('conversations')
 export class ConversationsController {
   constructor(
     private readonly conversationsService: ConversationsService,
     private readonly aiService: AiService,
   ) {}
 
-  @Post('cases/:caseId/conversations')
-  create(@Param('caseId') caseId: string) {
-    return this.conversationsService.create(caseId);
+  @Post()
+  create() {
+    return this.conversationsService.create();
   }
 
-  @Get('cases/:caseId/conversations')
-  findAllForCase(@Param('caseId') caseId: string) {
-    return this.conversationsService.findAllForCase(caseId);
+  @Get()
+  findAll() {
+    return this.conversationsService.findAll();
   }
 
-  @Get('conversations/:id/messages')
+  @Get(':id/messages')
   getMessages(@Param('id') id: string) {
     return this.conversationsService.getMessages(id);
   }
 
-  @Post('conversations/:id/chat')
+  @Post(':id/chat')
   async chat(
     @Param('id') id: string,
     @Body() body: ChatMessageDto,
@@ -47,7 +47,7 @@ export class ConversationsController {
     res.flushHeaders();
 
     try {
-      for await (const event of this.aiService.streamChat(id, body.message)) {
+      for await (const event of this.aiService.streamChat(id, body.message, body.caseId, body.investigationId)) {
         res.write(
           `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`,
         );

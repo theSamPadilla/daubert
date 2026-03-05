@@ -2,7 +2,8 @@ import { BlockchainProvider } from './blockchain-provider';
 import {
   RawTransaction,
   RawTokenTransfer,
-  TokenMetadata,
+  RawTransactionDetail,
+  RawAddressInfo,
   FetchOptions,
 } from './types';
 import { RateLimiter } from './rate-limiter';
@@ -175,9 +176,95 @@ export class TronscanProvider implements BlockchainProvider {
       }));
   }
 
-  async getTokenMetadata(
-    _tokenAddress: string,
-  ): Promise<TokenMetadata | null> {
-    return null;
+  async getTransaction(txHash: string): Promise<RawTransactionDetail> {
+    interface TronscanTxInfo {
+      hash: string;
+      ownerAddress: string;
+      toAddress: string;
+      timestamp: number;
+      block: number;
+      confirmed: boolean;
+      contractRet: string;
+      contractData?: {
+        amount?: number;
+        owner_address?: string;
+        to_address?: string;
+      };
+      cost?: {
+        energy_usage_total?: number;
+        net_usage?: number;
+      };
+      trc20TransferInfo?: Array<{
+        icon_url?: string;
+        symbol: string;
+        name: string;
+        decimals: number;
+        contract_address: string;
+        from_address: string;
+        to_address: string;
+        amount_str: string;
+      }>;
+      trigger_info?: {
+        method?: string;
+        parameter?: Record<string, string>;
+      };
+    }
+
+    const data = await this.fetchApi<TronscanTxInfo>('transaction-info', {
+      hash: txHash,
+    });
+
+    if (!data?.hash) throw new Error(`Transaction not found: ${txHash}`);
+
+    const tokenTransfers: import('./types').RawTokenTransfer[] =
+      (data.trc20TransferInfo || []).map((t) => ({
+        hash: data.hash,
+        from: t.from_address,
+        to: t.to_address,
+        value: t.amount_str,
+        tokenName: t.name,
+        tokenSymbol: t.symbol,
+        tokenDecimal: String(t.decimals),
+        contractAddress: t.contract_address,
+        timeStamp: String(Math.floor(data.timestamp / 1000)),
+        blockNumber: String(data.block),
+        gas: '0',
+        gasPrice: '0',
+        gasUsed: '0',
+        nonce: '0',
+      }));
+
+    return {
+      hash: data.hash,
+      from: data.ownerAddress,
+      to: data.toAddress || data.contractData?.to_address || '',
+      value: String(data.contractData?.amount ?? 0),
+      timeStamp: String(Math.floor(data.timestamp / 1000)),
+      blockNumber: String(data.block),
+      gas: '0',
+      gasUsed: String(data.cost?.energy_usage_total ?? 0),
+      gasPrice: '0',
+      isError: data.contractRet === 'REVERT' ? '1' : '0',
+      contractAddress: '',
+      tokenTransfers,
+    };
+  }
+
+  async getAddressInfo(address: string): Promise<RawAddressInfo> {
+    interface TronscanAccount {
+      address: string;
+      balance: number;
+      accountType?: number; // 0 = normal, 1 = contract
+    }
+
+    const data = await this.fetchApi<TronscanAccount>('accountv2', {
+      address,
+    });
+
+    return {
+      address,
+      addressType: data.accountType === 1 ? 'contract' : 'wallet',
+      balance: String(data.balance ?? 0),
+    };
   }
 }

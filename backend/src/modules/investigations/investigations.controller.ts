@@ -34,4 +34,9 @@ export class InvestigationsController {
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }
+
+  @Get('investigations/:id/script-runs')
+  listScriptRuns(@Param('id') id: string) {
+    return this.service.listScriptRuns(id);
+  }
 }

@@ -3,7 +3,8 @@ import {
   ChainConfig,
   RawTransaction,
   RawTokenTransfer,
-  TokenMetadata,
+  RawTransactionDetail,
+  RawAddressInfo,
   FetchOptions,
   ETHERSCAN_V2_BASE,
 } from './types';
@@ -96,9 +97,90 @@ export class EtherscanProvider implements BlockchainProvider {
     });
   }
 
-  async getTokenMetadata(
-    _tokenAddress: string,
-  ): Promise<TokenMetadata | null> {
-    return null;
+  async getTransaction(txHash: string): Promise<RawTransactionDetail> {
+    // Fetch tx details and receipt in parallel
+    const [txResult, receiptResult] = await Promise.all([
+      this.fetchApi<any>('proxy', 'eth_getTransactionByHash', { txhash: txHash }),
+      this.fetchApi<any>('proxy', 'eth_getTransactionReceipt', { txhash: txHash }),
+    ]);
+
+    if (!txResult) throw new Error(`Transaction not found: ${txHash}`);
+
+    const blockNumber = txResult.blockNumber
+      ? parseInt(txResult.blockNumber, 16)
+      : 0;
+
+    // Get block for timestamp
+    let timestamp = '0';
+    try {
+      const block = await this.fetchApi<any>('proxy', 'eth_getBlockByNumber', {
+        tag: txResult.blockNumber,
+        boolean: 'false',
+      });
+      if (block?.timestamp) {
+        timestamp = String(parseInt(block.timestamp, 16));
+      }
+    } catch {
+      // Timestamp unavailable
+    }
+
+    // Look up token transfers for this tx hash
+    let tokenTransfers: RawTokenTransfer[] = [];
+    try {
+      const allTokenTxs = await this.fetchApi<RawTokenTransfer[]>(
+        'account',
+        'tokentx',
+        {
+          address: txResult.from,
+          startblock: String(blockNumber),
+          endblock: String(blockNumber),
+          page: '1',
+          offset: '100',
+          sort: 'asc',
+        },
+      );
+      tokenTransfers = allTokenTxs.filter(
+        (t) => t.hash.toLowerCase() === txHash.toLowerCase(),
+      );
+    } catch {
+      // Token transfers unavailable
+    }
+
+    return {
+      hash: txResult.hash,
+      from: txResult.from,
+      to: txResult.to || '',
+      value: txResult.value
+        ? BigInt(txResult.value).toString()
+        : '0',
+      timeStamp: timestamp,
+      blockNumber: String(blockNumber),
+      gas: txResult.gas ? BigInt(txResult.gas).toString() : '0',
+      gasUsed: receiptResult?.gasUsed
+        ? BigInt(receiptResult.gasUsed).toString()
+        : '0',
+      gasPrice: txResult.gasPrice
+        ? BigInt(txResult.gasPrice).toString()
+        : '0',
+      isError: receiptResult?.status === '0x0' ? '1' : '0',
+      contractAddress: receiptResult?.contractAddress || '',
+      tokenTransfers,
+    };
+  }
+
+  async getAddressInfo(address: string): Promise<RawAddressInfo> {
+    const [code, balanceHex] = await Promise.all([
+      this.fetchApi<string>('proxy', 'eth_getCode', { address, tag: 'latest' }),
+      this.fetchApi<string>('proxy', 'eth_getBalance', { address, tag: 'latest' }),
+    ]);
+
+    const isContract = !!code && code !== '0x' && code !== '0x0';
+    const balance = balanceHex ? BigInt(balanceHex).toString() : '0';
+
+    return {
+      address,
+      addressType: isContract ? 'contract' : 'wallet',
+      balance,
+    };
   }
 }

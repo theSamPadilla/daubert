@@ -1,0 +1,25 @@
+export {
+  SKILL_NAMES,
+  type SkillName,
+  WEB_SEARCH_TOOL,
+  GET_CASE_DATA_TOOL,
+  GET_SKILL_TOOL,
+  EXECUTE_SCRIPT_TOOL,
+  LIST_SCRIPT_RUNS_TOOL,
+} from './tool-definitions';
+
+import {
+  WEB_SEARCH_TOOL,
+  GET_CASE_DATA_TOOL,
+  GET_SKILL_TOOL,
+  EXECUTE_SCRIPT_TOOL,
+  LIST_SCRIPT_RUNS_TOOL,
+} from './tool-definitions';
+
+export const AGENT_TOOLS = [
+  WEB_SEARCH_TOOL,
+  GET_CASE_DATA_TOOL,
+  GET_SKILL_TOOL,
+  EXECUTE_SCRIPT_TOOL,
+  LIST_SCRIPT_RUNS_TOOL,
+];

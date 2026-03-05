@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CHAIN_CONFIGS } from '../services/types';
+import { SUPPORTED_CHAINS } from '../services/types';
 
 interface FetchHistoryPanelProps {
   initialAddress?: string;
@@ -36,7 +36,7 @@ export function FetchHistoryPanel({ initialAddress, initialChain, onFetch, loadi
           onChange={(e) => setChain(e.target.value)}
           className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
         >
-          {Object.values(CHAIN_CONFIGS).map((c) => (
+          {Object.values(SUPPORTED_CHAINS).map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>

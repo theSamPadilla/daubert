@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Param, Body } from '@nestjs/commo
 import { TracesService } from './traces.service';
 import { CreateTraceDto } from './dto/create-trace.dto';
 import { UpdateTraceDto } from './dto/update-trace.dto';
+import { ImportTransactionsDto } from './dto/import-transactions.dto';
 
 @Controller()
 export class TracesController {
@@ -33,5 +34,13 @@ export class TracesController {
   @Delete('traces/:id')
   remove(@Param('id') id: string) {
     return this.service.remove(id);
+  }
+
+  @Post('traces/:id/import-transactions')
+  importTransactions(
+    @Param('id') id: string,
+    @Body() dto: ImportTransactionsDto,
+  ) {
+    return this.service.importTransactions(id, dto);
   }
 }

@@ -169,6 +169,8 @@ export const apiClient = {
     request<Conversation>('/conversations', { method: 'POST' }),
   getConversationMessages: (conversationId: string) =>
     request<ChatMessage[]>(`/conversations/${conversationId}/messages`),
+  deleteConversation: (conversationId: string) =>
+    request<void>(`/conversations/${conversationId}`, { method: 'DELETE' }),
 
   // Script Runs
   listScriptRuns: (investigationId: string) =>

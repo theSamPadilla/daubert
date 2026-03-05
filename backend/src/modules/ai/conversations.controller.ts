@@ -3,9 +3,11 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Param,
   Body,
   Res,
+  HttpCode,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ConversationsService } from './conversations.service';
@@ -32,6 +34,12 @@ export class ConversationsController {
   @Get(':id/messages')
   getMessages(@Param('id') id: string) {
     return this.conversationsService.getMessages(id);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  delete(@Param('id') id: string) {
+    return this.conversationsService.delete(id);
   }
 
   @Post(':id/chat')

@@ -14,11 +14,9 @@ interface ToolStatus {
 
 interface LocalMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'status';
   text: string;
   isStreaming?: boolean;
-  activeTool?: ToolStatus;
-  completedTools?: string[];
 }
 
 function extractText(content: ChatMessage['content']): string {
@@ -62,14 +60,14 @@ function formatToolStatus(tool: ToolStatus): string {
   }
 }
 
-function ToolIndicator({ tool }: { tool: ToolStatus }) {
+function StatusMessage({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-1.5">
+    <div className="flex items-center gap-2 text-[11px] text-gray-500 py-1 px-1">
       <span
         className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block shrink-0"
         style={{ animation: 'toolPulse 1.5s ease-in-out infinite' }}
       />
-      <span>{formatToolStatus(tool)}</span>
+      <span>{text}</span>
       <style>{`
         @keyframes toolPulse {
           0%, 100% { opacity: 0.3; }
@@ -80,28 +78,43 @@ function ToolIndicator({ tool }: { tool: ToolStatus }) {
   );
 }
 
-function CompletedTools({ tools }: { tools: string[] }) {
-  if (tools.length === 0) return null;
-  const uniqueTools = [...new Set(tools)];
-  const labels: Record<string, string> = {
-    web_search: 'searched web',
-    get_case_data: 'read case data',
-    get_skill: 'loaded skill',
-    execute_script: 'ran script',
-    list_script_runs: 'checked scripts',
-  };
-  return (
-    <div className="flex flex-wrap gap-1 mt-1.5">
-      {uniqueTools.map((name, i) => (
-        <span
-          key={i}
-          className="text-[10px] text-gray-600"
-        >
-          {labels[name] || name.replace(/_/g, ' ')}{i < uniqueTools.length - 1 ? ' · ' : ''}
-        </span>
-      ))}
-    </div>
-  );
+function getExplorerLink(text: string): { url: string; kind: 'address' | 'tx' } | null {
+  const s = text.trim();
+  // EVM tx hash: 0x + 64 hex
+  if (/^0x[0-9a-fA-F]{64}$/.test(s)) {
+    return { url: `https://etherscan.io/tx/${s}`, kind: 'tx' };
+  }
+  // EVM address: 0x + 40 hex
+  if (/^0x[0-9a-fA-F]{40}$/.test(s)) {
+    return { url: `https://etherscan.io/address/${s}`, kind: 'address' };
+  }
+  // TRON address: T + 33 base58
+  if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(s)) {
+    return { url: `https://tronscan.org/#/address/${s}`, kind: 'address' };
+  }
+  // TRON tx hash: 64 hex (no 0x)
+  if (/^[0-9a-fA-F]{64}$/.test(s)) {
+    return { url: `https://tronscan.org/#/transaction/${s}`, kind: 'tx' };
+  }
+  return null;
+}
+
+function InlineCode({ children, ...props }: React.HTMLAttributes<HTMLElement>) {
+  const text = typeof children === 'string' ? children : String(children ?? '');
+  const link = getExplorerLink(text);
+  if (link) {
+    return (
+      <a
+        href={link.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300/60 transition-colors"
+      >
+        {text}
+      </a>
+    );
+  }
+  return <code {...props}>{children}</code>;
 }
 
 function ThinkingDots() {
@@ -200,6 +213,19 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
     setShowHistory(false);
   };
 
+  const handleDeleteConversation = async (convId: string) => {
+    try {
+      await apiClient.deleteConversation(convId);
+      setConversations((prev) => prev.filter((c) => c.id !== convId));
+      if (activeConvId === convId) {
+        setActiveConvId(null);
+        setMessages([]);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || streaming) return;
     // Auto-create conversation if none exists
@@ -245,8 +271,26 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
       let buf = '';
       let eventType = '';
 
-      const updateAssistant = (updater: (m: LocalMessage) => LocalMessage) =>
-        setMessages((prev) => prev.map((m) => (m.id === assistantId ? updater(m) : m)));
+      let curMsgId = assistantId;
+      let statusId: string | null = null;
+
+      const updateMsg = (id: string, updater: (m: LocalMessage) => LocalMessage) =>
+        setMessages((prev) => prev.map((m) => (m.id === id ? updater(m) : m)));
+
+      const removeStatus = () => {
+        if (statusId) {
+          const rid = statusId;
+          statusId = null;
+          setMessages((prev) => prev.filter((m) => m.id !== rid));
+        }
+      };
+
+      const showStatus = (text: string) => {
+        removeStatus();
+        const id = crypto.randomUUID();
+        statusId = id;
+        setMessages((prev) => [...prev, { id, role: 'status', text, isStreaming: true }]);
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -261,28 +305,55 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
           } else if (line.startsWith('data: ')) {
             const data = JSON.parse(line.slice(6));
             if (eventType === 'text_delta') {
-              updateAssistant((m) => ({ ...m, text: m.text + (data.content ?? '') }));
+              const content = data.content ?? '';
+              removeStatus();
+              // If current message was finalized, start a new bubble
+              if (curMsgId !== assistantId) {
+                // Check if current bubble already exists and is not streaming
+                setMessages((prev) => {
+                  const cur = prev.find((m) => m.id === curMsgId);
+                  if (cur && !cur.isStreaming) {
+                    const newId = crypto.randomUUID();
+                    curMsgId = newId;
+                    return [...prev, { id: newId, role: 'assistant', text: content, isStreaming: true }];
+                  }
+                  return prev.map((m) => m.id === curMsgId ? { ...m, text: m.text + content } : m);
+                });
+              } else {
+                updateMsg(curMsgId, (m) => ({ ...m, text: m.text + content }));
+              }
             } else if (eventType === 'tool_start') {
-              updateAssistant((m) => ({
-                ...m,
-                activeTool: { name: data.name, input: data.input },
-              }));
+              // Finalize current text bubble if it has content
+              updateMsg(curMsgId, (m) => m.text ? { ...m, isStreaming: false } : m);
+              const tool: ToolStatus = { name: data.name, input: data.input };
+              showStatus(formatToolStatus(tool));
             } else if (eventType === 'tool_done') {
-              updateAssistant((m) => ({
-                ...m,
-                activeTool: undefined,
-                completedTools: [...(m.completedTools || []), data.name],
-              }));
+              removeStatus();
+              // Start a new bubble for subsequent text
+              const newId = crypto.randomUUID();
+              curMsgId = newId;
+              setMessages((prev) => [
+                ...prev,
+                { id: newId, role: 'assistant', text: '', isStreaming: true },
+              ]);
             } else if (eventType === 'graph_updated') {
               onGraphUpdated?.();
             } else if (eventType === 'done') {
-              updateAssistant((m) => ({ ...m, isStreaming: false, activeTool: undefined }));
+              removeStatus();
+              // Clean up any empty trailing bubble
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last && last.id === curMsgId && !last.text) {
+                  return prev.filter((m) => m.id !== curMsgId);
+                }
+                return prev.map((m) => m.id === curMsgId ? { ...m, isStreaming: false } : m);
+              });
             } else if (eventType === 'error') {
-              updateAssistant((m) => ({
+              removeStatus();
+              updateMsg(curMsgId, (m) => ({
                 ...m,
                 text: m.text || `Error: ${data.message}`,
                 isStreaming: false,
-                activeTool: undefined,
               }));
             }
           }
@@ -369,20 +440,33 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
             <p className="text-gray-500 text-xs text-center py-6 font-medium">No conversations yet</p>
           ) : (
             conversations.map((conv) => (
-              <button
+              <div
                 key={conv.id}
-                onClick={() => handleLoadConversation(conv.id)}
-                className={`w-full text-left flex flex-col gap-0.5 px-3 py-2.5 rounded-lg mx-1 transition-colors ${
+                className={`group flex items-center gap-1 px-3 py-2.5 rounded-lg mx-1 transition-colors ${
                   activeConvId === conv.id ? 'bg-gray-700' : 'hover:bg-gray-700/60'
                 }`}
               >
-                <span className="text-sm font-semibold text-white truncate">
-                  {conv.title || 'New conversation'}
-                </span>
-                <span className="text-xs text-gray-500 font-medium">
-                  {formatRelativeDate(conv.updatedAt)}
-                </span>
-              </button>
+                <button
+                  onClick={() => handleLoadConversation(conv.id)}
+                  className="flex-1 text-left flex flex-col gap-0.5 min-w-0"
+                >
+                  <span className="text-sm font-semibold text-white truncate">
+                    {conv.title || 'New conversation'}
+                  </span>
+                  <span className="text-xs text-gray-500 font-medium">
+                    {formatRelativeDate(conv.updatedAt)}
+                  </span>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv.id); }}
+                  className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center text-gray-500 hover:text-red-400 rounded transition-all shrink-0"
+                  title="Delete conversation"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <path d="M5 2V1h6v1h4v1.5H1V2h4zM3 5h10l-.8 9.4a1 1 0 01-1 .9H4.8a1 1 0 01-1-.9L3 5z" fill="currentColor"/>
+                  </svg>
+                </button>
+              </div>
             ))
           )}
         </div>
@@ -398,6 +482,13 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
               </p>
             )}
             {messages.map((m) => {
+              if (m.role === 'status') {
+                return (
+                  <div key={m.id} className="flex justify-start">
+                    <StatusMessage text={m.text} />
+                  </div>
+                );
+              }
               const isUser = m.role === 'user';
               return (
                 <div key={m.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -412,17 +503,13 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
                       isUser ? (
                         <span className="whitespace-pre-wrap">{m.text}</span>
                       ) : (
-                        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-pre:my-2 prose-pre:bg-gray-800 prose-pre:text-gray-200 prose-code:text-blue-300 prose-code:before:content-none prose-code:after:content-none prose-a:text-blue-400 prose-strong:text-white prose-td:p-1.5 prose-th:p-1.5">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+                        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-pre:my-2 prose-pre:bg-gray-800 prose-pre:text-gray-200 prose-code:text-gray-300 prose-code:before:content-none prose-code:after:content-none prose-a:text-blue-400 prose-strong:text-white prose-td:p-1.5 prose-th:p-1.5">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: InlineCode }}>{m.text}</ReactMarkdown>
                         </div>
                       )
-                    ) : m.isStreaming && m.activeTool ? null : m.isStreaming ? (
+                    ) : m.isStreaming ? (
                       <ThinkingDots />
                     ) : null}
-                    {m.activeTool && <ToolIndicator tool={m.activeTool} />}
-                    {!m.isStreaming && m.completedTools && m.completedTools.length > 0 && (
-                      <CompletedTools tools={m.completedTools} />
-                    )}
                   </div>
                 </div>
               );

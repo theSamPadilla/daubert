@@ -19,6 +19,79 @@ import {
   SKILL_NAMES,
 } from './tools';
 
+/**
+ * Ensures every tool_use in an assistant message has a matching tool_result in
+ * the following user message, and vice-versa. Strips broken pairs so the API
+ * never sees an orphaned tool_use or tool_result block.
+ *
+ * Broken pairs arise when:
+ *  - Both rows were saved in the same DB transaction (same NOW() → unstable sort)
+ *  - The compact-2026-01-12 beta summarised away a tool_use block but left its
+ *    tool_result in the DB.
+ */
+function sanitizeToolPairs(
+  messages: Anthropic.Beta.BetaMessageParam[],
+): Anthropic.Beta.BetaMessageParam[] {
+  const out: Anthropic.Beta.BetaMessageParam[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    const content = (Array.isArray(msg.content) ? msg.content : []) as any[];
+
+    if (msg.role === 'assistant') {
+      const toolUses = content.filter((b) => b.type === 'tool_use');
+
+      if (toolUses.length > 0) {
+        // Collect tool_result IDs from the immediately following user message
+        const next = messages[i + 1];
+        const nextContent = (next?.role === 'user' && Array.isArray(next.content)
+          ? next.content
+          : []) as any[];
+        const resultIds = new Set(
+          nextContent
+            .filter((b) => b.type === 'tool_result')
+            .map((b) => b.tool_use_id),
+        );
+
+        // Keep only tool_use blocks that have a matching result; keep all others
+        const kept = content.filter(
+          (b) => b.type !== 'tool_use' || resultIds.has(b.id),
+        );
+        if (kept.length === 0) continue; // skip empty assistant message
+        out.push({ ...msg, content: kept });
+        continue;
+      }
+    }
+
+    if (msg.role === 'user') {
+      const toolResults = content.filter((b) => b.type === 'tool_result');
+
+      if (toolResults.length > 0) {
+        // Collect tool_use IDs from the immediately preceding assistant message
+        const prev = out[out.length - 1];
+        const prevContent = (prev?.role === 'assistant' && Array.isArray(prev.content)
+          ? prev.content
+          : []) as any[];
+        const useIds = new Set(
+          prevContent.filter((b) => b.type === 'tool_use').map((b) => b.id),
+        );
+
+        // Keep only tool_results with a matching tool_use; keep all others
+        const kept = content.filter(
+          (b) => b.type !== 'tool_result' || useIds.has(b.tool_use_id),
+        );
+        if (kept.length === 0) continue; // skip empty user message
+        out.push({ ...msg, content: kept });
+        continue;
+      }
+    }
+
+    out.push(msg);
+  }
+
+  return out;
+}
+
 export interface SseEvent {
   type: 'text_delta' | 'tool_start' | 'tool_done' | 'graph_updated' | 'done' | 'error';
   data: unknown;
@@ -49,12 +122,15 @@ export class AiService {
     // Load history and reconstruct MessageParam[] verbatim.
     // Compaction blocks stored in assistant content are preserved automatically.
     const dbMessages = await this.conversationsService.getMessages(conversationId);
-    const messages: Anthropic.Beta.BetaMessageParam[] = dbMessages.map(
+    const rawMessages: Anthropic.Beta.BetaMessageParam[] = dbMessages.map(
       (m) => ({
         role: m.role,
         content: m.content as Anthropic.Beta.BetaContentBlockParam[],
       }),
     );
+    // Sanitize: remove orphaned tool_use / tool_result pairs that can arise
+    // from same-transaction timestamps or compaction replacing old tool_use blocks.
+    const messages = sanitizeToolPairs(rawMessages);
 
     // Persist and append user message
     await this.messageRepo.save(
@@ -148,26 +224,27 @@ export class AiService {
         });
       }
 
-      // Atomic save: assistant message + tool results together.
-      // Prevents orphaned tool_use blocks if the process dies mid-loop.
-      await this.messageRepo.manager.transaction(async (manager) => {
-        await manager.save(
-          manager.create(MessageEntity, {
+      // Save assistant message first, then tool results in a separate save so
+      // each row gets a distinct created_at timestamp. Saving both inside one
+      // transaction gives them the same PostgreSQL NOW() value, making the
+      // ORDER BY created_at ASC retrieval non-deterministic and causing
+      // orphaned tool_result errors on the next request.
+      await this.messageRepo.save(
+        this.messageRepo.create({
+          conversationId,
+          role: 'assistant',
+          content: responseContent,
+        }),
+      );
+      if (toolResults.length > 0) {
+        await this.messageRepo.save(
+          this.messageRepo.create({
             conversationId,
-            role: 'assistant',
-            content: responseContent,
+            role: 'user',
+            content: toolResults,
           }),
         );
-        if (toolResults.length > 0) {
-          await manager.save(
-            manager.create(MessageEntity, {
-              conversationId,
-              role: 'user',
-              content: toolResults,
-            }),
-          );
-        }
-      });
+      }
 
       messages.push({ role: 'assistant', content: responseContent });
       if (toolResults.length > 0) {

@@ -31,6 +31,8 @@ export default function AppShell() {
   const {
     investigation,
     setInvestigation,
+    canUndo,
+    undo,
     addTrace,
     updateTrace,
     deleteTrace,
@@ -43,6 +45,7 @@ export default function AppShell() {
     updateTransaction,
     deleteTransaction,
     updateNodePosition,
+    extractToTrace,
   } = useInvestigation(null);
 
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
@@ -445,6 +448,31 @@ export default function AppShell() {
     setSelectedNodeIds([]);
   }, [selectedNodeIds, deleteWallet]);
 
+  const handleExtractToTrace = useCallback(async () => {
+    if (!activeInvestigationId || selectedNodeIds.length < 2) return;
+    const colors = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#ef4444'];
+    const color = colors[(investigation?.traces.length || 0) % colors.length];
+    const name = `Trace ${(investigation?.traces.length || 0) + 1}`;
+    try {
+      const created = await apiClient.createTrace(activeInvestigationId, { name, color });
+      const newTrace: Trace = {
+        id: created.id,
+        name: created.name,
+        criteria: { type: 'wallet-group' },
+        visible: true,
+        collapsed: false,
+        color,
+        nodes: [],
+        edges: [],
+        position: { x: 0, y: 0 },
+      };
+      extractToTrace(selectedNodeIds.map((n) => n.id), newTrace);
+      setSelectedNodeIds([]);
+    } catch (err) {
+      console.error('Failed to extract to trace:', err);
+    }
+  }, [activeInvestigationId, selectedNodeIds, investigation?.traces.length, extractToTrace]);
+
   const handleContextMenu = useCallback(
     (event: { type: 'node' | 'edge' | 'background'; id?: string; x: number; y: number }) => {
       if (!investigation) return;
@@ -609,6 +637,8 @@ export default function AppShell() {
               investigation={investigation}
               onAddAddress={handleAddWallet}
               onAddTransaction={handleAddTransaction}
+              onUndo={undo}
+              canUndo={canUndo}
             />
             <div className="flex-1 bg-gray-900 relative overflow-hidden">
                 {loading ? (
@@ -631,6 +661,7 @@ export default function AppShell() {
                       onRecolor={handleBatchRecolor}
                       onDelete={handleBatchDelete}
                       onDeselect={() => setSelectedNodeIds([])}
+                      onExtractToTrace={handleExtractToTrace}
                     />
                   </div>
                 )}
@@ -673,6 +704,13 @@ export default function AppShell() {
                         }}
                         onFetchHistory={handleFetchHistory}
                         fetchLoading={fetchLoading}
+                        onRerunScript={async (scriptRunId) => {
+                          await apiClient.rerunScript(scriptRunId);
+                          if (activeInvestigationId) {
+                            const runs = await apiClient.listScriptRuns(activeInvestigationId);
+                            setScriptRuns(runs);
+                          }
+                        }}
                       />
                     </div>
                   </div>

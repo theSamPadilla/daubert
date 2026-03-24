@@ -19,6 +19,7 @@ interface DetailsPanelProps {
   onDeleteTrace: (traceId: string) => void;
   onFetchHistory: (address: string, chain: string) => void;
   fetchLoading: boolean;
+  onRerunScript?: (scriptRunId: string) => Promise<void>;
 }
 
 const ADDRESS_TYPE_LABELS: Record<string, string> = {
@@ -225,9 +226,26 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   timeout: { label: 'Timeout', cls: 'bg-amber-500/20 text-amber-300' },
 };
 
-function ScriptRunDetails({ scriptRun }: { scriptRun: ScriptRun }) {
+function ScriptRunDetails({
+  scriptRun,
+  onRerun,
+}: {
+  scriptRun: ScriptRun;
+  onRerun?: () => Promise<void>;
+}) {
   const [showCode, setShowCode] = useState(true);
+  const [running, setRunning] = useState(false);
   const badge = STATUS_BADGE[scriptRun.status] || STATUS_BADGE.error;
+
+  const handleRerun = async () => {
+    if (!onRerun) return;
+    setRunning(true);
+    try {
+      await onRerun();
+    } finally {
+      setRunning(false);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -239,6 +257,15 @@ function ScriptRunDetails({ scriptRun }: { scriptRun: ScriptRun }) {
         <span className="text-[10px] text-gray-500 ml-auto">
           {scriptRun.durationMs}ms
         </span>
+        {onRerun && (
+          <button
+            onClick={handleRerun}
+            disabled={running}
+            className="px-2 py-0.5 bg-indigo-600/20 hover:bg-indigo-600/40 disabled:opacity-40 text-indigo-300 hover:text-indigo-200 rounded text-[10px] transition-colors"
+          >
+            {running ? 'Running…' : '▶ Re-run'}
+          </button>
+        )}
       </div>
 
       <p className="text-sm font-semibold">{scriptRun.name}</p>
@@ -307,6 +334,7 @@ export function DetailsPanel({
   onDeleteTrace,
   onFetchHistory,
   fetchLoading,
+  onRerunScript,
 }: DetailsPanelProps) {
   const [editing, setEditing] = useState(false);
 
@@ -420,7 +448,10 @@ export function DetailsPanel({
         <TraceDetails trace={selectedItem.data} onEdit={() => setEditing(true)} />
       )}
       {selectedItem.type === 'scriptRun' && (
-        <ScriptRunDetails scriptRun={selectedItem.data} />
+        <ScriptRunDetails
+          scriptRun={selectedItem.data}
+          onRerun={onRerunScript ? () => onRerunScript(selectedItem.data.id) : undefined}
+        />
       )}
     </div>
   );

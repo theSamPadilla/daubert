@@ -1,4 +1,4 @@
-import { useReducer, useCallback } from 'react';
+import { useReducer, useCallback, useEffect } from 'react';
 import { Investigation, Trace, WalletNode, TransactionEdge } from '../types/investigation';
 
 // Action types
@@ -15,7 +15,89 @@ type Action =
   | { type: 'ADD_TRANSACTION'; payload: { traceId: string; transaction: TransactionEdge } }
   | { type: 'UPDATE_TRANSACTION'; payload: { traceId: string; transactionId: string; updates: Partial<TransactionEdge> } }
   | { type: 'DELETE_TRANSACTION'; payload: { traceId: string; transactionId: string } }
-  | { type: 'UPDATE_NODE_POSITION'; payload: { nodeId: string; position: { x: number; y: number } } };
+  | { type: 'UPDATE_NODE_POSITION'; payload: { nodeId: string; position: { x: number; y: number } } }
+  | { type: 'EXTRACT_TO_TRACE'; payload: { nodeIds: string[]; newTrace: Trace } }
+  | { type: 'UNDO' };
+
+// Actions that bypass the history stack (too granular or are load operations)
+const SKIP_HISTORY = new Set<Action['type']>(['SET_INVESTIGATION', 'UPDATE_NODE_POSITION', 'UNDO']);
+
+const MAX_HISTORY = 50;
+
+interface HistoryState {
+  past: (Investigation | null)[];
+  present: Investigation | null;
+}
+
+// ─── Pure investigation logic ────────────────────────────────────────────────
+
+function aggregateCrossEdges(
+  edges: TransactionEdge[],
+  representativeNodeId: string,
+  isOutgoing: boolean
+): TransactionEdge[] {
+  const groups = new Map<string, TransactionEdge[]>();
+  for (const edge of edges) {
+    const key = isOutgoing
+      ? `${edge.to}::${edge.token.symbol}::${edge.token.address}`
+      : `${edge.from}::${edge.token.symbol}::${edge.token.address}`;
+    const group = groups.get(key) ?? [];
+    group.push(edge);
+    groups.set(key, group);
+  }
+  const result: TransactionEdge[] = [];
+  for (const group of groups.values()) {
+    const first = group[0];
+    let totalAmount = BigInt(0);
+    let totalUsd = 0;
+    for (const edge of group) {
+      try { totalAmount += BigInt(edge.amount); } catch { /* skip non-integer */ }
+      totalUsd += edge.usdValue ?? 0;
+    }
+    const isMultiple = group.length > 1;
+
+    // Sum amounts robustly: try BigInt for raw integer strings, fall back to
+    // parseFloat for pre-formatted values (e.g. "1.5", "1,000,000")
+    let sumBigInt = BigInt(0);
+    let sumFloat = 0;
+    let allBigInt = true;
+    for (const edge of group) {
+      try {
+        sumBigInt += BigInt(edge.amount);
+      } catch {
+        allBigInt = false;
+        sumFloat += parseFloat(String(edge.amount).replace(/,/g, '')) || 0;
+      }
+    }
+    if (!allBigInt) {
+      // Add the BigInt portion accumulated before first failure
+      sumFloat += Number(sumBigInt);
+    }
+    const aggregatedAmount = allBigInt ? sumBigInt.toString() : sumFloat.toString();
+
+    result.push({
+      ...first,
+      id: crypto.randomUUID(),
+      from: isOutgoing ? representativeNodeId : first.from,
+      to: isOutgoing ? first.to : representativeNodeId,
+      amount: aggregatedAmount,
+      usdValue: totalUsd > 0 ? totalUsd : undefined,
+      token: {
+        address: first.token?.address ?? '',
+        symbol: first.token?.symbol ?? '',
+        decimals: first.token?.decimals ?? 0,
+      },
+      txHash: isMultiple ? 'aggregated' : first.txHash,
+      blockNumber: isMultiple ? 0 : first.blockNumber,
+      label: isMultiple ? `${group.length} txns aggregated` : (first.label ?? ''),
+      notes: isMultiple
+        ? `Aggregated from ${group.length} transactions:\n${group.map((e) => e.txHash).join('\n')}`
+        : first.notes,
+      crossTrace: true,
+    });
+  }
+  return result;
+}
 
 function mapTrace(state: Investigation | null, traceId: string, fn: (trace: Trace) => Trace): Investigation | null {
   if (!state) return state;
@@ -25,7 +107,7 @@ function mapTrace(state: Investigation | null, traceId: string, fn: (trace: Trac
   };
 }
 
-function investigationReducer(state: Investigation | null, action: Action): Investigation | null {
+function applyAction(state: Investigation | null, action: Action): Investigation | null {
   switch (action.type) {
     case 'SET_INVESTIGATION':
       return action.payload;
@@ -61,7 +143,7 @@ function investigationReducer(state: Investigation | null, action: Action): Inve
         ),
       }));
 
-    case 'DELETE_WALLET': {
+    case 'DELETE_WALLET':
       return mapTrace(state, action.payload.traceId, (t) => ({
         ...t,
         nodes: t.nodes.filter((n) => n.id !== action.payload.walletId),
@@ -69,7 +151,6 @@ function investigationReducer(state: Investigation | null, action: Action): Inve
           (e) => e.from !== action.payload.walletId && e.to !== action.payload.walletId
         ),
       }));
-    }
 
     case 'ADD_TRANSACTION':
       return mapTrace(state, action.payload.traceId, (t) => ({
@@ -104,13 +185,115 @@ function investigationReducer(state: Investigation | null, action: Action): Inve
       };
     }
 
+    case 'EXTRACT_TO_TRACE': {
+      if (!state) return state;
+      const { nodeIds, newTrace } = action.payload;
+      const nodeIdSet = new Set(nodeIds);
+
+      const selectedNodes: WalletNode[] = [];
+      for (const trace of state.traces) {
+        for (const node of trace.nodes) {
+          if (nodeIdSet.has(node.id)) {
+            selectedNodes.push({ ...node, parentTrace: newTrace.id });
+          }
+        }
+      }
+      const representativeId = selectedNodes[0]?.id;
+      if (!representativeId) return state;
+
+      const internalEdges: TransactionEdge[] = [];
+      const crossEdgesIn: TransactionEdge[] = [];
+      const crossEdgesOut: TransactionEdge[] = [];
+      for (const trace of state.traces) {
+        for (const edge of trace.edges) {
+          const fromSelected = nodeIdSet.has(edge.from);
+          const toSelected = nodeIdSet.has(edge.to);
+          if (fromSelected && toSelected) {
+            internalEdges.push({ ...edge });
+          } else if (!fromSelected && toSelected) {
+            crossEdgesIn.push({ ...edge });
+          } else if (fromSelected && !toSelected) {
+            crossEdgesOut.push({ ...edge });
+          }
+        }
+      }
+
+      const filledTrace: Trace = {
+        ...newTrace,
+        nodes: selectedNodes,
+        edges: [
+          ...internalEdges,
+          ...aggregateCrossEdges(crossEdgesIn, representativeId, false),
+          ...aggregateCrossEdges(crossEdgesOut, representativeId, true),
+        ],
+      };
+
+      const updatedTraces = state.traces.map((trace) => ({
+        ...trace,
+        nodes: trace.nodes.filter((n) => !nodeIdSet.has(n.id)),
+        edges: trace.edges.filter((e) => !nodeIdSet.has(e.from) && !nodeIdSet.has(e.to)),
+      }));
+
+      return { ...state, traces: [...updatedTraces, filledTrace] };
+    }
+
     default:
       return state;
   }
 }
 
+// ─── History-aware wrapper reducer ──────────────────────────────────────────
+
+function historyReducer(state: HistoryState, action: Action): HistoryState {
+  if (action.type === 'UNDO') {
+    if (state.past.length === 0) return state;
+    const previous = state.past[state.past.length - 1];
+    return {
+      past: state.past.slice(0, -1),
+      present: previous,
+    };
+  }
+
+  const nextPresent = applyAction(state.present, action);
+
+  // SET_INVESTIGATION resets history entirely (fresh load)
+  if (action.type === 'SET_INVESTIGATION') {
+    return { past: [], present: nextPresent };
+  }
+
+  if (SKIP_HISTORY.has(action.type)) {
+    return { ...state, present: nextPresent };
+  }
+
+  return {
+    past: [...state.past.slice(-MAX_HISTORY + 1), state.present],
+    present: nextPresent,
+  };
+}
+
+// ─── Hook ────────────────────────────────────────────────────────────────────
+
 export function useInvestigation(initial: Investigation | null) {
-  const [investigation, dispatch] = useReducer(investigationReducer, initial);
+  const [{ past, present: investigation }, dispatch] = useReducer(historyReducer, {
+    past: [],
+    present: initial,
+  });
+
+  const canUndo = past.length > 0;
+
+  const undo = useCallback(() => dispatch({ type: 'UNDO' }), []);
+
+  // Cmd+Z / Ctrl+Z keyboard shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        dispatch({ type: 'UNDO' });
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const setInvestigation = useCallback(
     (inv: Investigation | null) => dispatch({ type: 'SET_INVESTIGATION', payload: inv }),
@@ -185,9 +368,17 @@ export function useInvestigation(initial: Investigation | null) {
     []
   );
 
+  const extractToTrace = useCallback(
+    (nodeIds: string[], newTrace: Trace) =>
+      dispatch({ type: 'EXTRACT_TO_TRACE', payload: { nodeIds, newTrace } }),
+    []
+  );
+
   return {
     investigation,
     dispatch,
+    canUndo,
+    undo,
     setInvestigation,
     addTrace,
     updateTrace,
@@ -201,5 +392,6 @@ export function useInvestigation(initial: Investigation | null) {
     updateTransaction,
     deleteTransaction,
     updateNodePosition,
+    extractToTrace,
   };
 }

@@ -26,10 +26,10 @@ export class ScriptExecutionService {
     investigationId: string,
     name: string,
     code: string,
-  ): Promise<ScriptResult> {
+  ): Promise<ScriptResult & { savedRun: ScriptRunEntity }> {
     const result = await this.runInChildProcess(code);
 
-    await this.scriptRunRepo.save(
+    const savedRun = await this.scriptRunRepo.save(
       this.scriptRunRepo.create({
         investigationId,
         name,
@@ -40,7 +40,7 @@ export class ScriptExecutionService {
       }),
     );
 
-    return result;
+    return { ...result, savedRun };
   }
 
   async listRuns(investigationId: string): Promise<ScriptRunEntity[]> {

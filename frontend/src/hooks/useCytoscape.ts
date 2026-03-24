@@ -439,9 +439,19 @@ export function useCytoscape(
     targetNodes.forEach((target, id) => {
       const existing = cy.getElementById(id);
       if (existing.length > 0) {
-        // Update data
+        // Update data — but 'parent' is structural in Cytoscape and cannot be
+        // changed via .data(). Use .move() to reparent, and remove+re-add if
+        // the position also needs to change (e.g. after trace extraction).
         const curData = existing.data();
+        if ('parent' in target.data && curData.parent !== target.data.parent) {
+          // Reparent: move to new compound parent then re-add at correct position
+          existing.move({ parent: (target.data as any).parent ?? null });
+          if (target.position) {
+            existing.position(target.position);
+          }
+        }
         for (const [key, val] of Object.entries(target.data)) {
+          if (key === 'parent') continue; // handled above via .move()
           if (curData[key] !== val) {
             existing.data(key, val);
           }

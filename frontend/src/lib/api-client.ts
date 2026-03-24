@@ -175,4 +175,6 @@ export const apiClient = {
   // Script Runs
   listScriptRuns: (investigationId: string) =>
     request<ScriptRun[]>(`/investigations/${investigationId}/script-runs`),
+  rerunScript: (scriptRunId: string) =>
+    request<ScriptRun>(`/script-runs/${scriptRunId}/rerun`, { method: 'POST' }),
 };

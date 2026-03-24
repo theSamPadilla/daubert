@@ -11,9 +11,10 @@ interface BatchEditPanelProps {
   onRecolor: (color: string) => void;
   onDelete: () => void;
   onDeselect: () => void;
+  onExtractToTrace?: () => void;
 }
 
-export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselect }: BatchEditPanelProps) {
+export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselect, onExtractToTrace }: BatchEditPanelProps) {
   const [prefix, setPrefix] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -62,6 +63,21 @@ export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselec
           ))}
         </div>
       </div>
+
+      {/* Extract to New Trace */}
+      {onExtractToTrace && (
+        <div>
+          <button
+            onClick={onExtractToTrace}
+            className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 hover:text-indigo-200 rounded text-xs w-full text-left"
+          >
+            Extract {count} nodes to new trace
+          </button>
+          <p className="text-[10px] text-gray-500 mt-1">
+            Aggregates cross-boundary connections into a single edge.
+          </p>
+        </div>
+      )}
 
       {/* Delete All */}
       <div className="pt-2 border-t border-gray-700">

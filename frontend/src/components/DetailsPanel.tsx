@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { WalletNode, TransactionEdge, Trace } from '../types/investigation';
+import { useState, forwardRef, useImperativeHandle } from 'react';
+import { WalletNode, TransactionEdge, Trace, Group } from '../types/investigation';
 import { type ScriptRun } from '@/lib/api-client';
 import { WalletForm } from './WalletForm';
 import { TransactionForm } from './TransactionForm';
 import { TraceForm } from './TraceForm';
-import { FetchHistoryPanel } from './FetchHistoryPanel';
-import { formatTokenAmount } from '../utils/formatAmount';
+import { formatTokenAmount, normalizeToken, parseTimestamp } from '../utils/formatAmount';
+import { buildTxExplorerUrl } from '../utils/addressParser';
 
 interface DetailsPanelProps {
   selectedItem: any | null;
@@ -17,8 +17,9 @@ interface DetailsPanelProps {
   onDeleteTransaction: (traceId: string, txId: string) => void;
   onUpdateTrace: (traceId: string, updates: Partial<Trace>) => void;
   onDeleteTrace: (traceId: string) => void;
+  onUpdateGroup: (traceId: string, groupId: string, updates: Partial<Group>) => void;
+  onDeleteGroup: (traceId: string, groupId: string) => void;
   onFetchHistory: (address: string, chain: string) => void;
-  fetchLoading: boolean;
   onRerunScript?: (scriptRunId: string) => Promise<void>;
 }
 
@@ -36,44 +37,38 @@ const ADDRESS_TYPE_COLORS: Record<string, string> = {
 
 function WalletDetails({
   wallet,
-  onEdit,
   onFetchHistory,
-  fetchLoading,
 }: {
   wallet: WalletNode;
-  onEdit: () => void;
   onFetchHistory: (address: string, chain: string) => void;
-  fetchLoading: boolean;
 }) {
   const hasAddress = !!wallet.address;
   const addrType = wallet.addressType || 'unknown';
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h4 className="text-xs font-semibold text-gray-400 uppercase">{hasAddress ? 'Address' : 'Node'}</h4>
-          {hasAddress && (
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${ADDRESS_TYPE_COLORS[addrType]}`}>
-              {ADDRESS_TYPE_LABELS[addrType]}
-            </span>
-          )}
-        </div>
-        <button onClick={onEdit} className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
+      <div className="flex items-center gap-2">
+        <h4 className="text-xs font-semibold text-gray-400 uppercase">{hasAddress ? 'Address' : 'Node'}</h4>
+        {hasAddress && (
+          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${ADDRESS_TYPE_COLORS[addrType]}`}>
+            {ADDRESS_TYPE_LABELS[addrType]}
+          </span>
+        )}
       </div>
       <p className="text-sm font-semibold">{wallet.label}</p>
       {hasAddress && (
         <div>
           <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Address</h4>
-          <p className="text-xs font-mono text-gray-300 break-all">{wallet.address}</p>
-          {wallet.explorerUrl && (
+          {wallet.explorerUrl ? (
             <a
               href={wallet.explorerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block"
+              className="text-xs font-mono text-blue-400 hover:text-blue-300 break-all underline decoration-blue-400/30 hover:decoration-blue-300/60 transition-colors"
             >
-              View on explorer ↗
+              {wallet.address}
             </a>
+          ) : (
+            <p className="text-xs font-mono text-gray-300 break-all">{wallet.address}</p>
           )}
         </div>
       )}
@@ -101,12 +96,12 @@ function WalletDetails({
       )}
       {hasAddress && (
         <div className="pt-2 border-t border-gray-700">
-          <FetchHistoryPanel
-            initialAddress={wallet.address}
-            initialChain={wallet.chain}
-            onFetch={onFetchHistory}
-            loading={fetchLoading}
-          />
+          <button
+            onClick={() => onFetchHistory(wallet.address, wallet.chain)}
+            className="w-full px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors text-left"
+          >
+            Fetch Transactions
+          </button>
         </div>
       )}
     </div>
@@ -125,13 +120,20 @@ function resolveWalletDisplay(id: string, allWallets: { wallet: WalletNode; trac
   return { label: truncated, address: '' };
 }
 
+function TransactionAmount({ transaction }: { transaction: TransactionEdge }) {
+  const tok = normalizeToken(transaction.token);
+  return (
+    <p className="text-sm font-semibold">
+      {formatTokenAmount(transaction.amount, tok.decimals)} {tok.symbol}
+    </p>
+  );
+}
+
 function TransactionDetails({
   transaction,
-  onEdit,
   allWallets,
 }: {
   transaction: TransactionEdge;
-  onEdit: () => void;
   allWallets: { wallet: WalletNode; traceId: string }[];
 }) {
   const fromDisplay = resolveWalletDisplay(transaction.from, allWallets);
@@ -139,19 +141,30 @@ function TransactionDetails({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-xs font-semibold text-gray-400 uppercase">Transaction</h4>
-        <button onClick={onEdit} className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
-      </div>
-      <p className="text-sm font-semibold">
-        {formatTokenAmount(transaction.amount, transaction.token.decimals)} {transaction.token.symbol}
-      </p>
+      <TransactionAmount transaction={transaction} />
       {transaction.usdValue && (
         <p className="text-xs text-gray-400">${transaction.usdValue.toLocaleString()}</p>
       )}
+      {transaction.chain && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Chain</h4>
+          <p className="text-sm text-gray-300 capitalize">{transaction.chain}</p>
+        </div>
+      )}
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Hash</h4>
-        <p className="text-xs font-mono text-gray-300 break-all">{transaction.txHash}</p>
+        {buildTxExplorerUrl(transaction.chain, transaction.txHash) ? (
+          <a
+            href={buildTxExplorerUrl(transaction.chain, transaction.txHash)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-mono text-blue-400 hover:text-blue-300 break-all underline decoration-blue-400/30 hover:decoration-blue-300/60 transition-colors"
+          >
+            {transaction.txHash}
+          </a>
+        ) : (
+          <p className="text-xs font-mono text-gray-300 break-all">{transaction.txHash}</p>
+        )}
       </div>
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">From → To</h4>
@@ -164,7 +177,7 @@ function TransactionDetails({
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Timestamp</h4>
         <p className="text-sm text-gray-300">
-          {new Date(transaction.timestamp).toLocaleString()}
+          {parseTimestamp(transaction.timestamp).toLocaleString()}
         </p>
       </div>
       {transaction.tags.length > 0 && (
@@ -183,6 +196,83 @@ function TransactionDetails({
           <p className="text-sm text-gray-300">{transaction.notes}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+const GROUP_COLORS = ['#3b82f6','#10b981','#f97316','#8b5cf6','#ec4899','#06b6d4','#eab308','#ef4444'];
+
+function GroupDetails({
+  group,
+  traces,
+  onUpdate,
+  onDelete,
+}: {
+  group: Group;
+  traces: Trace[];
+  onUpdate: (updates: Partial<Group>) => void;
+  onDelete: () => void;
+}) {
+  const [name, setName] = useState(group.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const members = traces
+    .find((t) => t.id === group.traceId)
+    ?.nodes.filter((n) => n.groupId === group.id) || [];
+
+  return (
+    <div className="space-y-3">
+      <h4 className="text-xs font-semibold text-gray-400 uppercase">Subgroup</h4>
+
+      <div className="flex gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => { if (name.trim() && name !== group.name) onUpdate({ name: name.trim() }); }}
+          className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+        />
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Color</h4>
+        <div className="flex gap-2 flex-wrap">
+          {GROUP_COLORS.map((c) => (
+            <button
+              key={c}
+              onClick={() => onUpdate({ color: c })}
+              className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 ${group.color === c ? 'border-white' : 'border-transparent'}`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Members ({members.length})</h4>
+        <div className="space-y-0.5 max-h-32 overflow-y-auto [scrollbar-width:thin]">
+          {members.map((n) => (
+            <p key={n.id} className="text-xs text-gray-300 truncate">{n.label || n.address}</p>
+          ))}
+          {members.length === 0 && <p className="text-xs text-gray-500">No members</p>}
+        </div>
+      </div>
+
+      <div className="pt-2 border-t border-gray-700">
+        {confirmDelete ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-red-400">Dissolve group?</span>
+            <button onClick={() => { onDelete(); setConfirmDelete(false); }} className="px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs text-white">Confirm</button>
+            <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-400 hover:text-white">Cancel</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="w-full px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 hover:text-red-300 rounded text-xs"
+          >
+            Dissolve group
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -319,10 +409,15 @@ const TYPE_DISPLAY: Record<string, string> = {
   wallet: 'Address',
   transaction: 'Transaction',
   trace: 'Trace',
+  group: 'Subgroup',
   scriptRun: 'Script',
 };
 
-export function DetailsPanel({
+export interface DetailsPanelHandle {
+  startEdit: () => void;
+}
+
+export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(function DetailsPanel({
   selectedItem,
   traces,
   allWallets,
@@ -332,11 +427,13 @@ export function DetailsPanel({
   onDeleteTransaction,
   onUpdateTrace,
   onDeleteTrace,
+  onUpdateGroup,
+  onDeleteGroup,
   onFetchHistory,
-  fetchLoading,
   onRerunScript,
-}: DetailsPanelProps) {
+}: DetailsPanelProps, ref) {
   const [editing, setEditing] = useState(false);
+  useImperativeHandle(ref, () => ({ startEdit: () => setEditing(true) }), []);
 
   // Reset editing when selection changes
   const selectedId = selectedItem?.data?.id;
@@ -425,27 +522,28 @@ export function DetailsPanel({
 
   return (
     <div className="p-4">
-      <h3 className="text-sm font-semibold text-gray-300 uppercase mb-4">
-        {TYPE_DISPLAY[selectedItem.type] || selectedItem.type} Details
-      </h3>
-
       {selectedItem.type === 'wallet' && (
         <WalletDetails
           wallet={selectedItem.data}
-          onEdit={() => setEditing(true)}
           onFetchHistory={onFetchHistory}
-          fetchLoading={fetchLoading}
         />
       )}
       {selectedItem.type === 'transaction' && (
         <TransactionDetails
           transaction={selectedItem.data}
-          onEdit={() => setEditing(true)}
           allWallets={allWallets}
         />
       )}
       {selectedItem.type === 'trace' && (
         <TraceDetails trace={selectedItem.data} onEdit={() => setEditing(true)} />
+      )}
+      {selectedItem.type === 'group' && (
+        <GroupDetails
+          group={selectedItem.data}
+          traces={traces}
+          onUpdate={(updates) => onUpdateGroup(selectedItem.data.traceId, selectedItem.data.id, updates)}
+          onDelete={() => onDeleteGroup(selectedItem.data.traceId, selectedItem.data.id)}
+        />
       )}
       {selectedItem.type === 'scriptRun' && (
         <ScriptRunDetails
@@ -455,4 +553,4 @@ export function DetailsPanel({
       )}
     </div>
   );
-}
+});

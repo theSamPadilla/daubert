@@ -1,3 +1,4 @@
+import { FaRotateLeft, FaArrowsRotate } from 'react-icons/fa6';
 import { Investigation } from '../types/investigation';
 
 interface HeaderProps {
@@ -6,6 +7,7 @@ interface HeaderProps {
   onAddTransaction: () => void;
   onUndo?: () => void;
   canUndo?: boolean;
+  onRefresh?: () => void;
 }
 
 export function Header({
@@ -14,6 +16,7 @@ export function Header({
   onAddTransaction,
   onUndo,
   canUndo,
+  onRefresh,
 }: HeaderProps) {
   return (
     <header className="bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
@@ -27,12 +30,19 @@ export function Header({
         {investigation && (
           <>
             <button
+              onClick={onRefresh}
+              title="Refresh"
+              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors flex items-center gap-1.5"
+            >
+              <FaArrowsRotate size={12} /> Refresh
+            </button>
+            <button
               onClick={onUndo}
               disabled={!canUndo}
               title="Undo (⌘Z)"
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed rounded text-sm transition-colors"
+              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed rounded text-sm transition-colors flex items-center gap-1.5"
             >
-              ↩ Undo
+              <FaRotateLeft size={12} /> Undo
             </button>
             <button
               onClick={onAddAddress}

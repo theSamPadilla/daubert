@@ -132,3 +132,12 @@ export function buildExplorerUrl(chain: string, address: string): string {
   }
   return `${config.explorerUrl}/address/${address}`;
 }
+
+export function buildTxExplorerUrl(chain: string, txHash: string): string {
+  const config = SUPPORTED_CHAINS[chain];
+  if (!config || !txHash) return '';
+  if (chain === 'tron') {
+    return `${config.explorerUrl}/#/transaction/${txHash}`;
+  }
+  return `${config.explorerUrl}/tx/${txHash}`;
+}

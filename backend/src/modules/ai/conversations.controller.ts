@@ -55,7 +55,7 @@ export class ConversationsController {
     res.flushHeaders();
 
     try {
-      for await (const event of this.aiService.streamChat(id, body.message, body.caseId, body.investigationId)) {
+      for await (const event of this.aiService.streamChat(id, body.message, body.caseId, body.investigationId, body.attachments, body.model)) {
         res.write(
           `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`,
         );

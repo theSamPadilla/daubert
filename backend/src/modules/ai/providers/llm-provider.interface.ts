@@ -10,6 +10,7 @@ export interface LlmProvider {
     system: string;
     messages: Anthropic.Beta.BetaMessageParam[];
     tools: Anthropic.Beta.BetaTool[];
+    model?: string;
   }): AsyncIterable<StreamEvent>;
 
   generateText(params: {

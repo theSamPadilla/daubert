@@ -58,6 +58,7 @@ export function ScriptsPanel({
           </p>
         )}
       </div>
+      <div className="h-4" />
     </div>
   );
 }

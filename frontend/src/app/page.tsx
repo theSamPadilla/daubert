@@ -1,18 +1,22 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
-import { GraphCanvas } from '@/components/GraphCanvas';
+import { GraphCanvas, type GraphCanvasHandle } from '@/components/GraphCanvas';
 import { AIChat } from '@/components/AIChat';
 import { Header } from '@/components/Header';
-import { DetailsPanel } from '@/components/DetailsPanel';
+import { DetailsPanel, type DetailsPanelHandle } from '@/components/DetailsPanel';
+import { FloatingPanel } from '@/components/FloatingPanel';
+import { InvestigationForm } from '@/components/InvestigationForm';
+import { FetchModal } from '@/components/FetchModal';
 import { BatchEditPanel } from '@/components/BatchEditPanel';
 import { StagingPanel } from '@/components/StagingPanel';
 import { ContextMenu, ContextMenuItem } from '@/components/ContextMenu';
 import { WalletForm } from '@/components/WalletForm';
 import { TransactionForm } from '@/components/TransactionForm';
 import { LinkInputModal, type LinkInputResult } from '@/components/LinkInputModal';
-import { WalletNode, TransactionEdge, Trace, Investigation } from '@/types/investigation';
+import { WalletNode, TransactionEdge, Trace, Investigation, Group } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
 import { CytoscapeCallbacks } from '@/hooks/useCytoscape';
 import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } from '@/lib/api-client';
@@ -24,7 +28,79 @@ type PanelMode =
   | { type: 'createWallet'; position?: { x: number; y: number }; prefill?: Partial<WalletNode> }
   | { type: 'createTransaction'; prefill?: Partial<TransactionEdge> };
 
-export default function AppShell() {
+const EDIT_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
+
+const TRASH_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6M14 11v6"/>
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+  </svg>
+);
+
+function EditDeleteActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  return (
+    <div className="flex items-center gap-2">
+      <button onClick={onEdit} title="Edit" className="text-gray-500 hover:text-gray-300 transition-colors">
+        {EDIT_ICON}
+      </button>
+      {confirmDelete ? (
+        <div className="flex items-center gap-1">
+          <button onClick={() => { onDelete(); setConfirmDelete(false); }}
+            className="text-[10px] px-1.5 py-0.5 bg-red-600 hover:bg-red-500 rounded text-white">
+            Delete
+          </button>
+          <button onClick={() => setConfirmDelete(false)} className="text-[10px] text-gray-400 hover:text-white">
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => setConfirmDelete(true)} title="Delete" className="text-gray-500 hover:text-red-400 transition-colors">
+          {TRASH_ICON}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function WalletHeaderActions({
+  wallet,
+  onEdit,
+  onDelete,
+  onColorChange,
+}: {
+  wallet: WalletNode;
+  onEdit: () => void;
+  onDelete: () => void;
+  onColorChange: (color: string) => void;
+}) {
+  const colorInputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => colorInputRef.current?.click()}
+        className="w-3.5 h-3.5 rounded-full border-2 border-gray-600 hover:border-gray-400 transition-colors shrink-0"
+        style={{ backgroundColor: wallet.color || '#60a5fa' }}
+        title="Change color"
+      />
+      <input ref={colorInputRef} type="color" value={wallet.color || '#60a5fa'}
+        onChange={(e) => onColorChange(e.target.value)} className="sr-only" />
+      <EditDeleteActions onEdit={onEdit} onDelete={onDelete} />
+    </div>
+  );
+}
+
+function AppShell() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [activeInvestigationId, setActiveInvestigationId] = useState<string | null>(null);
   const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
 
@@ -46,14 +122,21 @@ export default function AppShell() {
     deleteTransaction,
     updateNodePosition,
     extractToTrace,
+    createGroup,
+    updateGroup,
+    deleteGroup,
   } = useInvestigation(null);
 
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const graphRef = useRef<GraphCanvasHandle>(null);
+  const detailsPanelRef = useRef<DetailsPanelHandle>(null);
+  const [editingInvestigation, setEditingInvestigation] = useState<ApiInvestigation | null>(null);
+  const [fetchModalWallet, setFetchModalWallet] = useState<{ address: string; chain: string } | null>(null);
+  const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [selectedNodeIds, setSelectedNodeIds] = useState<{ id: string; traceId: string }[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   const [panelMode, setPanelMode] = useState<PanelMode>({ type: 'none' });
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
-  const [fetchLoading, setFetchLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
 
@@ -90,17 +173,25 @@ export default function AppShell() {
             };
           }),
           edges: (t.data as any)?.edges || [],
+          groups: (t.data as any)?.groups || [],
           position: (t.data as any)?.position || { x: 0, y: 0 },
         })),
         metadata: {},
       };
       setInvestigation(clientInv);
+      setActiveCaseId(inv.caseId);
     } catch (err) {
       console.error('Failed to load investigation:', err);
     } finally {
       setLoading(false);
     }
   }, [setInvestigation]);
+
+  // Bootstrap from URL on first render
+  useEffect(() => {
+    const invId = searchParams.get('inv');
+    if (invId) setActiveInvestigationId(invId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeInvestigationId) {
@@ -134,6 +225,7 @@ export default function AppShell() {
             criteria: trace.criteria,
             nodes: trace.nodes,
             edges: trace.edges,
+            groups: trace.groups || [],
             position: trace.position,
           };
           await apiClient.updateTrace(trace.id, {
@@ -178,6 +270,12 @@ export default function AppShell() {
       const found = investigation.traces.find((t) => t.id === data.id);
       if (found) setSelectedItem({ type: 'trace', data: found });
       else setSelectedItem(null);
+    } else if (type === 'group' && data) {
+      for (const trace of investigation.traces) {
+        const found = (trace.groups || []).find((g) => g.id === data.id);
+        if (found) { setSelectedItem({ type: 'group', data: found }); return; }
+      }
+      setSelectedItem(null);
     }
   }, [investigation]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -185,7 +283,8 @@ export default function AppShell() {
   const handleSelectInvestigation = useCallback((inv: ApiInvestigation) => {
     setActiveInvestigationId(inv.id);
     setActiveCaseId(inv.caseId);
-  }, []);
+    router.push(`/?inv=${inv.id}`, { scroll: false });
+  }, [router]);
 
   // Trace operations — returns the new trace ID (used by inline create in WalletForm)
   const handleAddTrace = useCallback(async (): Promise<string | undefined> => {
@@ -238,7 +337,7 @@ export default function AppShell() {
         ? panelMode.position
         : { x: Math.random() * 400, y: Math.random() * 400 };
 
-      const addr = data.address || '';
+      const addr = (data.address || '').toLowerCase();
       const ch = data.chain || 'ethereum';
       const wallet: WalletNode = {
         id: crypto.randomUUID(),
@@ -282,23 +381,24 @@ export default function AppShell() {
       if (existing) return existing.wallet.id;
 
       // Create new wallet
+      const normAddress = address.toLowerCase();
       const walletId = crypto.randomUUID();
       const wallet: WalletNode = {
         id: walletId,
-        label: address.length > 10 ? `${address.slice(0, 6)}...${address.slice(-4)}` : address,
-        address,
+        label: normAddress.length > 10 ? `${normAddress.slice(0, 6)}...${normAddress.slice(-4)}` : normAddress,
+        address: normAddress,
         chain,
         notes: '',
         tags: [],
         position: { x: Math.random() * 400, y: Math.random() * 400 },
         parentTrace: traceId,
         addressType: 'unknown',
-        explorerUrl: buildExplorerUrl(chain, address),
+        explorerUrl: buildExplorerUrl(chain, normAddress),
       };
       addWallet(traceId, wallet);
 
       // Look up address info in the background and update the wallet
-      apiClient.getAddressInfo(address, chain).then((info) => {
+      apiClient.getAddressInfo(normAddress, chain).then((info) => {
         updateWallet(traceId, walletId, { addressType: info.addressType });
       }).catch(() => {
         // Address info unavailable — keep as unknown
@@ -353,17 +453,8 @@ export default function AppShell() {
     [addTransaction, allWallets, findOrCreateWallet]
   );
 
-  const handleFetchHistory = useCallback(async (address: string, chain: string) => {
-    setFetchLoading(true);
-    try {
-      const result = await apiClient.fetchHistory(address, chain);
-      setStagedItems((prev) => [...prev, ...result.transactions]);
-    } catch (err) {
-      console.error('Fetch failed:', err);
-      alert(`Failed to fetch history: ${err}`);
-    } finally {
-      setFetchLoading(false);
-    }
+  const handleFetchHistory = useCallback((address: string, chain: string) => {
+    setFetchModalWallet({ address, chain });
   }, []);
 
   const handleAddStagedToTrace = useCallback(
@@ -398,10 +489,11 @@ export default function AppShell() {
             const y = newNodeY + (placedCount % 5) * 100;
             placedCount++;
 
+            const normAddr = addr.toLowerCase();
             const wallet: WalletNode = {
               id: crypto.randomUUID(),
               label: `${addr.slice(0, 6)}...${addr.slice(-4)}`,
-              address: addr,
+              address: normAddr,
               chain: tx.chain,
               notes: '',
               tags: [],
@@ -409,7 +501,7 @@ export default function AppShell() {
               parentTrace: traceId,
             };
             addWallet(traceId, wallet);
-            existingWalletAddresses.set(addr.toLowerCase(), wallet.id);
+            existingWalletAddresses.set(normAddr, wallet.id);
           }
         }
 
@@ -447,6 +539,18 @@ export default function AppShell() {
     });
     setSelectedNodeIds([]);
   }, [selectedNodeIds, deleteWallet]);
+
+  const handleGroupNodes = useCallback((name: string) => {
+    if (selectedNodeIds.length < 2) return;
+    const traceId = selectedNodeIds[0].traceId;
+    const group: Group = {
+      id: crypto.randomUUID(),
+      name,
+      traceId,
+    };
+    createGroup(traceId, group, selectedNodeIds.map((n) => n.id));
+    setSelectedNodeIds([]);
+  }, [selectedNodeIds, createGroup]);
 
   const handleExtractToTrace = useCallback(async () => {
     if (!activeInvestigationId || selectedNodeIds.length < 2) return;
@@ -486,7 +590,7 @@ export default function AppShell() {
             { label: 'Edit Trace', onClick: () => setSelectedItem({ type: 'trace', data: trace }) },
             { label: trace.visible ? 'Hide' : 'Show', onClick: () => toggleTraceVisibility(trace.id) },
             { label: trace.collapsed ? 'Expand' : 'Collapse', onClick: () => toggleTraceCollapsed(trace.id) },
-            { label: 'Delete Trace', onClick: () => deleteTrace(trace.id), danger: true }
+            { label: 'Delete Trace', onClick: () => { apiClient.deleteTrace(trace.id).catch(console.error); deleteTrace(trace.id); }, danger: true }
           );
         } else {
           let walletData: { wallet: WalletNode; traceId: string } | undefined;
@@ -619,6 +723,8 @@ export default function AppShell() {
       <Sidebar
         activeInvestigationId={activeInvestigationId}
         onSelectInvestigation={handleSelectInvestigation}
+        onEditInvestigation={setEditingInvestigation}
+        refreshTrigger={sidebarRefresh}
         traces={investigation?.traces}
         selectedTraceId={selectedTraceId}
         onAddTrace={handleAddTrace}
@@ -639,6 +745,7 @@ export default function AppShell() {
               onAddTransaction={handleAddTransaction}
               onUndo={undo}
               canUndo={canUndo}
+              onRefresh={() => activeInvestigationId && loadInvestigationFromApi(activeInvestigationId)}
             />
             <div className="flex-1 bg-gray-900 relative overflow-hidden">
                 {loading ? (
@@ -647,6 +754,7 @@ export default function AppShell() {
                   </div>
                 ) : (
                   <GraphCanvas
+                    ref={graphRef}
                     investigation={investigation}
                     callbacks={cytoscapeCallbacks}
                   />
@@ -662,58 +770,124 @@ export default function AppShell() {
                       onDelete={handleBatchDelete}
                       onDeselect={() => setSelectedNodeIds([])}
                       onExtractToTrace={handleExtractToTrace}
+                      onGroupNodes={
+                        selectedNodeIds.every((n) => n.traceId === selectedNodeIds[0].traceId)
+                          ? handleGroupNodes
+                          : undefined
+                      }
                     />
                   </div>
                 )}
 
                 {/* Details floating panel */}
                 {selectedItem && selectedNodeIds.length < 2 && (
-                  <div className="absolute bottom-4 left-4 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl max-h-[60vh] flex flex-col z-20">
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 shrink-0">
-                      <span className="text-xs font-semibold text-gray-400 uppercase">
-                        {selectedItem.type === 'wallet' ? 'Address'
-                          : selectedItem.type === 'scriptRun' ? 'Script'
-                          : selectedItem.type} Details
-                      </span>
-                      <button
-                        onClick={() => setSelectedItem(null)}
-                        className="text-gray-500 hover:text-white text-sm leading-none"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <div className="overflow-y-auto">
-                      <DetailsPanel
-                        selectedItem={selectedItem}
-                        traces={investigation.traces}
-                        allWallets={allWallets}
-                        onUpdateWallet={updateWallet}
-                        onDeleteWallet={(traceId, walletId) => {
-                          deleteWallet(traceId, walletId);
+                  <FloatingPanel
+                    title={`${selectedItem.type === 'wallet' ? 'Address' : selectedItem.type === 'scriptRun' ? 'Script' : selectedItem.type} Details`}
+                    onClose={() => { setSelectedItem(null); graphRef.current?.unselectAll(); }}
+                    className="absolute bottom-4 left-4"
+                    actions={selectedItem.type === 'wallet' ? (
+                      <WalletHeaderActions
+                        wallet={selectedItem.data as WalletNode}
+                        onEdit={() => detailsPanelRef.current?.startEdit()}
+                        onDelete={() => {
+                          const w = selectedItem.data as WalletNode;
+                          deleteWallet(w.parentTrace, w.id);
                           setSelectedItem(null);
+                          graphRef.current?.unselectAll();
                         }}
-                        onUpdateTransaction={updateTransaction}
-                        onDeleteTransaction={(traceId, txId) => {
-                          deleteTransaction(traceId, txId);
+                        onColorChange={(color) => updateWallet(selectedItem.data.parentTrace, selectedItem.data.id, { color })}
+                      />
+                    ) : selectedItem.type === 'transaction' ? (
+                      <EditDeleteActions
+                        onEdit={() => detailsPanelRef.current?.startEdit()}
+                        onDelete={() => {
+                          const tx = selectedItem.data as TransactionEdge;
+                          const traceId = investigation.traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
+                          deleteTransaction(traceId, tx.id);
                           setSelectedItem(null);
-                        }}
-                        onUpdateTrace={updateTrace}
-                        onDeleteTrace={(traceId) => {
-                          deleteTrace(traceId);
-                          setSelectedItem(null);
-                        }}
-                        onFetchHistory={handleFetchHistory}
-                        fetchLoading={fetchLoading}
-                        onRerunScript={async (scriptRunId) => {
-                          await apiClient.rerunScript(scriptRunId);
-                          if (activeInvestigationId) {
-                            const runs = await apiClient.listScriptRuns(activeInvestigationId);
-                            setScriptRuns(runs);
-                          }
+                          graphRef.current?.unselectAll();
                         }}
                       />
-                    </div>
-                  </div>
+                    ) : undefined}
+                  >
+                    <DetailsPanel
+                      ref={detailsPanelRef}
+                      selectedItem={selectedItem}
+                      traces={investigation.traces}
+                      allWallets={allWallets}
+                      onUpdateWallet={updateWallet}
+                      onDeleteWallet={(traceId, walletId) => {
+                        deleteWallet(traceId, walletId);
+                        setSelectedItem(null);
+                      }}
+                      onUpdateTransaction={updateTransaction}
+                      onDeleteTransaction={(traceId, txId) => {
+                        deleteTransaction(traceId, txId);
+                        setSelectedItem(null);
+                      }}
+                      onUpdateTrace={updateTrace}
+                      onDeleteTrace={(traceId) => {
+                        apiClient.deleteTrace(traceId).catch(console.error);
+                        deleteTrace(traceId);
+                        setSelectedItem(null);
+                      }}
+                      onUpdateGroup={updateGroup}
+                      onDeleteGroup={(traceId, groupId) => {
+                        deleteGroup(traceId, groupId);
+                        setSelectedItem(null);
+                      }}
+                      onFetchHistory={handleFetchHistory}
+                      onRerunScript={async (scriptRunId) => {
+                        await apiClient.rerunScript(scriptRunId);
+                        if (activeInvestigationId) {
+                          const runs = await apiClient.listScriptRuns(activeInvestigationId);
+                          setScriptRuns(runs);
+                        }
+                      }}
+                    />
+                  </FloatingPanel>
+                )}
+
+                {/* Investigation floating panel */}
+                {editingInvestigation && (
+                  <FloatingPanel
+                    title="Investigation"
+                    onClose={() => setEditingInvestigation(null)}
+                    className="absolute top-4 left-4"
+                  >
+                    <InvestigationForm
+                      investigation={editingInvestigation}
+                      traces={investigation?.id === editingInvestigation.id ? (investigation.traces as any) : undefined}
+                      onSave={async (updates) => {
+                        await apiClient.updateInvestigation(editingInvestigation.id, updates);
+                        setEditingInvestigation(null);
+                        setSidebarRefresh((n) => n + 1);
+                      }}
+                      onDelete={async () => {
+                        await apiClient.deleteInvestigation(editingInvestigation.id);
+                        setEditingInvestigation(null);
+                        setActiveInvestigationId(null);
+                        setSidebarRefresh((n) => n + 1);
+                      }}
+                      onCancel={() => setEditingInvestigation(null)}
+                    />
+                  </FloatingPanel>
+                )}
+
+                {/* Fetch modal */}
+                {fetchModalWallet && investigation && (
+                  <FetchModal
+                    initialAddress={fetchModalWallet.address}
+                    initialChain={fetchModalWallet.chain}
+                    traces={investigation.traces}
+                    existingTxKeys={new Set(
+                      investigation.traces.flatMap((t) =>
+                        t.edges.map((e) => `${e.txHash}-${e.from}-${e.to}`)
+                      )
+                    )}
+                    onAdd={handleAddStagedToTrace}
+                    onClose={() => setFetchModalWallet(null)}
+                  />
                 )}
 
                 {/* Staging floating panel */}
@@ -758,5 +932,13 @@ export default function AppShell() {
 
       {renderCreationPanel()}
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <AppShell />
+    </Suspense>
   );
 }

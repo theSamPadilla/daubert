@@ -18,6 +18,7 @@ import {
   LIST_SCRIPT_RUNS_TOOL,
   SKILL_NAMES,
 } from './tools';
+import { AttachmentDto } from './dto/chat-message.dto';
 
 /**
  * Ensures every tool_use in an assistant message has a matching tool_result in
@@ -113,9 +114,11 @@ export class AiService {
 
   async *streamChat(
     conversationId: string,
-    userMessage: string,
+    userMessage: string | undefined,
     caseId?: string,
     investigationId?: string,
+    attachments?: AttachmentDto[],
+    model?: string,
   ): AsyncGenerator<SseEvent> {
     await this.conversationsService.findOne(conversationId);
 
@@ -132,15 +135,74 @@ export class AiService {
     // from same-transaction timestamps or compaction replacing old tool_use blocks.
     const messages = sanitizeToolPairs(rawMessages);
 
+    // Build content blocks for the user turn
+    const userContentBlocks: Anthropic.Beta.BetaContentBlockParam[] = [];
+
+    // Anthropic size limits (base64 chars ≈ raw bytes * 1.37)
+    // Images: 5 MB raw → ~6.8 MB base64 chars
+    // PDFs:   4.5 MB raw → ~6.2 MB base64 chars (API hard limit for document blocks)
+    const IMAGE_B64_LIMIT = 6_800_000;
+    const PDF_B64_LIMIT   = 6_200_000;
+
+    // Attach images and documents before the text
+    if (attachments?.length) {
+      for (const att of attachments) {
+        if (att.mediaType === 'application/pdf') {
+          if (att.data.length > PDF_B64_LIMIT) {
+            // Too large for the API — send a text stub so the turn still works
+            userContentBlocks.push({
+              type: 'text',
+              text: `[Attached PDF "${att.name}" (${(att.data.length * 0.75 / 1_048_576).toFixed(1)} MB) is too large to pass verbatim. Summarise or ask the user for the relevant excerpt.]`,
+            });
+          } else {
+            userContentBlocks.push({
+              type: 'document',
+              source: { type: 'base64', media_type: 'application/pdf', data: att.data },
+              title: att.name,
+            } as any);
+          }
+        } else if (
+          att.mediaType === 'image/jpeg' ||
+          att.mediaType === 'image/png' ||
+          att.mediaType === 'image/gif' ||
+          att.mediaType === 'image/webp'
+        ) {
+          if (att.data.length > IMAGE_B64_LIMIT) {
+            userContentBlocks.push({
+              type: 'text',
+              text: `[Attached image "${att.name}" (${(att.data.length * 0.75 / 1_048_576).toFixed(1)} MB) exceeds the 5 MB image limit and was not included.]`,
+            });
+          } else {
+            userContentBlocks.push({
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: att.mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+                data: att.data,
+              },
+            });
+          }
+        }
+      }
+    }
+
+    if (userMessage?.trim()) {
+      userContentBlocks.push({ type: 'text', text: userMessage });
+    }
+
+    if (userContentBlocks.length === 0) {
+      userContentBlocks.push({ type: 'text', text: '(attachment)' });
+    }
+
     // Persist and append user message
     await this.messageRepo.save(
       this.messageRepo.create({
         conversationId,
         role: 'user',
-        content: [{ type: 'text', text: userMessage }],
+        content: userContentBlocks,
       }),
     );
-    messages.push({ role: 'user', content: [{ type: 'text', text: userMessage }] });
+    messages.push({ role: 'user', content: userContentBlocks });
 
     let prevToolKey = '';
     let isFirstTurn = true;
@@ -154,6 +216,7 @@ export class AiService {
         system: INVESTIGATOR_PROMPT,
         messages,
         tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
+        model,
       })) {
         if (event.type === 'text') {
           if (isFirstTurn) firstAssistantText += event.content;
@@ -354,16 +417,17 @@ export class AiService {
 
   private async generateTitle(
     conversationId: string,
-    userMessage: string,
+    userMessage: string | undefined,
     assistantResponse: string,
   ): Promise<void> {
     try {
+      const userPart = userMessage?.trim() || '(attachment)';
       const title = await this.llm.generateText({
         maxTokens: 20,
         messages: [
           {
             role: 'user',
-            content: `Summarize this conversation exchange in 5 words or fewer. Return only the title, no punctuation.\n\nUser: ${userMessage}\n\nAssistant: ${assistantResponse.slice(0, 500)}`,
+            content: `Summarize this conversation exchange in 5 words or fewer. Return only the title, no punctuation.\n\nUser: ${userPart}\n\nAssistant: ${assistantResponse.slice(0, 500)}`,
           },
         ],
       });

@@ -13,8 +13,9 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
   const [name, setName] = useState(trace?.name || '');
   const [type, setType] = useState<'time' | 'wallet-group' | 'custom'>(trace?.criteria.type || 'custom');
   const [color, setColor] = useState(trace?.color || '');
-  const [startTime, setStartTime] = useState(trace?.criteria.timeRange?.start?.slice(0, 16) || '');
-  const [endTime, setEndTime] = useState(trace?.criteria.timeRange?.end?.slice(0, 16) || '');
+  const today = new Date().toISOString().slice(0, 10);
+  const [startDate, setStartDate] = useState(trace?.criteria.timeRange?.start?.slice(0, 10) || '');
+  const [endDate, setEndDate] = useState(trace?.criteria.timeRange?.end?.slice(0, 10) || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -24,8 +25,8 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
       color: color || undefined,
       criteria: {
         type,
-        ...(type === 'time' && startTime && endTime
-          ? { timeRange: { start: new Date(startTime).toISOString(), end: new Date(endTime).toISOString() } }
+        ...(type === 'time' && startDate && endDate
+          ? { timeRange: { start: new Date(`${startDate}T00:00:00Z`).toISOString(), end: new Date(`${endDate}T00:00:00Z`).toISOString() } }
           : {}),
       },
     };
@@ -63,18 +64,21 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
           <div>
             <label className="text-xs text-gray-400 block mb-1">Start</label>
             <input
-              type="datetime-local"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              type="date"
+              value={startDate}
+              max={today}
+              onChange={(e) => { setStartDate(e.target.value); if (endDate && e.target.value > endDate) setEndDate(''); }}
               className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
             />
           </div>
           <div>
             <label className="text-xs text-gray-400 block mb-1">End</label>
             <input
-              type="datetime-local"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              max={today}
+              onChange={(e) => setEndDate(e.target.value)}
               className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
             />
           </div>

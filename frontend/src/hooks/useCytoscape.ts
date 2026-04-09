@@ -1,11 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react';
 import cytoscape, { Core, EventObject } from 'cytoscape';
 import { Investigation } from '../types/investigation';
-import { formatTokenAmount } from '../utils/formatAmount';
+import { formatTokenAmount, normalizeToken, parseTimestamp } from '../utils/formatAmount';
 
 const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function formatShortDate(iso: string): string {
-  const d = new Date(iso);
+function formatShortDate(ts: string | number): string {
+  const d = parseTimestamp(ts);
   if (isNaN(d.getTime())) return '';
   return `${SHORT_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
@@ -19,6 +19,7 @@ export interface CytoscapeCallbacks {
 }
 
 const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
+  // ── Base node ──────────────────────────────────────────────────────────
   {
     selector: 'node',
     style: {
@@ -28,63 +29,61 @@ const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
       'text-halign': 'center',
       'color': '#fff',
       'font-size': '11px',
+      'font-weight': '600',
       'text-wrap': 'wrap',
       'text-max-width': '80px',
       'width': 'data(size)',
       'height': 'data(size)',
-    },
-  },
-  {
-    selector: 'edge',
-    style: {
-      'width': 2,
-      'line-color': 'data(color)',
-      'target-arrow-color': 'data(color)',
-      'target-arrow-shape': 'triangle',
-      'curve-style': 'bezier',
-      'label': 'data(label)',
-      'font-size': '10px',
-      'color': '#d1d5db',
-      'text-wrap': 'wrap',
-      'text-max-width': '200px',
-      'text-rotation': 'autorotate',
-      'text-margin-y': -8,
-      'text-background-color': '#1f2937',
-      'text-background-opacity': 0.8,
-      'text-background-padding': '3px',
-      'text-background-shape': 'roundrectangle',
-    },
-  },
-  {
-    selector: ':parent',
-    style: {
-      'background-opacity': 0.2,
-      'background-color': 'data(color)',
+      'border-width': 1.5,
       'border-color': 'data(color)',
-      'border-width': 2,
-      'label': 'data(label)',
-      'text-valign': 'top',
-      'text-halign': 'center',
-      'font-size': '14px',
-      'font-weight': 'bold',
-      'color': '#fff',
+      'border-opacity': 0.35,
     },
   },
+
+  // ── Address type shapes ────────────────────────────────────────────────
   {
-    selector: ':parent[?noColor]',
+    selector: 'node[addressType = "wallet"]',
+    style: { 'shape': 'ellipse' },
+  },
+  {
+    selector: 'node[addressType = "contract"]',
     style: {
-      'background-opacity': 0,
-      'border-width': 0,
+      'shape': 'roundrectangle',
+      'border-style': 'dashed',
+      'border-opacity': 0.7,
+      'border-width': 2,
     },
   },
   {
-    selector: 'node:selected',
+    selector: 'node[addressType = "exchange"]',
+    style: {
+      'shape': 'diamond',
+      'border-opacity': 0.85,
+      'border-width': 2,
+    },
+  },
+
+  // ── Node states ────────────────────────────────────────────────────────
+  // Yellow ring = selected (single click / shift+click multi-select)
+  {
+    selector: 'node.cy-sel',
     style: {
       'border-width': 3,
       'border-color': '#facc15',
       'border-opacity': 1,
+      'border-style': 'solid',
     },
   },
+  {
+    selector: 'node:active',
+    style: {
+      'overlay-color': '#ffffff',
+      'overlay-opacity': 0.12,
+      'overlay-padding': 6,
+    },
+  },
+
+  // ── Collapsed trace node ───────────────────────────────────────────────
   {
     selector: 'node[?collapsed]',
     style: {
@@ -94,6 +93,96 @@ const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
       'font-size': '11px',
       'background-opacity': 0.6,
     },
+  },
+
+  // ── Compound (trace group) ─────────────────────────────────────────────
+  {
+    selector: ':parent',
+    style: {
+      'background-opacity': 0.07,
+      'background-color': 'data(color)',
+      'border-color': 'data(color)',
+      'border-width': 1.5,
+      'border-opacity': 0.45,
+      'label': 'data(label)',
+      'text-valign': 'top',
+      'text-halign': 'center',
+      'font-size': '13px',
+      'font-weight': 'bold',
+      'color': 'data(color)',
+      'text-margin-y': -4,
+    },
+  },
+  {
+    selector: ':parent[?noColor]',
+    style: {
+      'background-opacity': 0,
+      'border-width': 0,
+    },
+  },
+
+  // ── Subgroup compound ──────────────────────────────────────────────────
+  {
+    selector: 'node[?isGroup]',
+    style: {
+      'background-opacity': 0.12,
+      'border-style': 'dashed',
+      'border-width': 1.5,
+      'border-opacity': 0.7,
+      'font-size': '11px',
+      'font-weight': '600',
+      'text-margin-y': -3,
+    },
+  },
+
+  // ── Base edge ──────────────────────────────────────────────────────────
+  {
+    selector: 'edge',
+    style: {
+      'width': 'data(weight)',
+      'line-color': 'data(color)',
+      'target-arrow-color': 'data(color)',
+      'target-arrow-shape': 'triangle',
+      'arrow-scale': 0.8,
+      'curve-style': 'bezier',
+      'control-point-step-size': 40,
+      'opacity': 0.65,
+      'label': 'data(label)',
+      'font-size': '10px',
+      'color': '#d1d5db',
+      'text-wrap': 'wrap',
+      'text-max-width': '160px',
+      'text-rotation': 'autorotate',
+      'text-margin-y': -8,
+      'text-background-color': '#111827',
+      'text-background-opacity': 0.85,
+      'text-background-padding': '3px',
+      'text-background-shape': 'roundrectangle',
+    },
+  },
+
+  // Near-vertical edges: keep label horizontal so it stays readable
+  {
+    selector: 'edge.near-vertical',
+    style: {
+      'text-rotation': 0 as any,
+      'text-margin-y': -8,
+    },
+  },
+
+  // ── Edge states ────────────────────────────────────────────────────────
+  {
+    selector: 'edge.cy-sel',
+    style: {
+      'line-color': '#facc15',
+      'target-arrow-color': '#facc15',
+      'opacity': 1,
+      'width': 4,
+    },
+  },
+  {
+    selector: 'edge.hovered',
+    style: { 'opacity': 1 },
   },
 ];
 
@@ -175,17 +264,30 @@ export function useCytoscape(
         const midX = (srcPos.x + tgtPos.x) / 2;
         const midY = (srcPos.y + tgtPos.y) / 2;
 
+        // Match the rotation of Cytoscape's autorotate label so the date
+        // aligns with the edge, then shift 12 px along the perpendicular
+        // (in the rotated frame) to sit just below the amount label.
+        const dx = tgtPos.x - srcPos.x;
+        const dy = tgtPos.y - srcPos.y;
+        const angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+
         let el = edgeSublabelEls.get(id);
         if (!el) {
           el = document.createElement('div');
           el.style.cssText =
-            'position:absolute;font-size:8px;color:#9ca3af;white-space:nowrap;pointer-events:none;transform:translate(-50%, 0);';
+            'position:absolute;font-size:8px;color:#9ca3af;white-space:nowrap;pointer-events:none;';
           overlayEl.appendChild(el);
           edgeSublabelEls.set(id, el);
         }
+        // Near-vertical: keep date label horizontal to match the Cytoscape label
+        const absAngle = Math.abs(angleDeg);
+        const isNearVertical = absAngle > 65 && absAngle < 115;
         el.textContent = date;
         el.style.left = `${midX}px`;
-        el.style.top = `${midY + 2}px`;
+        el.style.top = `${midY}px`;
+        el.style.transform = isNearVertical
+          ? `translate(-50%, -50%) translateY(12px)`
+          : `translate(-50%, -50%) rotate(${angleDeg}deg) translateY(12px)`;
         el.style.display = '';
       });
       edgeSublabelEls.forEach((el, id) => {
@@ -198,72 +300,92 @@ export function useCytoscape(
       updateEdgeSublabels();
     });
 
-    // Click handlers using refs for latest state
+    // ── Helpers ──────────────────────────────────────────────────────────
+    const clearSel = () => cy.elements().removeClass('cy-sel');
+
+    const selNodes = () => cy.nodes('.cy-sel').filter((n: any) => !n.isParent());
+
+    const notifySelection = (inv: Investigation | null) => {
+      const sel = selNodes();
+      if (sel.length === 0) {
+        callbacksRef.current.onSelectItem?.(null);
+      } else if (sel.length === 1) {
+        const n = sel[0];
+        const traceId = n.data('traceId') || n.data('parent');
+        const trace = inv?.traces.find((t) => t.id === traceId);
+        const walletNode = trace?.nodes.find((w: any) => w.id === n.data('id'));
+        if (walletNode) callbacksRef.current.onSelectItem?.({ type: 'wallet', data: walletNode });
+      } else {
+        callbacksRef.current.onMultiSelect?.(
+          sel.map((n: any) => ({ id: n.data('id'), traceId: n.data('traceId') || n.data('parent') }))
+        );
+      }
+    };
+
+    // ── Node tap ─────────────────────────────────────────────────────────
     cy.on('tap', 'node', (event: EventObject) => {
       const node = event.target;
       const inv = investigationRef.current;
       if (!inv) return;
 
       if (node.isParent()) {
-        // Trace group tap: clear selection, show trace details
-        cy.nodes().unselect();
-        const trace = inv.traces.find((t) => t.id === node.data('id'));
-        callbacksRef.current.onSelectItem?.({ type: 'trace', data: trace });
+        clearSel();
+        if (node.data('isGroup')) {
+          for (const trace of inv.traces) {
+            const group = (trace.groups || []).find((g) => g.id === node.data('id'));
+            if (group) { callbacksRef.current.onSelectItem?.({ type: 'group', data: group }); break; }
+          }
+        } else {
+          const trace = inv.traces.find((t) => t.id === node.data('id'));
+          callbacksRef.current.onSelectItem?.({ type: 'trace', data: trace });
+        }
         return;
       }
 
-      if (!event.originalEvent.shiftKey) {
-        // Normal click: clear multi-select, select only this node
-        cy.elements().unselect();
-        node.select();
+      if (event.originalEvent.shiftKey) {
+        // Shift+click: toggle in/out of multi-select
+        if (node.hasClass('cy-sel')) {
+          node.removeClass('cy-sel');
+        } else {
+          node.addClass('cy-sel');
+        }
+        notifySelection(inv);
+      } else {
+        // Single click: toggle solo select / open details
+        const wasSoloSel = node.hasClass('cy-sel') && selNodes().length === 1;
+        clearSel();
+        if (wasSoloSel) {
+          callbacksRef.current.onSelectItem?.(null);
+        } else {
+          node.addClass('cy-sel');
+          notifySelection(inv);
+        }
       }
-      // Shift+click: Cytoscape's additive mode handles toggle
     });
 
+    // ── Edge tap ─────────────────────────────────────────────────────────
     cy.on('tap', 'edge', (event: EventObject) => {
-      cy.nodes().unselect();
       const edge = event.target;
-      const data = edge.data();
+      const wasSelected = edge.hasClass('cy-sel');
+      clearSel();
+      if (wasSelected) {
+        callbacksRef.current.onSelectItem?.(null);
+        return;
+      }
+      edge.addClass('cy-sel');
       const inv = investigationRef.current;
       if (!inv) return;
-
       for (const trace of inv.traces) {
-        const tx = trace.edges.find((e: any) => e.id === data.id);
-        if (tx) {
-          callbacksRef.current.onSelectItem?.({ type: 'transaction', data: tx });
-          break;
-        }
+        const tx = trace.edges.find((e: any) => e.id === edge.data('id'));
+        if (tx) { callbacksRef.current.onSelectItem?.({ type: 'transaction', data: tx }); break; }
       }
     });
 
+    // ── Background tap ───────────────────────────────────────────────────
     cy.on('tap', (event: EventObject) => {
       if (event.target === cy) {
-        cy.elements().unselect();
+        clearSel();
         callbacksRef.current.onSelectItem?.(null);
-      }
-    });
-
-    // Unified selection sync: drives both single-select and multi-select
-    cy.on('select unselect', 'node', () => {
-      const selected = cy.nodes(':selected').filter((n: any) => !n.isParent());
-      const inv = investigationRef.current;
-
-      if (selected.length === 0) {
-        // Don't clear — let tap handlers drive onSelectItem(null)
-      } else if (selected.length === 1) {
-        const n = selected[0];
-        if (inv) {
-          const trace = inv.traces.find((t) => t.id === n.data('parent'));
-          const walletNode = trace?.nodes.find((w: any) => w.id === n.data('id'));
-          if (walletNode) {
-            callbacksRef.current.onSelectItem?.({ type: 'wallet', data: walletNode });
-          }
-        }
-      } else {
-        // 2+ nodes: call onMultiSelect
-        callbacksRef.current.onMultiSelect?.(
-          selected.map((n: any) => ({ id: n.data('id'), traceId: n.data('parent') }))
-        );
       }
     });
 
@@ -320,6 +442,14 @@ export function useCytoscape(
       }
     });
 
+    // Edge hover highlight
+    cy.on('mouseover', 'edge', (event: EventObject) => {
+      event.target.addClass('hovered');
+    });
+    cy.on('mouseout', 'edge', (event: EventObject) => {
+      event.target.removeClass('hovered');
+    });
+
     return () => {
       cy.destroy();
       cyRef.current = null;
@@ -374,6 +504,20 @@ export function useCytoscape(
           position: trace.position || { x: 0, y: 0 },
         });
 
+        // Subgroup compound nodes (nested inside trace compound)
+        (trace.groups || []).forEach((group) => {
+          const groupColor = group.color || traceColor || '#60a5fa';
+          targetNodes.set(group.id, {
+            data: {
+              id: group.id,
+              parent: trace.id,
+              label: group.name,
+              color: groupColor,
+              isGroup: true,
+            },
+          });
+        });
+
         // Wallet nodes
         trace.nodes.forEach((node) => {
           const addr = node.address;
@@ -389,16 +533,23 @@ export function useCytoscape(
           // No custom label → show truncated address
           const displayLabel = hasCustomLabel ? node.label : (truncAddr || node.label);
 
+          // If the node belongs to a group that exists in this trace, nest under the group;
+          // otherwise nest directly under the trace.
+          const groupExists = node.groupId && (trace.groups || []).some((g) => g.id === node.groupId);
+          const parentId = groupExists ? node.groupId! : trace.id;
+
           targetNodes.set(node.id, {
             data: {
               id: node.id,
-              parent: trace.id,
+              parent: parentId,
+              traceId: trace.id,
               label: node.label,
               displayLabel,
               hasCustomLabel,
               truncAddr,
               color: node.color || '#60a5fa',
               size: node.size || 60,
+              addressType: node.addressType || 'unknown',
             },
             position: node.position,
           });
@@ -406,8 +557,16 @@ export function useCytoscape(
 
         // Transaction edges
         trace.edges.forEach((edge) => {
-          const amount = `${formatTokenAmount(edge.amount, edge.token.decimals)} ${edge.token.symbol}`;
+          const tok = normalizeToken(edge.token);
+          const amount = `${formatTokenAmount(edge.amount, tok.decimals)} ${tok.symbol}`;
           const date = formatShortDate(edge.timestamp);
+
+          // Log-scale edge weight from human-readable amount
+          const rawAmount = parseFloat(String(edge.amount)) || 0;
+          const humanAmount = tok.decimals > 0 ? rawAmount / Math.pow(10, tok.decimals) : rawAmount;
+          const weight = humanAmount > 0
+            ? Math.min(Math.max(1.5 + Math.log10(humanAmount + 1) * 0.9, 1.5), 7)
+            : 2;
 
           targetEdges.set(edge.id, {
             data: {
@@ -417,6 +576,7 @@ export function useCytoscape(
               label: amount,
               date,
               color: edge.color || '#10b981',
+              weight,
             },
           });
         });
@@ -498,5 +658,9 @@ export function useCytoscape(
     }
   }, [investigation]);
 
-  return { containerRef, cy: cyRef.current };
+  const unselectAll = useCallback(() => {
+    cyRef.current?.elements().removeClass('cy-sel');
+  }, []);
+
+  return { containerRef, unselectAll };
 }

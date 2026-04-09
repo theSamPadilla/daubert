@@ -1,5 +1,5 @@
 import { useReducer, useCallback, useEffect } from 'react';
-import { Investigation, Trace, WalletNode, TransactionEdge } from '../types/investigation';
+import { Investigation, Trace, WalletNode, TransactionEdge, Group } from '../types/investigation';
 
 // Action types
 type Action =
@@ -17,6 +17,10 @@ type Action =
   | { type: 'DELETE_TRANSACTION'; payload: { traceId: string; transactionId: string } }
   | { type: 'UPDATE_NODE_POSITION'; payload: { nodeId: string; position: { x: number; y: number } } }
   | { type: 'EXTRACT_TO_TRACE'; payload: { nodeIds: string[]; newTrace: Trace } }
+  | { type: 'CREATE_GROUP'; payload: { traceId: string; group: Group; nodeIds: string[] } }
+  | { type: 'UPDATE_GROUP'; payload: { traceId: string; groupId: string; updates: Partial<Group> } }
+  | { type: 'DELETE_GROUP'; payload: { traceId: string; groupId: string } }
+  | { type: 'SET_NODE_GROUP'; payload: { traceId: string; nodeIds: string[]; groupId: string | null } }
   | { type: 'UNDO' };
 
 // Actions that bypass the history stack (too granular or are load operations)
@@ -185,6 +189,44 @@ function applyAction(state: Investigation | null, action: Action): Investigation
       };
     }
 
+    case 'CREATE_GROUP': {
+      const { traceId, group, nodeIds } = action.payload;
+      const nodeIdSet = new Set(nodeIds);
+      return mapTrace(state, traceId, (t) => ({
+        ...t,
+        groups: [...(t.groups || []), group],
+        nodes: t.nodes.map((n) => nodeIdSet.has(n.id) ? { ...n, groupId: group.id } : n),
+      }));
+    }
+
+    case 'UPDATE_GROUP':
+      return mapTrace(state, action.payload.traceId, (t) => ({
+        ...t,
+        groups: (t.groups || []).map((g) =>
+          g.id === action.payload.groupId ? { ...g, ...action.payload.updates } : g
+        ),
+      }));
+
+    case 'DELETE_GROUP':
+      return mapTrace(state, action.payload.traceId, (t) => ({
+        ...t,
+        groups: (t.groups || []).filter((g) => g.id !== action.payload.groupId),
+        nodes: t.nodes.map((n) =>
+          n.groupId === action.payload.groupId ? { ...n, groupId: undefined } : n
+        ),
+      }));
+
+    case 'SET_NODE_GROUP': {
+      const { traceId, nodeIds, groupId } = action.payload;
+      const nodeIdSet = new Set(nodeIds);
+      return mapTrace(state, traceId, (t) => ({
+        ...t,
+        nodes: t.nodes.map((n) =>
+          nodeIdSet.has(n.id) ? { ...n, groupId: groupId ?? undefined } : n
+        ),
+      }));
+    }
+
     case 'EXTRACT_TO_TRACE': {
       if (!state) return state;
       const { nodeIds, newTrace } = action.payload;
@@ -194,7 +236,7 @@ function applyAction(state: Investigation | null, action: Action): Investigation
       for (const trace of state.traces) {
         for (const node of trace.nodes) {
           if (nodeIdSet.has(node.id)) {
-            selectedNodes.push({ ...node, parentTrace: newTrace.id });
+            selectedNodes.push({ ...node, parentTrace: newTrace.id, groupId: undefined });
           }
         }
       }
@@ -374,6 +416,30 @@ export function useInvestigation(initial: Investigation | null) {
     []
   );
 
+  const createGroup = useCallback(
+    (traceId: string, group: Group, nodeIds: string[]) =>
+      dispatch({ type: 'CREATE_GROUP', payload: { traceId, group, nodeIds } }),
+    []
+  );
+
+  const updateGroup = useCallback(
+    (traceId: string, groupId: string, updates: Partial<Group>) =>
+      dispatch({ type: 'UPDATE_GROUP', payload: { traceId, groupId, updates } }),
+    []
+  );
+
+  const deleteGroup = useCallback(
+    (traceId: string, groupId: string) =>
+      dispatch({ type: 'DELETE_GROUP', payload: { traceId, groupId } }),
+    []
+  );
+
+  const setNodeGroup = useCallback(
+    (traceId: string, nodeIds: string[], groupId: string | null) =>
+      dispatch({ type: 'SET_NODE_GROUP', payload: { traceId, nodeIds, groupId } }),
+    []
+  );
+
   return {
     investigation,
     dispatch,
@@ -393,5 +459,9 @@ export function useInvestigation(initial: Investigation | null) {
     deleteTransaction,
     updateNodePosition,
     extractToTrace,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    setNodeGroup,
   };
 }

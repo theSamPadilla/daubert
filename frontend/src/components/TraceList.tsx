@@ -1,3 +1,4 @@
+import { Eye, EyeSlash } from '@phosphor-icons/react';
 import { Trace } from '../types/investigation';
 
 interface TraceListProps {
@@ -48,10 +49,10 @@ export function TraceList({
                 e.stopPropagation();
                 onToggleVisibility(trace.id);
               }}
-              className={`text-xs px-1 ${trace.visible ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-400'}`}
+              className={`flex items-center px-1 ${trace.visible ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-400'}`}
               title={trace.visible ? 'Hide' : 'Show'}
             >
-              {trace.visible ? 'V' : 'H'}
+              {trace.visible ? <Eye size={14} /> : <EyeSlash size={14} />}
             </button>
             <button
               onClick={(e) => {

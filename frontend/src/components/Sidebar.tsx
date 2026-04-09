@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Eye, EyeSlash } from '@phosphor-icons/react';
 import { apiClient, type User, type Case, type Investigation, type ScriptRun } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
 import { ScriptsPanel } from './ScriptsPanel';
@@ -13,6 +14,8 @@ interface CaseWithInvestigations extends Case {
 interface SidebarProps {
   activeInvestigationId: string | null;
   onSelectInvestigation: (inv: Investigation) => void;
+  onEditInvestigation: (inv: Investigation) => void;
+  refreshTrigger?: number;
   traces?: Trace[];
   selectedTraceId?: string;
   onAddTrace?: () => void;
@@ -27,6 +30,8 @@ interface SidebarProps {
 export function Sidebar({
   activeInvestigationId,
   onSelectInvestigation,
+  onEditInvestigation,
+  refreshTrigger,
   traces,
   selectedTraceId,
   onAddTrace,
@@ -67,6 +72,10 @@ export function Sidebar({
     apiClient.getMe().then(setUser).catch(console.error);
     loadCases();
   }, [loadCases]);
+
+  useEffect(() => {
+    if (refreshTrigger) loadCases();
+  }, [refreshTrigger, loadCases]);
 
   // Auto-expand the case containing the active investigation
   useEffect(() => {
@@ -119,16 +128,6 @@ export function Sidebar({
     }
   };
 
-  const handleDeleteInvestigation = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm('Delete this investigation and all its traces?')) return;
-    try {
-      await apiClient.deleteInvestigation(id);
-      loadCases();
-    } catch (err) {
-      console.error('Failed to delete investigation:', err);
-    }
-  };
 
   return (
     <div className="w-60 bg-gray-800 border-r border-gray-700 flex flex-col h-full overflow-hidden">
@@ -166,12 +165,12 @@ export function Sidebar({
             <div className="flex items-center group">
               <button
                 onClick={() => toggleCase(c.id)}
-                className="flex-1 flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-700 text-left text-sm transition-colors"
+                className="flex-1 flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-700 text-left text-sm font-medium transition-colors"
               >
-                <span className="text-gray-500 text-xs w-4 shrink-0">
-                  {c.expanded ? '▼' : '▶'}
+                <span className="text-gray-500 text-xs w-3 shrink-0">
+                  {c.expanded ? '▾' : '▸'}
                 </span>
-                <span className="truncate">{c.name}</span>
+                <span className="truncate text-gray-200">{c.name}</span>
               </button>
               <button
                 onClick={() => setAddingInvToCaseId(addingInvToCaseId === c.id ? null : c.id)}
@@ -189,52 +188,107 @@ export function Sidebar({
               </button>
             </div>
 
-            {/* New investigation input */}
-            {addingInvToCaseId === c.id && (
-              <div className="pl-7 pr-2 py-1">
-                <div className="flex gap-1">
-                  <input
-                    type="text"
-                    value={newInvName}
-                    onChange={(e) => setNewInvName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleCreateInvestigation(c.id);
-                      if (e.key === 'Escape') { setAddingInvToCaseId(null); setNewInvName(''); }
-                    }}
-                    placeholder="Investigation name..."
-                    className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-xs min-w-0"
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => handleCreateInvestigation(c.id)}
-                    className="px-1.5 py-0.5 bg-blue-600 hover:bg-blue-500 rounded text-xs shrink-0 transition-colors"
-                  >
-                    +
-                  </button>
-                </div>
+            {/* Expanded case contents */}
+            {c.expanded && (
+              <div className="ml-3 border-l border-gray-700">
+                {/* New investigation input */}
+                {addingInvToCaseId === c.id && (
+                  <div className="pl-3 pr-2 py-1">
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        value={newInvName}
+                        onChange={(e) => setNewInvName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleCreateInvestigation(c.id);
+                          if (e.key === 'Escape') { setAddingInvToCaseId(null); setNewInvName(''); }
+                        }}
+                        placeholder="Investigation name..."
+                        className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-xs min-w-0"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => handleCreateInvestigation(c.id)}
+                        className="px-1.5 py-0.5 bg-blue-600 hover:bg-blue-500 rounded text-xs shrink-0 transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Investigation list */}
+                {c.investigations?.map((inv) => {
+                  const isActive = activeInvestigationId === inv.id;
+                  return (
+                    <div key={inv.id}>
+                      {/* Investigation row */}
+                      <div
+                        onClick={() => onSelectInvestigation(inv)}
+                        className={`flex items-center group pl-3 pr-2 py-1.5 cursor-pointer text-sm transition-colors ${
+                          isActive
+                            ? 'bg-blue-600/20 text-blue-300'
+                            : 'hover:bg-gray-700/60 text-gray-300'
+                        }`}
+                      >
+                        <span className="truncate flex-1 text-xs font-medium">{inv.name}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onEditInvestigation(inv); }}
+                          className="px-0.5 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 text-xs transition-opacity"
+                          title="Edit investigation"
+                        >
+                          ✎
+                        </button>
+                      </div>
+
+                      {/* Traces — nested under active investigation */}
+                      {isActive && traces && (
+                        <div className="ml-3 border-l border-gray-700/70">
+                          {traces.map((trace) => (
+                            <div
+                              key={trace.id}
+                              onClick={() => onSelectTrace?.(trace)}
+                              className={`flex items-center gap-1.5 pl-3 pr-2 py-1 cursor-pointer transition-colors ${
+                                selectedTraceId === trace.id
+                                  ? 'bg-gray-700 text-white'
+                                  : 'hover:bg-gray-700/50 text-gray-400 hover:text-gray-200'
+                              }`}
+                            >
+                              <span
+                                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: trace.color || '#3b82f6' }}
+                              />
+                              <span className="flex-1 truncate text-xs">{trace.name}</span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onToggleVisibility?.(trace.id); }}
+                                className={`flex items-center ${trace.visible ? 'text-gray-500 hover:text-white' : 'text-gray-700 hover:text-gray-400'}`}
+                                title={trace.visible ? 'Hide' : 'Show'}
+                              >
+                                {trace.visible ? <Eye size={12} /> : <EyeSlash size={12} />}
+                              </button>
+                            </div>
+                          ))}
+                          {/* Add trace row */}
+                          {onAddTrace && (
+                            <button
+                              onClick={onAddTrace}
+                              className="flex items-center gap-1.5 pl-3 pr-2 py-1 w-full text-left text-gray-600 hover:text-gray-400 transition-colors"
+                            >
+                              <span className="text-xs">+</span>
+                              <span className="text-xs">Add trace</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {(!c.investigations || c.investigations.length === 0) && (
+                  <p className="text-gray-600 text-xs pl-3 py-1">No investigations.</p>
+                )}
               </div>
             )}
-
-            {/* Investigation list */}
-            {c.expanded && c.investigations?.map((inv) => (
-              <div
-                key={inv.id}
-                onClick={() => onSelectInvestigation(inv)}
-                className={`flex items-center group pl-7 pr-2 py-1 cursor-pointer text-sm transition-colors ${
-                  activeInvestigationId === inv.id
-                    ? 'bg-blue-600/20 text-blue-300'
-                    : 'hover:bg-gray-700 text-gray-300'
-                }`}
-              >
-                <span className="truncate flex-1">{inv.name}</span>
-                <button
-                  onClick={(e) => handleDeleteInvestigation(inv.id, e)}
-                  className="px-1 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 text-xs transition-opacity"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
           </div>
         ))}
 
@@ -242,58 +296,6 @@ export function Sidebar({
           <p className="text-gray-500 text-xs p-3">No cases yet.</p>
         )}
       </div>
-
-      {/* Traces section — shown when an investigation is active */}
-      {activeInvestigationId && traces && (
-        <div className="border-t border-gray-700 flex flex-col">
-          <div className="flex items-center justify-between px-3 py-2">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase">Traces</h3>
-            {onAddTrace && (
-              <button
-                onClick={onAddTrace}
-                className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded text-sm"
-                title="Add Trace"
-              >
-                +
-              </button>
-            )}
-          </div>
-          <div className="overflow-y-auto max-h-48">
-            {traces.map((trace) => (
-              <div
-                key={trace.id}
-                onClick={() => onSelectTrace?.(trace)}
-                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-700 text-sm ${
-                  selectedTraceId === trace.id ? 'bg-gray-700' : ''
-                }`}
-              >
-                <span
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: trace.color || '#3b82f6' }}
-                />
-                <span className="flex-1 truncate text-xs">{trace.name}</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onToggleVisibility?.(trace.id); }}
-                  className={`text-xs px-0.5 ${trace.visible ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-400'}`}
-                  title={trace.visible ? 'Hide' : 'Show'}
-                >
-                  {trace.visible ? 'V' : 'H'}
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onToggleCollapsed?.(trace.id); }}
-                  className="text-xs text-gray-400 hover:text-white px-0.5"
-                  title={trace.collapsed ? 'Expand' : 'Collapse'}
-                >
-                  {trace.collapsed ? '›' : '⌄'}
-                </button>
-              </div>
-            ))}
-            {traces.length === 0 && (
-              <p className="text-gray-500 text-xs px-3 pb-2">No traces yet.</p>
-            )}
-          </div>
-        </div>
-      )}
 
       {activeInvestigationId && scriptRuns && onSelectScriptRun && (
         <ScriptsPanel

@@ -1,4 +1,4 @@
-import { WalletNode, TransactionEdge, Trace } from '../types/investigation';
+import { WalletNode, TransactionEdge, Trace, Group } from '../types/investigation';
 import { TraceList } from './TraceList';
 import { DetailsPanel } from './DetailsPanel';
 import { StagingPanel } from './StagingPanel';
@@ -9,7 +9,6 @@ interface SidePanelProps {
   allWallets: { wallet: WalletNode; traceId: string }[];
   selectedTraceId?: string;
   stagedItems: TransactionEdge[];
-  fetchLoading: boolean;
   onSelectTrace: (trace: Trace) => void;
   onToggleVisibility: (traceId: string) => void;
   onToggleCollapsed: (traceId: string) => void;
@@ -21,6 +20,8 @@ interface SidePanelProps {
   onUpdateTrace: (traceId: string, updates: Partial<Trace>) => void;
   onDeleteTrace: (traceId: string) => void;
   onFetchHistory: (address: string, chain: string) => void;
+  onUpdateGroup: (traceId: string, groupId: string, updates: Partial<Group>) => void;
+  onDeleteGroup: (traceId: string, groupId: string) => void;
   onAddStagedToTrace: (traceId: string, selected: TransactionEdge[]) => void;
   onClearStaged: () => void;
 }
@@ -31,7 +32,6 @@ export function SidePanel({
   allWallets,
   selectedTraceId,
   stagedItems,
-  fetchLoading,
   onSelectTrace,
   onToggleVisibility,
   onToggleCollapsed,
@@ -43,6 +43,8 @@ export function SidePanel({
   onUpdateTrace,
   onDeleteTrace,
   onFetchHistory,
+  onUpdateGroup,
+  onDeleteGroup,
   onAddStagedToTrace,
   onClearStaged,
 }: SidePanelProps) {
@@ -68,7 +70,8 @@ export function SidePanel({
           onUpdateTrace={onUpdateTrace}
           onDeleteTrace={onDeleteTrace}
           onFetchHistory={onFetchHistory}
-          fetchLoading={fetchLoading}
+          onUpdateGroup={onUpdateGroup}
+          onDeleteGroup={onDeleteGroup}
         />
       </div>
       <StagingPanel

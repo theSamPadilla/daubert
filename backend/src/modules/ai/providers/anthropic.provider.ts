@@ -19,10 +19,11 @@ export class AnthropicProvider implements LlmProvider {
     system: string;
     messages: Anthropic.Beta.BetaMessageParam[];
     tools: Anthropic.Beta.BetaTool[];
+    model?: string;
   }): AsyncGenerator<StreamEvent> {
     const stream = this.client.beta.messages.stream({
       betas: ['compact-2026-01-12'],
-      model: DEFAULT_MODEL,
+      model: params.model ?? DEFAULT_MODEL,
       max_tokens: MAX_TOKENS,
       thinking: { type: 'adaptive' },
       system: params.system,

@@ -1,3 +1,10 @@
+export interface Group {
+  id: string;
+  name: string;
+  color?: string;
+  traceId: string;
+}
+
 export interface Investigation {
   id: string;
   name: string;
@@ -20,6 +27,7 @@ export interface Trace {
   color?: string;
   nodes: WalletNode[];
   edges: TransactionEdge[];
+  groups?: Group[];
   position?: { x: number; y: number };
   collapsed: boolean;
 }
@@ -35,6 +43,7 @@ export interface WalletNode {
   tags: string[];
   position: { x: number; y: number };
   parentTrace: string;
+  groupId?: string;
   addressType?: 'wallet' | 'contract' | 'unknown';
   explorerUrl?: string;
 }

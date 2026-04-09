@@ -12,11 +12,13 @@ interface BatchEditPanelProps {
   onDelete: () => void;
   onDeselect: () => void;
   onExtractToTrace?: () => void;
+  onGroupNodes?: (name: string) => void;
 }
 
-export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselect, onExtractToTrace }: BatchEditPanelProps) {
+export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselect, onExtractToTrace, onGroupNodes }: BatchEditPanelProps) {
   const [prefix, setPrefix] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [groupName, setGroupName] = useState('');
 
   return (
     <div className="p-4 space-y-4">
@@ -63,6 +65,29 @@ export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselec
           ))}
         </div>
       </div>
+
+      {/* Group nodes */}
+      {onGroupNodes && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Group nodes</h4>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              placeholder="Group name..."
+              className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={() => { if (groupName.trim()) { onGroupNodes(groupName.trim()); setGroupName(''); } }}
+              disabled={!groupName.trim()}
+              className="px-3 py-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 rounded text-xs text-white"
+            >
+              Create
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Extract to New Trace */}
       {onExtractToTrace && (

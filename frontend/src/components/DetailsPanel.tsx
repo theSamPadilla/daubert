@@ -78,7 +78,7 @@ function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onArcEdge }: Ed
               const human = tok.decimals > 0
                 ? parseFloat(String(e.amount)) / Math.pow(10, tok.decimals)
                 : parseFloat(String(e.amount));
-              const explorerUrl = buildTxExplorerUrl(e.chain, e.txHash);
+              const explorerUrl = buildTxExplorerUrl(e.chain, e.txHash || '');
               const Row = explorerUrl ? 'a' : 'div';
               return (
                 <Row
@@ -560,10 +560,19 @@ function fmtFlow(amount: number): string {
   return amount.toFixed(2).replace(/\.?0+$/, '');
 }
 
-function GroupColorPicker({ color, onChange }: { color?: string; onChange: (c: string) => void }) {
+function GroupColorPicker({ color, onChange }: { color?: string; onChange: (c: string | undefined) => void }) {
   const customRef = useRef<HTMLInputElement>(null);
   return (
     <div className="flex gap-2 flex-wrap items-center">
+      {/* None swatch */}
+      <button
+        onClick={() => onChange(undefined)}
+        title="No color"
+        className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 relative overflow-hidden ${!color ? 'border-white' : 'border-gray-600 hover:border-gray-400'}`}
+        style={{ backgroundColor: '#1f2937' }}
+      >
+        <span className="absolute inset-0 flex items-center justify-center text-gray-500 text-[10px] font-bold">∅</span>
+      </button>
       {GROUP_COLORS.map((c) => (
         <button
           key={c}
@@ -676,7 +685,7 @@ function GroupDetails({
       {/* Color */}
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Color</h4>
-        <GroupColorPicker color={group.color} onChange={(c) => onUpdate({ color: c })} />
+        <GroupColorPicker color={group.color ?? undefined} onChange={(c) => onUpdate({ color: c ?? null })} />
       </div>
 
       {/* Tab toggle */}
@@ -980,12 +989,14 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
           transaction={tx}
           traces={traces}
           allWallets={allWallets}
-          onSave={(tid, updates) => {
-            onUpdateTransaction(tid || traceId, tx.id, updates);
+          onSave={(_tid, updates) => {
+            // Always use traceId found by edge lookup — the form's tid may be wrong
+            // for cross-trace edges where `from` is a wallet in a different trace.
+            onUpdateTransaction(traceId, tx.id, updates);
             setEditing(false);
           }}
-          onDelete={(tid) => {
-            onDeleteTransaction(tid || traceId, tx.id);
+          onDelete={(_tid) => {
+            onDeleteTransaction(traceId, tx.id);
             setEditing(false);
           }}
           onCancel={() => setEditing(false)}

@@ -1,7 +1,7 @@
 export interface Group {
   id: string;
   name: string;
-  color?: string;
+  color?: string | null; // null = explicitly no color; undefined = use trace fallback
   traceId: string;
   collapsed?: boolean;
   size?: number;

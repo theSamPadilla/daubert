@@ -26,6 +26,7 @@ export interface CytoscapeCallbacks {
   onMultiSelect?: (nodes: { id: string; traceId: string }[]) => void;
   onMultiSelectEdges?: (edgeIds: string[]) => void;
   onNodeDrag?: (nodeId: string, position: { x: number; y: number }) => void;
+  onGroupDrag?: (groupId: string, newPos: { x: number; y: number }) => void;
   onResizeNode?: (nodeId: string, traceId: string, size: number) => void;
   onContextMenu?: (event: { type: 'node' | 'edge' | 'background'; id?: string; x: number; y: number }) => void;
   onDoubleClickBackground?: (position: { x: number; y: number }) => void;
@@ -147,6 +148,13 @@ const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
       'font-size': '11px',
       'font-weight': '600',
       'text-margin-y': -3,
+    },
+  },
+  {
+    selector: 'node[?isGroup][?noColor]',
+    style: {
+      'background-opacity': 0,
+      'border-width': 0,
     },
   },
   // ── Subgroup collapsed (leaf node) ─────────────────────────────────────
@@ -606,7 +614,22 @@ export function useCytoscape(
     // Drag handler
     cy.on('dragfree', 'node', (event: EventObject) => {
       const node = event.target;
-      if (node.isParent()) return;
+      if (node.isParent()) {
+        // Expanded compound (group/trace) dragged — children move with it but
+        // don't fire their own dragfree events. Save all leaf descendants.
+        node.descendants().not(':parent').forEach((child: any) => {
+          const pos = child.position();
+          callbacksRef.current.onNodeDrag?.(child.data('id'), { x: pos.x, y: pos.y });
+        });
+        return;
+      }
+      if (node.data('isCollapsedGroup')) {
+        // Collapsed group is a leaf placeholder — delegate to page.tsx which
+        // knows the member nodes and can apply the offset to each.
+        const pos = node.position();
+        callbacksRef.current.onGroupDrag?.(node.data('id'), { x: pos.x, y: pos.y });
+        return;
+      }
       const pos = node.position();
       callbacksRef.current.onNodeDrag?.(node.data('id'), { x: pos.x, y: pos.y });
     });
@@ -688,6 +711,20 @@ export function useCytoscape(
     const targetNodes = new Map<string, any>();
     const targetEdges = new Map<string, any>();
 
+    // Global map: nodeId → effective display nodeId (handles collapsed groups/traces across all traces)
+    const globalEffectiveId = new Map<string, string>();
+    inv.traces.forEach((trace) => {
+      if (!trace.visible) return;
+      if (trace.collapsed) {
+        trace.nodes.forEach((n) => globalEffectiveId.set(n.id, trace.id));
+      } else {
+        const collapsedGroupIds = new Set<string>((trace.groups || []).filter((g) => g.collapsed).map((g) => g.id));
+        trace.nodes.forEach((n) => {
+          globalEffectiveId.set(n.id, n.groupId && collapsedGroupIds.has(n.groupId) ? n.groupId : n.id);
+        });
+      }
+    });
+
     inv.traces.forEach((trace) => {
       if (!trace.visible) return;
 
@@ -721,35 +758,28 @@ export function useCytoscape(
           position: trace.position || { x: 0, y: 0 },
         });
 
-        // Build map of nodeId → groupId for collapsed groups
-        const collapsedGroupOf = new Map<string, string>();
-        (trace.groups || []).forEach((group) => {
-          if (group.collapsed) {
-            trace.nodes.forEach((n) => { if (n.groupId === group.id) collapsedGroupOf.set(n.id, group.id); });
-          }
-        });
-
         // Group nodes (compound if expanded, leaf node if collapsed)
         (trace.groups || []).forEach((group) => {
-          const groupColor = group.color || traceColor || '#60a5fa';
+          const noColor = group.color === null;
+          const groupColor = noColor ? '#6b7280' : (group.color || traceColor || '#60a5fa');
           if (group.collapsed) {
             const gMembers = trace.nodes.filter((n) => n.groupId === group.id);
             const cx = gMembers.reduce((s, n) => s + n.position.x, 0) / (gMembers.length || 1);
             const cy2 = gMembers.reduce((s, n) => s + n.position.y, 0) / (gMembers.length || 1);
             targetNodes.set(group.id, {
-              data: { id: group.id, parent: trace.id, traceId: trace.id, label: group.name, displayLabel: `${group.name} (${gMembers.length})`, color: groupColor, textColor: contrastTextColor(groupColor), size: group.size || 70, isCollapsedGroup: true },
+              data: { id: group.id, parent: trace.id, traceId: trace.id, label: group.name, displayLabel: `${group.name} (${gMembers.length})`, color: groupColor, textColor: contrastTextColor(groupColor), size: group.size || 70, isCollapsedGroup: true, noColor: noColor || undefined },
               position: { x: cx, y: cy2 },
             });
           } else {
             targetNodes.set(group.id, {
-              data: { id: group.id, parent: trace.id, label: group.name, color: groupColor, isGroup: true },
+              data: { id: group.id, parent: trace.id, label: group.name, color: groupColor, isGroup: true, noColor: noColor || undefined },
             });
           }
         });
 
-        // Wallet nodes (skip members of collapsed groups)
+        // Wallet nodes (skip members of collapsed groups — use global map)
         trace.nodes.forEach((node) => {
-          if (collapsedGroupOf.has(node.id)) return;
+          if (globalEffectiveId.get(node.id) !== node.id) return; // hidden by collapse
           const addr = node.address;
           const truncAddr = addr && addr.length > 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr || '';
           const hasCustomLabel = !!(node.label && node.label !== addr && node.label !== truncAddr);
@@ -779,9 +809,13 @@ export function useCytoscape(
 
         trace.edges.forEach((edge) => {
           if (bundledEdgeIds.has(edge.id)) return; // rendered as bundle edge below
-          const effFrom = collapsedGroupOf.get(edge.from) ?? edge.from;
-          const effTo   = collapsedGroupOf.get(edge.to)   ?? edge.to;
+          // Use global effective IDs so cross-trace collapsed groups/traces are handled
+          const effFrom = globalEffectiveId.get(edge.from) ?? edge.from;
+          const effTo   = globalEffectiveId.get(edge.to)   ?? edge.to;
           if (effFrom === effTo) return;
+          // Skip if either endpoint isn't visible (node in hidden/collapsed trace with no mapping)
+          if (!targetNodes.has(effFrom) && !targetNodes.has(edge.from)) return;
+          if (!targetNodes.has(effTo)   && !targetNodes.has(edge.to))   return;
           const tok = normalizeToken(edge.token);
           const raw = parseFloat(String(edge.amount)) || 0;
           const human = tok.decimals > 0 ? raw / Math.pow(10, tok.decimals) : raw;
@@ -874,6 +908,8 @@ export function useCytoscape(
           }
         }
       } else {
+        // Guard: skip if endpoints don't exist (e.g. source in a hidden trace)
+        if (!cy.getElementById(target.data.source).length || !cy.getElementById(target.data.target).length) return;
         cy.add({ group: 'edges', ...target });
       }
     });

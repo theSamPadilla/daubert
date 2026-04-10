@@ -788,6 +788,22 @@ function AppShell() {
         setSelectedItem(null);
       },
       onNodeDrag: updateNodePosition,
+      onGroupDrag: (groupId, newPos) => {
+        if (!investigation) return;
+        for (const trace of investigation.traces) {
+          const group = (trace.groups || []).find((g) => g.id === groupId);
+          if (!group) continue;
+          const members = trace.nodes.filter((n) => n.groupId === groupId);
+          if (members.length === 0) break;
+          // Compute old center (average of member positions) then apply delta
+          const oldCx = members.reduce((s, n) => s + n.position.x, 0) / members.length;
+          const oldCy = members.reduce((s, n) => s + n.position.y, 0) / members.length;
+          const dx = newPos.x - oldCx;
+          const dy = newPos.y - oldCy;
+          members.forEach((n) => updateNodePosition(n.id, { x: n.position.x + dx, y: n.position.y + dy }));
+          break;
+        }
+      },
       onResizeNode: (nodeId, traceId, size) => {
         const isGroup = investigation?.traces.some(t => (t.groups || []).some(g => g.id === nodeId));
         if (isGroup) updateGroup(traceId, nodeId, { size });

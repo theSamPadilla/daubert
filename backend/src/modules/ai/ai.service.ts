@@ -21,42 +21,50 @@ import {
 import { AttachmentDto } from './dto/chat-message.dto';
 
 /**
- * Ensures every tool_use in an assistant message has a matching tool_result in
- * the following user message, and vice-versa. Strips broken pairs so the API
- * never sees an orphaned tool_use or tool_result block.
+ * Ensures every tool_use / code_execution block in an assistant message has a
+ * matching tool_result / code_execution_tool_result in the following user
+ * message, and vice-versa. Strips broken pairs so the API never sees orphaned
+ * blocks.
  *
  * Broken pairs arise when:
  *  - Both rows were saved in the same DB transaction (same NOW() → unstable sort)
  *  - The compact-2026-01-12 beta summarised away a tool_use block but left its
  *    tool_result in the DB.
+ *  - adaptive thinking causes the model to emit code_execution blocks that need
+ *    a matching code_execution_tool_result in the next user turn.
  */
 function sanitizeToolPairs(
   messages: Anthropic.Beta.BetaMessageParam[],
 ): Anthropic.Beta.BetaMessageParam[] {
   const out: Anthropic.Beta.BetaMessageParam[] = [];
 
+  // Types that act like tool_use and need a matching result in the next turn
+  const USE_TYPES = new Set(['tool_use', 'code_execution']);
+  // Types that act like tool_result and need a matching use in the prev turn
+  const RESULT_TYPES = new Set(['tool_result', 'code_execution_tool_result']);
+
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
     const content = (Array.isArray(msg.content) ? msg.content : []) as any[];
 
     if (msg.role === 'assistant') {
-      const toolUses = content.filter((b) => b.type === 'tool_use');
+      const toolUses = content.filter((b) => USE_TYPES.has(b.type));
 
       if (toolUses.length > 0) {
-        // Collect tool_result IDs from the immediately following user message
+        // Collect result IDs from the immediately following user message
         const next = messages[i + 1];
         const nextContent = (next?.role === 'user' && Array.isArray(next.content)
           ? next.content
           : []) as any[];
         const resultIds = new Set(
           nextContent
-            .filter((b) => b.type === 'tool_result')
+            .filter((b) => RESULT_TYPES.has(b.type))
             .map((b) => b.tool_use_id),
         );
 
-        // Keep only tool_use blocks that have a matching result; keep all others
+        // Keep only tool-use blocks that have a matching result; keep all others
         const kept = content.filter(
-          (b) => b.type !== 'tool_use' || resultIds.has(b.id),
+          (b) => !USE_TYPES.has(b.type) || resultIds.has(b.id),
         );
         if (kept.length === 0) continue; // skip empty assistant message
         out.push({ ...msg, content: kept });
@@ -65,21 +73,21 @@ function sanitizeToolPairs(
     }
 
     if (msg.role === 'user') {
-      const toolResults = content.filter((b) => b.type === 'tool_result');
+      const toolResults = content.filter((b) => RESULT_TYPES.has(b.type));
 
       if (toolResults.length > 0) {
-        // Collect tool_use IDs from the immediately preceding assistant message
+        // Collect tool-use IDs from the immediately preceding assistant message
         const prev = out[out.length - 1];
         const prevContent = (prev?.role === 'assistant' && Array.isArray(prev.content)
           ? prev.content
           : []) as any[];
         const useIds = new Set(
-          prevContent.filter((b) => b.type === 'tool_use').map((b) => b.id),
+          prevContent.filter((b) => USE_TYPES.has(b.type)).map((b) => b.id),
         );
 
-        // Keep only tool_results with a matching tool_use; keep all others
+        // Keep only results with a matching use; keep all others
         const kept = content.filter(
-          (b) => b.type !== 'tool_result' || useIds.has(b.tool_use_id),
+          (b) => !RESULT_TYPES.has(b.type) || useIds.has(b.tool_use_id),
         );
         if (kept.length === 0) continue; // skip empty user message
         out.push({ ...msg, content: kept });
@@ -91,6 +99,22 @@ function sanitizeToolPairs(
   }
 
   return out;
+}
+
+/**
+ * Detects whether an Anthropic API error is the "tool use without result" class
+ * of invalid_request_error that can be auto-healed by stripping server-side
+ * tool blocks from the history.
+ */
+function isOrphanedToolError(err: unknown): boolean {
+  if (!(err instanceof Anthropic.BadRequestError)) return false;
+  const msg = (err as any)?.error?.error?.message ?? err.message ?? '';
+  return (
+    msg.includes('code_execution') ||
+    msg.includes('tool_use') ||
+    msg.includes('without a corresponding') ||
+    msg.includes('tool_result')
+  );
 }
 
 export interface SseEvent {
@@ -209,20 +233,45 @@ export class AiService {
     let firstAssistantText = '';
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-      // Stream from LLM provider
+      // Stream from LLM provider — with one auto-heal retry on orphaned-tool errors
       let response: Anthropic.Beta.BetaMessage | undefined;
+      let streamMessages = messages;
 
-      for await (const event of this.llm.streamChat({
-        system: INVESTIGATOR_PROMPT,
-        messages,
-        tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
-        model,
-      })) {
-        if (event.type === 'text') {
-          if (isFirstTurn) firstAssistantText += event.content;
-          yield { type: 'text_delta', data: { content: event.content } };
-        } else if (event.type === 'end_turn') {
-          response = event.response;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        response = undefined;
+        try {
+          for await (const event of this.llm.streamChat({
+            system: INVESTIGATOR_PROMPT,
+            messages: streamMessages,
+            tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
+            model,
+          })) {
+            if (event.type === 'text') {
+              if (isFirstTurn) firstAssistantText += event.content;
+              yield { type: 'text_delta', data: { content: event.content } };
+            } else if (event.type === 'end_turn') {
+              response = event.response;
+            }
+          }
+          break; // success — exit retry loop
+        } catch (err) {
+          if (attempt === 0 && isOrphanedToolError(err)) {
+            // Strip ALL server-side / code_execution blocks from history and retry
+            streamMessages = streamMessages.map((m) => {
+              if (!Array.isArray(m.content)) return m;
+              const STRIP = new Set(['code_execution', 'code_execution_tool_result']);
+              const kept = (m.content as any[]).filter((b) => !STRIP.has(b.type));
+              return kept.length ? { ...m, content: kept } : m;
+            }).filter((m) => {
+              if (!Array.isArray(m.content)) return true;
+              return (m.content as any[]).length > 0;
+            });
+            // Re-sanitize after stripping
+            streamMessages = sanitizeToolPairs(streamMessages);
+            yield { type: 'text_delta', data: { content: '' } }; // keep SSE alive
+            continue;
+          }
+          throw err; // non-recoverable — re-throw
         }
       }
 

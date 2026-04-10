@@ -1,11 +1,148 @@
-import { useState, forwardRef, useImperativeHandle } from 'react';
-import { WalletNode, TransactionEdge, Trace, Group } from '../types/investigation';
+import { useState, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
+import { FaXmark, FaChevronDown, FaChevronRight, FaArrowUpRightFromSquare } from 'react-icons/fa6';
+import { WalletNode, TransactionEdge, Trace, Group, EdgeBundle } from '../types/investigation';
 import { type ScriptRun } from '@/lib/api-client';
 import { WalletForm } from './WalletForm';
 import { TransactionForm } from './TransactionForm';
 import { TraceForm } from './TraceForm';
 import { formatTokenAmount, normalizeToken, parseTimestamp } from '../utils/formatAmount';
 import { buildTxExplorerUrl } from '../utils/addressParser';
+
+interface EdgeBundleDetailsProps {
+  bundle: EdgeBundle;
+  traces: Trace[];
+  onToggle: () => void;
+  onDelete: () => void;
+  onArcEdge?: (delta: number | null) => void;
+}
+
+function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onArcEdge }: EdgeBundleDetailsProps) {
+  const trace = traces.find((t) => t.id === bundle.traceId);
+  const fromNode = trace?.nodes.find((n) => n.id === bundle.fromNodeId);
+  const toNode = trace?.nodes.find((n) => n.id === bundle.toNodeId);
+  const bundleEdges = bundle.edgeIds
+    .map((id) => trace?.edges.find((e) => e.id === id))
+    .filter(Boolean) as TransactionEdge[];
+
+  const abbr = (h: number) => h >= 1e6 ? `${(h/1e6).toFixed(2).replace(/\.?0+$/, '')}M` : h >= 1e3 ? `${(h/1e3).toFixed(1)}K` : h.toFixed(2);
+
+  // Derive the display token from actual edges (bundle.token may be stale/wrong)
+  const displayToken = bundleEdges.length > 0 ? normalizeToken(bundleEdges[0].token).symbol : bundle.token;
+
+  // Sum per-token so mixed bundles show correctly
+  const tokenTotals = bundleEdges.reduce((map, e) => {
+    const tok = normalizeToken(e.token);
+    const raw = parseFloat(String(e.amount)) || 0;
+    const human = tok.decimals > 0 ? raw / Math.pow(10, tok.decimals) : raw;
+    map.set(tok.symbol, (map.get(tok.symbol) || 0) + human);
+    return map;
+  }, new Map<string, number>());
+  const totalSummary = Array.from(tokenTotals.entries())
+    .map(([sym, amt]) => `${abbr(amt)} ${sym}`)
+    .join(' + ');
+
+  const fromLabel = fromNode?.label || bundle.fromNodeId.slice(0, 8) + '…';
+  const toLabel = toNode?.label || bundle.toNodeId.slice(0, 8) + '…';
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <h4 className="text-xs font-semibold text-gray-400 uppercase">Edge Bundle</h4>
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/20 text-amber-300">
+          {displayToken}
+        </span>
+      </div>
+
+      <p className="text-sm font-semibold text-white">
+        {fromLabel} → {toLabel}
+      </p>
+
+      <div className="bg-gray-900/60 rounded p-3 space-y-1">
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-400">Total amount</span>
+          <span className="text-white font-semibold">{totalSummary}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-400">Transactions</span>
+          <span className="text-white">{bundleEdges.length}</span>
+        </div>
+      </div>
+
+      {/* Individual transactions */}
+      {bundleEdges.length > 0 && (
+        <div className="space-y-1">
+          <h5 className="text-[10px] font-semibold text-gray-500 uppercase">Transactions</h5>
+          <div className="max-h-40 overflow-y-auto space-y-1 [scrollbar-width:thin]">
+            {bundleEdges.map((e) => {
+              const tok = normalizeToken(e.token);
+              const human = tok.decimals > 0
+                ? parseFloat(String(e.amount)) / Math.pow(10, tok.decimals)
+                : parseFloat(String(e.amount));
+              const explorerUrl = buildTxExplorerUrl(e.chain, e.txHash);
+              const Row = explorerUrl ? 'a' : 'div';
+              return (
+                <Row
+                  key={e.id}
+                  {...(explorerUrl ? { href: explorerUrl, target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  className="flex items-center justify-between text-[11px] text-gray-400 bg-gray-900/40 rounded px-2 py-1 hover:bg-gray-700/60 hover:text-gray-200 transition-colors group"
+                >
+                  <span className="font-mono truncate max-w-[120px] group-hover:text-amber-300 flex items-center gap-1">
+                    {e.txHash?.slice(0, 10)}…
+                    {explorerUrl && <FaArrowUpRightFromSquare size={8} className="opacity-0 group-hover:opacity-60 shrink-0" />}
+                  </span>
+                  <span className="text-white shrink-0">{abbr(human)} {tok.symbol}</span>
+                </Row>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {onArcEdge && bundle.collapsed && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Arc</h4>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onArcEdge(-40)}
+              className="flex-1 py-1 rounded text-sm border border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200 transition-colors"
+              title="Arc left"
+            >
+              ◁
+            </button>
+            <button
+              onClick={() => onArcEdge(null)}
+              className="px-2 py-1 rounded text-xs border border-gray-600 text-gray-500 hover:border-gray-400 hover:text-gray-300 transition-colors"
+              title="Reset arc"
+            >
+              Reset
+            </button>
+            <button
+              onClick={() => onArcEdge(40)}
+              className="flex-1 py-1 rounded text-sm border border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200 transition-colors"
+              title="Arc right"
+            >
+              ▷
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="flex gap-2 pt-1">
+        <button
+          onClick={onToggle}
+          className="flex-1 px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 rounded text-xs font-medium transition-colors"
+        >
+          {bundle.collapsed ? 'Expand bundle' : 'Collapse bundle'}
+        </button>
+        <button
+          onClick={onDelete}
+          className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-xs transition-colors"
+        >
+          Unbundle
+        </button>
+      </div>
+    </div>
+  );
+}
 
 interface DetailsPanelProps {
   selectedItem: any | null;
@@ -19,8 +156,12 @@ interface DetailsPanelProps {
   onDeleteTrace: (traceId: string) => void;
   onUpdateGroup: (traceId: string, groupId: string, updates: Partial<Group>) => void;
   onDeleteGroup: (traceId: string, groupId: string) => void;
+  onSetNodeGroup: (traceId: string, nodeIds: string[], groupId: string | null) => void;
   onFetchHistory: (address: string, chain: string) => void;
   onRerunScript?: (scriptRunId: string) => Promise<void>;
+  onToggleEdgeBundle?: (traceId: string, bundleId: string) => void;
+  onDeleteEdgeBundle?: (traceId: string, bundleId: string) => void;
+  onArcEdge?: (edgeId: string, delta: number | null) => void;
 }
 
 const ADDRESS_TYPE_LABELS: Record<string, string> = {
@@ -35,15 +176,35 @@ const ADDRESS_TYPE_COLORS: Record<string, string> = {
   unknown: 'bg-gray-500/20 text-gray-400',
 };
 
+const NODE_SHAPES: { value: WalletNode['shape']; label: string; icon: string }[] = [
+  { value: 'ellipse',        label: 'Circle',   icon: '⬤' },
+  { value: 'rectangle',      label: 'Rect',     icon: '▬' },
+  { value: 'roundrectangle', label: 'Round',    icon: '▢' },
+  { value: 'diamond',        label: 'Diamond',  icon: '◆' },
+  { value: 'hexagon',        label: 'Hex',      icon: '⬡' },
+  { value: 'triangle',       label: 'Triangle', icon: '▲' },
+];
+
 function WalletDetails({
   wallet,
   onFetchHistory,
+  onUpdate,
 }: {
   wallet: WalletNode;
   onFetchHistory: (address: string, chain: string) => void;
+  onUpdate?: (updates: Partial<WalletNode>) => void;
 }) {
   const hasAddress = !!wallet.address;
   const addrType = wallet.addressType || 'unknown';
+  const [notes, setNotes] = useState(wallet.notes || '');
+
+  const walletId = wallet.id;
+  const prevWalletId = useRef(walletId);
+  if (prevWalletId.current !== walletId) {
+    prevWalletId.current = walletId;
+    setNotes(wallet.notes || '');
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -88,12 +249,47 @@ function WalletDetails({
           </div>
         </div>
       )}
-      {wallet.notes && (
+      {onUpdate && (
         <div>
-          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Notes</h4>
-          <p className="text-sm text-gray-300">{wallet.notes}</p>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Shape</h4>
+          <div className="grid grid-cols-3 gap-1">
+            {NODE_SHAPES.map(({ value, label, icon }) => (
+              <button
+                key={value}
+                onClick={() => onUpdate({ shape: value })}
+                title={label}
+                className={`py-1.5 rounded text-xs transition-colors border flex flex-col items-center gap-0.5 ${
+                  (wallet.shape || 'ellipse') === value
+                    ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                    : 'border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <span className="text-base leading-none">{icon}</span>
+                <span className="text-[10px]">{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
+      <div>
+        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Notes</h4>
+        <textarea
+          value={notes}
+          onChange={(e) => {
+            setNotes(e.target.value);
+            const el = e.target;
+            el.style.height = 'auto';
+            el.style.height = `${el.scrollHeight}px`;
+          }}
+          onBlur={() => { if (onUpdate && notes !== (wallet.notes || '')) onUpdate({ notes }); }}
+          ref={(el) => {
+            if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
+          }}
+          placeholder="Add notes…"
+          rows={3}
+          className="w-full bg-gray-700/50 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500 resize-none overflow-hidden"
+        />
+      </div>
       {hasAddress && (
         <div className="pt-2 border-t border-gray-700">
           <button
@@ -120,28 +316,92 @@ function resolveWalletDisplay(id: string, allWallets: { wallet: WalletNode; trac
   return { label: truncated, address: '' };
 }
 
-function TransactionAmount({ transaction }: { transaction: TransactionEdge }) {
+function TransactionHeader({
+  transaction,
+  onUpdate,
+}: {
+  transaction: TransactionEdge;
+  onUpdate?: (updates: Partial<TransactionEdge>) => void;
+}) {
   const tok = normalizeToken(transaction.token);
+  const fallback = `${formatTokenAmount(transaction.amount, tok.decimals)} ${tok.symbol}`;
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(transaction.label || '');
+
+  const txId = transaction.id;
+  const prevId = useRef(txId);
+  if (prevId.current !== txId) {
+    prevId.current = txId;
+    setValue(transaction.label || '');
+    setEditing(false);
+  }
+
+  const commit = () => {
+    setEditing(false);
+    const next = value.trim();
+    const prev = transaction.label || '';
+    if (next !== prev) onUpdate?.({ label: next || undefined });
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+        placeholder={fallback}
+        className="w-full bg-gray-700/50 border border-blue-500 rounded px-2 py-0.5 text-sm font-semibold text-white placeholder-gray-500 focus:outline-none"
+      />
+    );
+  }
+
   return (
-    <p className="text-sm font-semibold">
-      {formatTokenAmount(transaction.amount, tok.decimals)} {tok.symbol}
+    <p
+      className={`text-sm font-semibold ${onUpdate ? 'cursor-pointer hover:text-blue-300 transition-colors' : ''}`}
+      onClick={() => onUpdate && setEditing(true)}
+      title={onUpdate ? 'Click to rename' : undefined}
+    >
+      {transaction.label || fallback}
     </p>
   );
 }
 
+const LINE_STYLES: { value: 'solid' | 'dashed' | 'dotted'; label: string; preview: string }[] = [
+  { value: 'solid',  label: 'Solid',  preview: '——' },
+  { value: 'dashed', label: 'Dashed', preview: '- -' },
+  { value: 'dotted', label: 'Dotted', preview: '···' },
+];
+
 function TransactionDetails({
   transaction,
   allWallets,
+  onUpdate,
+  onArcEdge,
 }: {
   transaction: TransactionEdge;
   allWallets: { wallet: WalletNode; traceId: string }[];
+  onUpdate?: (updates: Partial<TransactionEdge>) => void;
+  onArcEdge?: (delta: number | null) => void;
 }) {
   const fromDisplay = resolveWalletDisplay(transaction.from, allWallets);
   const toDisplay = resolveWalletDisplay(transaction.to, allWallets);
+  const currentStyle = transaction.lineStyle || 'solid';
+  const [notes, setNotes] = useState(transaction.notes || '');
+
+  // Keep local state in sync when a different transaction is selected
+  const txId = transaction.id;
+  const prevTxId = useRef(txId);
+  if (prevTxId.current !== txId) {
+    prevTxId.current = txId;
+    setNotes(transaction.notes || '');
+  }
 
   return (
     <div className="space-y-3">
-      <TransactionAmount transaction={transaction} />
+      <TransactionHeader transaction={transaction} onUpdate={onUpdate} />
       {transaction.usdValue && (
         <p className="text-xs text-gray-400">${transaction.usdValue.toLocaleString()}</p>
       )}
@@ -151,21 +411,76 @@ function TransactionDetails({
           <p className="text-sm text-gray-300 capitalize">{transaction.chain}</p>
         </div>
       )}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Hash</h4>
-        {buildTxExplorerUrl(transaction.chain, transaction.txHash) ? (
-          <a
-            href={buildTxExplorerUrl(transaction.chain, transaction.txHash)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-mono text-blue-400 hover:text-blue-300 break-all underline decoration-blue-400/30 hover:decoration-blue-300/60 transition-colors"
-          >
-            {transaction.txHash}
-          </a>
-        ) : (
-          <p className="text-xs font-mono text-gray-300 break-all">{transaction.txHash}</p>
-        )}
-      </div>
+      {transaction.txHash && (() => {
+        const explorerUrl = buildTxExplorerUrl(transaction.chain, transaction.txHash);
+        return (
+          <div>
+            <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Hash</h4>
+            {explorerUrl ? (
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-mono text-blue-400 hover:text-blue-300 break-all underline decoration-blue-400/30 hover:decoration-blue-300/60 transition-colors"
+              >
+                {transaction.txHash}
+                <FaArrowUpRightFromSquare size={10} className="shrink-0 opacity-60" />
+              </a>
+            ) : (
+              <p className="text-xs font-mono text-gray-300 break-all">{transaction.txHash}</p>
+            )}
+          </div>
+        );
+      })()}
+      {onUpdate && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Line style</h4>
+          <div className="flex gap-1.5">
+            {LINE_STYLES.map(({ value, label, preview }) => (
+              <button
+                key={value}
+                onClick={() => onUpdate({ lineStyle: value })}
+                title={label}
+                className={`flex-1 py-1 rounded text-xs font-mono transition-colors border ${
+                  currentStyle === value
+                    ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                    : 'border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {preview}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {onArcEdge && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Arc</h4>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onArcEdge(-40)}
+              className="flex-1 py-1 rounded text-sm border border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200 transition-colors"
+              title="Arc left"
+            >
+              ◁
+            </button>
+            <button
+              onClick={() => onArcEdge(null)}
+              className="px-2 py-1 rounded text-xs border border-gray-600 text-gray-500 hover:border-gray-400 hover:text-gray-300 transition-colors"
+              title="Reset arc"
+            >
+              Reset
+            </button>
+            <button
+              onClick={() => onArcEdge(40)}
+              className="flex-1 py-1 rounded text-sm border border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200 transition-colors"
+              title="Arc right"
+            >
+              ▷
+            </button>
+          </div>
+        </div>
+      )}
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">From → To</h4>
         <p className="text-xs text-gray-300">{fromDisplay.label}</p>
@@ -190,73 +505,251 @@ function TransactionDetails({
           </div>
         </div>
       )}
-      {transaction.notes && (
+      {transaction.links && transaction.links.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Notes</h4>
-          <p className="text-sm text-gray-300">{transaction.notes}</p>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Links</h4>
+          <div className="space-y-1">
+            {transaction.links.map((link, i) => (
+              <a
+                key={i}
+                href={link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-xs text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300/60 truncate transition-colors"
+                title={link}
+              >
+                {link}
+              </a>
+            ))}
+          </div>
         </div>
       )}
+      <div>
+        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Notes</h4>
+        <textarea
+          value={notes}
+          onChange={(e) => {
+            setNotes(e.target.value);
+            const el = e.target;
+            el.style.height = 'auto';
+            el.style.height = `${el.scrollHeight}px`;
+          }}
+          onBlur={() => { if (onUpdate && notes !== (transaction.notes || '')) onUpdate({ notes }); }}
+          ref={(el) => {
+            if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
+          }}
+          placeholder="Add notes…"
+          rows={3}
+          className="w-full bg-gray-700/50 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500 resize-none overflow-hidden"
+        />
+      </div>
     </div>
   );
 }
 
-const GROUP_COLORS = ['#3b82f6','#10b981','#f97316','#8b5cf6','#ec4899','#06b6d4','#eab308','#ef4444'];
+const GROUP_COLORS = [
+  // Vivid
+  '#3b82f6','#10b981','#f97316','#8b5cf6','#ec4899','#06b6d4','#eab308','#ef4444',
+  // Neutrals
+  '#6b7280','#9ca3af','#d1d5db','#475569','#78716c','#a8a29e',
+];
+
+function fmtFlow(amount: number): string {
+  if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}M`;
+  if (amount >= 1_000) return `${(amount / 1_000).toFixed(2).replace(/\.?0+$/, '')}K`;
+  return amount.toFixed(2).replace(/\.?0+$/, '');
+}
+
+function GroupColorPicker({ color, onChange }: { color?: string; onChange: (c: string) => void }) {
+  const customRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex gap-2 flex-wrap items-center">
+      {GROUP_COLORS.map((c) => (
+        <button
+          key={c}
+          onClick={() => onChange(c)}
+          className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 ${color === c ? 'border-white' : 'border-transparent'}`}
+          style={{ backgroundColor: c }}
+        />
+      ))}
+      <button
+        onClick={() => customRef.current?.click()}
+        className="w-5 h-5 rounded-full border-2 border-dashed border-gray-600 hover:border-gray-400 flex items-center justify-center text-gray-400 hover:text-white text-xs transition-colors"
+        title="Custom color"
+      >
+        +
+      </button>
+      <input
+        ref={customRef}
+        type="color"
+        value={color || '#3b82f6'}
+        onChange={(e) => onChange(e.target.value)}
+        className="sr-only"
+      />
+    </div>
+  );
+}
 
 function GroupDetails({
   group,
   traces,
   onUpdate,
   onDelete,
+  onSetNodeGroup,
 }: {
   group: Group;
   traces: Trace[];
   onUpdate: (updates: Partial<Group>) => void;
   onDelete: () => void;
+  onSetNodeGroup: (traceId: string, nodeIds: string[], groupId: string | null) => void;
 }) {
   const [name, setName] = useState(group.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [view, setView] = useState<'members' | 'flows'>('members');
 
-  const members = traces
-    .find((t) => t.id === group.traceId)
-    ?.nodes.filter((n) => n.groupId === group.id) || [];
+  const trace = traces.find((t) => t.id === group.traceId);
+  const members = useMemo(
+    () => trace?.nodes.filter((n) => n.groupId === group.id) || [],
+    [trace, group.id]
+  );
+  const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
+
+  // Aggregate external flows for the Flows tab
+  const { inflows, outflows } = useMemo(() => {
+    if (!trace) return { inflows: [] as any[], outflows: [] as any[] };
+    type Entry = { label: string; symbol: string; amount: number; usd: number };
+    const inMap = new Map<string, Entry>();
+    const outMap = new Map<string, Entry>();
+
+    for (const edge of trace.edges) {
+      const fromIn = memberIds.has(edge.from);
+      const toIn = memberIds.has(edge.to);
+      if (fromIn === toIn) continue;
+
+      const tok = normalizeToken(edge.token);
+      const raw = parseFloat(String(edge.amount)) || 0;
+      const human = tok.decimals > 0 ? raw / Math.pow(10, tok.decimals) : raw;
+      const usd = edge.usdValue || 0;
+
+      if (!fromIn && toIn) {
+        const ext = trace.nodes.find((n) => n.id === edge.from);
+        const key = `${edge.from}::${tok.symbol}`;
+        const existing = inMap.get(key);
+        if (existing) { existing.amount += human; existing.usd += usd; }
+        else inMap.set(key, { label: ext?.label || ext?.address || edge.from, symbol: tok.symbol, amount: human, usd });
+      } else {
+        const ext = trace.nodes.find((n) => n.id === edge.to);
+        const key = `${edge.to}::${tok.symbol}`;
+        const existing = outMap.get(key);
+        if (existing) { existing.amount += human; existing.usd += usd; }
+        else outMap.set(key, { label: ext?.label || ext?.address || edge.to, symbol: tok.symbol, amount: human, usd });
+      }
+    }
+    return { inflows: [...inMap.values()], outflows: [...outMap.values()] };
+  }, [trace, memberIds]);
 
   return (
     <div className="space-y-3">
-      <h4 className="text-xs font-semibold text-gray-400 uppercase">Subgroup</h4>
-
-      <div className="flex gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => { if (name.trim() && name !== group.name) onUpdate({ name: name.trim() }); }}
-          className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
-        />
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-gray-400 uppercase">Subgroup</h4>
+        <button
+          onClick={() => onUpdate({ collapsed: !group.collapsed })}
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
+          title={group.collapsed ? 'Expand group in graph' : 'Collapse group in graph'}
+        >
+          {group.collapsed
+            ? <><FaChevronRight size={9} /> Expand</>
+            : <><FaChevronDown size={9} /> Collapse</>}
+        </button>
       </div>
 
+      {/* Name */}
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => { if (name.trim() && name !== group.name) onUpdate({ name: name.trim() }); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+      />
+
+      {/* Color */}
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Color</h4>
-        <div className="flex gap-2 flex-wrap">
-          {GROUP_COLORS.map((c) => (
-            <button
-              key={c}
-              onClick={() => onUpdate({ color: c })}
-              className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 ${group.color === c ? 'border-white' : 'border-transparent'}`}
-              style={{ backgroundColor: c }}
-            />
-          ))}
-        </div>
+        <GroupColorPicker color={group.color} onChange={(c) => onUpdate({ color: c })} />
       </div>
 
-      <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Members ({members.length})</h4>
-        <div className="space-y-0.5 max-h-32 overflow-y-auto [scrollbar-width:thin]">
+      {/* Tab toggle */}
+      <div className="flex gap-0.5 bg-gray-700/50 rounded p-0.5">
+        <button
+          onClick={() => setView('members')}
+          className={`flex-1 py-1 text-xs rounded transition-colors ${view === 'members' ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-white'}`}
+        >
+          Members ({members.length})
+        </button>
+        <button
+          onClick={() => setView('flows')}
+          className={`flex-1 py-1 text-xs rounded transition-colors ${view === 'flows' ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-white'}`}
+        >
+          Flows
+        </button>
+      </div>
+
+      {/* Members view */}
+      {view === 'members' && (
+        <div className="space-y-0.5 max-h-40 overflow-y-auto [scrollbar-width:thin]">
           {members.map((n) => (
-            <p key={n.id} className="text-xs text-gray-300 truncate">{n.label || n.address}</p>
+            <div key={n.id} className="flex items-center justify-between py-0.5 group/member">
+              <span className="text-xs text-gray-300 truncate flex-1">{n.label || n.address}</span>
+              <button
+                onClick={() => onSetNodeGroup(group.traceId, [n.id], null)}
+                className="text-gray-600 hover:text-red-400 opacity-0 group-hover/member:opacity-100 ml-2 shrink-0 transition-opacity"
+                title="Remove from group"
+              >
+                <FaXmark size={10} />
+              </button>
+            </div>
           ))}
           {members.length === 0 && <p className="text-xs text-gray-500">No members</p>}
         </div>
-      </div>
+      )}
 
+      {/* Flows view */}
+      {view === 'flows' && (
+        <div className="space-y-3 max-h-52 overflow-y-auto [scrollbar-width:thin]">
+          {inflows.length > 0 && (
+            <div>
+              <h5 className="text-[10px] font-semibold text-emerald-400 uppercase mb-1">Inflows</h5>
+              <div className="space-y-1">
+                {inflows.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-gray-300 truncate">{f.label}</span>
+                    <span className="text-xs text-emerald-300 shrink-0 font-mono">+{fmtFlow(f.amount)} {f.symbol}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {outflows.length > 0 && (
+            <div>
+              <h5 className="text-[10px] font-semibold text-red-400 uppercase mb-1">Outflows</h5>
+              <div className="space-y-1">
+                {outflows.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-gray-300 truncate">{f.label}</span>
+                    <span className="text-xs text-red-300 shrink-0 font-mono">-{fmtFlow(f.amount)} {f.symbol}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {inflows.length === 0 && outflows.length === 0 && (
+            <p className="text-xs text-gray-500">No external flows for this group</p>
+          )}
+        </div>
+      )}
+
+      {/* Dissolve */}
       <div className="pt-2 border-t border-gray-700">
         {confirmDelete ? (
           <div className="flex items-center gap-2">
@@ -265,10 +758,7 @@ function GroupDetails({
             <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-400 hover:text-white">Cancel</button>
           </div>
         ) : (
-          <button
-            onClick={() => setConfirmDelete(true)}
-            className="w-full px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 hover:text-red-300 rounded text-xs"
-          >
+          <button onClick={() => setConfirmDelete(true)} className="w-full px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 hover:text-red-300 rounded text-xs">
             Dissolve group
           </button>
         )}
@@ -411,6 +901,7 @@ const TYPE_DISPLAY: Record<string, string> = {
   trace: 'Trace',
   group: 'Subgroup',
   scriptRun: 'Script',
+  edgeBundle: 'Edge Bundle',
 };
 
 export interface DetailsPanelHandle {
@@ -429,8 +920,12 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
   onDeleteTrace,
   onUpdateGroup,
   onDeleteGroup,
+  onSetNodeGroup,
   onFetchHistory,
   onRerunScript,
+  onToggleEdgeBundle,
+  onDeleteEdgeBundle,
+  onArcEdge,
 }: DetailsPanelProps, ref) {
   const [editing, setEditing] = useState(false);
   useImperativeHandle(ref, () => ({ startEdit: () => setEditing(true) }), []);
@@ -526,12 +1021,22 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
         <WalletDetails
           wallet={selectedItem.data}
           onFetchHistory={onFetchHistory}
+          onUpdate={(updates) => {
+            const w = selectedItem.data as WalletNode;
+            onUpdateWallet(w.parentTrace, w.id, updates);
+          }}
         />
       )}
       {selectedItem.type === 'transaction' && (
         <TransactionDetails
           transaction={selectedItem.data}
           allWallets={allWallets}
+          onUpdate={(updates) => {
+            const tx = selectedItem.data as TransactionEdge;
+            const traceId = traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
+            onUpdateTransaction(traceId, tx.id, updates);
+          }}
+          onArcEdge={onArcEdge ? (delta) => onArcEdge((selectedItem.data as TransactionEdge).id, delta) : undefined}
         />
       )}
       {selectedItem.type === 'trace' && (
@@ -543,12 +1048,22 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
           traces={traces}
           onUpdate={(updates) => onUpdateGroup(selectedItem.data.traceId, selectedItem.data.id, updates)}
           onDelete={() => onDeleteGroup(selectedItem.data.traceId, selectedItem.data.id)}
+          onSetNodeGroup={onSetNodeGroup}
         />
       )}
       {selectedItem.type === 'scriptRun' && (
         <ScriptRunDetails
           scriptRun={selectedItem.data}
           onRerun={onRerunScript ? () => onRerunScript(selectedItem.data.id) : undefined}
+        />
+      )}
+      {selectedItem.type === 'edgeBundle' && (
+        <EdgeBundleDetails
+          bundle={selectedItem.data as EdgeBundle}
+          traces={traces}
+          onToggle={() => onToggleEdgeBundle?.(selectedItem.data.traceId, selectedItem.data.id)}
+          onDelete={() => onDeleteEdgeBundle?.(selectedItem.data.traceId, selectedItem.data.id)}
+          onArcEdge={onArcEdge ? (delta) => onArcEdge((selectedItem.data as EdgeBundle).id, delta) : undefined}
         />
       )}
     </div>

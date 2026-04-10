@@ -3,6 +3,18 @@ export interface Group {
   name: string;
   color?: string;
   traceId: string;
+  collapsed?: boolean;
+  size?: number;
+}
+
+export interface EdgeBundle {
+  id: string;
+  traceId: string;
+  fromNodeId: string;
+  toNodeId: string;
+  token: string;         // token symbol e.g. "USDT"
+  collapsed: boolean;
+  edgeIds: string[];     // IDs of the bundled TransactionEdges
 }
 
 export interface Investigation {
@@ -28,6 +40,7 @@ export interface Trace {
   nodes: WalletNode[];
   edges: TransactionEdge[];
   groups?: Group[];
+  edgeBundles?: EdgeBundle[];
   position?: { x: number; y: number };
   collapsed: boolean;
 }
@@ -39,6 +52,7 @@ export interface WalletNode {
   chain: string;
   color?: string;
   size?: number;
+  shape?: 'ellipse' | 'rectangle' | 'roundrectangle' | 'diamond' | 'hexagon' | 'triangle';
   notes: string;
   tags: string[];
   position: { x: number; y: number };
@@ -52,7 +66,7 @@ export interface TransactionEdge {
   id: string;
   from: string;
   to: string;
-  txHash: string;
+  txHash?: string;
   chain: string;
   timestamp: string;
   amount: string;
@@ -63,9 +77,11 @@ export interface TransactionEdge {
   };
   usdValue?: number;
   color?: string;
+  lineStyle?: 'solid' | 'dashed' | 'dotted';
   label?: string;
   notes: string;
   tags: string[];
+  links?: string[];
   blockNumber: number;
   crossTrace: boolean;
 }

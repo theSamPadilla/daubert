@@ -582,7 +582,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
 
   return (
     <div
-      className="w-[480px] min-w-[480px] bg-gray-800 border-l border-gray-700 flex flex-col relative"
+      className="w-[480px] min-w-[480px] h-full bg-gray-800 border-l border-gray-700 flex flex-col relative"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}

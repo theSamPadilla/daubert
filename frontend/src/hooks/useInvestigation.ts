@@ -1,5 +1,5 @@
 import { useReducer, useCallback, useEffect } from 'react';
-import { Investigation, Trace, WalletNode, TransactionEdge, Group } from '../types/investigation';
+import { Investigation, Trace, WalletNode, TransactionEdge, Group, EdgeBundle } from '../types/investigation';
 
 // Action types
 type Action =
@@ -21,6 +21,9 @@ type Action =
   | { type: 'UPDATE_GROUP'; payload: { traceId: string; groupId: string; updates: Partial<Group> } }
   | { type: 'DELETE_GROUP'; payload: { traceId: string; groupId: string } }
   | { type: 'SET_NODE_GROUP'; payload: { traceId: string; nodeIds: string[]; groupId: string | null } }
+  | { type: 'ADD_EDGE_BUNDLE'; payload: { traceId: string; bundle: EdgeBundle } }
+  | { type: 'TOGGLE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
+  | { type: 'DELETE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
   | { type: 'UNDO' };
 
 // Actions that bypass the history stack (too granular or are load operations)
@@ -226,6 +229,26 @@ function applyAction(state: Investigation | null, action: Action): Investigation
         ),
       }));
     }
+
+    case 'ADD_EDGE_BUNDLE':
+      return mapTrace(state, action.payload.traceId, (t) => ({
+        ...t,
+        edgeBundles: [...(t.edgeBundles || []), action.payload.bundle],
+      }));
+
+    case 'TOGGLE_EDGE_BUNDLE':
+      return mapTrace(state, action.payload.traceId, (t) => ({
+        ...t,
+        edgeBundles: (t.edgeBundles || []).map((b) =>
+          b.id === action.payload.bundleId ? { ...b, collapsed: !b.collapsed } : b
+        ),
+      }));
+
+    case 'DELETE_EDGE_BUNDLE':
+      return mapTrace(state, action.payload.traceId, (t) => ({
+        ...t,
+        edgeBundles: (t.edgeBundles || []).filter((b) => b.id !== action.payload.bundleId),
+      }));
 
     case 'EXTRACT_TO_TRACE': {
       if (!state) return state;
@@ -440,6 +463,24 @@ export function useInvestigation(initial: Investigation | null) {
     []
   );
 
+  const addEdgeBundle = useCallback(
+    (traceId: string, bundle: EdgeBundle) =>
+      dispatch({ type: 'ADD_EDGE_BUNDLE', payload: { traceId, bundle } }),
+    []
+  );
+
+  const toggleEdgeBundle = useCallback(
+    (traceId: string, bundleId: string) =>
+      dispatch({ type: 'TOGGLE_EDGE_BUNDLE', payload: { traceId, bundleId } }),
+    []
+  );
+
+  const deleteEdgeBundle = useCallback(
+    (traceId: string, bundleId: string) =>
+      dispatch({ type: 'DELETE_EDGE_BUNDLE', payload: { traceId, bundleId } }),
+    []
+  );
+
   return {
     investigation,
     dispatch,
@@ -463,5 +504,8 @@ export function useInvestigation(initial: Investigation | null) {
     updateGroup,
     deleteGroup,
     setNodeGroup,
+    addEdgeBundle,
+    toggleEdgeBundle,
+    deleteEdgeBundle,
   };
 }

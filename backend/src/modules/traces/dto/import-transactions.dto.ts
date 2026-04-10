@@ -26,6 +26,14 @@ export class ImportTransactionItem {
   @IsOptional()
   @IsNumber()
   blockNumber?: number;
+
+  @IsOptional()
+  @IsString()
+  fromLabel?: string;
+
+  @IsOptional()
+  @IsString()
+  toLabel?: string;
 }
 
 export class ImportTransactionsDto {

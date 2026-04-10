@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa6';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { GraphCanvas, type GraphCanvasHandle } from '@/components/GraphCanvas';
@@ -11,16 +12,18 @@ import { FloatingPanel } from '@/components/FloatingPanel';
 import { InvestigationForm } from '@/components/InvestigationForm';
 import { FetchModal } from '@/components/FetchModal';
 import { BatchEditPanel } from '@/components/BatchEditPanel';
+import { EdgeBatchPanel } from '@/components/EdgeBatchPanel';
 import { StagingPanel } from '@/components/StagingPanel';
 import { ContextMenu, ContextMenuItem } from '@/components/ContextMenu';
 import { WalletForm } from '@/components/WalletForm';
 import { TransactionForm } from '@/components/TransactionForm';
 import { LinkInputModal, type LinkInputResult } from '@/components/LinkInputModal';
-import { WalletNode, TransactionEdge, Trace, Investigation, Group } from '@/types/investigation';
+import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
 import { CytoscapeCallbacks } from '@/hooks/useCytoscape';
 import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } from '@/lib/api-client';
 import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
+import { normalizeToken } from '@/utils/formatAmount';
 
 type PanelMode =
   | { type: 'none' }
@@ -43,6 +46,65 @@ const TRASH_ICON = (
     <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
   </svg>
 );
+
+const PRESET_COLORS = [
+  '#3b82f6', '#06b6d4', '#10b981', '#22c55e',
+  '#ef4444', '#f97316', '#eab308', '#f59e0b',
+  '#8b5cf6', '#a855f7', '#ec4899', '#f43f5e',
+  '#14b8a6', '#6366f1', '#84cc16', '#fb7185',
+  '#94a3b8', '#6b7280', '#78716c', '#ffffff',
+];
+
+function ColorPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const customRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-3.5 h-3.5 rounded-full border-2 border-gray-600 hover:border-gray-400 transition-colors shrink-0"
+        style={{ backgroundColor: color }}
+        title="Change color"
+      />
+      {open && (
+        <>
+          {/* Backdrop — clicking outside closes the popover without interfering with the native color picker dialog */}
+          <div className="fixed inset-0 z-40" onMouseDown={() => setOpen(false)} />
+          <div className="absolute right-0 top-5 z-50 bg-gray-900 border border-gray-700 rounded-lg p-2 shadow-2xl" style={{ width: '116px' }}>
+            <div className="grid grid-cols-4 gap-1.5">
+              {PRESET_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => { onChange(c); setOpen(false); }}
+                  className="w-6 h-6 rounded-full border-2 transition-all hover:scale-110"
+                  style={{
+                    backgroundColor: c,
+                    borderColor: c === color ? '#fff' : 'transparent',
+                  }}
+                />
+              ))}
+              <button
+                onClick={() => customRef.current?.click()}
+                className="w-6 h-6 rounded-full border-2 border-dashed border-gray-600 hover:border-gray-400 flex items-center justify-center text-gray-400 hover:text-white text-xs transition-colors"
+                title="Custom color"
+              >
+                +
+              </button>
+            </div>
+            <input
+              ref={customRef}
+              type="color"
+              value={color}
+              onChange={(e) => { onChange(e.target.value); setOpen(false); }}
+              className="sr-only"
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function EditDeleteActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -70,6 +132,25 @@ function EditDeleteActions({ onEdit, onDelete }: { onEdit: () => void; onDelete:
   );
 }
 
+function TransactionHeaderActions({
+  transaction,
+  onEdit,
+  onDelete,
+  onColorChange,
+}: {
+  transaction: TransactionEdge;
+  onEdit: () => void;
+  onDelete: () => void;
+  onColorChange: (color: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <ColorPicker color={transaction.color || '#10b981'} onChange={onColorChange} />
+      <EditDeleteActions onEdit={onEdit} onDelete={onDelete} />
+    </div>
+  );
+}
+
 function WalletHeaderActions({
   wallet,
   onEdit,
@@ -81,17 +162,9 @@ function WalletHeaderActions({
   onDelete: () => void;
   onColorChange: (color: string) => void;
 }) {
-  const colorInputRef = useRef<HTMLInputElement>(null);
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={() => colorInputRef.current?.click()}
-        className="w-3.5 h-3.5 rounded-full border-2 border-gray-600 hover:border-gray-400 transition-colors shrink-0"
-        style={{ backgroundColor: wallet.color || '#60a5fa' }}
-        title="Change color"
-      />
-      <input ref={colorInputRef} type="color" value={wallet.color || '#60a5fa'}
-        onChange={(e) => onColorChange(e.target.value)} className="sr-only" />
+      <ColorPicker color={wallet.color || '#60a5fa'} onChange={onColorChange} />
       <EditDeleteActions onEdit={onEdit} onDelete={onDelete} />
     </div>
   );
@@ -125,9 +198,14 @@ function AppShell() {
     createGroup,
     updateGroup,
     deleteGroup,
+    setNodeGroup,
+    addEdgeBundle,
+    toggleEdgeBundle,
+    deleteEdgeBundle,
   } = useInvestigation(null);
 
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
   const graphRef = useRef<GraphCanvasHandle>(null);
   const detailsPanelRef = useRef<DetailsPanelHandle>(null);
   const [editingInvestigation, setEditingInvestigation] = useState<ApiInvestigation | null>(null);
@@ -139,6 +217,8 @@ function AppShell() {
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(true);
 
   // Load investigation from backend when selection changes
   const loadInvestigationFromApi = useCallback(async (id: string) => {
@@ -174,6 +254,7 @@ function AppShell() {
           }),
           edges: (t.data as any)?.edges || [],
           groups: (t.data as any)?.groups || [],
+          edgeBundles: (t.data as any)?.edgeBundles || [],
           position: (t.data as any)?.position || { x: 0, y: 0 },
         })),
         metadata: {},
@@ -226,6 +307,7 @@ function AppShell() {
             nodes: trace.nodes,
             edges: trace.edges,
             groups: trace.groups || [],
+            edgeBundles: trace.edgeBundles || [],
             position: trace.position,
           };
           await apiClient.updateTrace(trace.id, {
@@ -552,6 +634,62 @@ function AppShell() {
     setSelectedNodeIds([]);
   }, [selectedNodeIds, createGroup]);
 
+  // Detect if exactly one group is in the multi-select alongside regular nodes
+  const selectedGroupEntry = useMemo(() => {
+    if (!investigation || selectedNodeIds.length < 2) return null;
+    for (const { id, traceId } of selectedNodeIds) {
+      const trace = investigation.traces.find((t) => t.id === traceId);
+      const group = (trace?.groups || []).find((g) => g.id === id);
+      if (group) return { group, traceId };
+    }
+    return null;
+  }, [selectedNodeIds, investigation]);
+
+  const handleBundleEdges = useCallback(() => {
+    if (!investigation || selectedEdgeIds.length < 2) return;
+    // Group selected edges by (fromNodeId, toNodeId, token)
+    const groups = new Map<string, { fromNodeId: string; toNodeId: string; token: string; edgeIds: string[] }>();
+    for (const traceEdges of investigation.traces) {
+      for (const edge of traceEdges.edges) {
+        if (!selectedEdgeIds.includes(edge.id)) continue;
+        const token = normalizeToken(edge.token).symbol;
+        const key = `${edge.from}::${edge.to}::${token}`;
+        if (!groups.has(key)) groups.set(key, { fromNodeId: edge.from, toNodeId: edge.to, token, edgeIds: [] });
+        groups.get(key)!.edgeIds.push(edge.id);
+      }
+    }
+    for (const { fromNodeId, toNodeId, token, edgeIds } of groups.values()) {
+      if (edgeIds.length < 2) continue;
+      // Find traceId from first edge
+      let traceId = '';
+      for (const t of investigation.traces) {
+        if (t.edges.some((e) => e.id === edgeIds[0])) { traceId = t.id; break; }
+      }
+      if (!traceId) continue;
+      const bundle: EdgeBundle = {
+        id: crypto.randomUUID(),
+        traceId,
+        fromNodeId,
+        toNodeId,
+        token,
+        collapsed: true,
+        edgeIds,
+      };
+      addEdgeBundle(traceId, bundle);
+    }
+    setSelectedEdgeIds([]);
+  }, [investigation, selectedEdgeIds, addEdgeBundle]);
+
+  const handleAddToGroup = useCallback(() => {
+    if (!selectedGroupEntry) return;
+    const { group, traceId } = selectedGroupEntry;
+    const nodeIds = selectedNodeIds
+      .filter(({ id }) => id !== group.id)
+      .map(({ id }) => id);
+    setNodeGroup(traceId, nodeIds, group.id);
+    setSelectedNodeIds([]);
+  }, [selectedGroupEntry, selectedNodeIds, setNodeGroup]);
+
   const handleExtractToTrace = useCallback(async () => {
     if (!activeInvestigationId || selectedNodeIds.length < 2) return;
     const colors = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#ef4444'];
@@ -637,16 +775,28 @@ function AppShell() {
       onSelectItem: (item: any) => {
         setSelectedItem(item);
         setSelectedNodeIds([]);
+        setSelectedEdgeIds([]);
       },
       onMultiSelect: (nodes) => {
         setSelectedNodeIds(nodes);
         setSelectedItem(null);
+        setSelectedEdgeIds([]);
+      },
+      onMultiSelectEdges: (edgeIds) => {
+        setSelectedEdgeIds(edgeIds);
+        setSelectedNodeIds([]);
+        setSelectedItem(null);
       },
       onNodeDrag: updateNodePosition,
+      onResizeNode: (nodeId, traceId, size) => {
+        const isGroup = investigation?.traces.some(t => (t.groups || []).some(g => g.id === nodeId));
+        if (isGroup) updateGroup(traceId, nodeId, { size });
+        else updateWallet(traceId, nodeId, { size });
+      },
       onContextMenu: handleContextMenu,
       onDoubleClickBackground: handleCreateWalletAtPosition,
     }),
-    [updateNodePosition, handleContextMenu, handleCreateWalletAtPosition]
+    [updateNodePosition, updateWallet, updateGroup, investigation, handleContextMenu, handleCreateWalletAtPosition]
   );
 
   const selectedTraceId = selectedItem?.type === 'trace' ? selectedItem.data?.id : undefined;
@@ -720,21 +870,23 @@ function AppShell() {
 
   return (
     <div className="h-screen flex bg-gray-900 text-white">
-      <Sidebar
-        activeInvestigationId={activeInvestigationId}
-        onSelectInvestigation={handleSelectInvestigation}
-        onEditInvestigation={setEditingInvestigation}
-        refreshTrigger={sidebarRefresh}
-        traces={investigation?.traces}
-        selectedTraceId={selectedTraceId}
-        onAddTrace={handleAddTrace}
-        onSelectTrace={handleSelectTrace}
-        onToggleVisibility={toggleTraceVisibility}
-        onToggleCollapsed={toggleTraceCollapsed}
-        scriptRuns={scriptRuns}
-        selectedScriptRunId={selectedItem?.type === 'scriptRun' ? selectedItem.data?.id : undefined}
-        onSelectScriptRun={handleSelectScriptRun}
-      />
+      <div className={`relative flex-shrink-0 transition-all duration-200 ${sidebarOpen ? 'w-60' : 'w-0'} overflow-hidden h-full`}>
+        <Sidebar
+          activeInvestigationId={activeInvestigationId}
+          onSelectInvestigation={handleSelectInvestigation}
+          onEditInvestigation={setEditingInvestigation}
+          refreshTrigger={sidebarRefresh}
+          traces={investigation?.traces}
+          selectedTraceId={selectedTraceId}
+          onAddTrace={handleAddTrace}
+          onSelectTrace={handleSelectTrace}
+          onToggleVisibility={toggleTraceVisibility}
+          onToggleCollapsed={toggleTraceCollapsed}
+          scriptRuns={scriptRuns}
+          selectedScriptRunId={selectedItem?.type === 'scriptRun' ? selectedItem.data?.id : undefined}
+          onSelectScriptRun={handleSelectScriptRun}
+        />
+      </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {investigation ? (
@@ -746,8 +898,25 @@ function AppShell() {
               onUndo={undo}
               canUndo={canUndo}
               onRefresh={() => activeInvestigationId && loadInvestigationFromApi(activeInvestigationId)}
+              onExport={(format) => graphRef.current?.exportImage(format, investigation?.name || 'graph')}
             />
             <div className="flex-1 bg-gray-900 relative overflow-hidden">
+                {/* Sidebar toggle tab */}
+                <button
+                  onClick={() => setSidebarOpen((v) => !v)}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-4 h-10 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-r flex items-center justify-center transition-colors"
+                  title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+                >
+                  {sidebarOpen ? <FaChevronLeft size={8} /> : <FaChevronRight size={8} />}
+                </button>
+                {/* Chat toggle tab */}
+                <button
+                  onClick={() => setChatOpen((v) => !v)}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-4 h-10 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-l flex items-center justify-center transition-colors"
+                  title={chatOpen ? 'Collapse chat' : 'Expand chat'}
+                >
+                  {chatOpen ? <FaChevronRight size={8} /> : <FaChevronLeft size={8} />}
+                </button>
                 {loading ? (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-gray-400">Loading...</p>
@@ -771,20 +940,37 @@ function AppShell() {
                       onDeselect={() => setSelectedNodeIds([])}
                       onExtractToTrace={handleExtractToTrace}
                       onGroupNodes={
-                        selectedNodeIds.every((n) => n.traceId === selectedNodeIds[0].traceId)
+                        !selectedGroupEntry && selectedNodeIds.every((n) => n.traceId === selectedNodeIds[0].traceId)
                           ? handleGroupNodes
+                          : undefined
+                      }
+                      onAddToGroup={
+                        selectedGroupEntry
+                          ? { groupName: selectedGroupEntry.group.name, onConfirm: handleAddToGroup }
                           : undefined
                       }
                     />
                   </div>
                 )}
 
+                {/* Edge batch panel */}
+                {selectedEdgeIds.length >= 2 && (
+                  <div className="absolute bottom-4 left-4 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl z-20">
+                    <EdgeBatchPanel
+                      count={selectedEdgeIds.length}
+                      onBundle={handleBundleEdges}
+                      onDeselect={() => setSelectedEdgeIds([])}
+                    />
+                  </div>
+                )}
+
                 {/* Details floating panel */}
-                {selectedItem && selectedNodeIds.length < 2 && (
+                {selectedItem && selectedNodeIds.length < 2 && selectedEdgeIds.length < 2 && (
                   <FloatingPanel
                     title={`${selectedItem.type === 'wallet' ? 'Address' : selectedItem.type === 'scriptRun' ? 'Script' : selectedItem.type} Details`}
                     onClose={() => { setSelectedItem(null); graphRef.current?.unselectAll(); }}
                     className="absolute bottom-4 left-4"
+                    width="w-[420px]"
                     actions={selectedItem.type === 'wallet' ? (
                       <WalletHeaderActions
                         wallet={selectedItem.data as WalletNode}
@@ -798,7 +984,8 @@ function AppShell() {
                         onColorChange={(color) => updateWallet(selectedItem.data.parentTrace, selectedItem.data.id, { color })}
                       />
                     ) : selectedItem.type === 'transaction' ? (
-                      <EditDeleteActions
+                      <TransactionHeaderActions
+                        transaction={selectedItem.data as TransactionEdge}
                         onEdit={() => detailsPanelRef.current?.startEdit()}
                         onDelete={() => {
                           const tx = selectedItem.data as TransactionEdge;
@@ -806,6 +993,11 @@ function AppShell() {
                           deleteTransaction(traceId, tx.id);
                           setSelectedItem(null);
                           graphRef.current?.unselectAll();
+                        }}
+                        onColorChange={(color) => {
+                          const tx = selectedItem.data as TransactionEdge;
+                          const traceId = investigation.traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
+                          updateTransaction(traceId, tx.id, { color });
                         }}
                       />
                     ) : undefined}
@@ -836,6 +1028,12 @@ function AppShell() {
                         deleteGroup(traceId, groupId);
                         setSelectedItem(null);
                       }}
+                      onSetNodeGroup={setNodeGroup}
+                      onToggleEdgeBundle={toggleEdgeBundle}
+                      onDeleteEdgeBundle={(traceId, bundleId) => {
+                        deleteEdgeBundle(traceId, bundleId);
+                        setSelectedItem(null);
+                      }}
                       onFetchHistory={handleFetchHistory}
                       onRerunScript={async (scriptRunId) => {
                         await apiClient.rerunScript(scriptRunId);
@@ -844,6 +1042,7 @@ function AppShell() {
                           setScriptRuns(runs);
                         }
                       }}
+                      onArcEdge={(edgeId, delta) => graphRef.current?.setEdgeArc(edgeId, delta)}
                     />
                   </FloatingPanel>
                 )}
@@ -913,13 +1112,15 @@ function AppShell() {
         )}
       </div>
 
-      <AIChat
-        activeCaseId={activeCaseId}
-        activeInvestigationId={activeInvestigationId}
-        onGraphUpdated={() => {
-          if (activeInvestigationId) loadInvestigationFromApi(activeInvestigationId);
-        }}
-      />
+      <div className={`relative flex-shrink-0 transition-all duration-200 ${chatOpen ? 'w-[480px]' : 'w-0'} overflow-hidden h-full`}>
+        <AIChat
+          activeCaseId={activeCaseId}
+          activeInvestigationId={activeInvestigationId}
+          onGraphUpdated={() => {
+            if (activeInvestigationId) loadInvestigationFromApi(activeInvestigationId);
+          }}
+        />
+      </div>
 
       {contextMenu && (
         <ContextMenu

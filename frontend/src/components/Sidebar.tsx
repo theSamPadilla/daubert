@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
+import { FaPen, FaChevronRight, FaChevronDown } from 'react-icons/fa6';
 import { apiClient, type User, type Case, type Investigation, type ScriptRun } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
 import { ScriptsPanel } from './ScriptsPanel';
@@ -47,6 +48,19 @@ export function Sidebar({
   const [newCaseName, setNewCaseName] = useState('');
   const [addingInvToCaseId, setAddingInvToCaseId] = useState<string | null>(null);
   const [newInvName, setNewInvName] = useState('');
+  const [collapsedInvs, setCollapsedInvs] = useState<Set<string>>(new Set());
+
+  const activeInvestigationIdRef = useRef(activeInvestigationId);
+  activeInvestigationIdRef.current = activeInvestigationId;
+
+  const toggleInv = (invId: string) => {
+    setCollapsedInvs((prev) => {
+      const next = new Set(prev);
+      if (next.has(invId)) next.delete(invId);
+      else next.add(invId);
+      return next;
+    });
+  };
 
   const loadCases = useCallback(async () => {
     try {
@@ -58,10 +72,14 @@ export function Sidebar({
           return { ...full, expanded: false } as CaseWithInvestigations;
         })
       );
+      const activeId = activeInvestigationIdRef.current;
       setCases((prev) => {
-        // Preserve expanded state
         const expandedIds = new Set(prev.filter((c) => c.expanded).map((c) => c.id));
-        return withInvs.map((c) => ({ ...c, expanded: expandedIds.has(c.id) }));
+        return withInvs.map((c) => ({
+          ...c,
+          // Preserve previously expanded, or auto-expand if it contains the active investigation
+          expanded: expandedIds.has(c.id) || !!(activeId && c.investigations?.some((inv) => inv.id === activeId)),
+        }));
       });
     } catch (err) {
       console.error('Failed to load cases:', err);
@@ -220,6 +238,7 @@ export function Sidebar({
                 {/* Investigation list */}
                 {c.investigations?.map((inv) => {
                   const isActive = activeInvestigationId === inv.id;
+                  const isInvCollapsed = collapsedInvs.has(inv.id);
                   return (
                     <div key={inv.id}>
                       {/* Investigation row */}
@@ -231,18 +250,29 @@ export function Sidebar({
                             : 'hover:bg-gray-700/60 text-gray-300'
                         }`}
                       >
+                        {isActive && traces && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleInv(inv.id); }}
+                            className="mr-1 text-gray-500 hover:text-gray-300 transition-colors shrink-0"
+                            title={isInvCollapsed ? 'Expand' : 'Collapse'}
+                          >
+                            {isInvCollapsed
+                              ? <FaChevronRight size={9} />
+                              : <FaChevronDown size={9} />}
+                          </button>
+                        )}
                         <span className="truncate flex-1 text-xs font-medium">{inv.name}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); onEditInvestigation(inv); }}
-                          className="px-0.5 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 text-xs transition-opacity"
+                          className="px-0.5 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
                           title="Edit investigation"
                         >
-                          ✎
+                          <FaPen size={10} />
                         </button>
                       </div>
 
                       {/* Traces — nested under active investigation */}
-                      {isActive && traces && (
+                      {isActive && !isInvCollapsed && traces && (
                         <div className="ml-3 border-l border-gray-700/70">
                           {traces.map((trace) => (
                             <div

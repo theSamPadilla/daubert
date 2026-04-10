@@ -22,6 +22,7 @@ interface SidePanelProps {
   onFetchHistory: (address: string, chain: string) => void;
   onUpdateGroup: (traceId: string, groupId: string, updates: Partial<Group>) => void;
   onDeleteGroup: (traceId: string, groupId: string) => void;
+  onSetNodeGroup: (traceId: string, nodeIds: string[], groupId: string | null) => void;
   onAddStagedToTrace: (traceId: string, selected: TransactionEdge[]) => void;
   onClearStaged: () => void;
 }
@@ -45,6 +46,7 @@ export function SidePanel({
   onFetchHistory,
   onUpdateGroup,
   onDeleteGroup,
+  onSetNodeGroup,
   onAddStagedToTrace,
   onClearStaged,
 }: SidePanelProps) {
@@ -72,6 +74,7 @@ export function SidePanel({
           onFetchHistory={onFetchHistory}
           onUpdateGroup={onUpdateGroup}
           onDeleteGroup={onDeleteGroup}
+          onSetNodeGroup={onSetNodeGroup}
         />
       </div>
       <StagingPanel

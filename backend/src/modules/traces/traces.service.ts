@@ -7,6 +7,9 @@ import { InvestigationEntity } from '../../database/entities/investigation.entit
 import { CHAIN_CONFIGS } from '../blockchain/types';
 import { CreateTraceDto } from './dto/create-trace.dto';
 import { UpdateTraceDto } from './dto/update-trace.dto';
+import { UpdateNodeDto } from './dto/update-node.dto';
+import { UpdateEdgeDto } from './dto/update-edge.dto';
+import { CreateGroupDto, UpdateGroupDto } from './dto/group.dto';
 import { ImportTransactionsDto } from './dto/import-transactions.dto';
 
 @Injectable()
@@ -63,6 +66,158 @@ export class TracesService {
     await this.repo.remove(trace);
   }
 
+  async updateNode(traceId: string, nodeId: string, dto: UpdateNodeDto) {
+    const trace = await this.findOne(traceId);
+    const data = (trace.data || {}) as { nodes?: any[]; edges?: any[] };
+    const nodes: any[] = data.nodes || [];
+    const idx = nodes.findIndex((n) => n.id === nodeId);
+    if (idx === -1) throw new NotFoundException(`Node ${nodeId} not found in trace ${traceId}`);
+    nodes[idx] = { ...nodes[idx], ...dto };
+    trace.data = { ...data, nodes };
+    await this.repo.save(trace);
+    return nodes[idx];
+  }
+
+  async updateEdge(traceId: string, edgeId: string, dto: UpdateEdgeDto) {
+    const trace = await this.findOne(traceId);
+    const data = (trace.data || {}) as { nodes?: any[]; edges?: any[] };
+    const edges: any[] = data.edges || [];
+    const idx = edges.findIndex((e) => e.id === edgeId);
+    if (idx === -1) throw new NotFoundException(`Edge ${edgeId} not found in trace ${traceId}`);
+    const { token, ...rest } = dto;
+    const updated = { ...edges[idx], ...rest };
+    if (token !== undefined) {
+      updated.token = { ...(edges[idx].token || {}), ...token };
+    }
+    edges[idx] = updated;
+    trace.data = { ...data, edges };
+    await this.repo.save(trace);
+    return edges[idx];
+  }
+
+  async deleteNode(traceId: string, nodeId: string) {
+    const trace = await this.findOne(traceId);
+    const data = (trace.data || {}) as { nodes?: any[]; edges?: any[] };
+    const nodes: any[] = data.nodes || [];
+    const edges: any[] = data.edges || [];
+    if (!nodes.some((n) => n.id === nodeId)) throw new NotFoundException(`Node ${nodeId} not found in trace ${traceId}`);
+    trace.data = {
+      ...data,
+      nodes: nodes.filter((n) => n.id !== nodeId),
+      edges: edges.filter((e) => e.from !== nodeId && e.to !== nodeId),
+    };
+    await this.repo.save(trace);
+  }
+
+  async createGroup(traceId: string, dto: CreateGroupDto) {
+    const trace = await this.findOne(traceId);
+    const data = (trace.data || {}) as { nodes?: any[]; groups?: any[] };
+    const nodes: any[] = data.nodes || [];
+    const groups: any[] = data.groups || [];
+
+    const group = {
+      id: crypto.randomUUID(),
+      name: dto.name,
+      color: dto.color || null,
+      traceId,
+      collapsed: dto.collapsed ?? false,
+    };
+
+    // Validate existing nodeIds
+    const existingIds = new Set(dto.nodeIds || []);
+    const nodeSet = new Set(nodes.map((n) => n.id));
+    for (const nid of existingIds) {
+      if (!nodeSet.has(nid)) throw new NotFoundException(`Node ${nid} not found in trace ${traceId}`);
+    }
+
+    // Create new nodes inline
+    const createdIds: string[] = [];
+    if (dto.newNodes?.length) {
+      const existingAddresses = new Set(nodes.map((n) => n.address?.toLowerCase()));
+      const addressToId = new Map(nodes.map((n) => [n.address?.toLowerCase(), n.id]));
+
+      let maxX = nodes.reduce((m, n) => Math.max(m, n.position?.x || 0), 0);
+      let placed = 0;
+
+      for (const def of dto.newNodes) {
+        const addrKey = def.address.toLowerCase();
+        if (existingAddresses.has(addrKey)) {
+          // Address already exists — just add to group
+          createdIds.push(addressToId.get(addrKey)!);
+          continue;
+        }
+
+        const config = CHAIN_CONFIGS[def.chain];
+        const explorerUrl = config
+          ? def.chain === 'tron'
+            ? `${config.explorerUrl}/#/address/${def.address}`
+            : `${config.explorerUrl}/address/${def.address}`
+          : '';
+
+        const nodeId = crypto.randomUUID();
+        const x = maxX + 150 + Math.floor(placed / 5) * 150;
+        const y = 100 + (placed % 5) * 100;
+        placed++;
+
+        const defaultLabel = `${def.address.slice(0, 6)}…${def.address.slice(-4)}`;
+        nodes.push({
+          id: nodeId,
+          label: def.label || defaultLabel,
+          address: def.address,
+          chain: def.chain,
+          color: def.color || null,
+          notes: def.notes || '',
+          tags: [],
+          position: { x, y },
+          parentTrace: traceId,
+          addressType: 'unknown',
+          explorerUrl,
+        });
+
+        existingAddresses.add(addrKey);
+        addressToId.set(addrKey, nodeId);
+        createdIds.push(nodeId);
+      }
+    }
+
+    // Assign groupId on all member nodes (existing + newly created)
+    const allMemberIds = new Set([...existingIds, ...createdIds]);
+    const updatedNodes = nodes.map((n) =>
+      allMemberIds.has(n.id) ? { ...n, groupId: group.id } : n,
+    );
+
+    trace.data = { ...data, nodes: updatedNodes, groups: [...groups, group] };
+    await this.repo.save(trace);
+    return { ...group, nodeIds: [...allMemberIds] };
+  }
+
+  async updateGroup(traceId: string, groupId: string, dto: UpdateGroupDto) {
+    const trace = await this.findOne(traceId);
+    const data = (trace.data || {}) as { groups?: any[] };
+    const groups: any[] = data.groups || [];
+    const idx = groups.findIndex((g) => g.id === groupId);
+    if (idx === -1) throw new NotFoundException(`Group ${groupId} not found in trace ${traceId}`);
+    groups[idx] = { ...groups[idx], ...dto };
+    trace.data = { ...data, groups };
+    await this.repo.save(trace);
+    return groups[idx];
+  }
+
+  async deleteGroup(traceId: string, groupId: string) {
+    const trace = await this.findOne(traceId);
+    const data = (trace.data || {}) as { nodes?: any[]; groups?: any[] };
+    const groups: any[] = data.groups || [];
+    if (!groups.some((g) => g.id === groupId)) throw new NotFoundException(`Group ${groupId} not found in trace ${traceId}`);
+
+    // Remove groupId from member nodes
+    const updatedNodes = (data.nodes || []).map((n) =>
+      n.groupId === groupId ? { ...n, groupId: undefined } : n,
+    );
+
+    trace.data = { ...data, nodes: updatedNodes, groups: groups.filter((g) => g.id !== groupId) };
+    await this.repo.save(trace);
+  }
+
   async importTransactions(id: string, dto: ImportTransactionsDto) {
     const trace = await this.findOne(id);
 
@@ -91,6 +246,19 @@ export class TracesService {
       if (n.address) addressToId.set(n.address.toLowerCase(), n.id);
     }
 
+    // Build cross-trace address map from sibling traces in the same investigation
+    const siblingTraces = await this.repo.find({ where: { investigationId: trace.investigationId } });
+    const crossTraceAddressToId = new Map<string, string>();
+    for (const sibling of siblingTraces) {
+      if (sibling.id === id) continue;
+      const siblingNodes: any[] = (sibling.data as any)?.nodes || [];
+      for (const n of siblingNodes) {
+        if (n.address && !addressToId.has(n.address.toLowerCase())) {
+          crossTraceAddressToId.set(n.address.toLowerCase(), n.id);
+        }
+      }
+    }
+
     // Position new nodes in a grid after existing ones
     let maxX = 0;
     let maxY = 0;
@@ -106,9 +274,10 @@ export class TracesService {
     let addedEdges = 0;
 
     for (const tx of dto.transactions) {
-      // Auto-create wallet nodes for unknown addresses
+      // Auto-create wallet nodes for unknown addresses (skip if already in a sibling trace)
       for (const addr of [tx.from, tx.to]) {
         if (existingAddresses.has(addr.toLowerCase())) continue;
+        if (crossTraceAddressToId.has(addr.toLowerCase())) continue;
 
         const chain = tx.chain || 'ethereum';
         const config = CHAIN_CONFIGS[chain];
@@ -124,9 +293,13 @@ export class TracesService {
         const y = nextY + (placed % 5) * 100;
         placed++;
 
+        const isFrom = addr.toLowerCase() === tx.from.toLowerCase();
+        const customLabel = isFrom ? tx.fromLabel : tx.toLabel;
+        const defaultLabel = `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+
         existingNodes.push({
           id: nodeId,
-          label: `${addr.slice(0, 6)}…${addr.slice(-4)}`,
+          label: customLabel || defaultLabel,
           address: addr,
           chain,
           notes: '',
@@ -146,9 +319,11 @@ export class TracesService {
       const key = `${tx.txHash}-${tx.from.toLowerCase()}-${tx.to.toLowerCase()}`;
       if (existingTxKeys.has(key)) continue;
 
-      const fromId = addressToId.get(tx.from.toLowerCase());
-      const toId = addressToId.get(tx.to.toLowerCase());
+      const fromId = addressToId.get(tx.from.toLowerCase()) ?? crossTraceAddressToId.get(tx.from.toLowerCase());
+      const toId = addressToId.get(tx.to.toLowerCase()) ?? crossTraceAddressToId.get(tx.to.toLowerCase());
       if (!fromId || !toId) continue;
+
+      const isCrossTrace = !addressToId.has(tx.from.toLowerCase()) || !addressToId.has(tx.to.toLowerCase());
 
       existingEdges.push({
         id: crypto.randomUUID(),
@@ -162,7 +337,7 @@ export class TracesService {
         blockNumber: tx.blockNumber || 0,
         notes: '',
         tags: [],
-        crossTrace: false,
+        crossTrace: isCrossTrace,
       });
 
       existingTxKeys.add(key);

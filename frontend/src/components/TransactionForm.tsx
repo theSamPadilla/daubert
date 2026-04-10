@@ -3,6 +3,15 @@ import { TransactionEdge, WalletNode, Trace } from '../types/investigation';
 import { ColorPicker } from './ColorPicker';
 import { TagInput } from './TagInput';
 import { SUPPORTED_CHAINS } from '../services/types';
+import { parseTimestamp } from '../utils/formatAmount';
+
+function toDatetimeLocal(ts: string | undefined): string {
+  if (!ts) return '';
+  const d = parseTimestamp(ts);
+  if (isNaN(d.getTime())) return '';
+  // datetime-local format: YYYY-MM-DDTHH:MM
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
 
 interface TransactionFormProps {
   transaction?: TransactionEdge;
@@ -119,16 +128,16 @@ export function TransactionForm({
   const [amount, setAmount] = useState(source?.amount || '');
   const [tokenSymbol, setTokenSymbol] = useState(source?.token?.symbol || (chain === 'tron' ? 'TRX' : 'ETH'));
   const [tokenAddress, setTokenAddress] = useState(source?.token?.address || '0x');
-  const [tokenDecimals, setTokenDecimals] = useState(String(source?.token?.decimals ?? 18));
+  const [tokenDecimals, setTokenDecimals] = useState(String(source?.token?.decimals ?? 0));
   const [usdValue, setUsdValue] = useState(source?.usdValue != null ? String(source.usdValue) : '');
   const [label, setLabel] = useState(source?.label || '');
-  const [timestamp, setTimestamp] = useState(
-    source?.timestamp ? source.timestamp.slice(0, 16) : ''
-  );
+  const [timestamp, setTimestamp] = useState(() => toDatetimeLocal(source?.timestamp));
   const [blockNumber, setBlockNumber] = useState(String(source?.blockNumber || ''));
   const [color, setColor] = useState(source?.color || '#10b981');
   const [notes, setNotes] = useState(source?.notes || '');
   const [tags, setTags] = useState<string[]>(source?.tags || []);
+  const [links, setLinks] = useState<string[]>(source?.links || []);
+  const [linkInput, setLinkInput] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [traceId, setTraceId] = useState(traces[0]?.id || '');
   const [creatingTrace, setCreatingTrace] = useState(false);
@@ -162,15 +171,16 @@ export function TransactionForm({
       token: {
         symbol: tokenSymbol,
         address: tokenAddress,
-        decimals: Number(tokenDecimals) || 18,
+        decimals: Number(tokenDecimals) || 0,
       },
       usdValue: usdValue ? Number(usdValue) : undefined,
       label,
       color,
-      timestamp: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
+      timestamp: (() => { const d = timestamp ? new Date(timestamp) : null; return d && !isNaN(d.getTime()) ? d.toISOString() : ''; })(),
       blockNumber: Number(blockNumber) || 0,
       notes,
       tags,
+      links,
       crossTrace,
     });
   };
@@ -237,6 +247,19 @@ export function TransactionForm({
         </div>
       )}
 
+      <div>
+        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">
+          Name <span className="text-gray-600 normal-case font-normal">(optional)</span>
+        </label>
+        <input
+          type="text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="e.g. Donation, NFT purchase…"
+          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+        />
+      </div>
+
       <div className="grid grid-cols-2 gap-2">
         <AddressField
           label="From"
@@ -255,7 +278,9 @@ export function TransactionForm({
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Tx Hash</label>
+        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">
+          Tx Hash <span className="text-gray-600 normal-case font-normal">(optional)</span>
+        </label>
         <input
           type="text"
           value={txHash}
@@ -265,28 +290,17 @@ export function TransactionForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Chain</label>
-          <select
-            value={chain}
-            onChange={(e) => setChain(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
-          >
-            {Object.values(SUPPORTED_CHAINS).map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Label</label>
-          <input
-            type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
-          />
-        </div>
+      <div>
+        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Chain</label>
+        <select
+          value={chain}
+          onChange={(e) => setChain(e.target.value)}
+          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+        >
+          {Object.values(SUPPORTED_CHAINS).map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -371,6 +385,51 @@ export function TransactionForm({
       <div>
         <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Tags</label>
         <TagInput tags={tags} onChange={setTags} />
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Links</label>
+        <div className="space-y-1">
+          {links.map((link, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <input
+                type="url"
+                value={link}
+                onChange={(e) => setLinks(links.map((l, j) => j === i ? e.target.value : l))}
+                className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono min-w-0"
+              />
+              <button
+                type="button"
+                onClick={() => setLinks(links.filter((_, j) => j !== i))}
+                className="text-gray-500 hover:text-red-400 text-sm shrink-0"
+              >✕</button>
+            </div>
+          ))}
+          <div className="flex items-center gap-1">
+            <input
+              type="url"
+              value={linkInput}
+              onChange={(e) => setLinkInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const v = linkInput.trim();
+                  if (v) { setLinks([...links, v]); setLinkInput(''); }
+                }
+              }}
+              placeholder="https://… (Enter to add)"
+              className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono min-w-0"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const v = linkInput.trim();
+                if (v) { setLinks([...links, v]); setLinkInput(''); }
+              }}
+              className="text-gray-500 hover:text-white text-lg leading-none shrink-0"
+            >+</button>
+          </div>
+        </div>
       </div>
 
       <div>

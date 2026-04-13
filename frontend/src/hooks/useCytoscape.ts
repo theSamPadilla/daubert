@@ -813,9 +813,9 @@ export function useCytoscape(
           const effFrom = globalEffectiveId.get(edge.from) ?? edge.from;
           const effTo   = globalEffectiveId.get(edge.to)   ?? edge.to;
           if (effFrom === effTo) return;
-          // Skip if either endpoint isn't visible (node in hidden/collapsed trace with no mapping)
-          if (!targetNodes.has(effFrom) && !targetNodes.has(edge.from)) return;
-          if (!targetNodes.has(effTo)   && !targetNodes.has(edge.to))   return;
+          // Skip if either endpoint isn't in a visible trace (globalEffectiveId covers all visible traces)
+          if (!globalEffectiveId.has(edge.from)) return;
+          if (!globalEffectiveId.has(edge.to)) return;
           const tok = normalizeToken(edge.token);
           const raw = parseFloat(String(edge.amount)) || 0;
           const human = tok.decimals > 0 ? raw / Math.pow(10, tok.decimals) : raw;

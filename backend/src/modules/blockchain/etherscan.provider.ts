@@ -55,13 +55,25 @@ export class EtherscanProvider implements BlockchainProvider {
     const res = await fetch(`${ETHERSCAN_V2_BASE}?${qs}`);
     if (!res.ok) throw new Error(`Etherscan API error: ${res.status}`);
 
-    const json: EtherscanResponse<T> = await res.json();
-    if (json.status !== '1' && json.message !== 'No transactions found') {
-      throw new Error(`Etherscan: ${json.message} (${json.result})`);
+    const json = await res.json();
+
+    // Proxy module returns JSON-RPC format (no status/message)
+    if (module === 'proxy') {
+      if (json.error) {
+        throw new Error(`Etherscan proxy error: ${json.error.message ?? JSON.stringify(json.error)}`);
+      }
+      const result = json.result as T;
+      this.cache.set(cacheKey, result, TX_CACHE_TTL);
+      return result;
+    }
+
+    const ethRes = json as EtherscanResponse<T>;
+    if (ethRes.status !== '1' && ethRes.message !== 'No transactions found') {
+      throw new Error(`Etherscan: ${ethRes.message} (${JSON.stringify(ethRes.result)})`);
     }
 
     const result =
-      json.status === '1' ? json.result : ([] as unknown as T);
+      ethRes.status === '1' ? ethRes.result : ([] as unknown as T);
 
     const ttl = action.includes('token') ? TOKEN_META_TTL : TX_CACHE_TTL;
     this.cache.set(cacheKey, result, ttl);

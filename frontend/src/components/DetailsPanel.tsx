@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
-import { FaXmark, FaChevronDown, FaChevronRight, FaArrowUpRightFromSquare } from 'react-icons/fa6';
+import { FaXmark, FaChevronDown, FaChevronRight, FaArrowUpRightFromSquare, FaCopy, FaCheck } from 'react-icons/fa6';
 import { WalletNode, TransactionEdge, Trace, Group, EdgeBundle } from '../types/investigation';
 import { type ScriptRun } from '@/lib/api-client';
 import { WalletForm } from './WalletForm';
@@ -44,6 +44,15 @@ function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onArcEdge }: Ed
   const fromLabel = fromNode?.label || bundle.fromNodeId.slice(0, 8) + '…';
   const toLabel = toNode?.label || bundle.toNodeId.slice(0, 8) + '…';
 
+  // Compute date span from bundled transactions
+  const timestamps = bundleEdges
+    .map((e) => parseTimestamp(e.timestamp))
+    .filter((d) => !isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+  const oldest = timestamps[0];
+  const newest = timestamps[timestamps.length - 1];
+  const fmtDate = (d: Date) => d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -66,6 +75,14 @@ function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onArcEdge }: Ed
           <span className="text-gray-400">Transactions</span>
           <span className="text-white">{bundleEdges.length}</span>
         </div>
+        {oldest && newest && (
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-400">Date span</span>
+            <span className="text-white">
+              {fmtDate(oldest)}{oldest.getTime() !== newest.getTime() ? ` — ${fmtDate(newest)}` : ''}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Individual transactions */}
@@ -185,6 +202,23 @@ const NODE_SHAPES: { value: WalletNode['shape']; label: string; icon: string }[]
   { value: 'triangle',       label: 'Triangle', icon: '▲' },
 ];
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="shrink-0 mt-0.5 text-gray-500 hover:text-gray-300 transition-colors"
+      title="Copy address"
+    >
+      {copied ? <FaCheck size={11} className="text-emerald-400" /> : <FaCopy size={11} />}
+    </button>
+  );
+}
+
 function WalletDetails({
   wallet,
   onFetchHistory,
@@ -219,18 +253,21 @@ function WalletDetails({
       {hasAddress && (
         <div>
           <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Address</h4>
-          {wallet.explorerUrl ? (
-            <a
-              href={wallet.explorerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-mono text-blue-400 hover:text-blue-300 break-all underline decoration-blue-400/30 hover:decoration-blue-300/60 transition-colors"
-            >
-              {wallet.address}
-            </a>
-          ) : (
-            <p className="text-xs font-mono text-gray-300 break-all">{wallet.address}</p>
-          )}
+          <div className="flex items-start gap-1.5">
+            {wallet.explorerUrl ? (
+              <a
+                href={wallet.explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-mono text-blue-400 hover:text-blue-300 break-all underline decoration-blue-400/30 hover:decoration-blue-300/60 transition-colors"
+              >
+                {wallet.address}
+              </a>
+            ) : (
+              <p className="text-xs font-mono text-gray-300 break-all">{wallet.address}</p>
+            )}
+            <CopyButton text={wallet.address} />
+          </div>
         </div>
       )}
       {hasAddress && (

@@ -7,7 +7,7 @@ export type StreamEvent =
 
 export interface LlmProvider {
   streamChat(params: {
-    system: string;
+    system: Anthropic.Beta.BetaTextBlockParam[];
     messages: Anthropic.Beta.BetaMessageParam[];
     tools: Anthropic.Beta.BetaTool[];
     model?: string;

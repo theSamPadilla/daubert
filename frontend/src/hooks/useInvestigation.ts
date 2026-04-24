@@ -22,6 +22,7 @@ type Action =
   | { type: 'DELETE_GROUP'; payload: { traceId: string; groupId: string } }
   | { type: 'SET_NODE_GROUP'; payload: { traceId: string; nodeIds: string[]; groupId: string | null } }
   | { type: 'ADD_EDGE_BUNDLE'; payload: { traceId: string; bundle: EdgeBundle } }
+  | { type: 'UPDATE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string; updates: Partial<EdgeBundle> } }
   | { type: 'TOGGLE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
   | { type: 'DELETE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
   | { type: 'UNDO' };
@@ -234,6 +235,14 @@ function applyAction(state: Investigation | null, action: Action): Investigation
       return mapTrace(state, action.payload.traceId, (t) => ({
         ...t,
         edgeBundles: [...(t.edgeBundles || []), action.payload.bundle],
+      }));
+
+    case 'UPDATE_EDGE_BUNDLE':
+      return mapTrace(state, action.payload.traceId, (t) => ({
+        ...t,
+        edgeBundles: (t.edgeBundles || []).map((b) =>
+          b.id === action.payload.bundleId ? { ...b, ...action.payload.updates } : b
+        ),
       }));
 
     case 'TOGGLE_EDGE_BUNDLE':
@@ -469,6 +478,12 @@ export function useInvestigation(initial: Investigation | null) {
     []
   );
 
+  const updateEdgeBundle = useCallback(
+    (traceId: string, bundleId: string, updates: Partial<EdgeBundle>) =>
+      dispatch({ type: 'UPDATE_EDGE_BUNDLE', payload: { traceId, bundleId, updates } }),
+    []
+  );
+
   const toggleEdgeBundle = useCallback(
     (traceId: string, bundleId: string) =>
       dispatch({ type: 'TOGGLE_EDGE_BUNDLE', payload: { traceId, bundleId } }),
@@ -505,6 +520,7 @@ export function useInvestigation(initial: Investigation | null) {
     deleteGroup,
     setNodeGroup,
     addEdgeBundle,
+    updateEdgeBundle,
     toggleEdgeBundle,
     deleteEdgeBundle,
   };

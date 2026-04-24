@@ -15,6 +15,12 @@ dist-ssr
 # Next.js
 .next
 
+# Environment files — only .env.example is committed
+backend/.env*
+frontend/.env*
+!backend/.env.example
+!frontend/.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -25,3 +31,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+backups/

@@ -16,11 +16,19 @@ export class AnthropicProvider implements LlmProvider {
   }
 
   async *streamChat(params: {
-    system: string;
+    system: Anthropic.Beta.BetaTextBlockParam[];
     messages: Anthropic.Beta.BetaMessageParam[];
     tools: Anthropic.Beta.BetaTool[];
     model?: string;
   }): AsyncGenerator<StreamEvent> {
+    // Cache the last tool definition — Anthropic caches everything up to and
+    // including the last cache_control breakpoint, so this covers all tools.
+    const tools = params.tools.map((tool, i) =>
+      i === params.tools.length - 1
+        ? { ...tool, cache_control: { type: 'ephemeral' as const } }
+        : tool,
+    );
+
     const stream = this.client.beta.messages.stream({
       betas: ['compact-2026-01-12'],
       model: params.model ?? DEFAULT_MODEL,
@@ -28,7 +36,7 @@ export class AnthropicProvider implements LlmProvider {
       thinking: { type: 'adaptive' },
       system: params.system,
       messages: params.messages,
-      tools: params.tools,
+      tools,
     } as Parameters<typeof this.client.beta.messages.stream>[0]);
 
     for await (const event of stream) {

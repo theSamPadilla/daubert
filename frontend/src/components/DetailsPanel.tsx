@@ -13,10 +13,11 @@ interface EdgeBundleDetailsProps {
   traces: Trace[];
   onToggle: () => void;
   onDelete: () => void;
+  onUpdate?: (updates: Partial<EdgeBundle>) => void;
   onArcEdge?: (delta: number | null) => void;
 }
 
-function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onArcEdge }: EdgeBundleDetailsProps) {
+function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onUpdate, onArcEdge }: EdgeBundleDetailsProps) {
   const trace = traces.find((t) => t.id === bundle.traceId);
   const fromNode = trace?.nodes.find((n) => n.id === bundle.fromNodeId);
   const toNode = trace?.nodes.find((n) => n.id === bundle.toNodeId);
@@ -24,7 +25,12 @@ function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onArcEdge }: Ed
     .map((id) => trace?.edges.find((e) => e.id === id))
     .filter(Boolean) as TransactionEdge[];
 
-  const abbr = (h: number) => h >= 1e6 ? `${(h/1e6).toFixed(2).replace(/\.?0+$/, '')}M` : h >= 1e3 ? `${(h/1e3).toFixed(1)}K` : h.toFixed(2);
+  const abbr = (h: number) =>
+    h >= 1e12 ? `${(h/1e12).toFixed(2).replace(/\.?0+$/, '')}T`
+    : h >= 1e9 ? `${(h/1e9).toFixed(2).replace(/\.?0+$/, '')}B`
+    : h >= 1e6 ? `${(h/1e6).toFixed(2).replace(/\.?0+$/, '')}M`
+    : h >= 1e3 ? `${(h/1e3).toFixed(1).replace(/\.?0+$/, '')}K`
+    : h.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
   // Derive the display token from actual edges (bundle.token may be stale/wrong)
   const displayToken = bundleEdges.length > 0 ? normalizeToken(bundleEdges[0].token).symbol : bundle.token;
@@ -84,6 +90,13 @@ function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onArcEdge }: Ed
           </div>
         )}
       </div>
+
+      {onUpdate && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Color</h4>
+          <GroupColorPicker color={bundle.color} onChange={(c) => onUpdate({ color: c })} />
+        </div>
+      )}
 
       {/* Individual transactions */}
       {bundleEdges.length > 0 && (
@@ -177,6 +190,7 @@ interface DetailsPanelProps {
   onFetchHistory: (address: string, chain: string) => void;
   onRerunScript?: (scriptRunId: string) => Promise<void>;
   onToggleEdgeBundle?: (traceId: string, bundleId: string) => void;
+  onUpdateEdgeBundle?: (traceId: string, bundleId: string, updates: Partial<EdgeBundle>) => void;
   onDeleteEdgeBundle?: (traceId: string, bundleId: string) => void;
   onArcEdge?: (edgeId: string, delta: number | null) => void;
 }
@@ -592,9 +606,11 @@ const GROUP_COLORS = [
 ];
 
 function fmtFlow(amount: number): string {
+  if (amount >= 1e12) return `${(amount / 1e12).toFixed(2).replace(/\.?0+$/, '')}T`;
+  if (amount >= 1e9) return `${(amount / 1e9).toFixed(2).replace(/\.?0+$/, '')}B`;
   if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}M`;
   if (amount >= 1_000) return `${(amount / 1_000).toFixed(2).replace(/\.?0+$/, '')}K`;
-  return amount.toFixed(2).replace(/\.?0+$/, '');
+  return amount.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 function GroupColorPicker({ color, onChange }: { color?: string; onChange: (c: string | undefined) => void }) {
@@ -970,6 +986,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
   onFetchHistory,
   onRerunScript,
   onToggleEdgeBundle,
+  onUpdateEdgeBundle,
   onDeleteEdgeBundle,
   onArcEdge,
 }: DetailsPanelProps, ref) {
@@ -1110,6 +1127,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
           bundle={selectedItem.data as EdgeBundle}
           traces={traces}
           onToggle={() => onToggleEdgeBundle?.(selectedItem.data.traceId, selectedItem.data.id)}
+          onUpdate={onUpdateEdgeBundle ? (updates) => onUpdateEdgeBundle(selectedItem.data.traceId, selectedItem.data.id, updates) : undefined}
           onDelete={() => onDeleteEdgeBundle?.(selectedItem.data.traceId, selectedItem.data.id)}
           onArcEdge={onArcEdge ? (delta) => onArcEdge((selectedItem.data as EdgeBundle).id, delta) : undefined}
         />

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as XLSX from 'xlsx';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { INVESTIGATOR_PROMPT } from '../../prompts/investigator';
@@ -102,6 +103,30 @@ function sanitizeToolPairs(
 }
 
 /**
+ * Merge consecutive messages with the same role. This can happen when tool
+ * results from compaction or DB ordering produce adjacent user messages.
+ * The Anthropic API requires strictly alternating roles.
+ */
+function mergeConsecutiveRoles(
+  messages: Anthropic.Beta.BetaMessageParam[],
+): Anthropic.Beta.BetaMessageParam[] {
+  if (messages.length === 0) return messages;
+  const merged: Anthropic.Beta.BetaMessageParam[] = [messages[0]];
+  for (let i = 1; i < messages.length; i++) {
+    const prev = merged[merged.length - 1];
+    const curr = messages[i];
+    if (prev.role === curr.role) {
+      const prevBlocks = Array.isArray(prev.content) ? prev.content : [{ type: 'text' as const, text: prev.content as string }];
+      const currBlocks = Array.isArray(curr.content) ? curr.content : [{ type: 'text' as const, text: curr.content as string }];
+      prev.content = [...prevBlocks, ...currBlocks] as any;
+    } else {
+      merged.push(curr);
+    }
+  }
+  return merged;
+}
+
+/**
  * Detects whether an Anthropic API error is the "tool use without result" class
  * of invalid_request_error that can be auto-healed by stripping server-side
  * tool blocks from the history.
@@ -115,6 +140,56 @@ function isOrphanedToolError(err: unknown): boolean {
     msg.includes('without a corresponding') ||
     msg.includes('tool_result')
   );
+}
+
+/**
+ * Produce a compact version of a tool result for DB persistence. The full
+ * result feeds the current agent loop (in-memory); the slim version is what
+ * future requests see when loading conversation history. The model can
+ * re-call tools if it needs full data again.
+ */
+function slimToolResult(toolName: string, full: string): string {
+  switch (toolName) {
+    case 'get_case_data': {
+      // Summarise graph data: investigation/trace/node/edge counts
+      try {
+        const data = JSON.parse(full);
+        if (Array.isArray(data)) {
+          const summary = data.map((inv: any) => ({
+            id: inv.id,
+            name: inv.name,
+            traceCount: inv.traces?.length ?? 0,
+            nodeCount: inv.traces?.reduce((n: number, t: any) => n + (t.data?.nodes?.length ?? 0), 0) ?? 0,
+            edgeCount: inv.traces?.reduce((n: number, t: any) => n + (t.data?.edges?.length ?? 0), 0) ?? 0,
+          }));
+          return JSON.stringify(summary);
+        }
+      } catch { /* fall through */ }
+      break;
+    }
+
+    case 'get_skill':
+      // Skill was loaded into context for the current turn — future turns can re-load
+      try {
+        const parsed = JSON.parse(full);
+        if (parsed.content) return JSON.stringify({ loaded: true });
+      } catch { /* fall through */ }
+      break;
+
+    case 'execute_script':
+    case 'list_script_runs':
+      // Truncate large outputs
+      if (full.length > 2000) {
+        return full.slice(0, 2000) + '...[truncated]';
+      }
+      break;
+  }
+
+  // Default cap for any tool result
+  if (full.length > 3000) {
+    return full.slice(0, 3000) + '...[truncated]';
+  }
+  return full;
 }
 
 export interface SseEvent {
@@ -157,7 +232,8 @@ export class AiService {
     );
     // Sanitize: remove orphaned tool_use / tool_result pairs that can arise
     // from same-transaction timestamps or compaction replacing old tool_use blocks.
-    const messages = sanitizeToolPairs(rawMessages);
+    // Then merge any consecutive same-role messages (API requires alternating roles).
+    const messages = mergeConsecutiveRoles(sanitizeToolPairs(rawMessages));
 
     // Build content blocks for the user turn
     const userContentBlocks: Anthropic.Beta.BetaContentBlockParam[] = [];
@@ -165,8 +241,10 @@ export class AiService {
     // Anthropic size limits (base64 chars ≈ raw bytes * 1.37)
     // Images: 5 MB raw → ~6.8 MB base64 chars
     // PDFs:   4.5 MB raw → ~6.2 MB base64 chars (API hard limit for document blocks)
+    // XLSX:   same document limit as PDFs
     const IMAGE_B64_LIMIT = 6_800_000;
     const PDF_B64_LIMIT   = 6_200_000;
+    const XLSX_B64_LIMIT  = 6_200_000;
 
     // Attach images and documents before the text
     if (attachments?.length) {
@@ -184,6 +262,32 @@ export class AiService {
               source: { type: 'base64', media_type: 'application/pdf', data: att.data },
               title: att.name,
             } as any);
+          }
+        } else if (att.mediaType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+          if (att.data.length > XLSX_B64_LIMIT) {
+            userContentBlocks.push({
+              type: 'text',
+              text: `[Attached spreadsheet "${att.name}" (${(att.data.length * 0.75 / 1_048_576).toFixed(1)} MB) is too large to process. Ask the user for the relevant excerpt.]`,
+            });
+          } else {
+            try {
+              const buf = Buffer.from(att.data, 'base64');
+              const workbook = XLSX.read(buf, { type: 'buffer' });
+              const sheets: string[] = [];
+              for (const name of workbook.SheetNames) {
+                const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name]);
+                sheets.push(`--- Sheet: ${name} ---\n${csv}`);
+              }
+              userContentBlocks.push({
+                type: 'text',
+                text: `[Spreadsheet: ${att.name}]\n\n${sheets.join('\n\n')}`,
+              });
+            } catch {
+              userContentBlocks.push({
+                type: 'text',
+                text: `[Failed to parse spreadsheet "${att.name}". The file may be corrupted.]`,
+              });
+            }
           }
         } else if (
           att.mediaType === 'image/jpeg' ||
@@ -228,6 +332,26 @@ export class AiService {
     );
     messages.push({ role: 'user', content: userContentBlocks });
 
+    // Mark cache breakpoints on message history for prompt caching.
+    // Breakpoint 1: end of old history — cached between user turns so prior
+    //   conversation context isn't re-processed on every new message.
+    // Breakpoint 2: end of new user message — cached within the agent loop so
+    //   iterations 1+ (after tool results) don't re-process the user turn.
+    const newUserIdx = messages.length - 1;
+    if (newUserIdx > 0) {
+      const lastOld = messages[newUserIdx - 1];
+      const blocks = Array.isArray(lastOld.content) ? lastOld.content : [];
+      if (blocks.length > 0) {
+        (blocks[blocks.length - 1] as any).cache_control = { type: 'ephemeral' };
+      }
+    }
+    {
+      const userBlocks = Array.isArray(userContentBlocks) ? userContentBlocks : [];
+      if (userBlocks.length > 0) {
+        (userBlocks[userBlocks.length - 1] as any).cache_control = { type: 'ephemeral' };
+      }
+    }
+
     let prevToolKey = '';
     let isFirstTurn = true;
     let firstAssistantText = '';
@@ -237,11 +361,20 @@ export class AiService {
       let response: Anthropic.Beta.BetaMessage | undefined;
       let streamMessages = messages;
 
+      // System prompt is stable across all requests — cache it.
+      const system: Anthropic.Beta.BetaTextBlockParam[] = [
+        {
+          type: 'text',
+          text: INVESTIGATOR_PROMPT,
+          cache_control: { type: 'ephemeral' },
+        },
+      ];
+
       for (let attempt = 0; attempt < 2; attempt++) {
         response = undefined;
         try {
           for await (const event of this.llm.streamChat({
-            system: INVESTIGATOR_PROMPT,
+            system,
             messages: streamMessages,
             tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
             model,
@@ -316,8 +449,9 @@ export class AiService {
       }
       prevToolKey = toolKey;
 
-      // Execute tools
+      // Execute tools — keep full results in memory, slim versions for DB
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
+      const slimResults: Anthropic.ToolResultBlockParam[] = [];
       for (const toolUse of toolUseBlocks) {
         yield { type: 'tool_start', data: { name: toolUse.name, input: toolUse.input } };
 
@@ -329,18 +463,24 @@ export class AiService {
           yield { type: 'graph_updated', data: {} };
         }
 
+        const fullContent = JSON.stringify(result);
         toolResults.push({
           type: 'tool_result',
           tool_use_id: toolUse.id,
-          content: JSON.stringify(result),
+          content: fullContent,
+        });
+        slimResults.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          content: slimToolResult(toolUse.name, fullContent),
         });
       }
 
-      // Save assistant message first, then tool results in a separate save so
-      // each row gets a distinct created_at timestamp. Saving both inside one
-      // transaction gives them the same PostgreSQL NOW() value, making the
-      // ORDER BY created_at ASC retrieval non-deterministic and causing
-      // orphaned tool_result errors on the next request.
+      // Save assistant message first, then slim tool results in a separate
+      // save so each row gets a distinct created_at timestamp. Saving both
+      // inside one transaction gives them the same PostgreSQL NOW() value,
+      // making the ORDER BY created_at ASC retrieval non-deterministic and
+      // causing orphaned tool_result errors on the next request.
       await this.messageRepo.save(
         this.messageRepo.create({
           conversationId,
@@ -348,16 +488,17 @@ export class AiService {
           content: responseContent,
         }),
       );
-      if (toolResults.length > 0) {
+      if (slimResults.length > 0) {
         await this.messageRepo.save(
           this.messageRepo.create({
             conversationId,
             role: 'user',
-            content: toolResults,
+            content: slimResults,
           }),
         );
       }
 
+      // In-memory history uses full results for the current agent loop
       messages.push({ role: 'assistant', content: responseContent });
       if (toolResults.length > 0) {
         messages.push({ role: 'user', content: toolResults });

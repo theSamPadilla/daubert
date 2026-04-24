@@ -109,6 +109,24 @@ export class TracesService {
     await this.repo.save(trace);
   }
 
+  async deleteEdge(traceId: string, edgeId: string) {
+    const trace = await this.findOne(traceId);
+    const data = (trace.data || {}) as { edges?: any[]; edgeBundles?: any[] };
+    const edges: any[] = data.edges || [];
+    if (!edges.some((e) => e.id === edgeId)) throw new NotFoundException(`Edge ${edgeId} not found in trace ${traceId}`);
+    // Also remove from any edge bundles that reference this edge
+    const edgeBundles = (data.edgeBundles || []).map((b: any) => ({
+      ...b,
+      edgeIds: b.edgeIds.filter((id: string) => id !== edgeId),
+    })).filter((b: any) => b.edgeIds.length > 0);
+    trace.data = {
+      ...data,
+      edges: edges.filter((e) => e.id !== edgeId),
+      edgeBundles,
+    };
+    await this.repo.save(trace);
+  }
+
   async createGroup(traceId: string, dto: CreateGroupDto) {
     const trace = await this.findOne(traceId);
     const data = (trace.data || {}) as { nodes?: any[]; groups?: any[] };
@@ -215,6 +233,21 @@ export class TracesService {
     );
 
     trace.data = { ...data, nodes: updatedNodes, groups: groups.filter((g) => g.id !== groupId) };
+    await this.repo.save(trace);
+  }
+
+  async listEdgeBundles(traceId: string) {
+    const trace = await this.findOne(traceId);
+    const data = (trace.data || {}) as { edgeBundles?: any[] };
+    return data.edgeBundles || [];
+  }
+
+  async deleteEdgeBundle(traceId: string, bundleId: string) {
+    const trace = await this.findOne(traceId);
+    const data = (trace.data || {}) as { edgeBundles?: any[] };
+    const bundles: any[] = data.edgeBundles || [];
+    if (!bundles.some((b) => b.id === bundleId)) throw new NotFoundException(`Edge bundle ${bundleId} not found in trace ${traceId}`);
+    trace.data = { ...data, edgeBundles: bundles.filter((b) => b.id !== bundleId) };
     await this.repo.save(trace);
   }
 

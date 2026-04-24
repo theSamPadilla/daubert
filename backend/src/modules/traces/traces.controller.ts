@@ -66,6 +66,15 @@ export class TracesController {
     return this.service.deleteNode(traceId, nodeId);
   }
 
+  @Delete('traces/:traceId/edges/:edgeId')
+  @HttpCode(204)
+  deleteEdge(
+    @Param('traceId') traceId: string,
+    @Param('edgeId') edgeId: string,
+  ) {
+    return this.service.deleteEdge(traceId, edgeId);
+  }
+
   @Post('traces/:traceId/groups')
   createGroup(
     @Param('traceId') traceId: string,
@@ -90,6 +99,20 @@ export class TracesController {
     @Param('groupId') groupId: string,
   ) {
     return this.service.deleteGroup(traceId, groupId);
+  }
+
+  @Get('traces/:traceId/bundles')
+  listEdgeBundles(@Param('traceId') traceId: string) {
+    return this.service.listEdgeBundles(traceId);
+  }
+
+  @Delete('traces/:traceId/bundles/:bundleId')
+  @HttpCode(204)
+  deleteEdgeBundle(
+    @Param('traceId') traceId: string,
+    @Param('bundleId') bundleId: string,
+  ) {
+    return this.service.deleteEdgeBundle(traceId, bundleId);
   }
 
   @Post('traces/:id/import-transactions')

@@ -250,17 +250,15 @@ export function Sidebar({
                             : 'hover:bg-gray-700/60 text-gray-300'
                         }`}
                       >
-                        {isActive && traces && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); toggleInv(inv.id); }}
-                            className="mr-1 text-gray-500 hover:text-gray-300 transition-colors shrink-0"
-                            title={isInvCollapsed ? 'Expand' : 'Collapse'}
-                          >
-                            {isInvCollapsed
-                              ? <FaChevronRight size={9} />
-                              : <FaChevronDown size={9} />}
-                          </button>
-                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); if (isActive && traces) toggleInv(inv.id); }}
+                          className={`mr-1 shrink-0 transition-colors ${isActive && traces ? 'text-gray-500 hover:text-gray-300' : 'text-gray-600'}`}
+                          title={isActive && traces ? (isInvCollapsed ? 'Expand' : 'Collapse') : undefined}
+                        >
+                          {isActive && traces && !isInvCollapsed
+                            ? <FaChevronDown size={9} />
+                            : <FaChevronRight size={9} />}
+                        </button>
                         <span className="truncate flex-1 text-xs font-medium">{inv.name}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); onEditInvestigation(inv); }}

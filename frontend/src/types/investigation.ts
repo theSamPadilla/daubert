@@ -15,6 +15,7 @@ export interface EdgeBundle {
   token: string;         // token symbol e.g. "USDT"
   collapsed: boolean;
   edgeIds: string[];     // IDs of the bundled TransactionEdges
+  color?: string;
 }
 
 export interface Investigation {

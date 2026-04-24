@@ -7,7 +7,7 @@ import { apiClient, type Conversation, type ChatMessage } from '@/lib/api-client
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
 
 const MODELS = [
   { id: 'claude-opus-4-6', label: 'Opus 4.6' },
@@ -166,6 +166,17 @@ function PdfIcon() {
   );
 }
 
+function XlsxIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="shrink-0">
+      <rect width="20" height="20" rx="4" fill="#22c55e" fillOpacity="0.15"/>
+      <path d="M5 3h7l4 4v10a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="#22c55e" strokeWidth="1.2" fill="none"/>
+      <path d="M12 3v4h4" stroke="#22c55e" strokeWidth="1.2" strokeLinejoin="round"/>
+      <text x="3" y="15" fontSize="4.5" fill="#22c55e" fontWeight="700" fontFamily="monospace">XLSX</text>
+    </svg>
+  );
+}
+
 function AttachmentChip({
   attachment,
   onRemove,
@@ -174,6 +185,7 @@ function AttachmentChip({
   onRemove: () => void;
 }) {
   const isImage = attachment.mediaType.startsWith('image/');
+  const isXlsx = attachment.mediaType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   return (
     <div className="relative group shrink-0">
       {isImage ? (
@@ -184,7 +196,7 @@ function AttachmentChip({
         />
       ) : (
         <div className="w-14 h-14 rounded-lg border border-gray-600 bg-gray-800 flex flex-col items-center justify-center gap-1 px-1">
-          <PdfIcon />
+          {isXlsx ? <XlsxIcon /> : <PdfIcon />}
           <span className="text-[9px] text-gray-400 truncate w-full text-center leading-tight">
             {attachment.name}
           </span>
@@ -221,7 +233,7 @@ function MessageAttachments({
             key={i}
             className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2.5 py-1.5 text-xs font-medium"
           >
-            <PdfIcon />
+            {att.mediaType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ? <XlsxIcon /> : <PdfIcon />}
             <span className="truncate max-w-[120px]">{att.name}</span>
           </div>
         )
@@ -322,7 +334,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
     const invalid = arr.filter((f) => !ACCEPTED_TYPES.includes(f.type));
 
     if (invalid.length > 0) {
-      setFileError(`Unsupported type: ${invalid.map((f) => f.name).join(', ')}. Use images or PDF.`);
+      setFileError(`Unsupported type: ${invalid.map((f) => f.name).join(', ')}. Use images, PDF, or XLSX.`);
     }
 
     const okFiles = valid;
@@ -582,7 +594,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
 
   return (
     <div
-      className="w-[480px] min-w-[480px] h-full bg-gray-800 border-l border-gray-700 flex flex-col relative"
+      className="w-full h-full bg-gray-800 border-l border-gray-700 flex flex-col relative"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -602,7 +614,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         onChange={handleFileInputChange}
         className="hidden"
       />

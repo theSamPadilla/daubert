@@ -34,7 +34,7 @@ export const GET_CASE_DATA_TOOL: Anthropic.Tool = {
 export const GET_SKILL_TOOL: Anthropic.Tool = {
   name: 'get_skill',
   description:
-    'Load a skill document into context for specialized instructions. Available: blockchain-apis (Etherscan + Tronscan API reference for direct blockchain queries), graph-mutations (how to add nodes/edges to the investigation graph via scripts).',
+    'Load a skill document into context for specialized instructions. Available: blockchain-apis (Etherscan + Tronscan API reference for direct blockchain queries), graph-mutations (how to add, edit, and delete nodes/edges/groups in the investigation graph via scripts).',
   input_schema: {
     type: 'object' as const,
     properties: {

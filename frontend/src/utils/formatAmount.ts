@@ -36,10 +36,11 @@ function abbrev(value: number, divisor: number, suffix: string): string {
 
 /**
  * Format a raw token amount (in smallest unit) to a human-readable string,
- * automatically abbreviating large numbers with K / M suffixes.
+ * automatically abbreviating large numbers with K / M / B / T suffixes.
  *
  * e.g. formatTokenAmount('17000000', 0) → '17M'
  *      formatTokenAmount('151035283000000', 6) → '151M'
+ *      formatTokenAmount('2250000000000', 0) → '2.25T'
  *      formatTokenAmount('1500000000000000000', 18) → '1.5'
  */
 export function formatTokenAmount(rawAmount: string, decimals: number): string {
@@ -54,8 +55,10 @@ export function formatTokenAmount(rawAmount: string, decimals: number): string {
     // Use floating-point for the abbreviation check
     const fullValue = Number(raw) / Math.pow(10, decimals);
 
-    if (fullValue >= 1_000_000) return abbrev(fullValue, 1_000_000, 'M');
-    if (fullValue >= 1_000)     return abbrev(fullValue, 1_000, 'K');
+    if (fullValue >= 1e12)       return abbrev(fullValue, 1e12, 'T');
+    if (fullValue >= 1e9)        return abbrev(fullValue, 1e9, 'B');
+    if (fullValue >= 1_000_000)  return abbrev(fullValue, 1_000_000, 'M');
+    if (fullValue >= 1_000)      return abbrev(fullValue, 1_000, 'K');
 
     // Small numbers — keep full precision up to 4 decimal places
     let formatted = whole.toLocaleString('en-US');
@@ -70,8 +73,10 @@ export function formatTokenAmount(rawAmount: string, decimals: number): string {
     // Fallback for non-integer strings (already formatted or decimal)
     const num = Number(rawAmount);
     if (isNaN(num)) return rawAmount;
-    if (num >= 1_000_000) return abbrev(num, 1_000_000, 'M');
-    if (num >= 1_000)     return abbrev(num, 1_000, 'K');
+    if (num >= 1e12)       return abbrev(num, 1e12, 'T');
+    if (num >= 1e9)        return abbrev(num, 1e9, 'B');
+    if (num >= 1_000_000)  return abbrev(num, 1_000_000, 'M');
+    if (num >= 1_000)      return abbrev(num, 1_000, 'K');
     return num.toLocaleString('en-US', { maximumFractionDigits: 4 });
   }
 }

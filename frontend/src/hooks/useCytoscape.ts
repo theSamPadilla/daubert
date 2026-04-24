@@ -46,17 +46,23 @@ const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
       'font-weight': '600',
       'text-wrap': 'wrap',
       'text-max-width': '80px',
-      'width': 'data(size)',
-      'height': 'data(size)',
       'border-width': 1.5,
       'border-color': 'data(color)',
       'border-opacity': 0.35,
     },
   },
+  // Only map data(size) on nodes that actually carry it (leaf nodes, collapsed groups)
+  {
+    selector: 'node[size]',
+    style: {
+      'width': 'data(size)',
+      'height': 'data(size)',
+    },
+  },
 
   // ── Shape (explicit override > addressType fallback, both stored in nodeShape data) ──
   {
-    selector: 'node',
+    selector: 'node[nodeShape]',
     style: { 'shape': 'data(nodeShape)' as any },
   },
   // Keep border styling for address types (shape is now in data)
@@ -234,14 +240,15 @@ const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
   },
 
   // ── Edge states ────────────────────────────────────────────────────────
+  // Selected edges keep their own color but get a visible underlay glow
   {
     selector: 'edge.cy-sel',
     style: {
-      'line-color': '#facc15',
-      'target-arrow-color': '#facc15',
       'opacity': 1,
-      'width': 4,
-    },
+      'underlay-color': '#facc15',
+      'underlay-opacity': 0.35,
+      'underlay-padding': 4,
+    } as any,
   },
   {
     selector: 'edge.hovered',
@@ -725,6 +732,15 @@ export function useCytoscape(
       }
     });
 
+    // Build global set of edge IDs hidden by collapsed bundles (across ALL traces)
+    // so cross-trace bundled edges are properly hidden regardless of which trace owns the bundle
+    const globalBundledEdgeIds = new Set<string>();
+    inv.traces.forEach((t) => {
+      (t.edgeBundles || []).forEach((b) => {
+        if (b.collapsed) b.edgeIds.forEach((id) => globalBundledEdgeIds.add(id));
+      });
+    });
+
     inv.traces.forEach((trace) => {
       if (!trace.visible) return;
 
@@ -797,18 +813,17 @@ export function useCytoscape(
 
         // Edges — re-route & aggregate for collapsed groups, skip bundled edges
         const edgeW = (h: number) => h > 0 ? Math.min(Math.max(1.5 + Math.pow(h, 0.2) * 0.28, 1.5), 14) : 1.5;
-        const abbr = (h: number) => h >= 1e6 ? `${(h/1e6).toFixed(1)}M` : h >= 1e3 ? `${(h/1e3).toFixed(1)}K` : h.toFixed(1);
-
-        // Build collapsed bundle index
-        const bundledEdgeIds = new Set<string>();
-        (trace.edgeBundles || []).forEach((bundle) => {
-          if (bundle.collapsed) bundle.edgeIds.forEach((id) => bundledEdgeIds.add(id));
-        });
+        const abbr = (h: number) =>
+          h >= 1e12 ? `${(h/1e12).toFixed(2).replace(/\.?0+$/, '')}T`
+          : h >= 1e9 ? `${(h/1e9).toFixed(2).replace(/\.?0+$/, '')}B`
+          : h >= 1e6 ? `${(h/1e6).toFixed(1).replace(/\.?0+$/, '')}M`
+          : h >= 1e3 ? `${(h/1e3).toFixed(1).replace(/\.?0+$/, '')}K`
+          : h.toLocaleString(undefined, { maximumFractionDigits: 1 });
 
         const aggEdges = new Map<string, { src: string; tgt: string; human: number; sym: string; color: string; date: string; n: number }>();
 
         trace.edges.forEach((edge) => {
-          if (bundledEdgeIds.has(edge.id)) return; // rendered as bundle edge below
+          if (globalBundledEdgeIds.has(edge.id)) return; // rendered as bundle edge
           // Use global effective IDs so cross-trace collapsed groups/traces are handled
           const effFrom = globalEffectiveId.get(edge.from) ?? edge.from;
           const effTo   = globalEffectiveId.get(edge.to)   ?? edge.to;
@@ -852,8 +867,21 @@ export function useCytoscape(
             totalHuman += tok.decimals > 0 ? raw / Math.pow(10, tok.decimals) : raw;
           });
           const label = `${abbr(totalHuman)} ${labelSym} (${bundleEdges.length})`;
-          const color = bundleEdges[0].color || '#f59e0b';
-          targetEdges.set(bundle.id, { data: { id: bundle.id, source: bundle.fromNodeId, target: bundle.toNodeId, label, date: '', color, weight: edgeW(totalHuman), isBundleEdge: true } });
+          const color = bundle.color || bundleEdges[0].color || '#f59e0b';
+          // Compute date range for the bundle sublabel
+          const timestamps = bundleEdges
+            .map((e: any) => parseTimestamp(e.timestamp))
+            .filter((d: Date) => !isNaN(d.getTime()))
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime());
+          let dateLabel = '';
+          if (timestamps.length > 0) {
+            const oldest = timestamps[0];
+            const newest = timestamps[timestamps.length - 1];
+            dateLabel = oldest.getTime() === newest.getTime()
+              ? formatShortDate(oldest.getTime() / 1000)
+              : `${formatShortDate(oldest.getTime() / 1000)} — ${formatShortDate(newest.getTime() / 1000)}`;
+          }
+          targetEdges.set(bundle.id, { data: { id: bundle.id, source: bundle.fromNodeId, target: bundle.toNodeId, label, date: dateLabel, color, weight: edgeW(totalHuman), isBundleEdge: true } });
         });
       }
     });

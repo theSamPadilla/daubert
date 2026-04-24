@@ -1,6 +1,6 @@
 # Graph Mutations via Scripts
 
-Add wallet nodes and transaction edges to the investigation graph by writing a script that fetches blockchain data and POSTs to the import endpoint.
+Add, edit, and delete wallet nodes, transaction edges, and groups in the investigation graph by writing scripts that call the backend API.
 
 ## Import Endpoint
 
@@ -233,6 +233,14 @@ All fields optional — only send what you want to change:
 
 Returns the updated edge object. The `edgeId` comes from `get_case_data`.
 
+## Delete an Edge
+
+```
+DELETE {API_URL}/traces/{traceId}/edges/{edgeId}
+```
+
+Returns `204 No Content`. Also removes the edge from any edge bundles that reference it (and deletes the bundle entirely if it becomes empty).
+
 ## Delete a Node
 
 ```
@@ -240,6 +248,22 @@ DELETE {API_URL}/traces/{traceId}/nodes/{nodeId}
 ```
 
 Returns `204 No Content`. Also removes all edges connected to that node within the trace.
+
+## List Edge Bundles
+
+```
+GET {API_URL}/traces/{traceId}/bundles
+```
+
+Returns an array of edge bundle objects for the trace. Each bundle has `id`, `traceId`, `fromNodeId`, `toNodeId`, `token`, `collapsed`, `edgeIds[]`, and optional `color`. Use this to discover bundle IDs before deleting them.
+
+## Delete an Edge Bundle
+
+```
+DELETE {API_URL}/traces/{traceId}/bundles/{bundleId}
+```
+
+Returns `204 No Content`. Removes only the bundle metadata — the underlying edges are preserved. Use this to clean up broken, duplicate, or unwanted bundles without losing transaction data.
 
 ## Tips
 

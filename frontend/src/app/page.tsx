@@ -200,6 +200,7 @@ function AppShell() {
     deleteGroup,
     setNodeGroup,
     addEdgeBundle,
+    updateEdgeBundle,
     toggleEdgeBundle,
     deleteEdgeBundle,
   } = useInvestigation(null);
@@ -219,6 +220,29 @@ function AppShell() {
   const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(true);
+  const [chatWidth, setChatWidth] = useState(480);
+  const chatDragRef = useRef<{ startX: number; startW: number } | null>(null);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!chatDragRef.current) return;
+      const delta = chatDragRef.current.startX - e.clientX;
+      setChatWidth(Math.min(900, Math.max(320, chatDragRef.current.startW + delta)));
+    };
+    const onMouseUp = () => {
+      if (chatDragRef.current) {
+        chatDragRef.current = null;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
 
   // Load investigation from backend when selection changes
   const loadInvestigationFromApi = useCallback(async (id: string) => {
@@ -356,6 +380,12 @@ function AppShell() {
       for (const trace of investigation.traces) {
         const found = (trace.groups || []).find((g) => g.id === data.id);
         if (found) { setSelectedItem({ type: 'group', data: found }); return; }
+      }
+      setSelectedItem(null);
+    } else if (type === 'edgeBundle' && data) {
+      for (const trace of investigation.traces) {
+        const found = (trace.edgeBundles || []).find((b) => b.id === data.id);
+        if (found) { setSelectedItem({ type: 'edgeBundle', data: found }); return; }
       }
       setSelectedItem(null);
     }
@@ -647,20 +677,57 @@ function AppShell() {
 
   const handleBundleEdges = useCallback(() => {
     if (!investigation || selectedEdgeIds.length < 2) return;
-    // Group selected edges by (fromNodeId, toNodeId, token)
+
+    // Build node-ID → address lookup so the same wallet with different node IDs
+    // (e.g. across traces) bundles into a single group
+    const nodeAddr = new Map<string, string>();
+    for (const trace of investigation.traces) {
+      for (const node of trace.nodes) nodeAddr.set(node.id, node.address);
+    }
+
+    // Expand any selected bundle IDs into their constituent edge IDs,
+    // and track which existing bundles are being merged so we can remove them
+    const fromBundles = new Set<string>();
+    const rawEdgeIds: string[] = [];
+    const consumedBundleIds: { traceId: string; bundleId: string }[] = [];
+    for (const id of selectedEdgeIds) {
+      let found = false;
+      for (const trace of investigation.traces) {
+        const bundle = (trace.edgeBundles || []).find((b) => b.id === id);
+        if (bundle) {
+          bundle.edgeIds.forEach((eid) => fromBundles.add(eid));
+          consumedBundleIds.push({ traceId: trace.id, bundleId: bundle.id });
+          found = true;
+          break;
+        }
+      }
+      if (!found) rawEdgeIds.push(id);
+    }
+
+    // Deduplicate
+    const uniqueEdgeIds = [...new Set([...fromBundles, ...rawEdgeIds])];
+
+    // Group selected edges by (fromAddress, toAddress, token)
     const groups = new Map<string, { fromNodeId: string; toNodeId: string; token: string; edgeIds: string[] }>();
-    for (const traceEdges of investigation.traces) {
-      for (const edge of traceEdges.edges) {
-        if (!selectedEdgeIds.includes(edge.id)) continue;
+    for (const trace of investigation.traces) {
+      for (const edge of trace.edges) {
+        if (!uniqueEdgeIds.includes(edge.id)) continue;
         const token = normalizeToken(edge.token).symbol;
-        const key = `${edge.from}::${edge.to}::${token}`;
+        const fromAddr = nodeAddr.get(edge.from) || edge.from;
+        const toAddr = nodeAddr.get(edge.to) || edge.to;
+        const key = `${fromAddr}::${toAddr}::${token}`;
         if (!groups.has(key)) groups.set(key, { fromNodeId: edge.from, toNodeId: edge.to, token, edgeIds: [] });
         groups.get(key)!.edgeIds.push(edge.id);
       }
     }
+
+    // Remove old bundles that were merged
+    for (const { traceId, bundleId } of consumedBundleIds) {
+      deleteEdgeBundle(traceId, bundleId);
+    }
+
     for (const { fromNodeId, toNodeId, token, edgeIds } of groups.values()) {
       if (edgeIds.length < 2) continue;
-      // Find traceId from first edge
       let traceId = '';
       for (const t of investigation.traces) {
         if (t.edges.some((e) => e.id === edgeIds[0])) { traceId = t.id; break; }
@@ -678,7 +745,7 @@ function AppShell() {
       addEdgeBundle(traceId, bundle);
     }
     setSelectedEdgeIds([]);
-  }, [investigation, selectedEdgeIds, addEdgeBundle]);
+  }, [investigation, selectedEdgeIds, addEdgeBundle, deleteEdgeBundle]);
 
   const handleAddToGroup = useCallback(() => {
     if (!selectedGroupEntry) return;
@@ -1046,6 +1113,7 @@ function AppShell() {
                       }}
                       onSetNodeGroup={setNodeGroup}
                       onToggleEdgeBundle={toggleEdgeBundle}
+                      onUpdateEdgeBundle={updateEdgeBundle}
                       onDeleteEdgeBundle={(traceId, bundleId) => {
                         deleteEdgeBundle(traceId, bundleId);
                         setSelectedItem(null);
@@ -1128,7 +1196,21 @@ function AppShell() {
         )}
       </div>
 
-      <div className={`relative flex-shrink-0 transition-all duration-200 ${chatOpen ? 'w-[480px]' : 'w-0'} overflow-hidden h-full`}>
+      <div
+        className={`relative flex-shrink-0 overflow-hidden h-full ${chatOpen ? '' : 'w-0'}`}
+        style={chatOpen ? { width: chatWidth } : undefined}
+      >
+        {chatOpen && (
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              chatDragRef.current = { startX: e.clientX, startW: chatWidth };
+              document.body.style.cursor = 'col-resize';
+              document.body.style.userSelect = 'none';
+            }}
+          />
+        )}
         <AIChat
           activeCaseId={activeCaseId}
           activeInvestigationId={activeInvestigationId}

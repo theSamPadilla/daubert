@@ -19,6 +19,10 @@ function formatAmount(amount: string, decimals: number): string {
   if (isNaN(num)) return amount;
   const adjusted = num / Math.pow(10, decimals);
   if (adjusted < 0.001) return '<0.001';
+  if (adjusted >= 1e12) return `${(adjusted / 1e12).toFixed(2).replace(/\.?0+$/, '')}T`;
+  if (adjusted >= 1e9) return `${(adjusted / 1e9).toFixed(2).replace(/\.?0+$/, '')}B`;
+  if (adjusted >= 1e6) return `${(adjusted / 1e6).toFixed(2).replace(/\.?0+$/, '')}M`;
+  if (adjusted >= 1e3) return `${(adjusted / 1e3).toFixed(2).replace(/\.?0+$/, '')}K`;
   return adjusted.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 

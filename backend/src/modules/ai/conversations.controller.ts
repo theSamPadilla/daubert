@@ -54,6 +54,14 @@ export class ConversationsController {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
+    // Heartbeat keeps the connection alive during long tool executions
+    // (e.g. 30s script timeout). SSE comment lines are ignored by clients.
+    const HEARTBEAT_MS = 15_000;
+    let heartbeat: ReturnType<typeof setInterval> | undefined = setInterval(
+      () => res.write(': heartbeat\n\n'),
+      HEARTBEAT_MS,
+    );
+
     try {
       for await (const event of this.aiService.streamChat(id, body.message, body.caseId, body.investigationId, body.attachments, body.model)) {
         res.write(
@@ -66,6 +74,8 @@ export class ConversationsController {
         `event: error\ndata: ${JSON.stringify({ message })}\n\n`,
       );
     } finally {
+      clearInterval(heartbeat);
+      heartbeat = undefined;
       res.end();
     }
   }

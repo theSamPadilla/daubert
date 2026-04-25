@@ -11,7 +11,34 @@ async function bootstrap() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  app.enableCors();
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (isProduction) {
+    const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean);
+
+    if (allowedOrigins.length === 0) {
+      throw new Error(
+        'ALLOWED_ORIGINS must be set in production (comma-separated list of allowed origins)',
+      );
+    }
+
+    app.enableCors({
+      origin: allowedOrigins,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    });
+  } else {
+    app.enableCors({
+      origin: true,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    });
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -21,8 +48,10 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(8081);
-  console.log('Daubert backend running on http://localhost:8081');
+  const port = Number(process.env.PORT) || 8081;
+  const host = isProduction ? '0.0.0.0' : '127.0.0.1';
+  await app.listen(port, host);
+  console.log(`Daubert backend running on http://${host}:${port}`);
 }
 
 bootstrap();

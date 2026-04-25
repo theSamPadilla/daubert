@@ -1,0 +1,17 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.sqlite
+*.db
+*.db-shm
+*.db-wal
+.git
+.gitignore
+.DS_Store
+coverage
+*.log
+npm-debug.log*
+README.md
+docker-compose.yml

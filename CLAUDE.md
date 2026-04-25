@@ -2,13 +2,14 @@
 
 ## Plans
 
-All plans in `docs/plans/` MUST include an **Atomized Changes** table at the top (before any task details). This table lists every file touched with its action (Create, Modify, Delete, Keep) and purpose. It serves as the single source of truth for the scope of the plan.
+All plans in `docs/plans/` MUST include an **Atomized Changes** table at the top (before any task details).
+This table list the main USER FACING or DEVELOPER FACING changes that the plan will bring. Not just file changes, but primarily what this will unlock
 
 Example format:
 
 | # | File | Action | Purpose |
 |---|------|--------|---------|
-| 1 | `backend/src/modules/foo/foo.service.ts` | Modify | Add new method for X |
+| 1 | `backend/src/modules/foo/foo.service.ts` | Modify | Users can now do XYZ |
 | 2 | `frontend/src/components/Bar.tsx` | Create | New component for Y |
 | 3 | `backend/src/modules/old/old.service.ts` | Delete | Replaced by foo module |
 

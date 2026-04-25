@@ -9,6 +9,13 @@
     "db:down": "docker compose -f backend/docker-compose.yml down",
     "gen": "npm run gen --prefix frontend && npm run gen --prefix backend",
     "build:fe": "npm run build --prefix frontend",
-    "build:be": "npm run build --prefix backend"
+    "build:be": "npm run build --prefix backend",
+    "scripts:migrate-to-auth": "npm run scripts:migrate-to-auth --prefix backend",
+    "scripts:create-user": "npm run scripts:create-user --prefix backend",
+    "scripts:create-case": "npm run scripts:create-case --prefix backend",
+    "scripts:add-to-case": "npm run scripts:add-to-case --prefix backend",
+    "scripts:list-users": "npm run scripts:list-users --prefix backend",
+    "scripts:remove-member": "npm run scripts:remove-member --prefix backend",
+    "scripts:change-role": "npm run scripts:change-role --prefix backend"
   }
 }

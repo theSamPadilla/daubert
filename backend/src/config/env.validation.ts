@@ -17,29 +17,26 @@ const firebaseEnvVars = [
   'FIREBASE_PRIVATE_KEY',
 ];
 
-export function validateEnv(): void {
+export function validateEnv(env: Record<string, string>): Record<string, string> {
   const missing: string[] = [];
   const warnings: string[] = [];
 
   // Check required vars
   for (const key of requiredEnvVars) {
-    if (!process.env[key]) {
+    if (!env[key]) {
       missing.push(key);
     }
   }
 
   // Format checks
-  if (
-    process.env.ANTHROPIC_API_KEY &&
-    !process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-')
-  ) {
+  if (env.ANTHROPIC_API_KEY && !env.ANTHROPIC_API_KEY.startsWith('sk-ant-')) {
     warnings.push('ANTHROPIC_API_KEY does not start with "sk-ant-" — may be invalid');
   }
 
   // Firebase vars: warn if partially set
-  const firebaseSet = firebaseEnvVars.filter((k) => !!process.env[k]);
+  const firebaseSet = firebaseEnvVars.filter((k) => !!env[k]);
   if (firebaseSet.length > 0 && firebaseSet.length < firebaseEnvVars.length) {
-    const firebaseMissing = firebaseEnvVars.filter((k) => !process.env[k]);
+    const firebaseMissing = firebaseEnvVars.filter((k) => !env[k]);
     missing.push(...firebaseMissing);
   } else if (firebaseSet.length === 0) {
     warnings.push(
@@ -58,4 +55,6 @@ export function validateEnv(): void {
       `Missing required environment variables:\n${missing.map((k) => `  - ${k}`).join('\n')}\n\nCheck your .env.development or .env.production file.`,
     );
   }
+
+  return env;
 }

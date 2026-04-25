@@ -2,6 +2,7 @@ import { Entity, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { InvestigationEntity } from './investigation.entity';
 import { UserEntity } from './user.entity';
+import { CaseMemberEntity } from './case-member.entity';
 
 @Entity('cases')
 export class CaseEntity extends BaseEntity {
@@ -14,14 +15,17 @@ export class CaseEntity extends BaseEntity {
   @Column({ type: 'jsonb', default: '[]' })
   links: { url: string; label: string }[];
 
-  @Column({ name: 'user_id' })
-  userId: string;
+  // Legacy — kept until phase 4 cleanup drops this column
+  @Column({ name: 'user_id', nullable: true })
+  userId: string | null;
 
-  @ManyToOne(() => UserEntity, (u) => u.cases, { onDelete: 'CASCADE' })
+  @ManyToOne(() => UserEntity, (u) => u.cases, { onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'user_id' })
   user: UserEntity;
 
   @OneToMany(() => InvestigationEntity, (inv) => inv.case, { cascade: true })
   investigations: InvestigationEntity[];
 
+  @OneToMany(() => CaseMemberEntity, (m) => m.case, { cascade: true })
+  members: CaseMemberEntity[];
 }

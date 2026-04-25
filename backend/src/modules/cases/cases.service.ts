@@ -2,8 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CaseEntity } from '../../database/entities/case.entity';
-import { UsersService } from '../users/users.service';
-import { CreateCaseDto } from './dto/create-case.dto';
+import { CaseMemberEntity } from '../../database/entities/case-member.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 import { UpdateCaseDto } from './dto/update-case.dto';
 
 @Injectable()
@@ -11,15 +11,20 @@ export class CasesService {
   constructor(
     @InjectRepository(CaseEntity)
     private readonly repo: Repository<CaseEntity>,
-    private readonly usersService: UsersService,
+    @InjectRepository(CaseMemberEntity)
+    private readonly memberRepo: Repository<CaseMemberEntity>,
   ) {}
 
-  async findAll() {
-    const user = await this.usersService.getDefaultUser();
-    return this.repo.find({
+  async findAllForUser(user: UserEntity) {
+    const memberships = await this.memberRepo.find({
       where: { userId: user.id },
-      order: { createdAt: 'DESC' },
+      relations: ['case'],
+      order: { case: { createdAt: 'DESC' } },
     });
+    return memberships.map((m) => ({
+      ...m.case,
+      role: m.role,
+    }));
   }
 
   async findOne(id: string) {
@@ -29,17 +34,6 @@ export class CasesService {
     });
     if (!c) throw new NotFoundException(`Case ${id} not found`);
     return c;
-  }
-
-  async create(dto: CreateCaseDto) {
-    const user = await this.usersService.getDefaultUser();
-    const entity = this.repo.create({
-      name: dto.name,
-      startDate: dto.startDate ? new Date(dto.startDate) : null,
-      links: dto.links || [],
-      userId: user.id,
-    });
-    return this.repo.save(entity);
   }
 
   async update(id: string, dto: UpdateCaseDto) {

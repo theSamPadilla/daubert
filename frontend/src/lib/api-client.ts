@@ -1,9 +1,27 @@
+import { getFirebaseAuth } from './firebase';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string>),
+  };
+
+  // Attach Firebase auth token if signed in
+  try {
+    const currentUser = getFirebaseAuth().currentUser;
+    if (currentUser) {
+      const token = await currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch {
+    // Firebase not initialized or token refresh failed — proceed without auth
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
+    headers,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
@@ -18,6 +36,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  avatarUrl: string | null;
 }
 
 export interface Case {
@@ -27,6 +46,7 @@ export interface Case {
   links: { url: string; label: string }[];
   createdAt: string;
   updatedAt: string;
+  role?: string;
   investigations?: Investigation[];
 }
 
@@ -81,14 +101,12 @@ export interface ScriptRun {
 }
 
 export const apiClient = {
-  // User
-  getMe: () => request<User>('/users/me'),
+  // Auth
+  getMe: () => request<User>('/auth/me'),
 
   // Cases
   listCases: () => request<Case[]>('/cases'),
   getCase: (id: string) => request<Case>(`/cases/${id}`),
-  createCase: (body: { name: string; startDate?: string; links?: { url: string; label: string }[] }) =>
-    request<Case>('/cases', { method: 'POST', body: JSON.stringify(body) }),
   updateCase: (id: string, body: Partial<{ name: string; startDate: string | null; links: { url: string; label: string }[] }>) =>
     request<Case>(`/cases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteCase: (id: string) => request<void>(`/cases/${id}`, { method: 'DELETE' }),
@@ -165,8 +183,8 @@ export const apiClient = {
   // Conversations
   listConversations: () =>
     request<Conversation[]>('/conversations'),
-  createConversation: () =>
-    request<Conversation>('/conversations', { method: 'POST' }),
+  createConversation: (caseId: string) =>
+    request<Conversation>('/conversations', { method: 'POST', body: JSON.stringify({ caseId }) }),
   getConversationMessages: (conversationId: string) =>
     request<ChatMessage[]>(`/conversations/${conversationId}/messages`),
   deleteConversation: (conversationId: string) =>

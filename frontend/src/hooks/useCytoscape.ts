@@ -803,7 +803,7 @@ export function useCytoscape(
           const groupExists = node.groupId && (trace.groups || []).some((g) => g.id === node.groupId && !g.collapsed);
           const parentId = groupExists ? node.groupId! : trace.id;
           const nodeColor = node.color || '#60a5fa';
-          const addrTypeShape = node.addressType === 'contract' ? 'roundrectangle' : node.addressType === 'exchange' ? 'diamond' : 'ellipse';
+          const addrTypeShape = node.addressType === 'contract' ? 'roundrectangle' : (node.addressType as string) === 'exchange' ? 'diamond' : 'ellipse';
           const nodeShape = node.shape || addrTypeShape;
           targetNodes.set(node.id, {
             data: { id: node.id, parent: parentId, traceId: trace.id, label: node.label, displayLabel, hasCustomLabel, truncAddr, color: nodeColor, textColor: contrastTextColor(nodeColor), size: node.size || 60, addressType: node.addressType || 'unknown', nodeShape },

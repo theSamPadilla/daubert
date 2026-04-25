@@ -62,7 +62,7 @@ export function formatTokenAmount(rawAmount: string, decimals: number): string {
 
     // Small numbers — keep full precision up to 4 decimal places
     let formatted = whole.toLocaleString('en-US');
-    if (remainder > 0n && decimals > 0) {
+    if (remainder > BigInt(0) && decimals > 0) {
       const fracStr = remainder.toString().padStart(decimals, '0');
       const trimmed = fracStr.replace(/0+$/, '');
       const display = trimmed.slice(0, 4);

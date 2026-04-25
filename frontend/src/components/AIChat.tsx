@@ -390,7 +390,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
 
   const handleNewConversation = async () => {
     try {
-      const conv = await apiClient.createConversation();
+      const conv = await apiClient.createConversation(activeCaseId || '');
       setConversations((prev) => [conv, ...prev]);
       setActiveConvId(conv.id);
       setMessages([]);
@@ -427,7 +427,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
     let convId = activeConvId;
     if (!convId) {
       try {
-        const conv = await apiClient.createConversation();
+        const conv = await apiClient.createConversation(activeCaseId || '');
         setConversations((prev) => [conv, ...prev]);
         setActiveConvId(conv.id);
         convId = conv.id;
@@ -473,9 +473,20 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
         body.attachments = attachments.map(({ name, mediaType, data }) => ({ name, mediaType, data }));
       }
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      // Attach Firebase auth token for SSE request
+      const { getFirebaseAuth } = await import('@/lib/firebase');
+      try {
+        const currentUser = getFirebaseAuth().currentUser;
+        if (currentUser) {
+          const token = await currentUser.getIdToken();
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch {}
+
       const res = await fetch(`${API_BASE}/conversations/${convId}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body),
         signal: abort.signal,
       });

@@ -12,10 +12,7 @@ const envFile =
     NestConfigModule.forRoot({
       envFilePath: envFile,
       isGlobal: true,
-      validate: () => {
-        validateEnv();
-        return process.env;
-      },
+      validate: validateEnv,
     }),
   ],
 })

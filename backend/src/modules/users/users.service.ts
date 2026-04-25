@@ -1,31 +1,41 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity } from '../../database/entities/user.entity';
 
-const SEED_USER = {
-  name: 'Sam Padilla',
-  email: 'sam@incite.ventures',
-};
-
 @Injectable()
-export class UsersService implements OnModuleInit {
+export class UsersService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly repo: Repository<UserEntity>,
   ) {}
 
-  async onModuleInit() {
-    const existing = await this.repo.findOneBy({ email: SEED_USER.email });
-    if (!existing) {
-      await this.repo.save(this.repo.create(SEED_USER));
-      console.log('Seeded default user:', SEED_USER.email);
-    }
+  async findByFirebaseUid(uid: string): Promise<UserEntity | null> {
+    return this.repo.findOneBy({ firebaseUid: uid });
   }
 
-  async getDefaultUser(): Promise<UserEntity> {
-    const user = await this.repo.findOneBy({ email: SEED_USER.email });
-    if (!user) throw new Error('Default user not found');
-    return user;
+  async findByEmail(email: string): Promise<UserEntity | null> {
+    return this.repo.findOneBy({ email });
+  }
+
+  async linkFirebaseUid(
+    userId: string,
+    firebaseUid: string,
+    profile: { name?: string; avatarUrl?: string | null },
+  ): Promise<UserEntity> {
+    await this.repo.update(userId, {
+      firebaseUid,
+      ...(profile.name && { name: profile.name }),
+      ...(profile.avatarUrl !== undefined && { avatarUrl: profile.avatarUrl }),
+    });
+    return this.repo.findOneByOrFail({ id: userId });
+  }
+
+  async findById(id: string): Promise<UserEntity | null> {
+    return this.repo.findOneBy({ id });
+  }
+
+  async create(data: { email: string; name: string }): Promise<UserEntity> {
+    return this.repo.save(this.repo.create(data));
   }
 }

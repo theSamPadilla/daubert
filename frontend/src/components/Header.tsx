@@ -10,6 +10,7 @@ interface HeaderProps {
   canUndo?: boolean;
   onRefresh?: () => void;
   onExport?: (format: 'png' | 'pdf') => void;
+  rightContent?: React.ReactNode;
 }
 
 export function Header({
@@ -20,6 +21,7 @@ export function Header({
   canUndo,
   onRefresh,
   onExport,
+  rightContent,
 }: HeaderProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
@@ -109,6 +111,7 @@ export function Header({
             </button>
           </>
         )}
+        {rightContent}
       </div>
     </header>
   );

@@ -1,12 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { Controller } from '@nestjs/common';
 
+// GET /auth/me now handles user retrieval via AuthController.
+// This controller kept for potential future user-management endpoints.
 @Controller('users')
-export class UsersController {
-  constructor(private readonly service: UsersService) {}
-
-  @Get('me')
-  getMe() {
-    return this.service.getDefaultUser();
-  }
-}
+export class UsersController {}

@@ -1,0 +1,76 @@
+EntityCategory:
+  type: string
+  enum:
+    - exchange
+    - mixer
+    - bridge
+    - protocol
+    - individual
+    - contract
+    - government
+    - custodian
+    - other
+
+LabeledEntity:
+  type: object
+  required: [id, name, category, wallets, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    category:
+      $ref: '#/EntityCategory'
+    description:
+      type: string
+      nullable: true
+    wallets:
+      type: array
+      items:
+        type: string
+    metadata:
+      type: object
+      nullable: true
+      additionalProperties: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateLabeledEntityRequest:
+  type: object
+  required: [name, category, wallets]
+  properties:
+    name:
+      type: string
+    category:
+      $ref: '#/EntityCategory'
+    description:
+      type: string
+    wallets:
+      type: array
+      items:
+        type: string
+    metadata:
+      type: object
+      additionalProperties: true
+
+UpdateLabeledEntityRequest:
+  type: object
+  properties:
+    name:
+      type: string
+    category:
+      $ref: '#/EntityCategory'
+    description:
+      type: string
+    wallets:
+      type: array
+      items:
+        type: string
+    metadata:
+      type: object
+      additionalProperties: true

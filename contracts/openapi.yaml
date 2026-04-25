@@ -28,6 +28,12 @@ paths:
     $ref: './paths/ai.yaml#/~1conversations~1{id}~1messages'
   /conversations/{id}/chat:
     $ref: './paths/ai.yaml#/~1conversations~1{id}~1chat'
+  /labeled-entities:
+    $ref: './paths/labeled-entities.yaml#/~1labeled-entities'
+  /labeled-entities/lookup:
+    $ref: './paths/labeled-entities.yaml#/~1labeled-entities~1lookup'
+  /labeled-entities/{id}:
+    $ref: './paths/labeled-entities.yaml#/~1labeled-entities~1{id}'
 
 components:
   schemas:
@@ -63,3 +69,11 @@ components:
       $ref: './schemas/ai.yaml#/ChatRequest'
     ChatSseEvent:
       $ref: './schemas/ai.yaml#/ChatSseEvent'
+    EntityCategory:
+      $ref: './schemas/labeled-entities.yaml#/EntityCategory'
+    LabeledEntity:
+      $ref: './schemas/labeled-entities.yaml#/LabeledEntity'
+    CreateLabeledEntityRequest:
+      $ref: './schemas/labeled-entities.yaml#/CreateLabeledEntityRequest'
+    UpdateLabeledEntityRequest:
+      $ref: './schemas/labeled-entities.yaml#/UpdateLabeledEntityRequest'

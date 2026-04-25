@@ -184,6 +184,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/labeled-entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List labeled entities */
+        get: operations["listLabeledEntities"];
+        put?: never;
+        /** Create a labeled entity (admin only) */
+        post: operations["createLabeledEntity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/labeled-entities/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Look up entities by wallet address */
+        get: operations["lookupLabeledEntity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/labeled-entities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a labeled entity */
+        get: operations["getLabeledEntity"];
+        put?: never;
+        post?: never;
+        /** Delete a labeled entity (admin only) */
+        delete: operations["deleteLabeledEntity"];
+        options?: never;
+        head?: never;
+        /** Update a labeled entity (admin only) */
+        patch: operations["updateLabeledEntity"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -322,6 +376,41 @@ export interface components {
             /** @enum {string} */
             type?: "text_delta" | "tool_start" | "tool_done" | "done" | "error";
             data?: Record<string, never>;
+        };
+        /** @enum {string} */
+        EntityCategory: "exchange" | "mixer" | "bridge" | "protocol" | "individual" | "contract" | "government" | "custodian" | "other";
+        LabeledEntity: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            category: components["schemas"]["EntityCategory"];
+            description?: string | null;
+            wallets: string[];
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateLabeledEntityRequest: {
+            name: string;
+            category: components["schemas"]["EntityCategory"];
+            description?: string;
+            wallets: string[];
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        UpdateLabeledEntityRequest: {
+            name?: string;
+            category?: components["schemas"]["EntityCategory"];
+            description?: string;
+            wallets?: string[];
+            metadata?: {
+                [key: string]: unknown;
+            };
         };
         Link: {
             url: string;
@@ -907,6 +996,143 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": components["schemas"]["ChatSseEvent"];
+                };
+            };
+        };
+    };
+    listLabeledEntities: {
+        parameters: {
+            query?: {
+                category?: components["schemas"]["EntityCategory"];
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of labeled entities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabeledEntity"][];
+                };
+            };
+        };
+    };
+    createLabeledEntity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLabeledEntityRequest"];
+            };
+        };
+        responses: {
+            /** @description Created labeled entity */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabeledEntity"];
+                };
+            };
+        };
+    };
+    lookupLabeledEntity: {
+        parameters: {
+            query: {
+                address: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching entities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabeledEntity"][];
+                };
+            };
+        };
+    };
+    getLabeledEntity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Labeled entity */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabeledEntity"];
+                };
+            };
+        };
+    };
+    deleteLabeledEntity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateLabeledEntity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLabeledEntityRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated labeled entity */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabeledEntity"];
                 };
             };
         };

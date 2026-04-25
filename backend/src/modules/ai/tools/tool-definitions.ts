@@ -83,3 +83,30 @@ export const LIST_SCRIPT_RUNS_TOOL: Anthropic.Tool = {
   },
 };
 
+// ---------- Labeled entities ----------
+
+export const QUERY_LABELED_ENTITIES_TOOL: Anthropic.Tool = {
+  name: 'query_labeled_entities',
+  description:
+    'Search the Daubert labeled entity registry. Returns known entities (exchanges, mixers, bridges, protocols, individuals, etc.) matching the query. Use to identify who owns a wallet address or to find known entities by name or category.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      address: {
+        type: 'string',
+        description: 'Look up entities by wallet address. Case-insensitive.',
+      },
+      search: {
+        type: 'string',
+        description: 'Search entities by name (partial match).',
+      },
+      category: {
+        type: 'string',
+        enum: ['exchange', 'mixer', 'bridge', 'protocol', 'individual', 'contract', 'government', 'custodian', 'other'],
+        description: 'Filter by entity category.',
+      },
+    },
+    required: [],
+  },
+};
+

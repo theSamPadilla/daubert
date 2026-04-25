@@ -7,7 +7,7 @@ export class IsAdminGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user: UserEntity | undefined = request.user;
 
-    if (!user?.email?.endsWith('@incite.ventures')) {
+    if (!user?.email || user.email.split('@')[1] !== 'incite.ventures') {
       throw new ForbiddenException('Admin access required');
     }
 

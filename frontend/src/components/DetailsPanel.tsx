@@ -7,6 +7,7 @@ import { TransactionForm } from './TransactionForm';
 import { TraceForm } from './TraceForm';
 import { formatTokenAmount, normalizeToken, parseTimestamp } from '../utils/formatAmount';
 import { buildTxExplorerUrl } from '../utils/addressParser';
+import { useLabeledEntities } from '@/hooks/useLabeledEntities';
 
 interface EdgeBundleDetailsProps {
   bundle: EdgeBundle;
@@ -233,14 +234,30 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+function getCategoryStyle(category: string): string {
+  switch (category) {
+    case 'exchange': return 'bg-blue-900/50 text-blue-300';
+    case 'mixer': return 'bg-red-900/50 text-red-300';
+    case 'bridge': return 'bg-purple-900/50 text-purple-300';
+    case 'protocol': return 'bg-green-900/50 text-green-300';
+    case 'individual': return 'bg-yellow-900/50 text-yellow-300';
+    case 'contract': return 'bg-cyan-900/50 text-cyan-300';
+    case 'government': return 'bg-orange-900/50 text-orange-300';
+    case 'custodian': return 'bg-indigo-900/50 text-indigo-300';
+    default: return 'bg-gray-700 text-gray-300';
+  }
+}
+
 function WalletDetails({
   wallet,
   onFetchHistory,
   onUpdate,
+  lookupAddress,
 }: {
   wallet: WalletNode;
   onFetchHistory: (address: string, chain: string) => void;
   onUpdate?: (updates: Partial<WalletNode>) => void;
+  lookupAddress: (address: string) => import('@/lib/api-client').LabeledEntity | undefined;
 }) {
   const hasAddress = !!wallet.address;
   const addrType = wallet.addressType || 'unknown';
@@ -282,6 +299,18 @@ function WalletDetails({
             )}
             <CopyButton text={wallet.address} />
           </div>
+          {(() => {
+            const matchedEntity = lookupAddress(wallet.address);
+            if (!matchedEntity) return null;
+            return (
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getCategoryStyle(matchedEntity.category)}`}>
+                  {matchedEntity.category}
+                </span>
+                <span className="text-sm text-gray-300">{matchedEntity.name}</span>
+              </div>
+            );
+          })()}
         </div>
       )}
       {hasAddress && (
@@ -992,6 +1021,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
 }: DetailsPanelProps, ref) {
   const [editing, setEditing] = useState(false);
   useImperativeHandle(ref, () => ({ startEdit: () => setEditing(true) }), []);
+  const { lookupAddress } = useLabeledEntities();
 
   // Reset editing when selection changes
   const selectedId = selectedItem?.data?.id;
@@ -1090,6 +1120,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
             const w = selectedItem.data as WalletNode;
             onUpdateWallet(w.parentTrace, w.id, updates);
           }}
+          lookupAddress={lookupAddress}
         />
       )}
       {selectedItem.type === 'transaction' && (

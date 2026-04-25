@@ -1,22 +1,20 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { entities } from '../database/entities';
 
 export function getDatabaseConfig(): TypeOrmModuleOptions {
   const url = process.env.DATABASE_URL;
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  if (url) {
-    return {
-      type: 'postgres',
-      url,
-      autoLoadEntities: true,
-      synchronize: true,
-    };
+  if (!url) {
+    throw new Error('DATABASE_URL is required');
   }
 
-  // SQLite fallback for quick local dev without Docker
   return {
-    type: 'sqlite',
-    database: 'daubert.sqlite',
-    autoLoadEntities: true,
-    synchronize: true,
+    type: 'postgres',
+    url,
+    entities,
+    synchronize: !isProduction,
+    ssl: isProduction ? { rejectUnauthorized: false } : false,
+    migrationsRun: false,
   };
 }

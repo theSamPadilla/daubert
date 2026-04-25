@@ -100,6 +100,17 @@ export interface ScriptRun {
   updatedAt: string;
 }
 
+export interface LabeledEntity {
+  id: string;
+  name: string;
+  category: string;
+  description: string | null;
+  wallets: string[];
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const apiClient = {
   // Auth
   getMe: () => request<User>('/auth/me'),
@@ -195,4 +206,23 @@ export const apiClient = {
     request<ScriptRun[]>(`/investigations/${investigationId}/script-runs`),
   rerunScript: (scriptRunId: string) =>
     request<ScriptRun>(`/script-runs/${scriptRunId}/rerun`, { method: 'POST' }),
+
+  // Labeled Entities
+  listLabeledEntities: (filters?: { category?: string; search?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.category) params.set('category', filters.category);
+    if (filters?.search) params.set('search', filters.search);
+    const qs = params.toString();
+    return request<LabeledEntity[]>(`/labeled-entities${qs ? `?${qs}` : ''}`);
+  },
+  getLabeledEntity: (id: string) =>
+    request<LabeledEntity>(`/labeled-entities/${id}`),
+  lookupLabeledEntity: (address: string) =>
+    request<LabeledEntity[]>(`/labeled-entities/lookup?address=${encodeURIComponent(address)}`),
+  createLabeledEntity: (body: { name: string; category: string; wallets: string[]; description?: string; metadata?: Record<string, unknown> }) =>
+    request<LabeledEntity>('/labeled-entities', { method: 'POST', body: JSON.stringify(body) }),
+  updateLabeledEntity: (id: string, body: Partial<{ name: string; category: string; description: string; wallets: string[]; metadata: Record<string, unknown> }>) =>
+    request<LabeledEntity>(`/labeled-entities/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteLabeledEntity: (id: string) =>
+    request<void>(`/labeled-entities/${id}`, { method: 'DELETE' }),
 };

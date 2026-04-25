@@ -6,6 +6,7 @@ export {
   GET_SKILL_TOOL,
   EXECUTE_SCRIPT_TOOL,
   LIST_SCRIPT_RUNS_TOOL,
+  QUERY_LABELED_ENTITIES_TOOL,
 } from './tool-definitions';
 
 import {
@@ -14,6 +15,7 @@ import {
   GET_SKILL_TOOL,
   EXECUTE_SCRIPT_TOOL,
   LIST_SCRIPT_RUNS_TOOL,
+  QUERY_LABELED_ENTITIES_TOOL,
 } from './tool-definitions';
 
 export const AGENT_TOOLS = [
@@ -22,4 +24,5 @@ export const AGENT_TOOLS = [
   GET_SKILL_TOOL,
   EXECUTE_SCRIPT_TOOL,
   LIST_SCRIPT_RUNS_TOOL,
+  QUERY_LABELED_ENTITIES_TOOL,
 ];

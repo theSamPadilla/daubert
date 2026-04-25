@@ -24,3 +24,9 @@ Example format:
 - Plans are auditable: you can glance at the table and know if the plan touches something it shouldn't.
 - Easy to say "don't touch that file" or "you're missing this file" before work begins.
 - The summary table acts as a progress checklist during execution.
+
+## Database migrations
+
+- Migrations are created **only** with `./migrations.sh` (never via raw `typeorm` invocations or one-off SQL).
+- **Never apply migrations.** The user runs `./migrations.sh --prod --run` themselves. Generate the file, leave it for review.
+- Dev does not need migrations applied — `synchronize: true` in dev auto-syncs the schema from entities. Migrations are a prod-only artifact.

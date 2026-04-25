@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
-import { FaChevronDown } from 'react-icons/fa6';
+import { FaChevronDown, FaGear } from 'react-icons/fa6';
 
 export default function UserMenu() {
   const { user, signOut } = useAuth();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const isAdmin = user?.email?.split('@')[1] === 'incite.ventures';
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -55,6 +58,15 @@ export default function UserMenu() {
             <p className="text-sm font-medium text-white truncate">{user.name}</p>
             <p className="text-xs text-gray-400 truncate">{user.email}</p>
           </div>
+          {isAdmin && (
+            <button
+              onClick={() => { setOpen(false); router.push('/admin/entities'); }}
+              className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors flex items-center gap-2"
+            >
+              <FaGear className="w-3 h-3 text-gray-500" />
+              Admin
+            </button>
+          )}
           <button
             onClick={() => { setOpen(false); signOut(); }}
             className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-lg transition-colors"

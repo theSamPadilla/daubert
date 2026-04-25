@@ -10,29 +10,30 @@ Mirrors the deployment shape of `~/Work/ByCrux/dev/stackpad`.
 | 1 | `backend/Dockerfile` | Create | Backend can be built and deployed to Cloud Run |
 | 2 | `backend/.dockerignore` | Create | Image stays small; `.env*`, `node_modules`, `dist` not shipped |
 | 3 | `backend/src/main.ts` | Modify | Server binds `0.0.0.0:$PORT`, locks CORS to allowed origins, adds helmet + SIGTERM + crash handlers — required for Cloud Run |
-| 4 | `backend/src/config/database.config.ts` | Modify | Postgres connects to Neon over SSL; `synchronize` off in prod so deploys don't mutate schema |
-| 5 | `backend/src/database/cli-data-source.ts` | Create | TypeORM CLI entrypoint for generating + running migrations |
-| 6 | `backend/src/database/migrations/` | Create | Versioned schema; replaces `synchronize: true` for prod |
-| 7 | `backend/package.json` | Modify | `migration:generate` / `migration:run` / `migration:revert` scripts available to developers |
-| 8 | `backend/src/config/env.validation.ts` | Modify | Prod-required vars (`NODE_ENV`, `PORT`, `ALLOWED_ORIGINS`, `FRONTEND_URL`, Firebase) fail fast at startup |
-| 9 | `backend/src/app.controller.ts` | Modify | `/health` actually pings the DB so Cloud Run marks unhealthy when Postgres is down |
-| 10 | `backend/.env.example` | Modify | New deploy vars are documented for the next operator |
-| 11 | `frontend/.env.example` | Modify | Firebase vars uncommented — Vercel reviewer sees what's required |
-| 12 | `scripts/migrations.sh` | Create | Developers run migrations against dev/prod with one command |
-| 13 | `README.md` | Modify | Deployment runbook (Neon → Cloud Run → Vercel) lives in the repo |
+| 4 | `backend/src/database/entities/index.ts` | Create | Single entity array shared by runtime + CLI |
+| 5 | `backend/src/config/database.config.ts` | Modify | Postgres connects to Neon over SSL; `synchronize` off in prod so deploys don't mutate schema; SQLite fallback removed |
+| 6 | `backend/src/database/cli-data-source.ts` | Create | TypeORM CLI entrypoint; uses `DATABASE_ADMIN_URL` in prod, `DATABASE_URL` in dev |
+| 7 | `backend/src/database/migrations/` | Create | Versioned schema; replaces `synchronize: true` for prod |
+| 8 | `migrations.sh` | Create | Run migrations against dev/prod with one command (port from stackpad) |
+| 9 | `migrate-dev-to-prod.sh` | Create | One-shot data copy from local Postgres → Neon prod |
+| 10 | `backend/src/config/env.validation.ts` | Modify | Prod-required vars (`NODE_ENV`, `PORT`, `ALLOWED_ORIGINS`, `FRONTEND_URL`, Firebase) fail fast at startup |
+| 11 | `backend/src/app.controller.ts` | Modify | `/health` actually pings the DB so Cloud Run marks unhealthy when Postgres is down |
+| 12 | `backend/.env.example` | Modify | New deploy vars are documented for the next operator |
+| 13 | `frontend/.env.example` | Modify | Firebase vars uncommented — Vercel reviewer sees what's required |
+| 14 | `README.md` | Modify | Deployment runbook (Neon → Cloud Run → Vercel) lives in the repo |
 
 ---
 
 ## 1. Blockers — must land before first deploy
 
 ### Backend container
-- [ ] **Create `backend/Dockerfile`** — 2-stage Node 20 slim, non-root user, `CMD ["node","dist/main.js"]`. Reference: `stackpad/backend/Dockerfile`.
-- [ ] **Create `backend/.dockerignore`** — exclude `node_modules`, `dist`, `.env*`, `*.sqlite`, `.git`, `coverage`.
+- [x] **Create `backend/Dockerfile`** — 2-stage Node 20 slim, non-root user, `CMD ["node","dist/main.js"]`. Reference: `stackpad/backend/Dockerfile`.
+- [x] **Create `backend/.dockerignore`** — exclude `node_modules`, `dist`, `.env*`, `*.sqlite`, `.git`, `coverage`.
 - [ ] **Build locally** with `docker build -t daubert-be backend/` and run with `-e PORT=8080 -p 8080:8080` to confirm it boots.
 
 ### `backend/src/main.ts`
-- [ ] Read `PORT` from env (default 8081 for local), bind `0.0.0.0` in production.
-- [ ] Replace `app.enableCors()` with env-driven `ALLOWED_ORIGINS` allowlist + `credentials: true`.
+- [x] Read `PORT` from env (default 8081 for local), bind `0.0.0.0` in production.
+- [x] Replace `app.enableCors()` with env-driven `ALLOWED_ORIGINS` allowlist + `credentials: true`.
 - [ ] Add `app.use(helmet())`.
 - [ ] Add `process.env.TZ = 'UTC'` at top of file.
 - [ ] Add `pg.types.setTypeParser(1114, ...)` for UTC timestamp parsing (in `database.config.ts` is fine too).
@@ -42,17 +43,21 @@ Mirrors the deployment shape of `~/Work/ByCrux/dev/stackpad`.
 - [ ] Add a global exception filter so stack traces don't leak in prod responses.
 
 ### Database / Neon
-- [ ] In `backend/src/config/database.config.ts`:
-  - [ ] Add `ssl: isProduction ? { rejectUnauthorized: false } : false`.
-  - [ ] Set `synchronize: !isProduction`.
-  - [ ] Replace `autoLoadEntities: true` with an explicit `entities: [...]` array (required by the CLI data source anyway).
-- [ ] **Create `backend/src/database/cli-data-source.ts`** — exports a `DataSource` for TypeORM CLI.
-- [ ] **Create `backend/src/database/migrations/`** + add a `0000_initial.ts` migration generated from current entities.
-- [ ] Add migration scripts to `backend/package.json`:
-  - `migration:generate`, `migration:run`, `migration:revert`.
-- [ ] **Create `scripts/migrations.sh`** to wrap dev/prod runs (port from stackpad).
-- [ ] Provision the Neon project + roles (owner / app / viewer) and capture the three URLs in 1Password (or wherever secrets live).
-- [ ] Run `migration:run` against Neon once before first backend deploy.
+- [x] **Create `backend/src/database/entities/index.ts`** — shared entity array.
+- [x] In `backend/src/config/database.config.ts`:
+  - [x] Add `ssl: isProduction ? { rejectUnauthorized: false } : false`.
+  - [x] Set `synchronize: !isProduction`.
+  - [x] Replace `autoLoadEntities: true` with explicit `entities: [...]` array.
+  - [x] Drop SQLite fallback; require `DATABASE_URL`.
+- [x] **Create `backend/src/database/cli-data-source.ts`** — exports a `DataSource`. Uses `DATABASE_ADMIN_URL` in prod, `DATABASE_URL` in dev.
+- [x] **Create `backend/src/database/migrations/`** + `.gitkeep`.
+- [x] **Create `migrations.sh`** — port from stackpad, single-DB-URL variant, no SQLite helpers.
+- [x] **Create `migrate-dev-to-prod.sh`** — `pg_dump --data-only | psql` one-shot.
+- [ ] Provision the Neon project + create two roles (`daubert_app` for runtime / `daubert_admin` for migrations). Capture both URLs in secrets store.
+- [ ] Generate `0000_initial.ts` against the empty Neon DB:
+      `./migrations.sh --prod --generate 0000_initial`
+- [ ] Run `./migrations.sh --prod --run` once to apply schema to Neon.
+- [ ] Run `./migrate-dev-to-prod.sh` to copy local data into Neon.
 
 ### Env validation (`backend/src/config/env.validation.ts`)
 - [ ] Make Firebase vars **hard-required** when `NODE_ENV=production` (currently warn-only).

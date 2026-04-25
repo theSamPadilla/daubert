@@ -10,6 +10,8 @@ import { InvestigationEntity } from '../../database/entities/investigation.entit
 import { INVESTIGATOR_PROMPT } from '../../prompts/investigator';
 import { ConversationsService } from './conversations.service';
 import { ScriptExecutionService } from './services/script-execution.service';
+import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.service';
+import { EntityCategory } from '../../database/entities/labeled-entity.entity';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import {
   AGENT_TOOLS,
@@ -17,6 +19,7 @@ import {
   GET_SKILL_TOOL,
   EXECUTE_SCRIPT_TOOL,
   LIST_SCRIPT_RUNS_TOOL,
+  QUERY_LABELED_ENTITIES_TOOL,
   SKILL_NAMES,
 } from './tools';
 import { AttachmentDto } from './dto/chat-message.dto';
@@ -205,6 +208,7 @@ export class AiService {
     private readonly llm: AnthropicProvider,
     private readonly conversationsService: ConversationsService,
     private readonly scriptExecutionService: ScriptExecutionService,
+    private readonly labeledEntitiesService: LabeledEntitiesService,
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
     @InjectRepository(InvestigationEntity)
@@ -558,6 +562,18 @@ export class AiService {
             ? r.output.slice(0, 2000) + '\n...[truncated]'
             : r.output,
         }));
+      }
+
+      case QUERY_LABELED_ENTITIES_TOOL.name: {
+        const input = toolUse.input as { address?: string; search?: string; category?: string };
+        if (input.address) {
+          return this.labeledEntitiesService.lookupByAddress(input.address);
+        }
+        const validCategories = new Set(Object.values(EntityCategory));
+        const category = input.category && validCategories.has(input.category as EntityCategory)
+          ? (input.category as EntityCategory)
+          : undefined;
+        return this.labeledEntitiesService.findAll({ category, search: input.search });
       }
 
       default:

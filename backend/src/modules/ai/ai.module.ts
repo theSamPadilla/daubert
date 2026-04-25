@@ -12,6 +12,7 @@ import { AiService } from './ai.service';
 import { ConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
 import { AuthModule } from '../auth/auth.module';
+import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AuthModule } from '../auth/auth.module';
       CaseMemberEntity,
     ]),
     AuthModule,
+    LabeledEntitiesModule,
   ],
   controllers: [AiController, ConversationsController],
   providers: [

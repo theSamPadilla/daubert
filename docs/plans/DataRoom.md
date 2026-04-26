@@ -329,14 +329,14 @@ This isn't exhaustive — Drive end-to-end is the smoke test (Task 11). These th
 
 ## Plan-level checklist
 
-- [ ] Task 1 — Entity + Encryption + Env
-- [ ] Task 2 — OpenAPI contracts
-- [ ] Task 3 — `GoogleDriveService`
-- [ ] Task 4 — `DataRoomService` + Controller + Module
-- [ ] Task 5 — Backend tests
-- [ ] Task 6 — API client
-- [ ] Task 7 — Frontend page
-- [ ] Task 8 — Token refresh + broken-state UX
-- [ ] Task 9 — Frontend navigation
-- [ ] Task 10 — Generate prod migration
-- [ ] Task 11 — Smoke test
+- [x] Task 1 — Entity + Encryption + Env
+- [x] Task 2 — OpenAPI contracts
+- [x] Task 3 — `GoogleDriveService`
+- [x] Task 4 — `DataRoomService` + Controller + Module
+- [x] Task 5 — Backend tests (35 new, all passing)
+- [x] Task 6 — API client
+- [x] Task 7 — Frontend page
+- [x] Task 8 — Token refresh + broken-state UX (backend in Batch 2, frontend in Batch 4)
+- [x] Task 9 — Frontend navigation
+- [ ] Task 10 — Generate prod migration (your call to run)
+- [ ] Task 11 — Smoke test (requires live Drive account)

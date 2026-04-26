@@ -5,18 +5,28 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 
 /**
- * Wraps authenticated pages. Redirects to /login if not signed in,
- * shows rejection message if NO_ACCOUNT, renders children if valid.
+ * Wraps authenticated pages. Redirects to /login if not signed in OR if the
+ * backend can't be reached during account verification (better than spinning
+ * forever on a "Loading…" state that hides a backend-down condition from the
+ * user). Shows rejection message if NO_ACCOUNT.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading, noAccount, firebaseUser } = useAuth();
+  const { user, loading, noAccount, firebaseUser, error } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !firebaseUser) {
+    if (loading) return;
+    if (!firebaseUser) {
+      router.replace('/login');
+      return;
+    }
+    // Backend unreachable during /auth/me — kick to login instead of hanging
+    // on a loading spinner. The login page can re-attempt verification when
+    // backend recovers.
+    if (error && !user && !noAccount) {
       router.replace('/login');
     }
-  }, [loading, firebaseUser, router]);
+  }, [loading, firebaseUser, error, user, noAccount, router]);
 
   if (loading) {
     return (

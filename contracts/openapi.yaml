@@ -58,6 +58,20 @@ paths:
     $ref: './paths/export.yaml#/~1exports~1productions~1{id}'
   /exports/graph:
     $ref: './paths/export.yaml#/~1exports~1graph'
+  /cases/{caseId}/data-room/connect:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1connect'
+  /data-room/oauth-callback:
+    $ref: './paths/data-room.yaml#/~1data-room~1oauth-callback'
+  /cases/{caseId}/data-room:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room'
+  /cases/{caseId}/data-room/folder:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1folder'
+  /cases/{caseId}/data-room/files:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1files'
+  /cases/{caseId}/data-room/files/{fileId}/download:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1files~1{fileId}~1download'
+  /cases/{caseId}/data-room/access-token:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1access-token'
 
 components:
   schemas:
@@ -123,3 +137,15 @@ components:
       $ref: './schemas/admin.yaml#/AddMemberRequest'
     UpdateMemberRoleRequest:
       $ref: './schemas/admin.yaml#/UpdateMemberRoleRequest'
+    DataRoomStatus:
+      $ref: './schemas/data-room.yaml#/DataRoomStatus'
+    DataRoomConnection:
+      $ref: './schemas/data-room.yaml#/DataRoomConnection'
+    DataRoomFile:
+      $ref: './schemas/data-room.yaml#/DataRoomFile'
+    ConnectInitResponse:
+      $ref: './schemas/data-room.yaml#/ConnectInitResponse'
+    SetFolderRequest:
+      $ref: './schemas/data-room.yaml#/SetFolderRequest'
+    AccessTokenResponse:
+      $ref: './schemas/data-room.yaml#/AccessTokenResponse'

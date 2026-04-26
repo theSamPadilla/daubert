@@ -1,0 +1,91 @@
+DataRoomStatus:
+  type: string
+  enum:
+    - active
+    - broken
+
+DataRoomConnection:
+  type: object
+  required: [id, caseId, provider, status, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    caseId:
+      type: string
+      format: uuid
+    provider:
+      type: string
+      description: Storage provider identifier. v1 only emits `google_drive`; field reserved for future Dropbox/OneDrive/Box.
+      example: google_drive
+    folderId:
+      type: string
+      nullable: true
+      description: Drive folder ID. Null until the user picks a folder after OAuth.
+    folderName:
+      type: string
+      nullable: true
+      description: Display name captured from Drive at folder-set time.
+    status:
+      $ref: '#/DataRoomStatus'
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+DataRoomFile:
+  type: object
+  required: [id, name, mimeType]
+  properties:
+    id:
+      type: string
+      description: Drive file ID.
+    name:
+      type: string
+    mimeType:
+      type: string
+    size:
+      type: string
+      description: File size in bytes. Drive returns size as a string (it can exceed JS number precision).
+    modifiedTime:
+      type: string
+      format: date-time
+    webViewLink:
+      type: string
+      description: Drive's web viewer URL for previewing the file in a new tab.
+
+ConnectInitResponse:
+  type: object
+  required: [url]
+  properties:
+    url:
+      type: string
+      description: Google OAuth consent URL. Frontend redirects the browser here.
+
+SetFolderRequest:
+  type: object
+  required: [folderId]
+  properties:
+    folderId:
+      type: string
+      description: Drive folder ID extracted from a folder URL on the client.
+
+AccessTokenResponse:
+  type: object
+  required: [accessToken, expiresAt]
+  properties:
+    accessToken:
+      type: string
+      description: |
+        Short-lived (~1 hour) Google OAuth access token for the case owner's
+        Drive account. Returned to the browser only so it can drive the Google
+        Picker SDK client-side. Treat as a sensitive credential.
+    expiresAt:
+      type: string
+      format: date-time
+      description: |
+        Absolute expiry timestamp (ISO-8601). The frontend should request a
+        new token if the current one is within ~60 seconds of expiry rather
+        than firing a Picker request that may 401 mid-flight.

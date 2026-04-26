@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
-import { FaPen, FaChevronRight, FaChevronDown, FaArrowLeft } from 'react-icons/fa6';
-import { useRouter } from 'next/navigation';
-import { apiClient, type Case, type Investigation, type ScriptRun, type Production } from '@/lib/api-client';
+import { FaPen, FaChevronRight, FaChevronDown, FaArrowLeft, FaGoogleDrive } from 'react-icons/fa6';
+import { useRouter, usePathname } from 'next/navigation';
+import { apiClient, type Case, type Investigation, type ScriptRun, type Production, type DataRoomConnection } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
 import { ScriptsPanel } from './ScriptsPanel';
 
@@ -50,11 +50,14 @@ export function InvestigationsSidebar({
   onAddProduction,
 }: InvestigationsSidebarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [caseName, setCaseName] = useState('');
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
   const [collapsedInvs, setCollapsedInvs] = useState<Set<string>>(new Set());
   const [addingInv, setAddingInv] = useState(false);
   const [newInvName, setNewInvName] = useState('');
+  // undefined = still loading; null = no connection; populated = connected.
+  const [dataRoom, setDataRoom] = useState<DataRoomConnection | null | undefined>(undefined);
 
   const toggleInv = (invId: string) => {
     setCollapsedInvs((prev) => {
@@ -82,6 +85,18 @@ export function InvestigationsSidebar({
   useEffect(() => {
     if (refreshTrigger) loadInvestigations();
   }, [refreshTrigger, loadInvestigations]);
+
+  // Refetch data-room state on mount and whenever the user navigates within
+  // the case (returning from /data-room may have changed the connection).
+  // Cheap: one network call, no payload.
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .dataRoomGet(caseId)
+      .then((conn) => { if (!cancelled) setDataRoom(conn); })
+      .catch(() => { if (!cancelled) setDataRoom(null); });
+    return () => { cancelled = true; };
+  }, [caseId, pathname]);
 
   const handleCreateInvestigation = async () => {
     if (!newInvName.trim()) return;
@@ -270,6 +285,63 @@ export function InvestigationsSidebar({
             )}
           </div>
         )}
+
+        {/* Data Room */}
+        {(() => {
+          const dataRoomHref = `/cases/${caseId}/data-room`;
+          const dataRoomActive = pathname === dataRoomHref || pathname?.startsWith(dataRoomHref + '/');
+          // Resolve the status row driven by `dataRoom`:
+          //   undefined → still loading (don't show a stale "not connected")
+          //   null      → no connection
+          //   broken    → token revoked / refresh-failed → reconnect needed
+          //   active+folder    → folder name
+          //   active+no folder → "Connected." with sub-line "(no folder selected)"
+          let dot = 'bg-gray-600';
+          let primary = 'Loading…';
+          let secondary: string | null = null;
+          if (dataRoom === null) {
+            dot = 'bg-gray-600';
+            primary = 'Not connected';
+          } else if (dataRoom && dataRoom.status === 'broken') {
+            dot = 'bg-yellow-500';
+            primary = 'Reconnect needed';
+          } else if (dataRoom && dataRoom.status === 'active') {
+            dot = 'bg-green-500';
+            if (dataRoom.folderName) {
+              primary = dataRoom.folderName;
+            } else {
+              primary = 'Connected.';
+              secondary = '(no folder selected)';
+            }
+          }
+          return (
+            <div className="mt-2 border-t border-gray-700">
+              <div className="px-3 py-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <FaGoogleDrive size={11} className="text-gray-500" />
+                  Data Room
+                </span>
+              </div>
+              <div
+                onClick={() => router.push(dataRoomHref)}
+                className={`flex items-start gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors ${
+                  dataRoomActive
+                    ? 'bg-blue-600/20 text-blue-300'
+                    : 'hover:bg-gray-700/60 text-gray-400'
+                }`}
+                title={secondary ? `${primary} ${secondary}` : primary}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1 ${dot}`} />
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate font-medium">{primary}</span>
+                  {secondary && (
+                    <span className="block truncate text-[10px] text-gray-500">{secondary}</span>
+                  )}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {activeInvestigationId && scriptRuns && onSelectScriptRun && (

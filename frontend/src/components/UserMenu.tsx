@@ -42,6 +42,7 @@ export default function UserMenu() {
           <img
             src={user.avatarUrl}
             alt={user.name}
+            referrerPolicy="no-referrer"
             className="w-7 h-7 rounded-full"
           />
         ) : (

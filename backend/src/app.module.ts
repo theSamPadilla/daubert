@@ -13,6 +13,7 @@ import { LabeledEntitiesModule } from './modules/labeled-entities/labeled-entiti
 import { ProductionsModule } from './modules/productions/productions.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ExportModule } from './modules/export/export.module';
+import { DataRoomModule } from './modules/data-room/data-room.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ExportModule } from './modules/export/export.module';
     ProductionsModule,
     AdminModule,
     ExportModule,
+    DataRoomModule,
   ],
   controllers: [AppController],
 })

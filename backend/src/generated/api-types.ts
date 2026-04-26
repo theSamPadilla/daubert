@@ -462,6 +462,156 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{caseId}/data-room/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Initiate Google Drive OAuth flow for a case
+         * @description Builds the Google OAuth consent URL with a signed `state` parameter that
+         *     ties the eventual callback back to this case. Frontend should redirect
+         *     the browser to the returned `url`.
+         */
+        post: operations["dataRoomConnect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/data-room/oauth-callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Google OAuth callback (single registered redirect URI)
+         * @description Authenticated via the HMAC `state` parameter (Google can't send a
+         *     Firebase token). Exchanges the auth code for tokens, encrypts them,
+         *     upserts the `DataRoomConnection`, then 302-redirects to the frontend.
+         */
+        get: operations["dataRoomOAuthCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/data-room": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the data-room connection state for a case */
+        get: operations["dataRoomGet"];
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect the data room for a case
+         * @description Best-effort revoke of the Google refresh token, then deletes the
+         *     connection row. Revoke failures are logged but do not block deletion.
+         */
+        delete: operations["dataRoomDisconnect"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/data-room/folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set or change the connected Drive folder */
+        patch: operations["dataRoomSetFolder"];
+        trace?: never;
+    };
+    "/cases/{caseId}/data-room/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List files in the connected folder (flat, top 100) */
+        get: operations["dataRoomListFiles"];
+        put?: never;
+        /**
+         * Upload a file to the connected folder (multipart)
+         * @description Streaming multipart upload. The body is parsed by busboy and piped
+         *     directly into Drive's resumable upload — peak memory is ~256KB
+         *     regardless of file size. 50MB cap, single file per request.
+         */
+        post: operations["dataRoomUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/data-room/files/{fileId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream-proxy a file download from Drive
+         * @description Forwards Drive's content with `Content-Type`, `Content-Disposition`, and
+         *     `Content-Length` headers populated from a prior metadata fetch.
+         */
+        get: operations["dataRoomDownload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/data-room/access-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Issue a short-lived Drive access token for client-side Picker use
+         * @description Owner-only. Returns a fresh OAuth access token (refreshed if near
+         *     expiry) so the browser can drive the Google Drive Picker SDK directly.
+         *     Tokens are short-lived (~1 hour) and scoped to the case owner's Drive
+         *     account; the frontend should not cache them beyond `expiresAt`.
+         */
+        get: operations["dataRoomGetAccessToken"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -724,6 +874,63 @@ export interface components {
         };
         UpdateMemberRoleRequest: {
             role: components["schemas"]["CaseRole"];
+        };
+        /** @enum {string} */
+        DataRoomStatus: "active" | "broken";
+        DataRoomConnection: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            caseId: string;
+            /**
+             * @description Storage provider identifier. v1 only emits `google_drive`; field reserved for future Dropbox/OneDrive/Box.
+             * @example google_drive
+             */
+            provider: string;
+            /** @description Drive folder ID. Null until the user picks a folder after OAuth. */
+            folderId?: string | null;
+            /** @description Display name captured from Drive at folder-set time. */
+            folderName?: string | null;
+            status: components["schemas"]["DataRoomStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        DataRoomFile: {
+            /** @description Drive file ID. */
+            id: string;
+            name: string;
+            mimeType: string;
+            /** @description File size in bytes. Drive returns size as a string (it can exceed JS number precision). */
+            size?: string;
+            /** Format: date-time */
+            modifiedTime?: string;
+            /** @description Drive's web viewer URL for previewing the file in a new tab. */
+            webViewLink?: string;
+        };
+        ConnectInitResponse: {
+            /** @description Google OAuth consent URL. Frontend redirects the browser here. */
+            url: string;
+        };
+        SetFolderRequest: {
+            /** @description Drive folder ID extracted from a folder URL on the client. */
+            folderId: string;
+        };
+        AccessTokenResponse: {
+            /**
+             * @description Short-lived (~1 hour) Google OAuth access token for the case owner's
+             *     Drive account. Returned to the browser only so it can drive the Google
+             *     Picker SDK client-side. Treat as a sensitive credential.
+             */
+            accessToken: string;
+            /**
+             * Format: date-time
+             * @description Absolute expiry timestamp (ISO-8601). The frontend should request a
+             *     new token if the current one is within ~60 seconds of expiry rather
+             *     than firing a Picker request that may 401 mid-flight.
+             */
+            expiresAt: string;
         };
         Link: {
             url: string;
@@ -1848,6 +2055,232 @@ export interface operations {
                 };
                 content: {
                     "application/pdf": string;
+                };
+            };
+        };
+    };
+    dataRoomConnect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OAuth consent URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectInitResponse"];
+                };
+            };
+        };
+    };
+    dataRoomOAuthCallback: {
+        parameters: {
+            query: {
+                code: string;
+                state: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the frontend data-room page for the case. */
+            302: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    dataRoomGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRoomConnection"];
+                };
+            };
+            /** @description No connection exists for this case. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    dataRoomDisconnect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Disconnected. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    dataRoomSetFolder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetFolderRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRoomConnection"];
+                };
+            };
+        };
+    };
+    dataRoomListFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Files in the folder */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRoomFile"][];
+                };
+            };
+        };
+    };
+    dataRoomUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created Drive file metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRoomFile"];
+                };
+            };
+        };
+    };
+    dataRoomDownload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+                fileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File contents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+        };
+    };
+    dataRoomGetAccessToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A fresh access token plus its absolute expiry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessTokenResponse"];
+                };
+            };
+            /** @description No data-room connection exists for this case. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

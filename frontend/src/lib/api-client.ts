@@ -31,6 +31,35 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/**
+ * Variant of `request<T>` that translates HTTP 404 into `null` instead of an
+ * error. Use for endpoints whose OpenAPI contract returns 404 for "resource
+ * not present" (vs. 404 for "wrong URL"). Keeps consumer code free of
+ * try/catch boilerplate around an expected absence.
+ */
+async function requestNullable404<T>(path: string, options?: RequestInit): Promise<T | null> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string>),
+  };
+  try {
+    const currentUser = getFirebaseAuth().currentUser;
+    if (currentUser) {
+      const token = await currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch {}
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || `API error ${res.status}`);
+  }
+  if (res.status === 204 || res.headers.get('content-length') === '0') return null;
+  return res.json();
+}
+
 async function downloadFile(path: string, filename: string, options?: RequestInit): Promise<void> {
   const headers: Record<string, string> = {
     ...(options?.headers as Record<string, string>),
@@ -147,6 +176,30 @@ export interface Production {
   caseId: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// Data Room
+export interface DataRoomConnection {
+  id: string;
+  caseId: string;
+  provider: string;
+  folderId: string | null;
+  folderName: string | null;
+  status: 'active' | 'broken';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DataRoomFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  /** Drive returns size as a string; absent for native Google docs (Docs/Sheets/Slides). */
+  size?: string;
+  /** ISO timestamp; absent on some Drive file types. */
+  modifiedTime?: string;
+  /** Drive web viewer URL; absent on some file types — guard before rendering. */
+  webViewLink?: string;
 }
 
 // Admin
@@ -339,4 +392,92 @@ export const apiClient = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, imageDataUrl }),
     }),
+
+  // Data Room — Google Drive integration
+  dataRoomConnect: (caseId: string) =>
+    request<{ url: string }>(`/cases/${caseId}/data-room/connect`, { method: 'POST' }),
+  /**
+   * Per the OpenAPI contract, the backend returns 404 when no connection
+   * exists for this case. Map that to `null` for ergonomic consumer code:
+   * callers can `if (!conn)` check directly without try/catch around 404s.
+   * Other failures (auth, network, 5xx) still throw via `requestNullable404`.
+   */
+  dataRoomGet: (caseId: string) =>
+    requestNullable404<DataRoomConnection>(`/cases/${caseId}/data-room`),
+  dataRoomSetFolder: (caseId: string, folderId: string) =>
+    request<DataRoomConnection>(`/cases/${caseId}/data-room/folder`, {
+      method: 'PATCH',
+      body: JSON.stringify({ folderId }),
+    }),
+  dataRoomListFiles: (caseId: string) =>
+    request<DataRoomFile[]>(`/cases/${caseId}/data-room/files`),
+  dataRoomDownload: (caseId: string, fileId: string, filename: string) =>
+    downloadFile(`/cases/${caseId}/data-room/files/${fileId}/download`, filename),
+  dataRoomDisconnect: (caseId: string) =>
+    request<void>(`/cases/${caseId}/data-room`, { method: 'DELETE' }),
+  /**
+   * Owner-only. Returns a short-lived Google OAuth access token that lets
+   * the browser drive the Drive Picker SDK directly. Don't cache beyond
+   * `expiresAt` — the backend will mint a fresh one on each call.
+   */
+  dataRoomGetAccessToken: (caseId: string) =>
+    request<{ accessToken: string; expiresAt: string }>(
+      `/cases/${caseId}/data-room/access-token`,
+    ),
+
+  /**
+   * Upload a file to the connected Drive folder. Uses XMLHttpRequest because
+   * `fetch` doesn't expose upload progress events. Resolves with the created
+   * Drive file metadata.
+   */
+  dataRoomUpload: async (
+    caseId: string,
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<DataRoomFile> => {
+    let token: string | null = null;
+    try {
+      const currentUser = getFirebaseAuth().currentUser;
+      if (currentUser) token = await currentUser.getIdToken();
+    } catch {
+      // proceed unauthenticated; backend will reject
+    }
+
+    const form = new FormData();
+    form.append('file', file, file.name);
+
+    return new Promise<DataRoomFile>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE}/cases/${caseId}/data-room/files`);
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+      if (onProgress) {
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) onProgress(ev.loaded, ev.total);
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText) as DataRoomFile);
+          } catch {
+            reject(new Error('Malformed upload response'));
+          }
+        } else {
+          let message = `Upload failed (${xhr.status})`;
+          try {
+            const body = JSON.parse(xhr.responseText);
+            if (body?.message) message = body.message;
+          } catch {}
+          reject(new Error(message));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.onabort = () => reject(new Error('Upload aborted'));
+
+      xhr.send(form);
+    });
+  },
 };

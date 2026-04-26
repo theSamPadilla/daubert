@@ -1,0 +1,225 @@
+/cases/{caseId}/data-room/connect:
+  post:
+    summary: Initiate Google Drive OAuth flow for a case
+    description: |
+      Builds the Google OAuth consent URL with a signed `state` parameter that
+      ties the eventual callback back to this case. Frontend should redirect
+      the browser to the returned `url`.
+    operationId: dataRoomConnect
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: OAuth consent URL
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/data-room.yaml#/ConnectInitResponse'
+
+/data-room/oauth-callback:
+  get:
+    summary: Google OAuth callback (single registered redirect URI)
+    description: |
+      Authenticated via the HMAC `state` parameter (Google can't send a
+      Firebase token). Exchanges the auth code for tokens, encrypts them,
+      upserts the `DataRoomConnection`, then 302-redirects to the frontend.
+    operationId: dataRoomOAuthCallback
+    parameters:
+      - name: code
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: true
+        schema:
+          type: string
+    responses:
+      '302':
+        description: Redirect to the frontend data-room page for the case.
+        headers:
+          Location:
+            schema:
+              type: string
+
+/cases/{caseId}/data-room:
+  get:
+    summary: Get the data-room connection state for a case
+    operationId: dataRoomGet
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The connection
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/data-room.yaml#/DataRoomConnection'
+      '404':
+        description: No connection exists for this case.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    summary: Disconnect the data room for a case
+    description: |
+      Best-effort revoke of the Google refresh token, then deletes the
+      connection row. Revoke failures are logged but do not block deletion.
+    operationId: dataRoomDisconnect
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Disconnected.
+
+/cases/{caseId}/data-room/folder:
+  patch:
+    summary: Set or change the connected Drive folder
+    operationId: dataRoomSetFolder
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/data-room.yaml#/SetFolderRequest'
+    responses:
+      '200':
+        description: Updated connection
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/data-room.yaml#/DataRoomConnection'
+
+/cases/{caseId}/data-room/files:
+  get:
+    summary: List files in the connected folder (flat, top 100)
+    operationId: dataRoomListFiles
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Files in the folder
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/data-room.yaml#/DataRoomFile'
+  post:
+    summary: Upload a file to the connected folder (multipart)
+    description: |
+      Streaming multipart upload. The body is parsed by busboy and piped
+      directly into Drive's resumable upload — peak memory is ~256KB
+      regardless of file size. 50MB cap, single file per request.
+    operationId: dataRoomUpload
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+    responses:
+      '200':
+        description: Created Drive file metadata
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/data-room.yaml#/DataRoomFile'
+
+/cases/{caseId}/data-room/access-token:
+  get:
+    summary: Issue a short-lived Drive access token for client-side Picker use
+    description: |
+      Owner-only. Returns a fresh OAuth access token (refreshed if near
+      expiry) so the browser can drive the Google Drive Picker SDK directly.
+      Tokens are short-lived (~1 hour) and scoped to the case owner's Drive
+      account; the frontend should not cache them beyond `expiresAt`.
+    operationId: dataRoomGetAccessToken
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: A fresh access token plus its absolute expiry.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/data-room.yaml#/AccessTokenResponse'
+      '404':
+        description: No data-room connection exists for this case.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/cases/{caseId}/data-room/files/{fileId}/download:
+  get:
+    summary: Stream-proxy a file download from Drive
+    description: |
+      Forwards Drive's content with `Content-Type`, `Content-Disposition`, and
+      `Content-Length` headers populated from a prior metadata fetch.
+    operationId: dataRoomDownload
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: File contents
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary

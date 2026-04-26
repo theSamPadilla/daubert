@@ -1,0 +1,142 @@
+/admin/cases:
+  get:
+    summary: List all cases (admin only)
+    operationId: adminListCases
+    responses:
+      '200':
+        description: All cases
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/cases.yaml#/Case'
+  post:
+    summary: Create a case with a designated owner (admin only)
+    description: Atomically creates a CaseEntity and adds the supplied user as the owner.
+    operationId: adminCreateCase
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/admin.yaml#/AdminCreateCaseRequest'
+    responses:
+      '201':
+        description: Created case
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/cases.yaml#/Case'
+
+/admin/cases/{id}:
+  delete:
+    summary: Admin override delete (admin only)
+    description: |
+      Bypasses CaseMemberGuard, which gates the public DELETE /cases/{caseId}.
+      Use when an admin needs to delete a case they are not a member of.
+    operationId: adminDeleteCase
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Deleted
+
+/admin/cases/{id}/members:
+  get:
+    summary: List members of a case (admin only)
+    operationId: adminListCaseMembers
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Case members
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/admin.yaml#/CaseMember'
+  post:
+    summary: Add a member to a case (admin only)
+    operationId: adminAddCaseMember
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/admin.yaml#/AddMemberRequest'
+    responses:
+      '201':
+        description: Created membership
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/admin.yaml#/CaseMember'
+
+/admin/cases/{id}/members/{userId}:
+  patch:
+    summary: Change a member's role (admin only)
+    operationId: adminUpdateCaseMemberRole
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/admin.yaml#/UpdateMemberRoleRequest'
+    responses:
+      '200':
+        description: Updated membership
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/admin.yaml#/CaseMember'
+  delete:
+    summary: Remove a member from a case (admin only)
+    operationId: adminRemoveCaseMember
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Removed

@@ -14,7 +14,10 @@
     "scripts:add-to-case": "ts-node scripts/add-to-case.ts",
     "scripts:list-users": "ts-node scripts/list-users.ts",
     "scripts:remove-member": "ts-node scripts/remove-member.ts",
-    "scripts:change-role": "ts-node scripts/change-role.ts"
+    "scripts:change-role": "ts-node scripts/change-role.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
@@ -34,9 +37,13 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.0",
+    "@nestjs/testing": "^11.1.19",
     "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
+    "jest": "^30.3.0",
     "openapi-typescript": "^7.4.0",
+    "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.0"
   }

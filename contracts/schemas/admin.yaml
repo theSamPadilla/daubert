@@ -1,0 +1,105 @@
+CaseRole:
+  type: string
+  enum:
+    - owner
+    - guest
+
+AdminUser:
+  type: object
+  required: [id, email, name, linked, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    name:
+      type: string
+    avatarUrl:
+      type: string
+      nullable: true
+    linked:
+      type: boolean
+      description: True once the user has signed in to Firebase and the UID has been bound to this row.
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateUserRequest:
+  type: object
+  required: [email, name]
+  properties:
+    email:
+      type: string
+      format: email
+    name:
+      type: string
+    caseId:
+      type: string
+      format: uuid
+      description: Optional. If provided, the new user is added to this case as a member. `caseRole` is required when this is set.
+    caseRole:
+      $ref: '#/CaseRole'
+      description: Required when `caseId` is set, ignored otherwise.
+
+AdminCreateCaseRequest:
+  type: object
+  required: [name, ownerUserId]
+  properties:
+    name:
+      type: string
+    ownerUserId:
+      type: string
+      format: uuid
+    startDate:
+      type: string
+      format: date-time
+    links:
+      type: array
+      items:
+        $ref: '../schemas/cases.yaml#/Link'
+
+CaseMember:
+  type: object
+  required: [id, userId, caseId, role, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    userId:
+      type: string
+      format: uuid
+    caseId:
+      type: string
+      format: uuid
+    role:
+      $ref: '#/CaseRole'
+    user:
+      $ref: '#/AdminUser'
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+AddMemberRequest:
+  type: object
+  required: [userId, role]
+  properties:
+    userId:
+      type: string
+      format: uuid
+    role:
+      $ref: '#/CaseRole'
+
+UpdateMemberRoleRequest:
+  type: object
+  required: [role]
+  properties:
+    role:
+      $ref: '#/CaseRole'

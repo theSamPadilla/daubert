@@ -21,7 +21,8 @@ import { LinkInputModal, type LinkInputResult } from '@/components/LinkInputModa
 import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
 import { CytoscapeCallbacks } from '@/hooks/useCytoscape';
-import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } from '@/lib/api-client';
+import { apiClient, type Investigation as ApiInvestigation, type ScriptRun, type Production } from '@/lib/api-client';
+import { ProductionViewer } from '@/components/ProductionViewer';
 import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
 import { normalizeToken } from '@/utils/formatAmount';
 import UserMenu from '@/components/UserMenu';
@@ -219,6 +220,8 @@ function InvestigationsWorkspace() {
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
+  const [productions, setProductions] = useState<Production[]>([]);
+  const [selectedProduction, setSelectedProduction] = useState<Production | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(true);
   const [chatWidth, setChatWidth] = useState(480);
@@ -307,6 +310,10 @@ function InvestigationsWorkspace() {
     }
   }, [activeInvestigationId, loadInvestigationFromApi, setInvestigation]);
 
+  useEffect(() => {
+    apiClient.listProductions(caseId).then(setProductions).catch(() => setProductions([]));
+  }, [caseId]);
+
   // Refresh script runs periodically
   useEffect(() => {
     if (!activeInvestigationId) return;
@@ -392,6 +399,7 @@ function InvestigationsWorkspace() {
   // Sidebar callback
   const handleSelectInvestigation = useCallback((inv: ApiInvestigation) => {
     setActiveInvestigationId(inv.id);
+    setSelectedProduction(null);
     router.push(`/cases/${caseId}/investigations?inv=${inv.id}`, { scroll: false });
   }, [router, caseId]);
 
@@ -426,6 +434,7 @@ function InvestigationsWorkspace() {
 
   const handleSelectTrace = useCallback((trace: Trace) => {
     setSelectedItem({ type: 'trace', data: trace });
+    setSelectedProduction(null);
   }, []);
 
   const handleSelectScriptRun = useCallback((run: ScriptRun) => {
@@ -948,6 +957,25 @@ function InvestigationsWorkspace() {
           scriptRuns={scriptRuns}
           selectedScriptRunId={selectedItem?.type === 'scriptRun' ? selectedItem.data?.id : undefined}
           onSelectScriptRun={handleSelectScriptRun}
+          productions={productions}
+          selectedProductionId={selectedProduction?.id}
+          onSelectProduction={(p) => setSelectedProduction(p)}
+          onAddProduction={async () => {
+            const type = window.prompt('Production type (report, chart, chronology):', 'report');
+            if (!type || !['report', 'chart', 'chronology'].includes(type)) return;
+            const name = window.prompt('Production name:');
+            if (!name?.trim()) return;
+            const defaultData = type === 'report' ? { content: '' }
+              : type === 'chronology' ? { title: name.trim(), entries: [] }
+              : { chartType: 'bar', labels: [], datasets: [] };
+            try {
+              const prod = await apiClient.createProduction(caseId, { name: name.trim(), type, data: defaultData });
+              setProductions((prev) => [...prev, prod]);
+              setSelectedProduction(prod);
+            } catch (err) {
+              console.error('Failed to create production:', err);
+            }
+          }}
         />
       </div>
 
@@ -983,6 +1011,14 @@ function InvestigationsWorkspace() {
                   <div className="flex items-center justify-center h-full">
                     <p className="text-gray-400">Loading...</p>
                   </div>
+                ) : selectedProduction ? (
+                  <ProductionViewer
+                    production={selectedProduction}
+                    onUpdate={(updated) => {
+                      setSelectedProduction(updated);
+                      setProductions((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+                    }}
+                  />
                 ) : (
                   <GraphCanvas
                     ref={graphRef}

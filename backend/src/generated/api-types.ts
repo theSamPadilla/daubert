@@ -194,8 +194,7 @@ export interface paths {
         /** List labeled entities */
         get: operations["listLabeledEntities"];
         put?: never;
-        /** Create a labeled entity (admin only) */
-        post: operations["createLabeledEntity"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -230,12 +229,203 @@ export interface paths {
         get: operations["getLabeledEntity"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/productions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List productions for a case */
+        get: operations["listProductions"];
+        put?: never;
+        /** Create a production */
+        post: operations["createProduction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/productions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a production */
+        get: operations["getProduction"];
+        put?: never;
+        post?: never;
+        /** Delete a production */
+        delete: operations["deleteProduction"];
+        options?: never;
+        head?: never;
+        /** Update a production */
+        patch: operations["updateProduction"];
+        trace?: never;
+    };
+    "/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all users (admin only) */
+        get: operations["adminListUsers"];
+        put?: never;
+        /**
+         * Create a user shell (admin only)
+         * @description Creates a UserEntity with no Firebase UID. The next time the real person
+         *     signs in to Firebase with the matching email, the global AuthGuard will
+         *     bind their UID to this row.
+         */
+        post: operations["adminCreateUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Hard delete a user (admin only)
+         * @description Cascades through case memberships and conversations.
+         */
+        delete: operations["adminDeleteUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all cases (admin only) */
+        get: operations["adminListCases"];
+        put?: never;
+        /**
+         * Create a case with a designated owner (admin only)
+         * @description Atomically creates a CaseEntity and adds the supplied user as the owner.
+         */
+        post: operations["adminCreateCase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Admin override delete (admin only)
+         * @description Bypasses CaseMemberGuard, which gates the public DELETE /cases/{caseId}.
+         *     Use when an admin needs to delete a case they are not a member of.
+         */
+        delete: operations["adminDeleteCase"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cases/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List members of a case (admin only) */
+        get: operations["adminListCaseMembers"];
+        put?: never;
+        /** Add a member to a case (admin only) */
+        post: operations["adminAddCaseMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cases/{id}/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a member from a case (admin only) */
+        delete: operations["adminRemoveCaseMember"];
+        options?: never;
+        head?: never;
+        /** Change a member's role (admin only) */
+        patch: operations["adminUpdateCaseMemberRole"];
+        trace?: never;
+    };
+    "/admin/labeled-entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a labeled entity (admin only) */
+        post: operations["adminCreateLabeledEntity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/labeled-entities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
         /** Delete a labeled entity (admin only) */
-        delete: operations["deleteLabeledEntity"];
+        delete: operations["adminDeleteLabeledEntity"];
         options?: never;
         head?: never;
         /** Update a labeled entity (admin only) */
-        patch: operations["updateLabeledEntity"];
+        patch: operations["adminUpdateLabeledEntity"];
         trace?: never;
     };
 }
@@ -411,6 +601,95 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
+        };
+        /** @enum {string} */
+        ProductionType: "report" | "chart" | "chronology";
+        Production: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            type: components["schemas"]["ProductionType"];
+            data: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            caseId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateProductionRequest: {
+            name: string;
+            type: components["schemas"]["ProductionType"];
+            data: {
+                [key: string]: unknown;
+            };
+        };
+        UpdateProductionRequest: {
+            name?: string;
+            type?: components["schemas"]["ProductionType"];
+            data?: {
+                [key: string]: unknown;
+            };
+        };
+        /** @enum {string} */
+        CaseRole: "owner" | "guest";
+        AdminUser: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            name: string;
+            avatarUrl?: string | null;
+            /** @description True once the user has signed in to Firebase and the UID has been bound to this row. */
+            linked: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateUserRequest: {
+            /** Format: email */
+            email: string;
+            name: string;
+            /**
+             * Format: uuid
+             * @description Optional. If provided, the new user is added to this case as a member. `caseRole` is required when this is set.
+             */
+            caseId?: string;
+            /** @description Required when `caseId` is set, ignored otherwise. */
+            caseRole?: components["schemas"]["CaseRole"];
+        };
+        AdminCreateCaseRequest: {
+            name: string;
+            /** Format: uuid */
+            ownerUserId: string;
+            /** Format: date-time */
+            startDate?: string;
+            links?: components["schemas"]["Link"][];
+        };
+        CaseMember: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            userId: string;
+            /** Format: uuid */
+            caseId: string;
+            role: components["schemas"]["CaseRole"];
+            user?: components["schemas"]["AdminUser"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AddMemberRequest: {
+            /** Format: uuid */
+            userId: string;
+            role: components["schemas"]["CaseRole"];
+        };
+        UpdateMemberRoleRequest: {
+            role: components["schemas"]["CaseRole"];
         };
         Link: {
             url: string;
@@ -1023,30 +1302,6 @@ export interface operations {
             };
         };
     };
-    createLabeledEntity: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateLabeledEntityRequest"];
-            };
-        };
-        responses: {
-            /** @description Created labeled entity */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LabeledEntity"];
-                };
-            };
-        };
-    };
     lookupLabeledEntity: {
         parameters: {
             query: {
@@ -1091,7 +1346,79 @@ export interface operations {
             };
         };
     };
-    deleteLabeledEntity: {
+    listProductions: {
+        parameters: {
+            query?: {
+                type?: components["schemas"]["ProductionType"];
+            };
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of productions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Production"][];
+                };
+            };
+        };
+    };
+    createProduction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProductionRequest"];
+            };
+        };
+        responses: {
+            /** @description Created production */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Production"];
+                };
+            };
+        };
+    };
+    getProduction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Production */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Production"];
+                };
+            };
+        };
+    };
+    deleteProduction: {
         parameters: {
             query?: never;
             header?: never;
@@ -1111,7 +1438,301 @@ export interface operations {
             };
         };
     };
-    updateLabeledEntity: {
+    updateProduction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProductionRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated production */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Production"];
+                };
+            };
+        };
+    };
+    adminListUsers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All users */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"][];
+                };
+            };
+        };
+    };
+    adminCreateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Created user */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+        };
+    };
+    adminDeleteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adminListCases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All cases */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Case"][];
+                };
+            };
+        };
+    };
+    adminCreateCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateCaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Created case */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Case"];
+                };
+            };
+        };
+    };
+    adminDeleteCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adminListCaseMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Case members */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseMember"][];
+                };
+            };
+        };
+    };
+    adminAddCaseMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddMemberRequest"];
+            };
+        };
+        responses: {
+            /** @description Created membership */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseMember"];
+                };
+            };
+        };
+    };
+    adminRemoveCaseMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adminUpdateCaseMemberRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMemberRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated membership */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseMember"];
+                };
+            };
+        };
+    };
+    adminCreateLabeledEntity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLabeledEntityRequest"];
+            };
+        };
+        responses: {
+            /** @description Created labeled entity */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabeledEntity"];
+                };
+            };
+        };
+    };
+    adminDeleteLabeledEntity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adminUpdateLabeledEntity: {
         parameters: {
             query?: never;
             header?: never;

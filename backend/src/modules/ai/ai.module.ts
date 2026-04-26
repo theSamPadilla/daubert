@@ -13,6 +13,7 @@ import { ConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
 import { AuthModule } from '../auth/auth.module';
 import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
+import { ProductionsModule } from '../productions/productions.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.modu
     ]),
     AuthModule,
     LabeledEntitiesModule,
+    ProductionsModule,
   ],
   controllers: [AiController, ConversationsController],
   providers: [

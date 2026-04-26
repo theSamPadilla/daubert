@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 import { FaChevronDown, FaGear } from 'react-icons/fa6';
+import { ADMIN_EMAIL_DOMAIN } from '@/lib/admin';
 
 export default function UserMenu() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const isAdmin = user?.email?.split('@')[1] === 'incite.ventures';
+  const isAdmin = user?.email?.split('@')[1] === ADMIN_EMAIL_DOMAIN;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

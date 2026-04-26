@@ -34,6 +34,26 @@ paths:
     $ref: './paths/labeled-entities.yaml#/~1labeled-entities~1lookup'
   /labeled-entities/{id}:
     $ref: './paths/labeled-entities.yaml#/~1labeled-entities~1{id}'
+  /cases/{caseId}/productions:
+    $ref: './paths/productions.yaml#/~1cases~1{caseId}~1productions'
+  /productions/{id}:
+    $ref: './paths/productions.yaml#/~1productions~1{id}'
+  /admin/users:
+    $ref: './paths/admin-users.yaml#/~1admin~1users'
+  /admin/users/{id}:
+    $ref: './paths/admin-users.yaml#/~1admin~1users~1{id}'
+  /admin/cases:
+    $ref: './paths/admin-cases.yaml#/~1admin~1cases'
+  /admin/cases/{id}:
+    $ref: './paths/admin-cases.yaml#/~1admin~1cases~1{id}'
+  /admin/cases/{id}/members:
+    $ref: './paths/admin-cases.yaml#/~1admin~1cases~1{id}~1members'
+  /admin/cases/{id}/members/{userId}:
+    $ref: './paths/admin-cases.yaml#/~1admin~1cases~1{id}~1members~1{userId}'
+  /admin/labeled-entities:
+    $ref: './paths/admin-labeled-entities.yaml#/~1admin~1labeled-entities'
+  /admin/labeled-entities/{id}:
+    $ref: './paths/admin-labeled-entities.yaml#/~1admin~1labeled-entities~1{id}'
 
 components:
   schemas:
@@ -77,3 +97,25 @@ components:
       $ref: './schemas/labeled-entities.yaml#/CreateLabeledEntityRequest'
     UpdateLabeledEntityRequest:
       $ref: './schemas/labeled-entities.yaml#/UpdateLabeledEntityRequest'
+    ProductionType:
+      $ref: './schemas/productions.yaml#/ProductionType'
+    Production:
+      $ref: './schemas/productions.yaml#/Production'
+    CreateProductionRequest:
+      $ref: './schemas/productions.yaml#/CreateProductionRequest'
+    UpdateProductionRequest:
+      $ref: './schemas/productions.yaml#/UpdateProductionRequest'
+    CaseRole:
+      $ref: './schemas/admin.yaml#/CaseRole'
+    AdminUser:
+      $ref: './schemas/admin.yaml#/AdminUser'
+    CreateUserRequest:
+      $ref: './schemas/admin.yaml#/CreateUserRequest'
+    AdminCreateCaseRequest:
+      $ref: './schemas/admin.yaml#/AdminCreateCaseRequest'
+    CaseMember:
+      $ref: './schemas/admin.yaml#/CaseMember'
+    AddMemberRequest:
+      $ref: './schemas/admin.yaml#/AddMemberRequest'
+    UpdateMemberRoleRequest:
+      $ref: './schemas/admin.yaml#/UpdateMemberRoleRequest'

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
 import { FaPen, FaChevronRight, FaChevronDown, FaArrowLeft } from 'react-icons/fa6';
 import { useRouter } from 'next/navigation';
-import { apiClient, type Case, type Investigation, type ScriptRun } from '@/lib/api-client';
+import { apiClient, type Case, type Investigation, type ScriptRun, type Production } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
 import { ScriptsPanel } from './ScriptsPanel';
 
@@ -23,6 +23,10 @@ interface InvestigationsSidebarProps {
   scriptRuns?: ScriptRun[];
   selectedScriptRunId?: string;
   onSelectScriptRun?: (run: ScriptRun) => void;
+  productions?: Production[];
+  selectedProductionId?: string;
+  onSelectProduction?: (production: Production) => void;
+  onAddProduction?: () => void;
 }
 
 export function InvestigationsSidebar({
@@ -40,6 +44,10 @@ export function InvestigationsSidebar({
   scriptRuns,
   selectedScriptRunId,
   onSelectScriptRun,
+  productions,
+  selectedProductionId,
+  onSelectProduction,
+  onAddProduction,
 }: InvestigationsSidebarProps) {
   const router = useRouter();
   const [caseName, setCaseName] = useState('');
@@ -219,6 +227,48 @@ export function InvestigationsSidebar({
 
         {investigations.length === 0 && (
           <p className="text-gray-500 text-xs p-3">No investigations yet.</p>
+        )}
+
+        {/* Productions */}
+        {(
+          <div className="mt-2 border-t border-gray-700">
+            <div className="px-3 py-2 flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Productions</span>
+              {onAddProduction && (
+                <button
+                  onClick={onAddProduction}
+                  className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
+                  title="Add production"
+                >
+                  +
+                </button>
+              )}
+            </div>
+            {(productions || []).map((prod) => {
+              const dotColor = prod.type === 'report' ? '#3b82f6' : prod.type === 'chart' ? '#10b981' : '#8b5cf6';
+              return (
+                <div
+                  key={prod.id}
+                  onClick={() => onSelectProduction?.(prod)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors ${
+                    selectedProductionId === prod.id
+                      ? 'bg-blue-600/20 text-blue-300'
+                      : 'hover:bg-gray-700/60 text-gray-400'
+                  }`}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: dotColor }}
+                  />
+                  <span className="truncate flex-1 font-medium">{prod.name}</span>
+                  <span className="text-[10px] text-gray-600">{prod.type}</span>
+                </div>
+              );
+            })}
+            {(!productions || productions.length === 0) && (
+              <p className="text-gray-600 text-xs px-3 py-1">No productions yet.</p>
+            )}
+          </div>
         )}
       </div>
 

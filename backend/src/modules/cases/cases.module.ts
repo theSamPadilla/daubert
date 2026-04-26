@@ -13,5 +13,6 @@ import { AuthModule } from '../auth/auth.module';
   ],
   controllers: [CasesController],
   providers: [CasesService],
+  exports: [CasesService],
 })
 export class CasesModule {}

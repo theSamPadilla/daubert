@@ -1,0 +1,49 @@
+/admin/users:
+  get:
+    summary: List all users (admin only)
+    operationId: adminListUsers
+    responses:
+      '200':
+        description: All users
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/admin.yaml#/AdminUser'
+  post:
+    summary: Create a user shell (admin only)
+    description: |
+      Creates a UserEntity with no Firebase UID. The next time the real person
+      signs in to Firebase with the matching email, the global AuthGuard will
+      bind their UID to this row.
+    operationId: adminCreateUser
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/admin.yaml#/CreateUserRequest'
+    responses:
+      '201':
+        description: Created user
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/admin.yaml#/AdminUser'
+
+/admin/users/{id}:
+  delete:
+    summary: Hard delete a user (admin only)
+    description: Cascades through case memberships and conversations.
+    operationId: adminDeleteUser
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Deleted

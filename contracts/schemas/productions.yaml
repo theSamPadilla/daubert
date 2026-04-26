@@ -1,0 +1,53 @@
+ProductionType:
+  type: string
+  enum:
+    - report
+    - chart
+    - chronology
+
+Production:
+  type: object
+  required: [id, name, type, data, caseId, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    type:
+      $ref: '#/ProductionType'
+    data:
+      type: object
+      additionalProperties: true
+    caseId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateProductionRequest:
+  type: object
+  required: [name, type, data]
+  properties:
+    name:
+      type: string
+    type:
+      $ref: '#/ProductionType'
+    data:
+      type: object
+      additionalProperties: true
+
+UpdateProductionRequest:
+  type: object
+  properties:
+    name:
+      type: string
+    type:
+      $ref: '#/ProductionType'
+    data:
+      type: object
+      additionalProperties: true

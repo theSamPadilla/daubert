@@ -111,6 +111,39 @@ export interface LabeledEntity {
   updatedAt: string;
 }
 
+export interface Production {
+  id: string;
+  name: string;
+  type: 'report' | 'chart' | 'chronology';
+  data: Record<string, unknown>;
+  caseId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Admin
+export type CaseRole = 'owner' | 'guest';
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  linked: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CaseMember {
+  id: string;
+  userId: string;
+  caseId: string;
+  role: CaseRole;
+  user?: AdminUser;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const apiClient = {
   // Auth
   getMe: () => request<User>('/auth/me'),
@@ -219,10 +252,49 @@ export const apiClient = {
     request<LabeledEntity>(`/labeled-entities/${id}`),
   lookupLabeledEntity: (address: string) =>
     request<LabeledEntity[]>(`/labeled-entities/lookup?address=${encodeURIComponent(address)}`),
-  createLabeledEntity: (body: { name: string; category: string; wallets: string[]; description?: string; metadata?: Record<string, unknown> }) =>
-    request<LabeledEntity>('/labeled-entities', { method: 'POST', body: JSON.stringify(body) }),
-  updateLabeledEntity: (id: string, body: Partial<{ name: string; category: string; description: string; wallets: string[]; metadata: Record<string, unknown> }>) =>
-    request<LabeledEntity>(`/labeled-entities/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  deleteLabeledEntity: (id: string) =>
-    request<void>(`/labeled-entities/${id}`, { method: 'DELETE' }),
+  // (CUD has moved to /admin/labeled-entities/* — see adminCreateLabeledEntity below)
+
+  // Admin — Users
+  adminListUsers: () => request<AdminUser[]>('/admin/users'),
+  adminCreateUser: (body: { email: string; name: string; caseId?: string; caseRole?: CaseRole }) =>
+    request<AdminUser>('/admin/users', { method: 'POST', body: JSON.stringify(body) }),
+  adminDeleteUser: (id: string) =>
+    request<void>(`/admin/users/${id}`, { method: 'DELETE' }),
+
+  // Admin — Cases
+  adminListCases: () => request<Case[]>('/admin/cases'),
+  adminCreateCase: (body: { name: string; ownerUserId: string; startDate?: string; links?: { url: string; label: string }[] }) =>
+    request<Case>('/admin/cases', { method: 'POST', body: JSON.stringify(body) }),
+  adminDeleteCase: (id: string) =>
+    request<void>(`/admin/cases/${id}`, { method: 'DELETE' }),
+  adminListCaseMembers: (caseId: string) =>
+    request<CaseMember[]>(`/admin/cases/${caseId}/members`),
+  adminAddCaseMember: (caseId: string, body: { userId: string; role: CaseRole }) =>
+    request<CaseMember>(`/admin/cases/${caseId}/members`, { method: 'POST', body: JSON.stringify(body) }),
+  adminUpdateCaseMemberRole: (caseId: string, userId: string, role: CaseRole) =>
+    request<CaseMember>(`/admin/cases/${caseId}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  adminRemoveCaseMember: (caseId: string, userId: string) =>
+    request<void>(`/admin/cases/${caseId}/members/${userId}`, { method: 'DELETE' }),
+
+  // Admin — Labeled Entities (CUD only; reads stay on /labeled-entities)
+  adminCreateLabeledEntity: (body: { name: string; category: string; wallets: string[]; description?: string; metadata?: Record<string, unknown> }) =>
+    request<LabeledEntity>('/admin/labeled-entities', { method: 'POST', body: JSON.stringify(body) }),
+  adminUpdateLabeledEntity: (id: string, body: Partial<{ name: string; category: string; description: string; wallets: string[]; metadata: Record<string, unknown> }>) =>
+    request<LabeledEntity>(`/admin/labeled-entities/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  adminDeleteLabeledEntity: (id: string) =>
+    request<void>(`/admin/labeled-entities/${id}`, { method: 'DELETE' }),
+
+  // Productions
+  listProductions: (caseId: string, type?: string) => {
+    const qs = type ? `?type=${type}` : '';
+    return request<Production[]>(`/cases/${caseId}/productions${qs}`);
+  },
+  getProduction: (id: string) =>
+    request<Production>(`/productions/${id}`),
+  createProduction: (caseId: string, body: { name: string; type: string; data: Record<string, unknown> }) =>
+    request<Production>(`/cases/${caseId}/productions`, { method: 'POST', body: JSON.stringify(body) }),
+  updateProduction: (id: string, body: Partial<{ name: string; type: string; data: Record<string, unknown> }>) =>
+    request<Production>(`/productions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteProduction: (id: string) =>
+    request<void>(`/productions/${id}`, { method: 'DELETE' }),
 };

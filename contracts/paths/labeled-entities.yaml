@@ -20,22 +20,6 @@
               type: array
               items:
                 $ref: '../schemas/labeled-entities.yaml#/LabeledEntity'
-  post:
-    summary: Create a labeled entity (admin only)
-    operationId: createLabeledEntity
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '../schemas/labeled-entities.yaml#/CreateLabeledEntityRequest'
-    responses:
-      '201':
-        description: Created labeled entity
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/labeled-entities.yaml#/LabeledEntity'
 
 /labeled-entities/lookup:
   get:
@@ -75,39 +59,3 @@
           application/json:
             schema:
               $ref: '../schemas/labeled-entities.yaml#/LabeledEntity'
-  patch:
-    summary: Update a labeled entity (admin only)
-    operationId: updateLabeledEntity
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '../schemas/labeled-entities.yaml#/UpdateLabeledEntityRequest'
-    responses:
-      '200':
-        description: Updated labeled entity
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/labeled-entities.yaml#/LabeledEntity'
-  delete:
-    summary: Delete a labeled entity (admin only)
-    operationId: deleteLabeledEntity
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    responses:
-      '204':
-        description: Deleted

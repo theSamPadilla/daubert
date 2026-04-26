@@ -1,20 +1,18 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Param, Body, Query, UseGuards, HttpCode, BadRequestException,
+  Controller, Get, Param, Query, BadRequestException,
 } from '@nestjs/common';
-import { IsAdminGuard } from '../auth/admin.guard';
 import { LabeledEntitiesService } from './labeled-entities.service';
-import { CreateLabeledEntityDto } from './dto/create-labeled-entity.dto';
-import { UpdateLabeledEntityDto } from './dto/update-labeled-entity.dto';
 import { EntityCategory } from '../../database/entities/labeled-entity.entity';
 
 const VALID_CATEGORIES = new Set(Object.values(EntityCategory));
 
+/**
+ * Read-only registry endpoints. Any authenticated user can hit these.
+ * Admin-only CUD lives at /admin/labeled-entities/* (see AdminLabeledEntitiesController).
+ */
 @Controller('labeled-entities')
 export class LabeledEntitiesController {
   constructor(private readonly service: LabeledEntitiesService) {}
-
-  // --- Read (any authenticated user) ---
 
   @Get()
   findAll(
@@ -38,26 +36,5 @@ export class LabeledEntitiesController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
-  }
-
-  // --- CUD (admin only) ---
-
-  @Post()
-  @UseGuards(IsAdminGuard)
-  create(@Body() dto: CreateLabeledEntityDto) {
-    return this.service.create(dto);
-  }
-
-  @Patch(':id')
-  @UseGuards(IsAdminGuard)
-  update(@Param('id') id: string, @Body() dto: UpdateLabeledEntityDto) {
-    return this.service.update(id, dto);
-  }
-
-  @Delete(':id')
-  @HttpCode(204)
-  @UseGuards(IsAdminGuard)
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
   }
 }

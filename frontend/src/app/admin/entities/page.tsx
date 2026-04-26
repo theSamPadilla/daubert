@@ -2,33 +2,8 @@
 
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { apiClient, LabeledEntity } from '@/lib/api-client';
+import { CATEGORIES, CATEGORY_COLORS, type Category } from '@/lib/labeled-entities';
 import { FaPenToSquare, FaTrash, FaPlus, FaMinus, FaChevronDown, FaChevronRight } from 'react-icons/fa6';
-
-const CATEGORIES = [
-  'exchange',
-  'mixer',
-  'bridge',
-  'protocol',
-  'individual',
-  'contract',
-  'government',
-  'custodian',
-  'other',
-] as const;
-
-type Category = (typeof CATEGORIES)[number];
-
-const CATEGORY_COLORS: Record<Category, string> = {
-  exchange: 'bg-blue-900/50 text-blue-300',
-  mixer: 'bg-red-900/50 text-red-300',
-  bridge: 'bg-purple-900/50 text-purple-300',
-  protocol: 'bg-green-900/50 text-green-300',
-  individual: 'bg-yellow-900/50 text-yellow-300',
-  contract: 'bg-cyan-900/50 text-cyan-300',
-  government: 'bg-orange-900/50 text-orange-300',
-  custodian: 'bg-indigo-900/50 text-indigo-300',
-  other: 'bg-gray-700 text-gray-300',
-};
 
 interface EntityFormData {
   name: string;
@@ -105,7 +80,7 @@ export default function AdminEntitiesPage() {
   const handleDelete = async (entity: LabeledEntity) => {
     if (!window.confirm(`Delete entity "${entity.name}"? This cannot be undone.`)) return;
     try {
-      await apiClient.deleteLabeledEntity(entity.id);
+      await apiClient.adminDeleteLabeledEntity(entity.id);
       await fetchEntities();
       if (expandedId === entity.id) setExpandedId(null);
     } catch (err) {
@@ -130,9 +105,9 @@ export default function AdminEntitiesPage() {
       };
 
       if (editingId) {
-        await apiClient.updateLabeledEntity(editingId, body);
+        await apiClient.adminUpdateLabeledEntity(editingId, body);
       } else {
-        await apiClient.createLabeledEntity({ ...body, wallets });
+        await apiClient.adminCreateLabeledEntity(body);
       }
 
       setShowForm(false);

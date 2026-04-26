@@ -12,6 +12,8 @@ import { ConversationsService } from './conversations.service';
 import { ScriptExecutionService } from './services/script-execution.service';
 import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.service';
 import { EntityCategory } from '../../database/entities/labeled-entity.entity';
+import { ProductionsService } from '../productions/productions.service';
+import { ProductionType } from '../../database/entities/production.entity';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import {
   AGENT_TOOLS,
@@ -20,6 +22,9 @@ import {
   EXECUTE_SCRIPT_TOOL,
   LIST_SCRIPT_RUNS_TOOL,
   QUERY_LABELED_ENTITIES_TOOL,
+  CREATE_PRODUCTION_TOOL,
+  READ_PRODUCTION_TOOL,
+  UPDATE_PRODUCTION_TOOL,
   SKILL_NAMES,
 } from './tools';
 import { AttachmentDto } from './dto/chat-message.dto';
@@ -209,6 +214,7 @@ export class AiService {
     private readonly conversationsService: ConversationsService,
     private readonly scriptExecutionService: ScriptExecutionService,
     private readonly labeledEntitiesService: LabeledEntitiesService,
+    private readonly productionsService: ProductionsService,
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
     @InjectRepository(InvestigationEntity)
@@ -574,6 +580,48 @@ export class AiService {
           ? (input.category as EntityCategory)
           : undefined;
         return this.labeledEntitiesService.findAll({ category, search: input.search });
+      }
+
+      case CREATE_PRODUCTION_TOOL.name: {
+        if (!caseId) {
+          return { error: 'No case context. Ask the user to open a case.' };
+        }
+        const input = toolUse.input as { name: string; type: string; data: Record<string, unknown> };
+        const validTypes = new Set(Object.values(ProductionType));
+        if (!validTypes.has(input.type as ProductionType)) {
+          return { error: `Invalid production type: ${input.type}` };
+        }
+        return this.productionsService.create(caseId, {
+          name: input.name,
+          type: input.type as ProductionType,
+          data: input.data,
+        });
+      }
+
+      case READ_PRODUCTION_TOOL.name: {
+        const input = toolUse.input as { productionId?: string; type?: string };
+        if (input.productionId) {
+          return this.productionsService.findOne(input.productionId);
+        }
+        if (!caseId) {
+          return { error: 'No case context. Ask the user to open a case.' };
+        }
+        const validTypes = new Set(Object.values(ProductionType));
+        const type = input.type && validTypes.has(input.type as ProductionType)
+          ? (input.type as ProductionType)
+          : undefined;
+        return this.productionsService.findAllForCase(caseId, undefined, type);
+      }
+
+      case UPDATE_PRODUCTION_TOOL.name: {
+        const input = toolUse.input as { productionId: string; name?: string; data?: Record<string, unknown> };
+        if (!input.productionId) {
+          return { error: 'productionId is required' };
+        }
+        return this.productionsService.update(input.productionId, {
+          name: input.name,
+          data: input.data,
+        });
       }
 
       default:

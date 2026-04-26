@@ -1,0 +1,102 @@
+/cases/{caseId}/productions:
+  get:
+    summary: List productions for a case
+    operationId: listProductions
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: type
+        in: query
+        schema:
+          $ref: '../schemas/productions.yaml#/ProductionType'
+    responses:
+      '200':
+        description: Array of productions
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/productions.yaml#/Production'
+  post:
+    summary: Create a production
+    operationId: createProduction
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/productions.yaml#/CreateProductionRequest'
+    responses:
+      '201':
+        description: Created production
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/productions.yaml#/Production'
+
+/productions/{id}:
+  get:
+    summary: Get a production
+    operationId: getProduction
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Production
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/productions.yaml#/Production'
+  patch:
+    summary: Update a production
+    operationId: updateProduction
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/productions.yaml#/UpdateProductionRequest'
+    responses:
+      '200':
+        description: Updated production
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/productions.yaml#/Production'
+  delete:
+    summary: Delete a production
+    operationId: deleteProduction
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Deleted

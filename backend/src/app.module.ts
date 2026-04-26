@@ -10,6 +10,8 @@ import { TracesModule } from './modules/traces/traces.module';
 import { BlockchainModule } from './modules/blockchain/blockchain.module';
 import { AiModule } from './modules/ai/ai.module';
 import { LabeledEntitiesModule } from './modules/labeled-entities/labeled-entities.module';
+import { ProductionsModule } from './modules/productions/productions.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { LabeledEntitiesModule } from './modules/labeled-entities/labeled-entiti
     BlockchainModule,
     AiModule,
     LabeledEntitiesModule,
+    ProductionsModule,
+    AdminModule,
   ],
   controllers: [AppController],
 })

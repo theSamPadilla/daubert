@@ -3,12 +3,13 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
+import { ADMIN_EMAIL_DOMAIN } from '@/lib/admin';
 
 /**
  * Wraps admin-only pages. Redirects to /login if not signed in,
  * shows "No Account" if noAccount, shows "Access Denied" if not admin,
  * renders children if valid admin.
- * Admin = email domain is exactly incite.ventures (matches backend IsAdminGuard).
+ * Admin = email domain matches ADMIN_EMAIL_DOMAIN (also enforced by backend IsAdminGuard).
  */
 export function AdminGuard({ children }: { children: React.ReactNode }) {
   const { user, loading, noAccount, firebaseUser } = useAuth();
@@ -54,7 +55,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (user.email.split('@')[1] !== 'incite.ventures') {
+  if (user.email.split('@')[1] !== ADMIN_EMAIL_DOMAIN) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="max-w-sm text-center space-y-4">

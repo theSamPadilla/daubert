@@ -110,3 +110,75 @@ export const QUERY_LABELED_ENTITIES_TOOL: Anthropic.Tool = {
   },
 };
 
+// ---------- Productions ----------
+
+export const CREATE_PRODUCTION_TOOL: Anthropic.Tool = {
+  name: 'create_production',
+  description:
+    'Create a production (report, chart, or chronology) for the current investigation. Reports store HTML content. Charts store Chart.js-compatible data. Chronologies store ordered entries with dates, descriptions, and source links.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      name: {
+        type: 'string',
+        description: 'Name for the production (e.g. "Flow of Funds Summary", "Transaction Chronology")',
+      },
+      type: {
+        type: 'string',
+        enum: ['report', 'chart', 'chronology'],
+        description: 'Production type',
+      },
+      data: {
+        type: 'object',
+        description: 'Production data. For report: { content: "<html>" }. For chart: { chartType, datasets[], labels[], options }. For chronology: { title, entries: [{ source, date, description, details? }] }.',
+      },
+    },
+    required: ['name', 'type', 'data'],
+  },
+};
+
+export const READ_PRODUCTION_TOOL: Anthropic.Tool = {
+  name: 'read_production',
+  description:
+    'Read a production by ID, or list all productions for the current investigation.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      productionId: {
+        type: 'string',
+        description: 'Get a specific production by ID.',
+      },
+      type: {
+        type: 'string',
+        enum: ['report', 'chart', 'chronology'],
+        description: 'Filter by type when listing.',
+      },
+    },
+    required: [],
+  },
+};
+
+export const UPDATE_PRODUCTION_TOOL: Anthropic.Tool = {
+  name: 'update_production',
+  description:
+    'Update a production\'s name, type, or data. Use to iteratively refine a report, update a chart, or add entries to a chronology.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      productionId: {
+        type: 'string',
+        description: 'The production ID to update.',
+      },
+      name: {
+        type: 'string',
+        description: 'New name (optional).',
+      },
+      data: {
+        type: 'object',
+        description: 'New data (replaces existing data entirely).',
+      },
+    },
+    required: ['productionId'],
+  },
+};
+

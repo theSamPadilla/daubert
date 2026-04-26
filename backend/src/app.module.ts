@@ -12,6 +12,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { LabeledEntitiesModule } from './modules/labeled-entities/labeled-entities.module';
 import { ProductionsModule } from './modules/productions/productions.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { ExportModule } from './modules/export/export.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AdminModule } from './modules/admin/admin.module';
     LabeledEntitiesModule,
     ProductionsModule,
     AdminModule,
+    ExportModule,
   ],
   controllers: [AppController],
 })

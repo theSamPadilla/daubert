@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import cytoscape, { Core, EventObject } from 'cytoscape';
 import { Investigation } from '../types/investigation';
 import { formatTokenAmount, normalizeToken, parseTimestamp } from '../utils/formatAmount';
+import { apiClient } from '@/lib/api-client';
 
 // Returns '#fff' or '#111827' depending on which has better contrast against bg
 function contrastTextColor(hex: string): string {
@@ -967,26 +968,21 @@ export function useCytoscape(
     cyRef.current?.elements().removeClass('cy-sel');
   }, []);
 
-  const exportImage = useCallback((format: 'png' | 'pdf', filename = 'graph') => {
+  const exportImage = useCallback(async (format: 'png' | 'pdf', filename = 'graph') => {
     const cy = cyRef.current;
     if (!cy) return;
-    const dataUrl = cy.png({ full: true, scale: 2, bg: '#111827' });
+    const dataUrl = cy.png({ full: true, scale: 2, bg: '#ffffff' });
     if (format === 'png') {
       const a = document.createElement('a');
       a.href = dataUrl;
       a.download = `${filename}.png`;
       a.click();
     } else {
-      const win = window.open('', '_blank');
-      if (!win) return;
-      win.document.write(`<!DOCTYPE html><html><head><title>${filename}</title><style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #111827; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-        img { max-width: 100%; max-height: 100vh; object-fit: contain; }
-        @media print { body { background: white; } img { max-width: 100%; max-height: 100%; page-break-inside: avoid; } }
-      </style></head><body><img src="${dataUrl}" /></body></html>`);
-      win.document.close();
-      win.addEventListener('load', () => win.print());
+      try {
+        await apiClient.exportGraph(filename, dataUrl);
+      } catch (err) {
+        alert(`PDF export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
   }, []);
 

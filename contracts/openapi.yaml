@@ -54,6 +54,10 @@ paths:
     $ref: './paths/admin-labeled-entities.yaml#/~1admin~1labeled-entities'
   /admin/labeled-entities/{id}:
     $ref: './paths/admin-labeled-entities.yaml#/~1admin~1labeled-entities~1{id}'
+  /exports/productions/{id}:
+    $ref: './paths/export.yaml#/~1exports~1productions~1{id}'
+  /exports/graph:
+    $ref: './paths/export.yaml#/~1exports~1graph'
 
 components:
   schemas:

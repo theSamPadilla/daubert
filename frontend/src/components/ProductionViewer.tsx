@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { FaPenToSquare, FaEye } from 'react-icons/fa6';
+import { FaPenToSquare, FaEye, FaDownload } from 'react-icons/fa6';
 import { apiClient, type Production } from '@/lib/api-client';
 import { ReportEditor } from './ReportEditor';
 import { ChartViewer } from './ChartViewer';
@@ -20,7 +20,9 @@ interface ProductionViewerProps {
 
 export function ProductionViewer({ production, onUpdate }: ProductionViewerProps) {
   const [editing, setEditing] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     return () => {
@@ -45,6 +47,26 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
     [production.id, onUpdate],
   );
 
+  const handleExport = useCallback(
+    async (format: 'pdf' | 'html') => {
+      setExportError(null);
+      let imageDataUrl: string | undefined;
+      if (production.type === 'chart') {
+        const canvas = contentRef.current?.querySelector('[data-chart-export] canvas, canvas') as HTMLCanvasElement | null;
+        if (canvas) {
+          imageDataUrl = canvas.toDataURL('image/png');
+        }
+      }
+      try {
+        await apiClient.exportProduction(production.id, format, production.name, imageDataUrl);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Export failed';
+        setExportError(msg);
+      }
+    },
+    [production.id, production.type, production.name],
+  );
+
   const data = production.data as any;
 
   return (
@@ -57,19 +79,41 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
             {production.type}
           </span>
         </div>
-        {production.type === 'report' && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setEditing(!editing)}
+            onClick={() => handleExport('pdf')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300"
           >
-            {editing ? <FaEye className="w-3.5 h-3.5" /> : <FaPenToSquare className="w-3.5 h-3.5" />}
-            {editing ? 'View' : 'Edit'}
+            <FaDownload className="w-3 h-3" /> PDF
           </button>
-        )}
+          <button
+            onClick={() => handleExport('html')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300"
+          >
+            <FaDownload className="w-3 h-3" /> HTML
+          </button>
+          {production.type === 'report' && (
+            <button
+              onClick={() => setEditing(!editing)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300"
+            >
+              {editing ? <FaEye className="w-3.5 h-3.5" /> : <FaPenToSquare className="w-3.5 h-3.5" />}
+              {editing ? 'View' : 'Edit'}
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* Export error */}
+      {exportError && (
+        <div className="mx-4 mt-2 p-2 rounded bg-red-900/50 text-red-300 text-sm flex items-center justify-between">
+          <span>Export failed: {exportError}</span>
+          <button onClick={() => setExportError(null)} className="text-red-400 hover:text-red-200 ml-2">dismiss</button>
+        </div>
+      )}
+
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div ref={contentRef} className="flex-1 overflow-y-auto p-4">
         {production.type === 'report' && (
           <ReportEditor
             content={data.content || ''}

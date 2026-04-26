@@ -428,6 +428,40 @@ export interface paths {
         patch: operations["adminUpdateLabeledEntity"];
         trace?: never;
     };
+    "/exports/productions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export a production as PDF or HTML */
+        post: operations["exportProduction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exports/graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export a graph snapshot as PDF */
+        post: operations["exportGraph"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1754,6 +1788,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LabeledEntity"];
+                };
+            };
+        };
+    };
+    exportProduction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    format: "pdf" | "html";
+                    /** @description PNG data URL (required for chart export) */
+                    imageDataUrl?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Exported file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                    "text/html": string;
+                };
+            };
+        };
+    };
+    exportGraph: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @description PNG data URL from Cytoscape (must start with data:image/png;base64, max 10MB) */
+                    imageDataUrl: string;
+                };
+            };
+        };
+        responses: {
+            /** @description PDF file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
                 };
             };
         };

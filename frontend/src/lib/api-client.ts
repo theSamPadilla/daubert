@@ -31,6 +31,34 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+async function downloadFile(path: string, filename: string, options?: RequestInit): Promise<void> {
+  const headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string>),
+  };
+
+  try {
+    const currentUser = getFirebaseAuth().currentUser;
+    if (currentUser) {
+      const token = await currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch {}
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || `Export error ${res.status}`);
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // Types matching the backend entities
 export interface User {
   id: string;
@@ -297,4 +325,18 @@ export const apiClient = {
     request<Production>(`/productions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteProduction: (id: string) =>
     request<void>(`/productions/${id}`, { method: 'DELETE' }),
+
+  // Export
+  exportProduction: (id: string, format: 'pdf' | 'html', filename: string, imageDataUrl?: string) =>
+    downloadFile(`/exports/productions/${id}`, `${filename.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()}.${format}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format, imageDataUrl }),
+    }),
+  exportGraph: (name: string, imageDataUrl: string) =>
+    downloadFile('/exports/graph', `${name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()}.pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, imageDataUrl }),
+    }),
 };

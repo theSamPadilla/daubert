@@ -1,0 +1,62 @@
+/exports/productions/{id}:
+  post:
+    summary: Export a production as PDF or HTML
+    operationId: exportProduction
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [format]
+            properties:
+              format:
+                type: string
+                enum: [pdf, html]
+              imageDataUrl:
+                type: string
+                description: PNG data URL (required for chart export)
+    responses:
+      '200':
+        description: Exported file
+        content:
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          text/html:
+            schema:
+              type: string
+
+/exports/graph:
+  post:
+    summary: Export a graph snapshot as PDF
+    operationId: exportGraph
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name, imageDataUrl]
+            properties:
+              name:
+                type: string
+              imageDataUrl:
+                type: string
+                description: PNG data URL from Cytoscape (must start with data:image/png;base64, max 10MB)
+    responses:
+      '200':
+        description: PDF file
+        content:
+          application/pdf:
+            schema:
+              type: string
+              format: binary

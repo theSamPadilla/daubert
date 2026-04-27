@@ -23,26 +23,34 @@ export class ConversationsController {
     private readonly aiService: AiService,
   ) {}
 
+  /**
+   * Conversations are user-only — script tokens have no `req.user` and are
+   * rejected here. Returns the user id for downstream service calls.
+   */
+  private requireUser(req: any): string {
+    if (!req.user) throw new ForbiddenException('User authentication required');
+    return req.user.id;
+  }
+
   @Post()
   create(@Body() dto: CreateConversationDto, @Req() req: any) {
-    return this.conversationsService.create(dto.caseId, req.user?.id);
+    return this.conversationsService.create(dto.caseId, this.requireUser(req));
   }
 
   @Get()
   findAll(@Req() req: any) {
-    if (!req.user) throw new ForbiddenException('Authentication required');
-    return this.conversationsService.findAllForUser(req.user.id);
+    return this.conversationsService.findAllForUser(this.requireUser(req));
   }
 
   @Get(':id/messages')
   getMessages(@Param('id') id: string, @Req() req: any) {
-    return this.conversationsService.getMessages(id, req.user?.id);
+    return this.conversationsService.getMessages(id, this.requireUser(req));
   }
 
   @Delete(':id')
   @HttpCode(204)
   delete(@Param('id') id: string, @Req() req: any) {
-    return this.conversationsService.delete(id, req.user?.id);
+    return this.conversationsService.delete(id, this.requireUser(req));
   }
 
   @Post(':id/chat')
@@ -52,8 +60,9 @@ export class ConversationsController {
     @Req() req: any,
     @Res() res: Response,
   ) {
-    // Verify access to the conversation before streaming
-    await this.conversationsService.findOne(id, req.user?.id);
+    // Verify access to the conversation before streaming (also rejects script tokens)
+    const userId = this.requireUser(req);
+    await this.conversationsService.findOne(id, userId);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -68,7 +77,7 @@ export class ConversationsController {
     );
 
     try {
-      for await (const event of this.aiService.streamChat(id, body.message, body.caseId, body.investigationId, body.attachments, body.model)) {
+      for await (const event of this.aiService.streamChat(id, userId, body.message, body.caseId, body.investigationId, body.attachments, body.model)) {
         res.write(
           `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`,
         );

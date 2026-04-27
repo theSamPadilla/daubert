@@ -10,11 +10,13 @@ import { CaseAccessService } from './case-access.service';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
 import { UsersModule } from '../users/users.module';
+import { ScriptModule } from '../script/script.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([CaseMemberEntity, CaseEntity]),
     UsersModule,
+    ScriptModule,
   ],
   controllers: [AuthController],
   providers: [

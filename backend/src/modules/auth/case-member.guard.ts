@@ -11,6 +11,18 @@ import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 
+/**
+ * Guards routes that have `:caseId` in the URL path. Confirms the requesting
+ * user is a member of that case and attaches the membership to the request.
+ *
+ * Script-token rejection: this guard reads `req.user`, which is set only on
+ * the Firebase auth path. Script-token requests never have `req.user`, so
+ * any route protected by this guard 403s for scripts. That's intentional —
+ * routes shaped `/cases/:caseId/...` are user-only by design (case
+ * administration, member management, conversations). Script-callable routes
+ * use `:traceId` / `:investigationId` URL params and rely on service-layer
+ * `assertAccess(principal, ...)` checks instead.
+ */
 @Injectable()
 export class CaseMemberGuard implements CanActivate {
   constructor(

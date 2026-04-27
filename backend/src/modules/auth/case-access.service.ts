@@ -2,12 +2,8 @@ import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
+import { AccessPrincipal } from './access-principal';
 
-/**
- * Shared service for verifying case membership.
- * Inject this into any service that needs to check whether a user
- * has access to a resource's parent case.
- */
 @Injectable()
 export class CaseAccessService {
   constructor(
@@ -16,11 +12,25 @@ export class CaseAccessService {
   ) {}
 
   /**
-   * Throws ForbiddenException if the user is not a member of the case.
-   * Returns the membership record on success.
+   * Assert that the principal can access the given case.
+   * - User principal: must be a member of the case.
+   * - Script principal: token's caseId must match the resource's caseId.
+   * Throws ForbiddenException on mismatch.
    */
-  async assertAccess(userId: string, caseId: string): Promise<CaseMemberEntity> {
-    const membership = await this.memberRepo.findOneBy({ userId, caseId });
+  async assertAccess(
+    principal: AccessPrincipal,
+    caseId: string,
+  ): Promise<CaseMemberEntity | null> {
+    if (principal.kind === 'script') {
+      if (principal.caseId !== caseId) {
+        throw new ForbiddenException('cross_case_access');
+      }
+      return null;
+    }
+    const membership = await this.memberRepo.findOneBy({
+      userId: principal.userId,
+      caseId,
+    });
     if (!membership) {
       throw new ForbiddenException('You do not have access to this case');
     }

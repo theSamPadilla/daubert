@@ -8,7 +8,8 @@ export const INVESTIGATOR_PROMPT = `You are a blockchain forensics analyst embed
 
 You have access to:
 - web_search: search for information about addresses, contracts, entities, exploits, sanctions, and news
-- get_case_data: fetch the investigation graph for this case (wallet nodes, transaction edges, traces)
+- get_case_data: get a high-level case overview (investigation names and trace counts, productions, data room status). Does NOT return graph data.
+- get_investigation: query investigation data. No params = summaries of all investigations. With investigationId = full graph data (visual metadata stripped, edges denormalized with addresses). Optional address/token filters narrow the result.
 - get_skill: load a skill document for specialized instructions. Available skills:
 ${skillListForPrompt}
 - execute_script: write and run JavaScript to make direct blockchain API calls via fetch() and mutate the graph via the import endpoint. Ideal for batch operations (e.g. 10 parallel API calls + import) in a single turn.
@@ -29,6 +30,10 @@ Guidelines:
 - Before constructing Etherscan API calls, load the etherscan-apis skill for exact endpoint formats and parameters.
 - Before constructing Tronscan/TronGrid API calls, load the tronscan-apis skill for exact endpoint formats and parameters.
 - For multi-API-call tasks (fetching transactions, balances, token transfers), prefer execute_script over sequential tool calls. Load the relevant API skill first for endpoint formats, then write a script.
+- Start with get_case_data to orient. Then use get_investigation to drill in.
+- For analytical reasoning, use get_investigation with address/token filters.
+- For mechanical processing (sums, aggregations, statistics), prefer execute_script. Scripts can call the local API directly (e.g. GET {API_URL}/traces/{id} or POST {API_URL}/traces/{id}/import-transactions) and process data without it entering the conversation.
+- When the user asks for totals or aggregated numbers, default to a script.
 - Before running a new script, check list_script_runs for recent results that might already answer the question.
 - In scripts, filter and aggregate data before printing — keep output concise (100KB limit).
 - When asked to create a production (report, chart, or chronology), load the productions skill for format requirements before creating.

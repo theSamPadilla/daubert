@@ -7,6 +7,46 @@ description: How to add, edit, and delete nodes, edges, and groups in the invest
 
 Add, edit, and delete wallet nodes, transaction edges, and groups in the investigation graph by writing scripts that call the backend API.
 
+## Reading Investigation Data from Scripts
+
+Scripts can read investigation and trace data directly from the local API. Auth is handled automatically via an injected `X-Script-Token` — just call the endpoints.
+
+### Read a trace (full data)
+
+```js
+const API_URL = process.env.API_URL;
+const TRACE_ID = 'TRACE_ID_HERE';
+
+const res = await fetch(`${API_URL}/traces/${TRACE_ID}`);
+const trace = await res.json();
+const nodes = trace.data.nodes || [];
+const edges = trace.data.edges || [];
+
+// Example: sum ETH transactions
+const ethTotal = edges
+  .filter(e => e.token === 'ETH')
+  .reduce((sum, e) => sum + parseFloat(e.amount), 0);
+console.log(`Total ETH flow: ${ethTotal}`);
+```
+
+### Read an investigation (with all traces)
+
+```js
+const res = await fetch(`${API_URL}/investigations/${INVESTIGATION_ID}`);
+const inv = await res.json();
+// inv.traces[] — IDs and names. Fetch /traces/:id for full data.
+```
+
+### When to use scripts vs get_investigation
+
+| Scenario | Use |
+|----------|-----|
+| Quick look at an address's activity | `get_investigation` with `address` filter |
+| Identify patterns or suspicious flows | `get_investigation` with filters |
+| Sum amounts, compute balances | Script |
+| Generate chart/report from data | Script to compute, then `create_production` |
+| Process 100+ edges | Script — data stays server-side |
+
 ## Import Endpoint
 
 ```
@@ -74,14 +114,12 @@ For ERC-20/TRC-20 tokens, use the token symbol from the API response (e.g. "USDT
 
 ```js
 const API_URL = process.env.API_URL;
-const ETHERSCAN_KEY = process.env.ETHERSCAN_API_KEY;
-const TRACE_ID = 'TRACE_ID_HERE'; // from get_case_data
+const TRACE_ID = 'TRACE_ID_HERE'; // from get_investigation
 
-// 1. Fetch transactions from Etherscan
+// 1. Fetch transactions from Etherscan — apikey is injected automatically by the bridge
 const qs = new URLSearchParams({
   chainid: '1', module: 'account', action: 'txlist',
   address: '0xTARGET', page: '1', offset: '100', sort: 'desc',
-  apikey: ETHERSCAN_KEY,
 });
 const res = await fetch(`https://api.etherscan.io/v2/api?${qs}`);
 const json = await res.json();
@@ -113,7 +151,7 @@ console.log(`Imported: ${result.added.nodes} nodes, ${result.added.edges} edges`
 
 ## Create a Group
 
-Groups visually cluster nodes within a trace. Use `get_case_data` to find node IDs first.
+Groups visually cluster nodes within a trace. Use `get_investigation` to find node IDs first.
 
 ```
 POST {API_URL}/traces/{traceId}/groups
@@ -206,7 +244,7 @@ All fields optional — only send what you want to change:
 | `notes` | Free-text notes |
 | `tags` | Array of tag strings |
 
-Returns the updated node object. The `nodeId` comes from `get_case_data`.
+Returns the updated node object. The `nodeId` comes from `get_investigation`.
 
 ## Edit an Edge
 
@@ -236,7 +274,7 @@ All fields optional — only send what you want to change:
 | `notes` | Free-text notes about this transaction |
 | `tags` | Array of tag strings |
 
-Returns the updated edge object. The `edgeId` comes from `get_case_data`.
+Returns the updated edge object. The `edgeId` comes from `get_investigation`.
 
 ## Delete an Edge
 
@@ -272,7 +310,7 @@ Returns `204 No Content`. Removes only the bundle metadata — the underlying ed
 
 ## Tips
 
-- Use `get_case_data` first to find the `traceId` for the target trace.
+- Use `get_investigation` first to find the `traceId` for the target trace.
 - Deduplication is built in — safe to import overlapping data.
 - For large datasets (hundreds of transactions), batch into chunks of ~100 per POST call.
 - Load the `blockchain-apis` skill for exact Etherscan/Tronscan endpoint formats.

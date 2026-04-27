@@ -42,7 +42,7 @@ export class ExportController {
       throw new BadRequestException('format must be "pdf" or "html"');
     }
 
-    const production = await this.productionsService.findOne(id, userId);
+    const production = await this.productionsService.findOne(id, { kind: 'user', userId });
     const data = production.data as any;
     let html: string;
 

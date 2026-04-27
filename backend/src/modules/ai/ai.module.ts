@@ -5,6 +5,8 @@ import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { ScriptRunEntity } from '../../database/entities/script-run.entity';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
+import { TraceEntity } from '../../database/entities/trace.entity';
+import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import { ScriptExecutionService } from './services/script-execution.service';
 import { AiController } from './ai.controller';
@@ -14,6 +16,7 @@ import { ConversationsService } from './conversations.service';
 import { AuthModule } from '../auth/auth.module';
 import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
 import { ProductionsModule } from '../productions/productions.module';
+import { ScriptModule } from '../script/script.module';
 
 @Module({
   imports: [
@@ -23,10 +26,13 @@ import { ProductionsModule } from '../productions/productions.module';
       InvestigationEntity,
       ScriptRunEntity,
       CaseMemberEntity,
+      TraceEntity,
+      DataRoomConnectionEntity,
     ]),
     AuthModule,
     LabeledEntitiesModule,
     ProductionsModule,
+    ScriptModule,
   ],
   controllers: [AiController, ConversationsController],
   providers: [

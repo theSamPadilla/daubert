@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   Inject,
+  Logger,
   UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -11,13 +12,18 @@ import * as admin from 'firebase-admin';
 import { FIREBASE_ADMIN } from './firebase-admin.provider';
 import { UsersService } from '../users/users.service';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { ScriptTokenService } from '../script/script-token.service';
+import { AccessPrincipal } from './access-principal';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
+  private readonly logger = new Logger(AuthGuard.name);
+
   constructor(
     @Inject(FIREBASE_ADMIN) private readonly firebaseApp: admin.app.App,
     private readonly usersService: UsersService,
     private readonly reflector: Reflector,
+    private readonly scriptToken: ScriptTokenService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -30,12 +36,28 @@ export class AuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
 
-    const authHeader = request.headers['authorization'];
+    // --- Path 1: script token ---
+    const scriptHeader = request.headers['x-script-token'];
+    if (scriptHeader) {
+      const result = this.scriptToken.verify(
+        Array.isArray(scriptHeader) ? scriptHeader[0] : scriptHeader,
+      );
+      if (!result) throw new UnauthorizedException('invalid_script_token');
+      const principal: AccessPrincipal = { kind: 'script', caseId: result.caseId };
+      request.principal = principal;
+      // NOTE: do NOT set request.user — keeps IsAdminGuard / CaseMemberGuard
+      // (which both read request.user) impervious to script tokens.
+      this.logger.debug(
+        `[script-auth] ${request.method} ${request.url} caseId=${result.caseId}`,
+      );
+      return true;
+    }
 
+    // --- Path 2: Firebase Bearer ---
+    const authHeader = request.headers['authorization'];
     if (!authHeader?.startsWith('Bearer ')) {
       throw new UnauthorizedException('Missing or invalid Authorization header');
     }
-
     const token = authHeader.slice(7);
 
     let decoded: admin.auth.DecodedIdToken;
@@ -45,10 +67,7 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    // Try to find user by firebaseUid
     let user = await this.usersService.findByFirebaseUid(decoded.uid);
-
-    // Email-match auto-link: first login for a pre-created user
     if (!user && decoded.email) {
       user = await this.usersService.findByEmail(decoded.email);
       if (user) {
@@ -58,16 +77,15 @@ export class AuthGuard implements CanActivate {
         });
       }
     }
-
     if (!user) {
       throw new ForbiddenException({
         code: 'NO_ACCOUNT',
-        message: `No account found for ${decoded.email}. Contact your administrator to get access.`,
+        message: `No account found for ${decoded.email}. Contact your administrator.`,
       });
     }
 
-    // Attach user to request for downstream use
     request.user = user;
+    request.principal = { kind: 'user', userId: user.id } satisfies AccessPrincipal;
     return true;
   }
 }

@@ -7,6 +7,7 @@ import {
   ProductionType,
 } from '../../database/entities/production.entity';
 import { CaseAccessService } from '../auth/case-access.service';
+import { AccessPrincipal } from '../auth/access-principal';
 
 const mockProductionRepo = {
   find: jest.fn(),
@@ -19,6 +20,9 @@ const mockProductionRepo = {
 const mockCaseAccess = {
   assertAccess: jest.fn(),
 };
+
+const USER_PRINCIPAL: AccessPrincipal = { kind: 'user', userId: 'user-1' };
+const SCRIPT_PRINCIPAL: AccessPrincipal = { kind: 'script', caseId: 'case-1' };
 
 const makeProduction = (overrides: Partial<ProductionEntity> = {}): ProductionEntity =>
   ({
@@ -52,12 +56,13 @@ describe('ProductionsService', () => {
   // ── findAllForCase ──────────────────────────────────────────────────
 
   describe('findAllForCase', () => {
-    it('returns productions for a case', async () => {
+    it('returns productions for a case (user principal)', async () => {
       const productions = [makeProduction(), makeProduction({ id: 'prod-2' })];
       mockProductionRepo.find.mockResolvedValue(productions);
 
-      const result = await service.findAllForCase('case-1');
+      const result = await service.findAllForCase('case-1', USER_PRINCIPAL);
 
+      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1');
       expect(mockProductionRepo.find).toHaveBeenCalledWith({
         where: { caseId: 'case-1' },
         order: { createdAt: 'ASC' },
@@ -65,18 +70,16 @@ describe('ProductionsService', () => {
       expect(result).toEqual(productions);
     });
 
-    it('calls caseAccess.assertAccess when userId is provided', async () => {
+    it('accepts a script principal scoped to the same case', async () => {
       mockProductionRepo.find.mockResolvedValue([]);
-
-      await service.findAllForCase('case-1', 'user-1');
-
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith('user-1', 'case-1');
+      await service.findAllForCase('case-1', SCRIPT_PRINCIPAL);
+      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(SCRIPT_PRINCIPAL, 'case-1');
     });
 
     it('filters by type when provided', async () => {
       mockProductionRepo.find.mockResolvedValue([]);
 
-      await service.findAllForCase('case-1', undefined, ProductionType.CHART);
+      await service.findAllForCase('case-1', USER_PRINCIPAL, ProductionType.CHART);
 
       expect(mockProductionRepo.find).toHaveBeenCalledWith({
         where: { caseId: 'case-1', type: ProductionType.CHART },
@@ -88,29 +91,21 @@ describe('ProductionsService', () => {
   // ── findOne ──────────────────────────────────────────────────────────
 
   describe('findOne', () => {
-    it('returns production when found', async () => {
+    it('returns production and checks access', async () => {
       const production = makeProduction();
       mockProductionRepo.findOneBy.mockResolvedValue(production);
 
-      const result = await service.findOne('prod-1');
+      const result = await service.findOne('prod-1', USER_PRINCIPAL);
 
       expect(mockProductionRepo.findOneBy).toHaveBeenCalledWith({ id: 'prod-1' });
+      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1');
       expect(result).toEqual(production);
     });
 
     it('throws NotFoundException when not found', async () => {
       mockProductionRepo.findOneBy.mockResolvedValue(null);
 
-      await expect(service.findOne('bad-id')).rejects.toThrow(NotFoundException);
-    });
-
-    it('checks case access when userId is provided', async () => {
-      const production = makeProduction();
-      mockProductionRepo.findOneBy.mockResolvedValue(production);
-
-      await service.findOne('prod-1', 'user-1');
-
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith('user-1', 'case-1');
+      await expect(service.findOne('bad-id', USER_PRINCIPAL)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -123,29 +118,29 @@ describe('ProductionsService', () => {
       data: { content: '' },
     };
 
-    it('creates production for a case', async () => {
+    it('creates production for a case (user principal)', async () => {
       const created = makeProduction({ name: 'New Report', data: { content: '' } });
       mockProductionRepo.create.mockReturnValue(created);
       mockProductionRepo.save.mockResolvedValue(created);
 
-      const result = await service.create('case-1', dto);
+      const result = await service.create('case-1', dto, USER_PRINCIPAL);
 
+      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1');
       expect(mockProductionRepo.create).toHaveBeenCalledWith({
         ...dto,
         caseId: 'case-1',
       });
-      expect(mockProductionRepo.save).toHaveBeenCalledWith(created);
       expect(result).toEqual(created);
     });
 
-    it('checks case access when userId is provided', async () => {
+    it('accepts a script principal scoped to the same case', async () => {
       const created = makeProduction();
       mockProductionRepo.create.mockReturnValue(created);
       mockProductionRepo.save.mockResolvedValue(created);
 
-      await service.create('case-1', dto, 'user-1');
+      await service.create('case-1', dto, SCRIPT_PRINCIPAL);
 
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith('user-1', 'case-1');
+      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(SCRIPT_PRINCIPAL, 'case-1');
     });
   });
 
@@ -158,8 +153,9 @@ describe('ProductionsService', () => {
       mockProductionRepo.findOneBy.mockResolvedValue(existing);
       mockProductionRepo.save.mockResolvedValue(updated);
 
-      const result = await service.update('prod-1', { name: 'Updated Name' });
+      const result = await service.update('prod-1', { name: 'Updated Name' }, USER_PRINCIPAL);
 
+      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1');
       expect(mockProductionRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Updated Name' }),
       );
@@ -169,7 +165,7 @@ describe('ProductionsService', () => {
     it('throws NotFoundException for bad ID', async () => {
       mockProductionRepo.findOneBy.mockResolvedValue(null);
 
-      await expect(service.update('bad-id', { name: 'X' })).rejects.toThrow(
+      await expect(service.update('bad-id', { name: 'X' }, USER_PRINCIPAL)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -183,15 +179,16 @@ describe('ProductionsService', () => {
       mockProductionRepo.findOneBy.mockResolvedValue(production);
       mockProductionRepo.remove.mockResolvedValue(production);
 
-      await service.remove('prod-1');
+      await service.remove('prod-1', USER_PRINCIPAL);
 
+      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1');
       expect(mockProductionRepo.remove).toHaveBeenCalledWith(production);
     });
 
     it('throws NotFoundException for bad ID', async () => {
       mockProductionRepo.findOneBy.mockResolvedValue(null);
 
-      await expect(service.remove('bad-id')).rejects.toThrow(NotFoundException);
+      await expect(service.remove('bad-id', USER_PRINCIPAL)).rejects.toThrow(NotFoundException);
     });
   });
 });

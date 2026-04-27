@@ -29,6 +29,7 @@ const mockCaseAccess = {
 const INV_ID = 'inv-1';
 const CASE_ID = 'case-1';
 const USER_ID = 'user-1';
+const PRINCIPAL = { kind: 'user' as const, userId: USER_ID };
 
 const investigation = { id: INV_ID, caseId: CASE_ID } as InvestigationEntity;
 
@@ -91,7 +92,7 @@ describe('TracesService', () => {
       mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.find.mockResolvedValue(traces);
 
-      const result = await service.findAllForInvestigation(INV_ID);
+      const result = await service.findAllForInvestigation(INV_ID, PRINCIPAL);
 
       expect(result).toEqual(traces);
       expect(mockInvRepo.findOneBy).toHaveBeenCalledWith({ id: INV_ID });
@@ -104,26 +105,27 @@ describe('TracesService', () => {
     it('throws NotFoundException for an invalid investigation', async () => {
       mockInvRepo.findOneBy.mockResolvedValue(null);
 
-      await expect(service.findAllForInvestigation('bad-id')).rejects.toThrow(
+      await expect(service.findAllForInvestigation('bad-id', PRINCIPAL)).rejects.toThrow(
         NotFoundException,
       );
     });
 
-    it('checks access when userId is provided', async () => {
+    it('checks access via assertAccess with the principal', async () => {
       mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.find.mockResolvedValue([]);
 
-      await service.findAllForInvestigation(INV_ID, USER_ID);
+      await service.findAllForInvestigation(INV_ID, PRINCIPAL);
 
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_ID, CASE_ID);
+      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(PRINCIPAL, CASE_ID);
     });
   });
 
   describe('findOne', () => {
     it('returns a trace by id', async () => {
       mockTraceRepo.findOneBy.mockResolvedValue(baseTrace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
 
-      const result = await service.findOne('trace-1');
+      const result = await service.findOne('trace-1', PRINCIPAL);
 
       expect(result).toEqual(baseTrace);
       expect(mockTraceRepo.findOneBy).toHaveBeenCalledWith({ id: 'trace-1' });
@@ -132,16 +134,16 @@ describe('TracesService', () => {
     it('throws NotFoundException when trace does not exist', async () => {
       mockTraceRepo.findOneBy.mockResolvedValue(null);
 
-      await expect(service.findOne('missing')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('missing', PRINCIPAL)).rejects.toThrow(NotFoundException);
     });
 
-    it('checks access when userId is provided', async () => {
+    it('checks access via assertAccess with the principal', async () => {
       mockTraceRepo.findOneBy.mockResolvedValue(baseTrace);
       mockInvRepo.findOneBy.mockResolvedValue(investigation);
 
-      await service.findOne('trace-1', USER_ID);
+      await service.findOne('trace-1', PRINCIPAL);
 
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_ID, CASE_ID);
+      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(PRINCIPAL, CASE_ID);
     });
   });
 
@@ -153,7 +155,7 @@ describe('TracesService', () => {
       mockTraceRepo.create.mockReturnValue(created);
       mockTraceRepo.save.mockResolvedValue(created);
 
-      const result = await service.create(INV_ID, dto);
+      const result = await service.create(INV_ID, dto, PRINCIPAL);
 
       expect(mockTraceRepo.create).toHaveBeenCalledWith({
         name: 'New Trace',
@@ -171,7 +173,7 @@ describe('TracesService', () => {
       mockInvRepo.findOneBy.mockResolvedValue(null);
 
       await expect(
-        service.create('bad-inv', { name: 'Test' }),
+        service.create('bad-inv', { name: 'Test' }, PRINCIPAL),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -180,9 +182,10 @@ describe('TracesService', () => {
     it('updates only specified fields', async () => {
       const existing = { ...baseTrace, name: 'Old Name', visible: true };
       mockTraceRepo.findOneBy.mockResolvedValue(existing);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
 
-      const result = await service.update('trace-1', { name: 'New Name' });
+      const result = await service.update('trace-1', { name: 'New Name' }, PRINCIPAL);
 
       expect(result.name).toBe('New Name');
       // visible was not in the dto, so it should remain unchanged
@@ -194,9 +197,10 @@ describe('TracesService', () => {
   describe('remove', () => {
     it('removes the trace', async () => {
       mockTraceRepo.findOneBy.mockResolvedValue(baseTrace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.remove.mockResolvedValue(undefined);
 
-      await service.remove('trace-1');
+      await service.remove('trace-1', PRINCIPAL);
 
       expect(mockTraceRepo.remove).toHaveBeenCalledWith(baseTrace);
     });
@@ -204,7 +208,7 @@ describe('TracesService', () => {
     it('throws NotFoundException when trace does not exist', async () => {
       mockTraceRepo.findOneBy.mockResolvedValue(null);
 
-      await expect(service.remove('missing')).rejects.toThrow(NotFoundException);
+      await expect(service.remove('missing', PRINCIPAL)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -214,12 +218,13 @@ describe('TracesService', () => {
     it('updates a node in trace.data.nodes', async () => {
       const trace = structuredClone(traceWithData);
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
 
       const result = await service.updateNode('trace-1', 'n1', {
         label: 'Updated Node 1',
         color: '#00ff00',
-      });
+      }, PRINCIPAL);
 
       expect(result.label).toBe('Updated Node 1');
       expect(result.color).toBe('#00ff00');
@@ -237,9 +242,10 @@ describe('TracesService', () => {
     it('throws NotFoundException for a missing node', async () => {
       const trace = structuredClone(traceWithData);
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
 
       await expect(
-        service.updateNode('trace-1', 'nonexistent', { label: 'X' }),
+        service.updateNode('trace-1', 'nonexistent', { label: 'X' }, PRINCIPAL),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -248,12 +254,13 @@ describe('TracesService', () => {
     it('updates an edge in trace.data.edges', async () => {
       const trace = structuredClone(traceWithData);
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
 
       const result = await service.updateEdge('trace-1', 'e1', {
         label: 'Transfer',
         amount: '1.5',
-      });
+      }, PRINCIPAL);
 
       expect(result.label).toBe('Transfer');
       expect(result.amount).toBe('1.5');
@@ -270,11 +277,12 @@ describe('TracesService', () => {
       // Pre-set a token on the edge
       (trace.data as any).edges[0].token = { symbol: 'ETH', decimals: 18 };
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
 
       const result = await service.updateEdge('trace-1', 'e1', {
         token: { address: '0xtoken' },
-      });
+      }, PRINCIPAL);
 
       expect(result.token).toEqual({
         symbol: 'ETH',
@@ -286,9 +294,10 @@ describe('TracesService', () => {
     it('throws NotFoundException for a missing edge', async () => {
       const trace = structuredClone(traceWithData);
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
 
       await expect(
-        service.updateEdge('trace-1', 'nonexistent', { label: 'X' }),
+        service.updateEdge('trace-1', 'nonexistent', { label: 'X' }, PRINCIPAL),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -299,9 +308,10 @@ describe('TracesService', () => {
     it('removes the node and all connected edges', async () => {
       const trace = structuredClone(traceWithData);
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
 
-      await service.deleteNode('trace-1', 'n2');
+      await service.deleteNode('trace-1', 'n2', PRINCIPAL);
 
       const savedData = mockTraceRepo.save.mock.calls[0][0].data;
 
@@ -317,9 +327,10 @@ describe('TracesService', () => {
       // Add an edge not connected to n1
       (trace.data as any).edges.push({ id: 'e3', from: 'n2', to: 'n3', txHash: '0x333' });
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
 
-      await service.deleteNode('trace-1', 'n1');
+      await service.deleteNode('trace-1', 'n1', PRINCIPAL);
 
       const savedData = mockTraceRepo.save.mock.calls[0][0].data;
       // e1 (n1->n2) removed, e2 and e3 remain
@@ -329,9 +340,10 @@ describe('TracesService', () => {
     it('throws NotFoundException for a missing node', async () => {
       const trace = structuredClone(traceWithData);
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
 
       await expect(
-        service.deleteNode('trace-1', 'nonexistent'),
+        service.deleteNode('trace-1', 'nonexistent', PRINCIPAL),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -340,9 +352,10 @@ describe('TracesService', () => {
     it('removes the edge and cleans up edge bundles', async () => {
       const trace = structuredClone(traceWithData);
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
 
-      await service.deleteEdge('trace-1', 'e1');
+      await service.deleteEdge('trace-1', 'e1', PRINCIPAL);
 
       const savedData = mockTraceRepo.save.mock.calls[0][0].data;
 
@@ -362,9 +375,10 @@ describe('TracesService', () => {
       // Make b1 only reference e1 so it becomes empty when e1 is deleted
       (trace.data as any).edgeBundles[0].edgeIds = ['e1'];
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
 
-      await service.deleteEdge('trace-1', 'e1');
+      await service.deleteEdge('trace-1', 'e1', PRINCIPAL);
 
       const savedData = mockTraceRepo.save.mock.calls[0][0].data;
 
@@ -377,9 +391,10 @@ describe('TracesService', () => {
     it('throws NotFoundException for a missing edge', async () => {
       const trace = structuredClone(traceWithData);
       mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
 
       await expect(
-        service.deleteEdge('trace-1', 'nonexistent'),
+        service.deleteEdge('trace-1', 'nonexistent', PRINCIPAL),
       ).rejects.toThrow(NotFoundException);
     });
   });

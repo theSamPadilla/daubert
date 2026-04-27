@@ -5,6 +5,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import * as XLSX from 'xlsx';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
+import { TraceEntity } from '../../database/entities/trace.entity';
+import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
 import { INVESTIGATOR_PROMPT } from '../../prompts/investigator';
 import { ConversationsService } from './conversations.service';
 import { ScriptExecutionService } from './services/script-execution.service';
@@ -16,6 +18,7 @@ import { AnthropicProvider } from './providers/anthropic.provider';
 import {
   AGENT_TOOLS,
   GET_CASE_DATA_TOOL,
+  GET_INVESTIGATION_TOOL,
   GET_SKILL_TOOL,
   EXECUTE_SCRIPT_TOOL,
   LIST_SCRIPT_RUNS_TOOL,
@@ -26,6 +29,7 @@ import {
   SKILL_NAMES,
   getSkillContent,
 } from './tools';
+import { stripTraceForAgent, filterTraceData } from './investigation-data.utils';
 import { AttachmentDto } from './dto/chat-message.dto';
 
 /**
@@ -188,22 +192,27 @@ export class AiService {
     private readonly messageRepo: Repository<MessageEntity>,
     @InjectRepository(InvestigationEntity)
     private readonly investigationRepo: Repository<InvestigationEntity>,
+    @InjectRepository(TraceEntity)
+    private readonly traceRepo: Repository<TraceEntity>,
+    @InjectRepository(DataRoomConnectionEntity)
+    private readonly dataRoomRepo: Repository<DataRoomConnectionEntity>,
   ) {}
 
   async *streamChat(
     conversationId: string,
+    userId: string,
     userMessage: string | undefined,
     caseId?: string,
     investigationId?: string,
     attachments?: AttachmentDto[],
     model?: string,
   ): AsyncGenerator<SseEvent> {
-    await this.conversationsService.findOne(conversationId);
+    await this.conversationsService.findOne(conversationId, userId);
 
     // Load history and reconstruct MessageParam[] verbatim.
     // The Anthropic provider strips server-side and thinking blocks at the
     // stream layer, so persisted history is already clean of them.
-    const dbMessages = await this.conversationsService.getMessages(conversationId);
+    const dbMessages = await this.conversationsService.getMessages(conversationId, userId);
     const rawMessages: Anthropic.Beta.BetaMessageParam[] = dbMessages.map(
       (m) => ({ role: m.role, content: m.content }),
     ) as Anthropic.Beta.BetaMessageParam[];
@@ -475,11 +484,19 @@ export class AiService {
         if (!caseId) {
           return { error: 'No case context. Ask the user to select an investigation.' };
         }
-        const toolInput = toolUse.input as { investigationId?: string };
-        return this.executeCaseDataTool(
-          caseId,
-          investigationId ? { investigationId } : toolInput,
-        );
+        return this.executeCaseDataTool(caseId);
+      }
+
+      case GET_INVESTIGATION_TOOL.name: {
+        if (!caseId) {
+          return { error: 'No case context. Ask the user to select an investigation.' };
+        }
+        const input = toolUse.input as {
+          investigationId?: string;
+          address?: string;
+          token?: string;
+        };
+        return this.executeInvestigationTool(caseId, input, investigationId);
       }
 
       case GET_SKILL_TOOL.name: {
@@ -488,11 +505,11 @@ export class AiService {
       }
 
       case EXECUTE_SCRIPT_TOOL.name: {
-        if (!investigationId) {
+        if (!investigationId || !caseId) {
           return { error: 'No investigation context. Ask the user to select an investigation.' };
         }
         const { name, code } = toolUse.input as { name: string; code: string };
-        return this.scriptExecutionService.execute(investigationId, name, code);
+        return this.scriptExecutionService.execute(investigationId, caseId, name, code);
       }
 
       case LIST_SCRIPT_RUNS_TOOL.name: {
@@ -533,37 +550,41 @@ export class AiService {
         if (!validTypes.has(input.type as ProductionType)) {
           return { error: `Invalid production type: ${input.type}` };
         }
-        return this.productionsService.create(caseId, {
-          name: input.name,
-          type: input.type as ProductionType,
-          data: input.data,
-        });
+        return this.productionsService.create(
+          caseId,
+          { name: input.name, type: input.type as ProductionType, data: input.data },
+          { kind: 'script', caseId },
+        );
       }
 
       case READ_PRODUCTION_TOOL.name: {
         const input = toolUse.input as { productionId?: string; type?: string };
-        if (input.productionId) {
-          return this.productionsService.findOne(input.productionId);
-        }
         if (!caseId) {
           return { error: 'No case context. Ask the user to open a case.' };
+        }
+        if (input.productionId) {
+          return this.productionsService.findOne(input.productionId, { kind: 'script', caseId });
         }
         const validTypes = new Set(Object.values(ProductionType));
         const type = input.type && validTypes.has(input.type as ProductionType)
           ? (input.type as ProductionType)
           : undefined;
-        return this.productionsService.findAllForCase(caseId, undefined, type);
+        return this.productionsService.findAllForCase(caseId, { kind: 'script', caseId }, type);
       }
 
       case UPDATE_PRODUCTION_TOOL.name: {
+        if (!caseId) {
+          return { error: 'No case context. Ask the user to open a case.' };
+        }
         const input = toolUse.input as { productionId: string; name?: string; data?: Record<string, unknown> };
         if (!input.productionId) {
           return { error: 'productionId is required' };
         }
-        return this.productionsService.update(input.productionId, {
-          name: input.name,
-          data: input.data,
-        });
+        return this.productionsService.update(
+          input.productionId,
+          { name: input.name, data: input.data },
+          { kind: 'script', caseId },
+        );
       }
 
       default:
@@ -573,29 +594,84 @@ export class AiService {
 
   // ---- Tool implementations ----
 
-  private async executeCaseDataTool(
-    caseId: string,
-    input: { investigationId?: string },
-  ): Promise<unknown> {
-    const where = input.investigationId
-      ? { id: input.investigationId, caseId }
-      : { caseId };
-
+  private async executeCaseDataTool(caseId: string): Promise<unknown> {
     const investigations = await this.investigationRepo.find({
-      where,
+      where: { caseId },
       relations: ['traces'],
+      order: { createdAt: 'ASC' },
     });
 
-    return investigations.map((inv) => ({
+    const investigationSummaries = investigations.map((inv) => ({
       id: inv.id,
       name: inv.name,
-      notes: inv.notes,
-      traces: inv.traces.map((t) => ({
-        id: t.id,
-        name: t.name,
-        data: t.data,
-      })),
+      traceCount: inv.traces.length,
+      totalNodes: inv.traces.reduce(
+        (sum, t) => sum + ((t.data as any)?.nodes?.length || 0), 0,
+      ),
+      totalEdges: inv.traces.reduce(
+        (sum, t) => sum + ((t.data as any)?.edges?.length || 0), 0,
+      ),
     }));
+
+    // Access already verified at conversation level; pass a script principal
+    // bounded to this caseId — assertAccess just checks principal.caseId === caseId.
+    const productions = await this.productionsService.findAllForCase(
+      caseId,
+      { kind: 'script', caseId },
+    );
+    const productionSummaries = (productions as any[]).map((p) => ({
+      id: p.id,
+      name: p.name,
+      type: p.type,
+    }));
+
+    const drConn = await this.dataRoomRepo.findOneBy({ caseId });
+    const dataRoom = drConn
+      ? { connected: true, folderName: drConn.folderName, status: drConn.status }
+      : { connected: false };
+
+    return { investigations: investigationSummaries, productions: productionSummaries, dataRoom };
+  }
+
+  private async executeInvestigationTool(
+    caseId: string,
+    input: { investigationId?: string; address?: string; token?: string },
+    contextInvestigationId?: string,
+  ): Promise<unknown> {
+    const invId = input.investigationId || contextInvestigationId;
+
+    if (!invId) {
+      const investigations = await this.investigationRepo.find({
+        where: { caseId },
+        relations: ['traces'],
+        order: { createdAt: 'ASC' },
+      });
+      return investigations.map((inv) => ({
+        id: inv.id,
+        name: inv.name,
+        notes: inv.notes,
+        traces: inv.traces.map((t) => ({
+          id: t.id,
+          name: t.name,
+          nodeCount: ((t.data as any)?.nodes?.length) || 0,
+          edgeCount: ((t.data as any)?.edges?.length) || 0,
+        })),
+      }));
+    }
+
+    const investigation = await this.investigationRepo.findOne({
+      where: { id: invId, caseId },
+      relations: ['traces'],
+    });
+    if (!investigation) return { error: `Investigation ${invId} not found` };
+
+    const traces = investigation.traces.map((t) => {
+      const stripped = stripTraceForAgent(t.data);
+      const filtered = filterTraceData(stripped, input.address, input.token);
+      return { id: t.id, name: t.name, ...filtered };
+    });
+
+    return { id: investigation.id, name: investigation.name, notes: investigation.notes, traces };
   }
 
   private loadSkill(name: string): { content: string } | { error: string } {

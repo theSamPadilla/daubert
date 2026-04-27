@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as ivm from 'isolated-vm';
 import { ScriptRunEntity } from '../../../database/entities/script-run.entity';
+import { ScriptTokenService } from '../../script/script-token.service';
 
 const TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_BYTES = 100 * 1024; // 100KB
@@ -49,7 +50,10 @@ const BASE_ALLOWED_DOMAINS = [
   'api.shasta.trongrid.io',
 ];
 
-/** Loopback — only allowed in non-production for local API callbacks. */
+/**
+ * Loopback — allows scripts to call the local backend API.
+ * Enabled by default in dev. In production, requires SCRIPT_ALLOW_LOOPBACK=true.
+ */
 const LOOPBACK_DOMAINS = ['localhost', '127.0.0.1'];
 
 export interface ScriptResult {
@@ -70,24 +74,29 @@ export class ScriptExecutionService {
     private readonly configService: ConfigService,
     @InjectRepository(ScriptRunEntity)
     private readonly scriptRunRepo: Repository<ScriptRunEntity>,
+    private readonly scriptToken: ScriptTokenService,
   ) {
     const extra = (this.configService.get<string>('SCRIPT_ALLOWED_DOMAINS') || '')
       .split(',')
       .map((d) => d.trim())
       .filter(Boolean);
 
-    const isProd = this.configService.get<string>('NODE_ENV') === 'production';
-    const loopback = isProd ? [] : LOOPBACK_DOMAINS;
+    const allowLoopback =
+      this.configService.get<string>('NODE_ENV') !== 'production' ||
+      this.configService.get<string>('SCRIPT_ALLOW_LOOPBACK') === 'true';
+    const loopback = allowLoopback ? LOOPBACK_DOMAINS : [];
 
     this.allowedDomains = new Set([...BASE_ALLOWED_DOMAINS, ...loopback, ...extra]);
   }
 
   async execute(
     investigationId: string,
+    caseId: string,
     name: string,
     code: string,
   ): Promise<ScriptResult & { savedRun: ScriptRunEntity }> {
-    const result = await this.runInIsolate(code);
+    const token = this.scriptToken.sign(caseId);
+    const result = await this.runInIsolate(code, token);
 
     const savedRun = await this.scriptRunRepo.save(
       this.scriptRunRepo.create({
@@ -194,15 +203,36 @@ export class ScriptExecutionService {
     return url;
   }
 
+  /**
+   * Redact API key values from any string returned to the script sandbox.
+   *
+   * Why: Etherscan V2 only accepts the key as `?apikey=` in the URL (header
+   * auth 401s). That URL can leak back to scripts via:
+   *  - Response bodies that echo the request (some Etherscan errors do this)
+   *  - Fetch exception messages that include the URL (DNS errors, redirects)
+   *
+   * We swap the literal key string with `<REDACTED>`. Cheap and reliable —
+   * no legitimate use case needs the raw key in a script-visible string.
+   */
+  private redactSecrets(s: string): string {
+    if (!s) return s;
+    const eth = this.configService.get<string>('ETHERSCAN_API_KEY');
+    const tron = this.configService.get<string>('TRONSCAN_API_KEY');
+    let out = s;
+    if (eth) out = out.split(eth).join('<REDACTED>');
+    if (tron) out = out.split(tron).join('<REDACTED>');
+    return out;
+  }
+
   // ---- Isolate execution ----
 
-  private async runInIsolate(code: string): Promise<ScriptResult> {
+  private async runInIsolate(code: string, scriptToken?: string): Promise<ScriptResult> {
     await this.acquireSlot();
     const start = Date.now();
     const isolate = new ivm.Isolate({ memoryLimit: MEMORY_LIMIT_MB });
 
     try {
-      return await this.executeInContext(isolate, code, start);
+      return await this.executeInContext(isolate, code, start, scriptToken);
     } finally {
       if (!isolate.isDisposed) isolate.dispose();
       this.releaseSlot();
@@ -213,6 +243,7 @@ export class ScriptExecutionService {
     isolate: ivm.Isolate,
     code: string,
     start: number,
+    scriptToken?: string,
   ): Promise<ScriptResult> {
     const logs: string[] = [];
     let totalLogBytes = 0;
@@ -289,12 +320,20 @@ export class ScriptExecutionService {
             // follow redirects must do so manually (each hop re-validated).
             opts.redirect = 'error';
 
+            const parsed = new URL(url);
+            if (LOOPBACK_DOMAINS.includes(parsed.hostname) && scriptToken) {
+              opts.headers = {
+                ...(opts.headers || {}),
+                'X-Script-Token': scriptToken,
+              };
+            }
+
             // Inject API keys at the bridge level — scripts never see them.
             // Keys are appended to the URL or headers based on the domain.
             url = this.injectApiKey(url, opts);
 
             const res = await fetch(url, opts);
-            const body = await res.text();
+            const body = this.redactSecrets(await res.text());
             return new ivm.ExternalCopy({
               ok: res.ok,
               status: res.status,
@@ -308,7 +347,7 @@ export class ScriptExecutionService {
               status: isRedirect ? 301 : 0,
               body: isRedirect
                 ? `Blocked: server returned a redirect (redirects are disabled for security)`
-                : `Fetch error: ${msg}`,
+                : this.redactSecrets(`Fetch error: ${msg}`),
             }).copyInto();
           }
         }),

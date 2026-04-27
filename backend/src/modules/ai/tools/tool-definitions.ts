@@ -13,15 +13,26 @@ export const WEB_SEARCH_TOOL = {
 export const GET_CASE_DATA_TOOL: Anthropic.Tool = {
   name: 'get_case_data',
   description:
-    'Fetch the investigation graph for this case. Returns all investigations with their wallet nodes and transaction edges. Use this when the user asks about addresses, transactions, or patterns in their investigation.',
+    'Get a high-level overview of this case: investigations (names, trace counts), productions (names, types), and data room connection status. Does NOT return graph data — use get_investigation for that.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {},
+    required: [],
+  },
+};
+
+// ---------- Investigation data ----------
+
+export const GET_INVESTIGATION_TOOL: Anthropic.Tool = {
+  name: 'get_investigation',
+  description:
+    'Query investigation data. Without investigationId: returns summaries of all investigations (per-trace node/edge counts). With investigationId: returns full graph data (nodes, edges, groups, bundles — visual metadata stripped, edges denormalized with addresses). Optional address and token filters narrow the result. For very large datasets, prefer execute_script that fetches data via the local API and processes it without entering the conversation.',
   input_schema: {
     type: 'object' as const,
     properties: {
-      investigationId: {
-        type: 'string',
-        description:
-          'Optional. Fetch data for a specific investigation by ID. If omitted, returns all investigations for the case.',
-      },
+      investigationId: { type: 'string', description: 'Investigation ID. Omit for summaries.' },
+      address: { type: 'string', description: 'Filter to nodes matching this address and their incident edges.' },
+      token: { type: 'string', description: 'Filter to edges with this token symbol (e.g. "ETH", "USDT").' },
     },
     required: [],
   },

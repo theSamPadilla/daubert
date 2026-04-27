@@ -6,6 +6,7 @@ import { UpdateNodeDto } from './dto/update-node.dto';
 import { UpdateEdgeDto } from './dto/update-edge.dto';
 import { CreateGroupDto, UpdateGroupDto } from './dto/group.dto';
 import { ImportTransactionsDto } from './dto/import-transactions.dto';
+import { getPrincipal } from '../auth/access-principal';
 
 @Controller()
 export class TracesController {
@@ -13,7 +14,7 @@ export class TracesController {
 
   @Get('investigations/:investigationId/traces')
   findAllForInvestigation(@Param('investigationId') investigationId: string, @Req() req: any) {
-    return this.service.findAllForInvestigation(investigationId, req.user?.id);
+    return this.service.findAllForInvestigation(investigationId, getPrincipal(req));
   }
 
   @Post('investigations/:investigationId/traces')
@@ -22,22 +23,22 @@ export class TracesController {
     @Body() dto: CreateTraceDto,
     @Req() req: any,
   ) {
-    return this.service.create(investigationId, dto, req.user?.id);
+    return this.service.create(investigationId, dto, getPrincipal(req));
   }
 
   @Get('traces/:id')
   findOne(@Param('id') id: string, @Req() req: any) {
-    return this.service.findOne(id, req.user?.id);
+    return this.service.findOne(id, getPrincipal(req));
   }
 
   @Patch('traces/:id')
   update(@Param('id') id: string, @Body() dto: UpdateTraceDto, @Req() req: any) {
-    return this.service.update(id, dto, req.user?.id);
+    return this.service.update(id, dto, getPrincipal(req));
   }
 
   @Delete('traces/:id')
   remove(@Param('id') id: string, @Req() req: any) {
-    return this.service.remove(id, req.user?.id);
+    return this.service.remove(id, getPrincipal(req));
   }
 
   @Patch('traces/:traceId/nodes/:nodeId')
@@ -47,7 +48,7 @@ export class TracesController {
     @Body() dto: UpdateNodeDto,
     @Req() req: any,
   ) {
-    return this.service.updateNode(traceId, nodeId, dto, req.user?.id);
+    return this.service.updateNode(traceId, nodeId, dto, getPrincipal(req));
   }
 
   @Patch('traces/:traceId/edges/:edgeId')
@@ -57,7 +58,7 @@ export class TracesController {
     @Body() dto: UpdateEdgeDto,
     @Req() req: any,
   ) {
-    return this.service.updateEdge(traceId, edgeId, dto, req.user?.id);
+    return this.service.updateEdge(traceId, edgeId, dto, getPrincipal(req));
   }
 
   @Delete('traces/:traceId/nodes/:nodeId')
@@ -67,7 +68,7 @@ export class TracesController {
     @Param('nodeId') nodeId: string,
     @Req() req: any,
   ) {
-    return this.service.deleteNode(traceId, nodeId, req.user?.id);
+    return this.service.deleteNode(traceId, nodeId, getPrincipal(req));
   }
 
   @Delete('traces/:traceId/edges/:edgeId')
@@ -77,7 +78,7 @@ export class TracesController {
     @Param('edgeId') edgeId: string,
     @Req() req: any,
   ) {
-    return this.service.deleteEdge(traceId, edgeId, req.user?.id);
+    return this.service.deleteEdge(traceId, edgeId, getPrincipal(req));
   }
 
   @Post('traces/:traceId/groups')
@@ -86,7 +87,7 @@ export class TracesController {
     @Body() dto: CreateGroupDto,
     @Req() req: any,
   ) {
-    return this.service.createGroup(traceId, dto, req.user?.id);
+    return this.service.createGroup(traceId, dto, getPrincipal(req));
   }
 
   @Patch('traces/:traceId/groups/:groupId')
@@ -96,7 +97,7 @@ export class TracesController {
     @Body() dto: UpdateGroupDto,
     @Req() req: any,
   ) {
-    return this.service.updateGroup(traceId, groupId, dto, req.user?.id);
+    return this.service.updateGroup(traceId, groupId, dto, getPrincipal(req));
   }
 
   @Delete('traces/:traceId/groups/:groupId')
@@ -106,12 +107,12 @@ export class TracesController {
     @Param('groupId') groupId: string,
     @Req() req: any,
   ) {
-    return this.service.deleteGroup(traceId, groupId, req.user?.id);
+    return this.service.deleteGroup(traceId, groupId, getPrincipal(req));
   }
 
   @Get('traces/:traceId/bundles')
   listEdgeBundles(@Param('traceId') traceId: string, @Req() req: any) {
-    return this.service.listEdgeBundles(traceId, req.user?.id);
+    return this.service.listEdgeBundles(traceId, getPrincipal(req));
   }
 
   @Delete('traces/:traceId/bundles/:bundleId')
@@ -121,7 +122,7 @@ export class TracesController {
     @Param('bundleId') bundleId: string,
     @Req() req: any,
   ) {
-    return this.service.deleteEdgeBundle(traceId, bundleId, req.user?.id);
+    return this.service.deleteEdgeBundle(traceId, bundleId, getPrincipal(req));
   }
 
   @Post('traces/:id/import-transactions')
@@ -130,6 +131,6 @@ export class TracesController {
     @Body() dto: ImportTransactionsDto,
     @Req() req: any,
   ) {
-    return this.service.importTransactions(id, dto, req.user?.id);
+    return this.service.importTransactions(id, dto, getPrincipal(req));
   }
 }

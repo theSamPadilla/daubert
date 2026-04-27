@@ -3,6 +3,7 @@ import {
   Param, Body, Query, Req, HttpCode, BadRequestException, UseGuards,
 } from '@nestjs/common';
 import { CaseMemberGuard } from '../auth/case-member.guard';
+import { getPrincipal } from '../auth/access-principal';
 import { ProductionsService } from './productions.service';
 import { CreateProductionDto } from './dto/create-production.dto';
 import { UpdateProductionDto } from './dto/update-production.dto';
@@ -18,14 +19,14 @@ export class ProductionsController {
   @Get('cases/:caseId/productions')
   findAllForCase(
     @Param('caseId') caseId: string,
+    @Req() req: any,
     @Query('type') type?: string,
-    @Req() req?: any,
   ) {
     if (type && !VALID_TYPES.has(type as ProductionType)) {
       throw new BadRequestException(`Invalid type: ${type}`);
     }
     return this.service.findAllForCase(
-      caseId, req?.user?.id, type as ProductionType | undefined,
+      caseId, getPrincipal(req), type as ProductionType | undefined,
     );
   }
 
@@ -36,22 +37,22 @@ export class ProductionsController {
     @Body() dto: CreateProductionDto,
     @Req() req: any,
   ) {
-    return this.service.create(caseId, dto, req.user?.id);
+    return this.service.create(caseId, dto, getPrincipal(req));
   }
 
   @Get('productions/:id')
   findOne(@Param('id') id: string, @Req() req: any) {
-    return this.service.findOne(id, req.user?.id);
+    return this.service.findOne(id, getPrincipal(req));
   }
 
   @Patch('productions/:id')
   update(@Param('id') id: string, @Body() dto: UpdateProductionDto, @Req() req: any) {
-    return this.service.update(id, dto, req.user?.id);
+    return this.service.update(id, dto, getPrincipal(req));
   }
 
   @Delete('productions/:id')
   @HttpCode(204)
   remove(@Param('id') id: string, @Req() req: any) {
-    return this.service.remove(id, req.user?.id);
+    return this.service.remove(id, getPrincipal(req));
   }
 }

@@ -5,6 +5,7 @@ import * as crypto from 'crypto';
 import { TraceEntity } from '../../database/entities/trace.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { CaseAccessService } from '../auth/case-access.service';
+import { AccessPrincipal } from '../auth/access-principal';
 import { CHAIN_CONFIGS } from '../blockchain/types';
 import { CreateTraceDto } from './dto/create-trace.dto';
 import { UpdateTraceDto } from './dto/update-trace.dto';
@@ -23,30 +24,29 @@ export class TracesService {
     private readonly caseAccess: CaseAccessService,
   ) {}
 
-  async findAllForInvestigation(investigationId: string, userId?: string) {
+  async findAllForInvestigation(investigationId: string, principal: AccessPrincipal) {
     const inv = await this.invRepo.findOneBy({ id: investigationId });
     if (!inv) throw new NotFoundException(`Investigation ${investigationId} not found`);
-    if (userId) await this.caseAccess.assertAccess(userId, inv.caseId);
+    await this.caseAccess.assertAccess(principal, inv.caseId);
     return this.repo.find({
       where: { investigationId },
       order: { createdAt: 'ASC' },
     });
   }
 
-  async findOne(id: string, userId?: string) {
+  async findOne(id: string, principal: AccessPrincipal) {
     const trace = await this.repo.findOneBy({ id });
     if (!trace) throw new NotFoundException(`Trace ${id} not found`);
-    if (userId) {
-      const inv = await this.invRepo.findOneBy({ id: trace.investigationId });
-      if (inv) await this.caseAccess.assertAccess(userId, inv.caseId);
-    }
+    const inv = await this.invRepo.findOneBy({ id: trace.investigationId });
+    if (!inv) throw new NotFoundException(`Investigation ${trace.investigationId} not found`);
+    await this.caseAccess.assertAccess(principal, inv.caseId);
     return trace;
   }
 
-  async create(investigationId: string, dto: CreateTraceDto, userId?: string) {
+  async create(investigationId: string, dto: CreateTraceDto, principal: AccessPrincipal) {
     const inv = await this.invRepo.findOneBy({ id: investigationId });
     if (!inv) throw new NotFoundException(`Investigation ${investigationId} not found`);
-    if (userId) await this.caseAccess.assertAccess(userId, inv.caseId);
+    await this.caseAccess.assertAccess(principal, inv.caseId);
 
     const entity = this.repo.create({
       name: dto.name,
@@ -59,8 +59,8 @@ export class TracesService {
     return this.repo.save(entity);
   }
 
-  async update(id: string, dto: UpdateTraceDto, userId?: string) {
-    const trace = await this.findOne(id, userId);
+  async update(id: string, dto: UpdateTraceDto, principal: AccessPrincipal) {
+    const trace = await this.findOne(id, principal);
     if (dto.name !== undefined) trace.name = dto.name;
     if (dto.color !== undefined) trace.color = dto.color;
     if (dto.visible !== undefined) trace.visible = dto.visible;
@@ -69,13 +69,13 @@ export class TracesService {
     return this.repo.save(trace);
   }
 
-  async remove(id: string, userId?: string) {
-    const trace = await this.findOne(id, userId);
+  async remove(id: string, principal: AccessPrincipal) {
+    const trace = await this.findOne(id, principal);
     await this.repo.remove(trace);
   }
 
-  async updateNode(traceId: string, nodeId: string, dto: UpdateNodeDto, userId?: string) {
-    const trace = await this.findOne(traceId, userId);
+  async updateNode(traceId: string, nodeId: string, dto: UpdateNodeDto, principal: AccessPrincipal) {
+    const trace = await this.findOne(traceId, principal);
     const data = (trace.data || {}) as { nodes?: any[]; edges?: any[] };
     const nodes: any[] = data.nodes || [];
     const idx = nodes.findIndex((n) => n.id === nodeId);
@@ -86,8 +86,8 @@ export class TracesService {
     return nodes[idx];
   }
 
-  async updateEdge(traceId: string, edgeId: string, dto: UpdateEdgeDto, userId?: string) {
-    const trace = await this.findOne(traceId, userId);
+  async updateEdge(traceId: string, edgeId: string, dto: UpdateEdgeDto, principal: AccessPrincipal) {
+    const trace = await this.findOne(traceId, principal);
     const data = (trace.data || {}) as { nodes?: any[]; edges?: any[] };
     const edges: any[] = data.edges || [];
     const idx = edges.findIndex((e) => e.id === edgeId);
@@ -103,8 +103,8 @@ export class TracesService {
     return edges[idx];
   }
 
-  async deleteNode(traceId: string, nodeId: string, userId?: string) {
-    const trace = await this.findOne(traceId, userId);
+  async deleteNode(traceId: string, nodeId: string, principal: AccessPrincipal) {
+    const trace = await this.findOne(traceId, principal);
     const data = (trace.data || {}) as { nodes?: any[]; edges?: any[] };
     const nodes: any[] = data.nodes || [];
     const edges: any[] = data.edges || [];
@@ -117,8 +117,8 @@ export class TracesService {
     await this.repo.save(trace);
   }
 
-  async deleteEdge(traceId: string, edgeId: string, userId?: string) {
-    const trace = await this.findOne(traceId, userId);
+  async deleteEdge(traceId: string, edgeId: string, principal: AccessPrincipal) {
+    const trace = await this.findOne(traceId, principal);
     const data = (trace.data || {}) as { edges?: any[]; edgeBundles?: any[] };
     const edges: any[] = data.edges || [];
     if (!edges.some((e) => e.id === edgeId)) throw new NotFoundException(`Edge ${edgeId} not found in trace ${traceId}`);
@@ -135,8 +135,8 @@ export class TracesService {
     await this.repo.save(trace);
   }
 
-  async createGroup(traceId: string, dto: CreateGroupDto, userId?: string) {
-    const trace = await this.findOne(traceId, userId);
+  async createGroup(traceId: string, dto: CreateGroupDto, principal: AccessPrincipal) {
+    const trace = await this.findOne(traceId, principal);
     const data = (trace.data || {}) as { nodes?: any[]; groups?: any[] };
     const nodes: any[] = data.nodes || [];
     const groups: any[] = data.groups || [];
@@ -217,8 +217,8 @@ export class TracesService {
     return { ...group, nodeIds: [...allMemberIds] };
   }
 
-  async updateGroup(traceId: string, groupId: string, dto: UpdateGroupDto, userId?: string) {
-    const trace = await this.findOne(traceId, userId);
+  async updateGroup(traceId: string, groupId: string, dto: UpdateGroupDto, principal: AccessPrincipal) {
+    const trace = await this.findOne(traceId, principal);
     const data = (trace.data || {}) as { groups?: any[] };
     const groups: any[] = data.groups || [];
     const idx = groups.findIndex((g) => g.id === groupId);
@@ -229,8 +229,8 @@ export class TracesService {
     return groups[idx];
   }
 
-  async deleteGroup(traceId: string, groupId: string, userId?: string) {
-    const trace = await this.findOne(traceId, userId);
+  async deleteGroup(traceId: string, groupId: string, principal: AccessPrincipal) {
+    const trace = await this.findOne(traceId, principal);
     const data = (trace.data || {}) as { nodes?: any[]; groups?: any[] };
     const groups: any[] = data.groups || [];
     if (!groups.some((g) => g.id === groupId)) throw new NotFoundException(`Group ${groupId} not found in trace ${traceId}`);
@@ -244,14 +244,14 @@ export class TracesService {
     await this.repo.save(trace);
   }
 
-  async listEdgeBundles(traceId: string, userId?: string) {
-    const trace = await this.findOne(traceId, userId);
+  async listEdgeBundles(traceId: string, principal: AccessPrincipal) {
+    const trace = await this.findOne(traceId, principal);
     const data = (trace.data || {}) as { edgeBundles?: any[] };
     return data.edgeBundles || [];
   }
 
-  async deleteEdgeBundle(traceId: string, bundleId: string, userId?: string) {
-    const trace = await this.findOne(traceId, userId);
+  async deleteEdgeBundle(traceId: string, bundleId: string, principal: AccessPrincipal) {
+    const trace = await this.findOne(traceId, principal);
     const data = (trace.data || {}) as { edgeBundles?: any[] };
     const bundles: any[] = data.edgeBundles || [];
     if (!bundles.some((b) => b.id === bundleId)) throw new NotFoundException(`Edge bundle ${bundleId} not found in trace ${traceId}`);
@@ -259,8 +259,8 @@ export class TracesService {
     await this.repo.save(trace);
   }
 
-  async importTransactions(id: string, dto: ImportTransactionsDto, userId?: string) {
-    const trace = await this.findOne(id, userId);
+  async importTransactions(id: string, dto: ImportTransactionsDto, principal: AccessPrincipal) {
+    const trace = await this.findOne(id, principal);
 
     const data = (trace.data || {}) as {
       nodes?: any[];

@@ -14,6 +14,7 @@ import { ProductionsModule } from './modules/productions/productions.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ExportModule } from './modules/export/export.module';
 import { DataRoomModule } from './modules/data-room/data-room.module';
+import { ScriptModule } from './modules/script/script.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { DataRoomModule } from './modules/data-room/data-room.module';
     AdminModule,
     ExportModule,
     DataRoomModule,
+    ScriptModule,
   ],
   controllers: [AppController],
 })

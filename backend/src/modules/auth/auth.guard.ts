@@ -14,10 +14,8 @@ import { IS_PUBLIC_KEY } from './public.decorator';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  private devUserWarned = false;
-
   constructor(
-    @Inject(FIREBASE_ADMIN) private readonly firebaseApp: admin.app.App | null,
+    @Inject(FIREBASE_ADMIN) private readonly firebaseApp: admin.app.App,
     private readonly usersService: UsersService,
     private readonly reflector: Reflector,
   ) {}
@@ -31,27 +29,6 @@ export class AuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest();
-
-    // Firebase not configured — dev-mode fallback
-    if (!this.firebaseApp) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new UnauthorizedException('Auth not configured');
-      }
-
-      // Look up a default dev user so req.user is always populated
-      const devUser = await this.usersService.findByEmail('sam@incite.ventures');
-      if (!devUser) {
-        if (!this.devUserWarned) {
-          console.warn('[auth] No Firebase config and no dev user found — auth disabled, requests will have no user');
-          this.devUserWarned = true;
-        }
-        // Still allow the request but without a user — services must handle this
-        return true;
-      }
-
-      request.user = devUser;
-      return true;
-    }
 
     const authHeader = request.headers['authorization'];
 

@@ -7,14 +7,15 @@ export const FIREBASE_ADMIN = 'FIREBASE_ADMIN';
 export const firebaseAdminProvider: Provider = {
   provide: FIREBASE_ADMIN,
   inject: [ConfigService],
-  useFactory: (config: ConfigService): admin.app.App | null => {
+  useFactory: (config: ConfigService): admin.app.App => {
     const projectId = config.get<string>('FIREBASE_PROJECT_ID');
     const clientEmail = config.get<string>('FIREBASE_CLIENT_EMAIL');
     const privateKey = config.get<string>('FIREBASE_PRIVATE_KEY');
 
     if (!projectId || !clientEmail || !privateKey) {
-      console.warn('[auth] Firebase Admin not configured — auth disabled');
-      return null;
+      throw new Error(
+        '[auth] Firebase Admin not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.',
+      );
     }
 
     if (admin.apps.length > 0) {

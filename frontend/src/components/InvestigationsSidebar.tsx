@@ -76,7 +76,11 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
 
   const handleSelectInvestigation = useCallback((inv: Investigation) => {
     router.push(`/cases/${caseId}/investigations?inv=${inv.id}`);
-  }, [router, caseId]);
+    // Also close any production the user was viewing — clicking an investigation
+    // should always navigate to its main view, even when the URL doesn't change
+    // (e.g., viewing a production whose parent investigation is already active).
+    onSelectProduction?.(null);
+  }, [router, caseId, onSelectProduction]);
 
   return (
     <div className="w-full bg-gray-800 flex flex-col h-full overflow-hidden">

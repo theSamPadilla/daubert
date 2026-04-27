@@ -6,7 +6,8 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
-    "gen": "node scripts/gen-api.mjs"
+    "gen": "node scripts/gen-api.mjs",
+    "test": "jest"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -28,13 +29,16 @@
   },
   "devDependencies": {
     "@types/cytoscape": "^3.21.8",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
+    "jest": "^30.3.0",
     "openapi-typescript": "^7.4.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
+    "ts-jest": "^29.4.9",
     "typescript": "^5.6.0"
   }
 }

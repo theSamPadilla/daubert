@@ -8,7 +8,7 @@ optimizations already in place and one larger future project.
 | # | Optimization | Status | Where |
 |---|---|---|---|
 | 1 | Stream-layer block filtering | ✓ Shipped 2026-04-26 | `providers/anthropic.provider.ts` |
-| 2 | Heuristic tool-result slimming | ✓ Shipped earlier | `ai.service.ts` (`slimToolResult`) |
+| 2 | Production-only tool-result slimming | ✓ Shipped earlier; narrowed 2026-04-27 | `ai.service.ts` (`slimToolResult`) |
 | 3 | Prompt cache breakpoints | ✓ Shipped earlier | `ai.service.ts` + `providers/anthropic.provider.ts` |
 | 4 | Token-budget compaction with Haiku | Deferred — see criteria below | — |
 
@@ -38,19 +38,28 @@ blocks. (Stackpad takes the same approach.)
 > (which the API rejects `cache_control` on). Filtering at the stream layer
 > made the bug class structurally impossible.
 
-### Heuristic tool-result slimming
+### Production-only tool-result slimming
 
-`slimToolResult(toolName, full)` in `ai.service.ts` produces a compact
-representation per tool:
+`slimToolResult(toolName, full)` in `ai.service.ts` slims **only** the three
+Production tools (`create_production`, `read_production`, `update_production`)
+for DB persistence:
 
-- `get_case_data` → just `{id, name, traceCount, nodeCount, edgeCount}` per investigation
-- `get_skill` → `{loaded: true}` (skill content is in the system prompt for the live turn)
-- `execute_script`, `list_script_runs` → truncated at 2KB
-- Everything else → capped at 3KB
+- Single production → `{id, name, type}` (heavy `data` field dropped)
+- Array of productions → same per item
+- Fallback if shape is unexpected → capped at 3KB
 
 Full results stay in memory for the current agent loop; only the slim version is
-persisted. The model can re-call any tool if it needs full data again. No Haiku
-calls — heuristics are predictable and free.
+persisted. The model can re-read a production's full body via `read_production`
+when needed.
+
+Every other tool result (`get_case_data`, `get_skill`, `list_script_runs`,
+`query_labeled_entities`, `execute_script`) is **persisted verbatim**.
+Originally we slimmed retrieval results too, but it backfired: the model would
+see consecutive summaries in conversation history and conclude that re-calling
+wouldn't return more — even though the live tool returned full data. Trusting
+the history matters more than saving DB bytes for these tools.
+
+No Haiku calls — slimming is a deterministic heuristic.
 
 ### Prompt cache breakpoints
 

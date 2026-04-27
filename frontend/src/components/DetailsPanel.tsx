@@ -189,6 +189,7 @@ interface DetailsPanelProps {
   onDeleteGroup: (traceId: string, groupId: string) => void;
   onSetNodeGroup: (traceId: string, nodeIds: string[], groupId: string | null) => void;
   onFetchHistory: (address: string, chain: string) => void;
+  onBundleAllOutbound?: (walletId: string, color: string) => void;
   onRerunScript?: (scriptRunId: string) => Promise<void>;
   onToggleEdgeBundle?: (traceId: string, bundleId: string) => void;
   onUpdateEdgeBundle?: (traceId: string, bundleId: string, updates: Partial<EdgeBundle>) => void;
@@ -248,26 +249,39 @@ function getCategoryStyle(category: string): string {
   }
 }
 
+const BUNDLE_COLORS = [
+  '#3b82f6', // blue
+  '#ef4444', // red
+  '#10b981', // green
+  '#f97316', // orange
+  '#8b5cf6', // purple
+  '#eab308', // yellow
+];
+
 function WalletDetails({
   wallet,
   onFetchHistory,
+  onBundleAllOutbound,
   onUpdate,
   lookupAddress,
 }: {
   wallet: WalletNode;
   onFetchHistory: (address: string, chain: string) => void;
+  onBundleAllOutbound?: (walletId: string, color: string) => void;
   onUpdate?: (updates: Partial<WalletNode>) => void;
   lookupAddress: (address: string) => import('@/lib/api-client').LabeledEntity | undefined;
 }) {
   const hasAddress = !!wallet.address;
   const addrType = wallet.addressType || 'unknown';
   const [notes, setNotes] = useState(wallet.notes || '');
+  const [pickingBundleColor, setPickingBundleColor] = useState(false);
 
   const walletId = wallet.id;
   const prevWalletId = useRef(walletId);
   if (prevWalletId.current !== walletId) {
     prevWalletId.current = walletId;
     setNotes(wallet.notes || '');
+    setPickingBundleColor(false);
   }
 
   return (
@@ -371,13 +385,46 @@ function WalletDetails({
         />
       </div>
       {hasAddress && (
-        <div className="pt-2 border-t border-gray-700">
+        <div className="pt-2 border-t border-gray-700 space-y-1.5">
           <button
             onClick={() => onFetchHistory(wallet.address, wallet.chain)}
             className="w-full px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors text-left"
           >
             Fetch Transactions
           </button>
+          {onBundleAllOutbound && !pickingBundleColor && (
+            <button
+              onClick={() => setPickingBundleColor(true)}
+              className="w-full px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors text-left"
+            >
+              Bundle all outbound
+            </button>
+          )}
+          {onBundleAllOutbound && pickingBundleColor && (
+            <div className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm flex items-center gap-2">
+              <span className="text-gray-300 text-xs">Color:</span>
+              <div className="flex items-center gap-1.5 flex-1">
+                {BUNDLE_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => {
+                      onBundleAllOutbound(wallet.id, c);
+                      setPickingBundleColor(false);
+                    }}
+                    className="w-5 h-5 rounded-full border-2 border-transparent hover:border-white transition-transform hover:scale-110"
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => setPickingBundleColor(false)}
+                className="text-gray-400 hover:text-white text-xs"
+                title="Cancel"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1013,6 +1060,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
   onDeleteGroup,
   onSetNodeGroup,
   onFetchHistory,
+  onBundleAllOutbound,
   onRerunScript,
   onToggleEdgeBundle,
   onUpdateEdgeBundle,
@@ -1116,6 +1164,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
         <WalletDetails
           wallet={selectedItem.data}
           onFetchHistory={onFetchHistory}
+          onBundleAllOutbound={onBundleAllOutbound}
           onUpdate={(updates) => {
             const w = selectedItem.data as WalletNode;
             onUpdateWallet(w.parentTrace, w.id, updates);

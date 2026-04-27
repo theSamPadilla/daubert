@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
-import * as fs from 'fs';
-import * as path from 'path';
 import * as XLSX from 'xlsx';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
@@ -26,6 +24,7 @@ import {
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
   SKILL_NAMES,
+  getSkillContent,
 } from './tools';
 import { AttachmentDto } from './dto/chat-message.dto';
 
@@ -135,52 +134,38 @@ function mergeConsecutiveRoles(
 }
 
 /**
- * Produce a compact version of a tool result for DB persistence. The full
- * result feeds the current agent loop (in-memory); the slim version is what
- * future requests see when loading conversation history. The model can
- * re-call tools if it needs full data again.
+ * Produce a compact version of a tool result for DB persistence.
+ *
+ * Only Production tools (create_production / read_production / update_production)
+ * are slimmed: their payloads can be large documents/reports, and the production
+ * itself is persisted in the DB — the model can re-read full data via
+ * read_production if it later needs the body.
+ *
+ * Every other tool result (get_*, list_*, query_*, execute_*) is preserved
+ * verbatim. Slimming retrieval results was misleading the agent: it would see
+ * past summaries in conversation history and conclude that re-calling wouldn't
+ * give more detail, even though the live tool returned the full data.
  */
 function slimToolResult(toolName: string, full: string): string {
-  switch (toolName) {
-    case 'get_case_data': {
-      // Summarise graph data: investigation/trace/node/edge counts
-      try {
-        const data = JSON.parse(full);
-        if (Array.isArray(data)) {
-          const summary = data.map((inv: any) => ({
-            id: inv.id,
-            name: inv.name,
-            traceCount: inv.traces?.length ?? 0,
-            nodeCount: inv.traces?.reduce((n: number, t: any) => n + (t.data?.nodes?.length ?? 0), 0) ?? 0,
-            edgeCount: inv.traces?.reduce((n: number, t: any) => n + (t.data?.edges?.length ?? 0), 0) ?? 0,
-          }));
-          return JSON.stringify(summary);
-        }
-      } catch { /* fall through */ }
-      break;
-    }
-
-    case 'get_skill':
-      // Skill was loaded into context for the current turn — future turns can re-load
-      try {
-        const parsed = JSON.parse(full);
-        if (parsed.content) return JSON.stringify({ loaded: true });
-      } catch { /* fall through */ }
-      break;
-
-    case 'execute_script':
-    case 'list_script_runs':
-      // Truncate large outputs
-      if (full.length > 2000) {
-        return full.slice(0, 2000) + '...[truncated]';
-      }
-      break;
+  if (
+    toolName !== 'create_production' &&
+    toolName !== 'read_production' &&
+    toolName !== 'update_production'
+  ) {
+    return full;
   }
 
-  // Default cap for any tool result
-  if (full.length > 3000) {
-    return full.slice(0, 3000) + '...[truncated]';
-  }
+  // Strip the heavy `data` field from production payloads; keep id/name/type
+  // metadata so the model can still reference the production by id later.
+  try {
+    const parsed = JSON.parse(full);
+    const slimOne = (p: any) => ({ id: p?.id, name: p?.name, type: p?.type });
+    if (Array.isArray(parsed)) return JSON.stringify(parsed.map(slimOne));
+    if (parsed && typeof parsed === 'object') return JSON.stringify(slimOne(parsed));
+  } catch { /* fall through */ }
+
+  // Fallback: cap raw output at 3KB if shape was unexpected.
+  if (full.length > 3000) return full.slice(0, 3000) + '...[truncated]';
   return full;
 }
 
@@ -614,16 +599,11 @@ export class AiService {
   }
 
   private loadSkill(name: string): { content: string } | { error: string } {
-    if (!(SKILL_NAMES as readonly string[]).includes(name)) {
+    const content = getSkillContent(name);
+    if (content === null) {
       return { error: `Unknown skill: ${name}. Available: ${SKILL_NAMES.join(', ')}` };
     }
-    const skillPath = path.join(__dirname, '..', '..', 'skills', `${name}.md`);
-    try {
-      const content = fs.readFileSync(skillPath, 'utf-8');
-      return { content };
-    } catch {
-      return { error: `Failed to load skill file: ${name}` };
-    }
+    return { content };
   }
 
   private async generateTitle(

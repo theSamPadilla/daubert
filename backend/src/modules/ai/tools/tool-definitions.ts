@@ -1,7 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-
-export const SKILL_NAMES = ['blockchain-apis', 'graph-mutations'] as const;
-export type SkillName = (typeof SKILL_NAMES)[number];
+import { SKILL_REGISTRY, SKILL_NAMES } from '../../../skills/skill-registry';
 
 // ---------- Built-in ----------
 
@@ -31,10 +29,11 @@ export const GET_CASE_DATA_TOOL: Anthropic.Tool = {
 
 // ---------- Skills ----------
 
+const skillList = SKILL_REGISTRY.map((s) => `${s.name} (${s.description})`).join(', ');
+
 export const GET_SKILL_TOOL: Anthropic.Tool = {
   name: 'get_skill',
-  description:
-    'Load a skill document into context for specialized instructions. Available: blockchain-apis (Etherscan + Tronscan API reference for direct blockchain queries), graph-mutations (how to add, edit, and delete nodes/edges/groups in the investigation graph via scripts).',
+  description: `Load a skill document into context for specialized instructions. Available: ${skillList}.`,
   input_schema: {
     type: 'object' as const,
     properties: {

@@ -18,7 +18,7 @@ import { TransactionForm } from '@/components/TransactionForm';
 import { LinkInputModal, type LinkInputResult } from '@/components/LinkInputModal';
 import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
-import { CytoscapeCallbacks } from '@/hooks/useCytoscape';
+import { CytoscapeCallbacks, FocusItem } from '@/hooks/useCytoscape';
 import { apiClient, type Investigation as ApiInvestigation, type ScriptRun, type Production } from '@/lib/api-client';
 import { ProductionViewer } from '@/components/ProductionViewer';
 import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
@@ -169,6 +169,50 @@ function WalletHeaderActions({
   );
 }
 
+// Resolve a FocusItem (id-only, emitted by useCytoscape) into the legacy
+// `{ type, data }` shape consumed by the right details panel. Walks the
+// investigation traces to find the wallet/group/trace/transaction/edgeBundle
+// matching the focusItem id. Returns null when no match (or focusItem is null).
+function resolveFocusItem(
+  focusItem: FocusItem,
+  investigation: Investigation | null
+): { type: string; data: any } | null {
+  if (!focusItem || !investigation) return null;
+  if (focusItem.type === 'trace') {
+    const trace = investigation.traces.find((t) => t.id === focusItem.id);
+    return trace ? { type: 'trace', data: trace } : null;
+  }
+  if (focusItem.type === 'wallet') {
+    for (const trace of investigation.traces) {
+      const wallet = trace.nodes.find((n) => n.id === focusItem.id);
+      if (wallet) return { type: 'wallet', data: wallet };
+    }
+    return null;
+  }
+  if (focusItem.type === 'group') {
+    for (const trace of investigation.traces) {
+      const group = (trace.groups || []).find((g) => g.id === focusItem.id);
+      if (group) return { type: 'group', data: group };
+    }
+    return null;
+  }
+  if (focusItem.type === 'transaction') {
+    for (const trace of investigation.traces) {
+      const tx = trace.edges.find((e) => e.id === focusItem.id);
+      if (tx) return { type: 'transaction', data: tx };
+    }
+    return null;
+  }
+  if (focusItem.type === 'edgeBundle') {
+    for (const trace of investigation.traces) {
+      const bundle = (trace.edgeBundles || []).find((b) => b.id === focusItem.id);
+      if (bundle) return { type: 'edgeBundle', data: bundle };
+    }
+    return null;
+  }
+  return null;
+}
+
 function InvestigationsWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -267,11 +311,14 @@ function InvestigationsWorkspace() {
     }
   }, [setInvestigation]);
 
-  // Bootstrap from URL on first render
+  // Sync activeInvestigationId from URL whenever ?inv= changes
   useEffect(() => {
     const invId = searchParams.get('inv');
-    if (invId) setActiveInvestigationId(invId);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (invId && invId !== activeInvestigationId) {
+      setActiveInvestigationId(invId);
+      setSelectedProduction(null);
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeInvestigationId) {
@@ -750,6 +797,76 @@ function InvestigationsWorkspace() {
     setSelectedEdgeIds([]);
   }, [investigation, selectedEdgeIds, addEdgeBundle, deleteEdgeBundle]);
 
+  const handleBundleAllOutbound = useCallback((walletId: string, color: string) => {
+    if (!investigation) return;
+
+    let walletTraceId = '';
+    for (const t of investigation.traces) {
+      if (t.nodes.some((n) => n.id === walletId)) { walletTraceId = t.id; break; }
+    }
+    if (!walletTraceId) return;
+
+    const nodeAddr = new Map<string, string>();
+    for (const trace of investigation.traces) {
+      for (const node of trace.nodes) nodeAddr.set(node.id, node.address);
+    }
+
+    const outboundEdgeIds = new Set<string>();
+    const consumedBundleIds: { traceId: string; bundleId: string }[] = [];
+    for (const trace of investigation.traces) {
+      for (const edge of trace.edges) {
+        if (edge.from === walletId) outboundEdgeIds.add(edge.id);
+      }
+      for (const bundle of trace.edgeBundles || []) {
+        if (bundle.fromNodeId === walletId) {
+          bundle.edgeIds.forEach((eid) => outboundEdgeIds.add(eid));
+          consumedBundleIds.push({ traceId: trace.id, bundleId: bundle.id });
+        }
+      }
+    }
+    if (outboundEdgeIds.size === 0) return;
+
+    // Color all outbound edges so the bundle's color is consistent if later un-bundled.
+    for (const trace of investigation.traces) {
+      for (const edge of trace.edges) {
+        if (outboundEdgeIds.has(edge.id)) {
+          updateTransaction(trace.id, edge.id, { color });
+        }
+      }
+    }
+
+    const groups = new Map<string, { fromNodeId: string; toNodeId: string; token: string; edgeIds: string[] }>();
+    for (const trace of investigation.traces) {
+      for (const edge of trace.edges) {
+        if (!outboundEdgeIds.has(edge.id)) continue;
+        const token = normalizeToken(edge.token).symbol;
+        const toAddr = nodeAddr.get(edge.to) || edge.to;
+        const key = `${toAddr}::${token}`;
+        if (!groups.has(key)) groups.set(key, { fromNodeId: edge.from, toNodeId: edge.to, token, edgeIds: [] });
+        groups.get(key)!.edgeIds.push(edge.id);
+      }
+    }
+
+    for (const { traceId, bundleId } of consumedBundleIds) {
+      deleteEdgeBundle(traceId, bundleId);
+    }
+
+    for (const { fromNodeId, toNodeId, token, edgeIds } of groups.values()) {
+      if (edgeIds.length < 2) continue;
+      const bundle: EdgeBundle = {
+        id: crypto.randomUUID(),
+        traceId: walletTraceId,
+        fromNodeId,
+        toNodeId,
+        token,
+        collapsed: true,
+        edgeIds,
+        color,
+      };
+      addEdgeBundle(walletTraceId, bundle);
+    }
+  }, [investigation, addEdgeBundle, deleteEdgeBundle, updateTransaction]);
+
   const handleAddToGroup = useCallback(() => {
     if (!selectedGroupEntry) return;
     const { group, traceId } = selectedGroupEntry;
@@ -842,18 +959,16 @@ function InvestigationsWorkspace() {
 
   const cytoscapeCallbacks: CytoscapeCallbacks = useMemo(
     () => ({
-      onSelectItem: (item: any) => {
-        setSelectedItem(item);
-        setSelectedNodeIds([]);
-        setSelectedEdgeIds([]);
-      },
-      onMultiSelect: (nodes) => {
-        setSelectedNodeIds(nodes);
-        setSelectedItem(null);
-      },
-      onMultiSelectEdges: (edgeIds) => {
+      onSelectionChange: ({ nodeIds, edgeIds, focusItem }) => {
+        setSelectedNodeIds(nodeIds);
+        // setSelectedItem(null) when focusItem is null also implicitly closes any
+        // open script-run panel — script-run selection is derived from selectedItem.
         setSelectedEdgeIds(edgeIds);
-        setSelectedItem(null);
+        setSelectedItem(resolveFocusItem(focusItem, investigation));
+        // Cross-context reconciliation: focusing a graph item closes other context panels.
+        if (focusItem) {
+          setSelectedProduction(null);
+        }
       },
       onNodeDrag: updateNodePosition,
       onGroupDrag: (groupId, newPos) => {
@@ -1093,6 +1208,7 @@ function InvestigationsWorkspace() {
                     setSelectedItem(null);
                   }}
                   onFetchHistory={handleFetchHistory}
+                  onBundleAllOutbound={handleBundleAllOutbound}
                   onRerunScript={async (scriptRunId) => {
                     await apiClient.rerunScript(scriptRunId);
                     if (activeInvestigationId) {

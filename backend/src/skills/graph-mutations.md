@@ -1,3 +1,8 @@
+---
+name: graph-mutations
+description: How to add, edit, and delete nodes, edges, and groups in the investigation graph via scripts
+---
+
 # Graph Mutations via Scripts
 
 Add, edit, and delete wallet nodes, transaction edges, and groups in the investigation graph by writing scripts that call the backend API.

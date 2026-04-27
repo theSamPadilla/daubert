@@ -1,6 +1,5 @@
+export { SKILL_NAMES, getSkillContent } from '../../../skills/skill-registry';
 export {
-  SKILL_NAMES,
-  type SkillName,
   WEB_SEARCH_TOOL,
   GET_CASE_DATA_TOOL,
   GET_SKILL_TOOL,

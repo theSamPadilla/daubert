@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "build": "nest build",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:prod": "node dist/main",
+    "start": "NODE_OPTIONS=--no-node-snapshot nest start",
+    "start:dev": "NODE_OPTIONS=--no-node-snapshot nest start --watch",
+    "start:prod": "NODE_OPTIONS=--no-node-snapshot node dist/main",
     "gen": "node scripts/gen-api.mjs",
     "scripts:migrate-to-auth": "ts-node scripts/migrate-to-auth.ts",
     "scripts:create-user": "ts-node scripts/create-user.ts",
@@ -15,9 +15,9 @@
     "scripts:list-users": "ts-node scripts/list-users.ts",
     "scripts:remove-member": "ts-node scripts/remove-member.ts",
     "scripts:change-role": "ts-node scripts/change-role.ts",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage"
+    "test": "NODE_OPTIONS=--no-node-snapshot jest",
+    "test:watch": "NODE_OPTIONS=--no-node-snapshot jest --watch",
+    "test:cov": "NODE_OPTIONS=--no-node-snapshot jest --coverage"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
@@ -33,6 +33,7 @@
     "class-validator": "^0.14.1",
     "firebase-admin": "^13.8.0",
     "googleapis": "^171.4.0",
+    "isolated-vm": "^6.1.2",
     "isomorphic-dompurify": "^3.10.0",
     "pg": "^8.13.0",
     "puppeteer-core": "^24.42.0",

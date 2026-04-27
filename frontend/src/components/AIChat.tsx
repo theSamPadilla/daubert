@@ -652,8 +652,8 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
           </>
         ) : (
           <>
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-sm font-bold text-white truncate">
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-bold text-white truncate block">
                 {conversations.find((c) => c.id === activeConvId)?.title || 'Daubert'}
               </span>
             </div>

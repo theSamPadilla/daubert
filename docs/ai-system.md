@@ -9,18 +9,19 @@ backend/src/
 ├── prompts/
 │   └── investigator.ts                 System prompt
 ├── skills/
-│   ├── blockchain-apis.md              Blockchain API reference (loaded on-demand)
-│   └── graph-mutations.md              Import endpoint + script pattern for graph mutations
+│   ├── blockchain-apis.md              Blockchain API reference
+│   └── graph-mutations.md              Import endpoint + script pattern
 └── modules/ai/
     ├── ai.module.ts                    NestJS module
     ├── ai.service.ts                   Agent loop + tool dispatch
+    ├── ai.controller.ts               Script rerun endpoint
     ├── conversations.service.ts        Conversation/message CRUD
     ├── conversations.controller.ts     REST + SSE endpoints
     ├── providers/
     │   ├── llm-provider.interface.ts   Provider contract
     │   └── anthropic.provider.ts       Claude SDK wrapper
     ├── services/
-    │   └── script-execution.service.ts Sandboxed JS runner
+    │   └── script-execution.service.ts isolated-vm V8 sandbox
     ├── tools/
     │   ├── tool-definitions.ts         Individual tool schemas
     │   └── index.ts                    AGENT_TOOLS collection
@@ -31,147 +32,119 @@ backend/src/
 
 ## Agent Loop
 
-`AiService.streamChat()` is the core. It runs up to **10 iterations** of:
+`AiService.streamChat()` runs up to 10 iterations:
 
 1. Stream from Claude with system prompt + message history + tools
-2. Yield `text_delta` SSE events to the client as tokens arrive
+2. Yield `text_delta` SSE events as tokens arrive
 3. If `stop_reason === 'end_turn'` or no tool calls → save, yield `done`, return
-4. **Repeat-tool guard** — if the exact same tool calls repeat, break to prevent loops
-5. Execute each tool call, yielding `tool_start` / `tool_done` events
-6. **Atomic save** — assistant message + tool results saved in a single DB transaction
-7. Append to message history, loop
+4. Repeat-tool guard — if exact same tool calls repeat, break
+5. Execute each tool call, yielding `tool_start`/`tool_done` events
+6. Strip server-side blocks (`server_tool_use`, `server_tool_result`, `code_execution`, `code_execution_tool_result`) from response before saving — these are ephemeral from adaptive thinking and poison future requests if persisted
+7. Two-phase save — assistant message saved first, then tool results in a separate save so each row gets a distinct `created_at` timestamp (prevents ORDER BY non-determinism)
+8. Full results kept in-memory for current loop; slim (truncated) versions saved to DB for future requests
+9. Append to history, loop
 
-On the first turn, the service fires a background title generation call (Haiku model, 5 words) to name the conversation.
+On the first message in a conversation, fire background title generation (Haiku, 5 words max, truncated to 40 chars).
+
+Message loading also strips `server_tool_use`/`server_tool_result`/`code_execution`/`code_execution_tool_result` from DB history as a safety net for messages persisted before the save-time filter existed. `sanitizeToolPairs` removes orphaned tool_use/tool_result blocks. `mergeConsecutiveRoles` fixes adjacent same-role messages. On orphaned-tool 400 errors from the API, auto-retry once after stripping.
 
 ## LLM Provider
 
-The `AnthropicProvider` wraps the SDK and exposes two methods:
+`AnthropicProvider` wraps the SDK:
 
 | Method | Model | Purpose |
 |--------|-------|---------|
-| `streamChat()` | `claude-opus-4-6` | Agent reasoning with tools |
+| `streamChat()` | `claude-opus-4-6` (default, configurable) | Agent reasoning with tools |
 | `generateText()` | `claude-haiku-4-5` | Title generation (non-streaming) |
 
-Configuration:
-- **Max tokens**: 4096 per turn
-- **Thinking**: Adaptive (`thinking: { type: 'adaptive' }`)
-- **Beta**: `compact-2026-01-12` (automatic message compaction for long conversations)
+Config: max_tokens 4096, thinking: adaptive, beta: compact-2026-01-12 (message compaction), prompt caching on system + tools + message breakpoints.
 
-The `LlmProvider` interface exists for future provider swaps — the service depends on the interface, not the SDK directly.
-
-## Tools
-
-Four tools are available to the agent (plus web search):
+## Tools (8 + web search)
 
 ### `web_search`
-Built-in Anthropic server-side web search. Never appears in `tool_use` blocks — handled transparently by the API.
+Built-in Anthropic server-side search. Transparent to tool dispatch.
 
 ### `get_case_data`
-Fetches the investigation graph (all investigations, traces, wallet nodes, transaction edges) for the current case. Accepts an optional `investigationId` to scope to one investigation.
+Fetch investigation graph (investigations, traces, nodes, edges). Optional `investigationId` to scope.
 
 ### `get_skill`
-Loads a markdown skill document into context. Available: `blockchain-apis` (Etherscan V2 + Tronscan + TronGrid API reference), `graph-mutations` (import endpoint format + script pattern for adding nodes/edges).
+Load markdown skill document. Available: `blockchain-apis`, `graph-mutations`.
 
 ### `execute_script`
-Writes and runs JavaScript in a sandboxed Node.js child process. Designed for batch blockchain API calls and graph mutations — e.g., fetch transactions for 10 addresses, then POST to the import endpoint to add them to the graph.
-
-**Input**: `{ name: string, code: string }`
+Run JavaScript in an **isolated-vm V8 sandbox**. Input: `{ name, code }`.
 
 ### `list_script_runs`
-Returns the last 20 script runs for the current investigation (output truncated to 2KB per run). The agent checks this before re-running a script.
+Last 20 script runs for the investigation (output truncated to 2KB each).
+
+### `query_labeled_entities`
+Search entity registry by address, name, or category.
+
+### `create_production`
+Create a report (HTML), chart (Chart.js data), or chronology.
+
+### `read_production`
+Read a production by ID or list all for the investigation.
+
+### `update_production`
+Update a production's name or data (full replacement).
 
 ## Tool Dispatch
 
-`AiService.executeTool()` uses a switch on tool name:
-
 ```
-get_case_data    → query InvestigationEntity with traces relation
-get_skill        → read markdown file from src/skills/
-execute_script   → ScriptExecutionService.execute()
-list_script_runs → ScriptExecutionService.listRuns()
-default          → { error: "Unknown tool" }
+get_case_data         → query InvestigationEntity with traces relation
+get_skill             → read markdown from src/skills/
+execute_script        → ScriptExecutionService.execute()
+list_script_runs      → ScriptExecutionService.listRuns()
+query_labeled_entities→ LabeledEntitiesService.lookupByAddress() or findAll()
+create_production     → ProductionsService.create()
+read_production       → ProductionsService.findOne() or findAllForCase()
+update_production     → ProductionsService.update()
+default               → { error: "Unknown tool" }
 ```
 
-Both `execute_script` and `list_script_runs` require an `investigationId` from the chat request. If missing, the tool returns an error asking the user to select an investigation.
+## Script Execution (isolated-vm sandbox)
 
-## Script Execution
+Scripts run in a **V8 isolate** (via `isolated-vm` npm package), NOT a child process. The isolate has zero access to Node.js APIs — no `fs`, `child_process`, `net`, `os`, `require`, or `import`.
 
-`ScriptExecutionService` runs agent-generated JavaScript in an isolated child process.
+### What's available inside the sandbox
+- `fetch()` — bridged to host-side, domain-whitelisted, redirect-blocked, https-only (http only for localhost in dev)
+- `console.log/error/warn/info` — captured to output buffer
+- `process.env` — frozen, read-only subset: `ETHERSCAN_API_KEY`, `TRONSCAN_API_KEY`, `API_URL`
 
 ### Constraints
 
 | Constraint | Value |
 |-----------|-------|
-| Timeout | 30 seconds |
-| Output limit | 100KB (truncated + process killed) |
-| Runtime | Node.js with `--input-type=module` (ESM) |
-| Available globals | `fetch()`, `console`, `process.env` |
-| Env vars | `ETHERSCAN_API_KEY`, `TRONSCAN_API_KEY`, `API_URL`, `HOME` |
-| No access to | Filesystem, npm modules, network (except fetch) |
+| Timeout | 30s (both CPU via eval timeout AND wall-clock via Promise.race) |
+| Output limit | 100KB (truncated) |
+| Memory limit | 128MB per isolate |
+| Max concurrent | 2 (semaphore) |
+| Strict mode | Yes ('use strict' in harness) |
+| Redirects | Blocked (redirect: 'error') |
+| Scheme | https only (http for loopback in dev only) |
 
-### How It Works
-
-1. Agent code is wrapped in an async IIFE with try/catch (enables top-level `await`)
-2. Code is sent via **stdin** (not `-e` flag — avoids arg length limits)
-3. stdout + stderr are captured into a combined output string
-4. If output exceeds 100KB → truncate, SIGKILL the process
-5. On close: check signal/exit code → determine status (`success` / `error` / `timeout`)
-6. Persist to `script_runs` table with name, code, output, status, duration
-7. Return result to the agent
+### Domain allowlist
+Etherscan (7 chains), Tronscan, TronGrid, localhost (dev only). Extensible via `SCRIPT_ALLOWED_DOMAINS` env var.
 
 ### Persistence
-
-Every script execution is saved to the `script_runs` table, linked to the investigation by `investigationId`. The frontend shows these in the sidebar's Scripts section, and the details panel displays code + output with syntax tabs.
+Every execution saved to `script_runs` table with name, code, output, status, duration, investigationId.
 
 ## System Prompt
 
-Located at `src/prompts/investigator.ts`. The prompt:
-- Sets the role as a blockchain forensics analyst
-- Lists all available tools with brief descriptions
-- Provides guidelines: use Markdown formatting, cite sources, flag suspicious patterns
-- Directs the agent to load the `blockchain-apis` skill before making API calls
-- Encourages `execute_script` for batch operations over sequential tool calls
-- Tells the agent to check `list_script_runs` before re-running scripts
+`src/prompts/investigator.ts` — sets role as blockchain forensics analyst, lists tools, provides guidelines for Markdown formatting, skill loading, batch operations, deduplication.
 
 ## Skills
 
-Skill documents live in `src/skills/` as markdown files.
-
-### `blockchain-apis.md`
-
-Covers:
-- **Etherscan V2** — 7 chain IDs, 12 endpoints (account, contract, gas, stats)
-- **Tronscan API** — 9 endpoints (account, transaction, transfer, contract, price)
-- **TronGrid v1** — 3 endpoints (account, transactions, TRC-20)
-- **Usage notes** — Wei/Sun conversion, address formats, timestamp formats
-- **Script patterns** — Etherscan/Tronscan fetch helpers, `Promise.all` parallel calls, rate-limit-aware batching
-
-### `graph-mutations.md`
-
-Covers:
-- **Import endpoint** — `POST /traces/:id/import-transactions` request/response format
-- **Field reference** — from, to, txHash, chain, timestamp, amount, token, blockNumber
-- **Native currency table** — ETH, MATIC, TRX per chain
-- **Script pattern** — Fetch from Etherscan → map to import format → POST to endpoint
-- **Tips** — Use `get_case_data` for traceId, dedup is safe, batch large datasets
-
-## Conversations & Messages
-
-`ConversationsService` handles persistence:
-- Conversations have a nullable `title` (auto-set after first exchange)
-- Messages store `role` (`user` | `assistant`) and `content` as a JSONB array
-- Content preserves Anthropic block types verbatim: `text`, `tool_use`, `tool_result`, `thinking`, compaction blocks
-- Tool results are saved as `user` role messages (Anthropic's convention)
+- `blockchain-apis.md` — Etherscan V2 (7 chains, 12 endpoints), Tronscan (9 endpoints), TronGrid v1 (3 endpoints), script patterns
+- `graph-mutations.md` — Import endpoint format, field reference, native currency table, script patterns
 
 ## SSE Event Types
 
-The chat endpoint (`POST /conversations/:id/chat`) streams these events:
-
 | Event | Data | When |
 |-------|------|------|
-| `text_delta` | `{ content: string }` | Each streamed token |
-| `tool_start` | `{ name: string, input: object }` | Tool execution begins |
-| `tool_done` | `{ name: string }` | Tool execution complete |
-| `graph_updated` | `{}` | Graph data changed (after script execution) |
-| `done` | `{ conversationId: string }` | Agent turn finished |
-| `error` | `{ message: string }` | Unrecoverable error |
+| `text_delta` | `{ content }` | Each streamed token |
+| `tool_start` | `{ name, input }` | Tool execution begins |
+| `tool_done` | `{ name }` | Tool execution complete |
+| `graph_updated` | `{}` | Graph changed (after script execution) |
+| `done` | `{ conversationId }` | Agent turn finished |
+| `error` | `{ message }` | Unrecoverable error |

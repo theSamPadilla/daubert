@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
-import { FaChevronLeft, FaChevronRight } from 'react-icons/fa6';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
-import { InvestigationsSidebar } from '@/components/InvestigationsSidebar';
 import { GraphCanvas, type GraphCanvasHandle } from '@/components/GraphCanvas';
-import { AIChat } from '@/components/AIChat';
+import { useCaseContext } from '@/contexts/CaseContext';
 import { Header } from '@/components/Header';
 import { DetailsPanel, type DetailsPanelHandle } from '@/components/DetailsPanel';
 import { FloatingPanel } from '@/components/FloatingPanel';
@@ -220,33 +218,8 @@ function InvestigationsWorkspace() {
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
-  const [productions, setProductions] = useState<Production[]>([]);
   const [selectedProduction, setSelectedProduction] = useState<Production | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [chatOpen, setChatOpen] = useState(true);
-  const [chatWidth, setChatWidth] = useState(480);
-  const chatDragRef = useRef<{ startX: number; startW: number } | null>(null);
-
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      if (!chatDragRef.current) return;
-      const delta = chatDragRef.current.startX - e.clientX;
-      setChatWidth(Math.min(900, Math.max(320, chatDragRef.current.startW + delta)));
-    };
-    const onMouseUp = () => {
-      if (chatDragRef.current) {
-        chatDragRef.current = null;
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      }
-    };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-  }, []);
+  const { updateSidebar, setOnGraphUpdated, productions, setProductions } = useCaseContext();
 
   // Load investigation from backend when selection changes
   const loadInvestigationFromApi = useCallback(async (id: string) => {
@@ -309,10 +282,6 @@ function InvestigationsWorkspace() {
       setScriptRuns([]);
     }
   }, [activeInvestigationId, loadInvestigationFromApi, setInvestigation]);
-
-  useEffect(() => {
-    apiClient.listProductions(caseId).then(setProductions).catch(() => setProductions([]));
-  }, [caseId]);
 
   // Refresh script runs periodically
   useEffect(() => {
@@ -396,6 +365,13 @@ function InvestigationsWorkspace() {
     }
   }, [investigation]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    setOnGraphUpdated(() => {
+      if (activeInvestigationId) loadInvestigationFromApi(activeInvestigationId);
+    });
+    return () => setOnGraphUpdated(undefined);
+  }, [activeInvestigationId, loadInvestigationFromApi, setOnGraphUpdated]);
+
   // Sidebar callback
   const handleSelectInvestigation = useCallback((inv: ApiInvestigation) => {
     setActiveInvestigationId(inv.id);
@@ -440,6 +416,44 @@ function InvestigationsWorkspace() {
   const handleSelectScriptRun = useCallback((run: ScriptRun) => {
     setSelectedItem({ type: 'scriptRun', data: run });
   }, []);
+
+  const selectedTraceId = selectedItem?.type === 'trace' ? selectedItem.data?.id : undefined;
+  const selectedScriptRunId = selectedItem?.type === 'scriptRun' ? selectedItem.data?.id : undefined;
+
+  // Push data to the shared sidebar via CaseContext.
+  // Every value referenced in the effect body must be in the deps array — without
+  // them, the effect runs every render, and updateSidebar always creates a new
+  // sidebar object, which re-renders the provider and re-runs this effect (loop).
+  useEffect(() => {
+    updateSidebar({
+      activeInvestigationId,
+      traces: investigation?.traces,
+      selectedTraceId,
+      onAddTrace: handleAddTrace,
+      onSelectTrace: handleSelectTrace,
+      onToggleVisibility: toggleTraceVisibility,
+      onToggleCollapsed: toggleTraceCollapsed,
+      scriptRuns,
+      selectedScriptRunId,
+      onSelectScriptRun: handleSelectScriptRun,
+      selectedProductionId: selectedProduction?.id,
+      onSelectProduction: setSelectedProduction,
+      onEditInvestigation: setEditingInvestigation,
+    });
+  }, [
+    updateSidebar,
+    activeInvestigationId,
+    investigation?.traces,
+    selectedTraceId,
+    handleAddTrace,
+    handleSelectTrace,
+    toggleTraceVisibility,
+    toggleTraceCollapsed,
+    scriptRuns,
+    selectedScriptRunId,
+    handleSelectScriptRun,
+    selectedProduction?.id,
+  ]);
 
   const handleAddWallet = useCallback(() => {
     setPanelMode({ type: 'linkInput', intent: 'address' });
@@ -836,11 +850,9 @@ function InvestigationsWorkspace() {
       onMultiSelect: (nodes) => {
         setSelectedNodeIds(nodes);
         setSelectedItem(null);
-        setSelectedEdgeIds([]);
       },
       onMultiSelectEdges: (edgeIds) => {
         setSelectedEdgeIds(edgeIds);
-        setSelectedNodeIds([]);
         setSelectedItem(null);
       },
       onNodeDrag: updateNodePosition,
@@ -869,8 +881,6 @@ function InvestigationsWorkspace() {
     }),
     [updateNodePosition, updateWallet, updateGroup, investigation, handleContextMenu, handleCreateWalletAtPosition]
   );
-
-  const selectedTraceId = selectedItem?.type === 'trace' ? selectedItem.data?.id : undefined;
 
   const handleLinkResolved = useCallback((result: LinkInputResult, position?: { x: number; y: number }) => {
     if (result.type === 'transaction' && result.txPrefill) {
@@ -940,95 +950,46 @@ function InvestigationsWorkspace() {
   };
 
   return (
-    <div className="h-screen flex bg-gray-900 text-white">
-      <div className={`relative flex-shrink-0 transition-all duration-200 ${sidebarOpen ? 'w-60' : 'w-0'} overflow-hidden h-full`}>
-        <InvestigationsSidebar
-          caseId={caseId}
-          activeInvestigationId={activeInvestigationId}
-          onSelectInvestigation={handleSelectInvestigation}
-          onEditInvestigation={setEditingInvestigation}
-          refreshTrigger={sidebarRefresh}
-          traces={investigation?.traces}
-          selectedTraceId={selectedTraceId}
-          onAddTrace={handleAddTrace}
-          onSelectTrace={handleSelectTrace}
-          onToggleVisibility={toggleTraceVisibility}
-          onToggleCollapsed={toggleTraceCollapsed}
-          scriptRuns={scriptRuns}
-          selectedScriptRunId={selectedItem?.type === 'scriptRun' ? selectedItem.data?.id : undefined}
-          onSelectScriptRun={handleSelectScriptRun}
-          productions={productions}
-          selectedProductionId={selectedProduction?.id}
-          onSelectProduction={(p) => setSelectedProduction(p)}
-          onAddProduction={async () => {
-            const type = window.prompt('Production type (report, chart, chronology):', 'report');
-            if (!type || !['report', 'chart', 'chronology'].includes(type)) return;
-            const name = window.prompt('Production name:');
-            if (!name?.trim()) return;
-            const defaultData = type === 'report' ? { content: '' }
-              : type === 'chronology' ? { title: name.trim(), entries: [] }
-              : { chartType: 'bar', labels: [], datasets: [] };
-            try {
-              const prod = await apiClient.createProduction(caseId, { name: name.trim(), type, data: defaultData });
-              setProductions((prev) => [...prev, prod]);
-              setSelectedProduction(prod);
-            } catch (err) {
-              console.error('Failed to create production:', err);
-            }
-          }}
-        />
-      </div>
+    <>
+      {investigation ? (
+        <>
+          <Header
+            investigation={investigation}
+            onAddAddress={handleAddWallet}
+            onAddTransaction={handleAddTransaction}
+            onUndo={undo}
+            canUndo={canUndo}
+            onRefresh={() => activeInvestigationId && loadInvestigationFromApi(activeInvestigationId)}
+            onExport={(format) => graphRef.current?.exportImage(format, investigation?.name || 'graph')}
+            rightContent={<UserMenu />}
+          />
+          <div className="flex-1 bg-gray-900 relative overflow-hidden">
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-gray-400">Loading...</p>
+              </div>
+            ) : selectedProduction ? (
+              <ProductionViewer
+                production={selectedProduction}
+                onUpdate={(updated) => {
+                  setSelectedProduction(updated);
+                  setProductions((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+                }}
+              />
+            ) : (
+              <GraphCanvas
+                ref={graphRef}
+                investigation={investigation}
+                selectedNodeIds={selectedNodeIds}
+                selectedEdgeIds={selectedEdgeIds}
+                callbacks={cytoscapeCallbacks}
+              />
+            )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {investigation ? (
-          <>
-            <Header
-              investigation={investigation}
-              onAddAddress={handleAddWallet}
-              onAddTransaction={handleAddTransaction}
-              onUndo={undo}
-              canUndo={canUndo}
-              onRefresh={() => activeInvestigationId && loadInvestigationFromApi(activeInvestigationId)}
-              onExport={(format) => graphRef.current?.exportImage(format, investigation?.name || 'graph')}
-              rightContent={<UserMenu />}
-            />
-            <div className="flex-1 bg-gray-900 relative overflow-hidden">
-                <button
-                  onClick={() => setSidebarOpen((v) => !v)}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-4 h-10 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-r flex items-center justify-center transition-colors"
-                  title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-                >
-                  {sidebarOpen ? <FaChevronLeft size={8} /> : <FaChevronRight size={8} />}
-                </button>
-                <button
-                  onClick={() => setChatOpen((v) => !v)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-4 h-10 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-l flex items-center justify-center transition-colors"
-                  title={chatOpen ? 'Collapse chat' : 'Expand chat'}
-                >
-                  {chatOpen ? <FaChevronRight size={8} /> : <FaChevronLeft size={8} />}
-                </button>
-                {loading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-gray-400">Loading...</p>
-                  </div>
-                ) : selectedProduction ? (
-                  <ProductionViewer
-                    production={selectedProduction}
-                    onUpdate={(updated) => {
-                      setSelectedProduction(updated);
-                      setProductions((prev) => prev.map((p) => p.id === updated.id ? updated : p));
-                    }}
-                  />
-                ) : (
-                  <GraphCanvas
-                    ref={graphRef}
-                    investigation={investigation}
-                    callbacks={cytoscapeCallbacks}
-                  />
-                )}
-
+            {(selectedNodeIds.length >= 2 || selectedEdgeIds.length >= 2) && (
+              <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-20">
                 {selectedNodeIds.length >= 2 && (
-                  <div className="absolute bottom-4 left-4 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl max-h-[60vh] flex flex-col z-20">
+                  <div className="w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl max-h-[60vh] flex flex-col">
                     <BatchEditPanel
                       count={selectedNodeIds.length}
                       onRename={handleBatchRename}
@@ -1049,9 +1010,8 @@ function InvestigationsWorkspace() {
                     />
                   </div>
                 )}
-
                 {selectedEdgeIds.length >= 2 && (
-                  <div className="absolute bottom-4 left-4 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl z-20">
+                  <div className="w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl">
                     <EdgeBatchPanel
                       count={selectedEdgeIds.length}
                       onBundle={handleBundleEdges}
@@ -1059,175 +1019,152 @@ function InvestigationsWorkspace() {
                     />
                   </div>
                 )}
+              </div>
+            )}
 
-                {selectedItem && selectedNodeIds.length < 2 && selectedEdgeIds.length < 2 && (
-                  <FloatingPanel
-                    title={`${selectedItem.type === 'wallet' ? 'Address' : selectedItem.type === 'scriptRun' ? 'Script' : selectedItem.type} Details`}
-                    onClose={() => { setSelectedItem(null); graphRef.current?.unselectAll(); }}
-                    className="absolute bottom-4 left-4"
-                    width="w-[420px]"
-                    actions={selectedItem.type === 'wallet' ? (
-                      <WalletHeaderActions
-                        wallet={selectedItem.data as WalletNode}
-                        onEdit={() => detailsPanelRef.current?.startEdit()}
-                        onDelete={() => {
-                          const w = selectedItem.data as WalletNode;
-                          deleteWallet(w.parentTrace, w.id);
-                          setSelectedItem(null);
-                          graphRef.current?.unselectAll();
-                        }}
-                        onColorChange={(color) => updateWallet(selectedItem.data.parentTrace, selectedItem.data.id, { color })}
-                      />
-                    ) : selectedItem.type === 'transaction' ? (
-                      <TransactionHeaderActions
-                        transaction={selectedItem.data as TransactionEdge}
-                        onEdit={() => detailsPanelRef.current?.startEdit()}
-                        onDelete={() => {
-                          const tx = selectedItem.data as TransactionEdge;
-                          const traceId = investigation.traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
-                          deleteTransaction(traceId, tx.id);
-                          setSelectedItem(null);
-                          graphRef.current?.unselectAll();
-                        }}
-                        onColorChange={(color) => {
-                          const tx = selectedItem.data as TransactionEdge;
-                          const traceId = investigation.traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
-                          updateTransaction(traceId, tx.id, { color });
-                        }}
-                      />
-                    ) : undefined}
-                  >
-                    <DetailsPanel
-                      ref={detailsPanelRef}
-                      selectedItem={selectedItem}
-                      traces={investigation.traces}
-                      allWallets={allWallets}
-                      onUpdateWallet={updateWallet}
-                      onDeleteWallet={(traceId, walletId) => {
-                        deleteWallet(traceId, walletId);
-                        setSelectedItem(null);
-                      }}
-                      onUpdateTransaction={updateTransaction}
-                      onDeleteTransaction={(traceId, txId) => {
-                        deleteTransaction(traceId, txId);
-                        setSelectedItem(null);
-                      }}
-                      onUpdateTrace={updateTrace}
-                      onDeleteTrace={(traceId) => {
-                        apiClient.deleteTrace(traceId).catch(console.error);
-                        deleteTrace(traceId);
-                        setSelectedItem(null);
-                      }}
-                      onUpdateGroup={updateGroup}
-                      onDeleteGroup={(traceId, groupId) => {
-                        deleteGroup(traceId, groupId);
-                        setSelectedItem(null);
-                      }}
-                      onSetNodeGroup={setNodeGroup}
-                      onToggleEdgeBundle={toggleEdgeBundle}
-                      onUpdateEdgeBundle={updateEdgeBundle}
-                      onDeleteEdgeBundle={(traceId, bundleId) => {
-                        deleteEdgeBundle(traceId, bundleId);
-                        setSelectedItem(null);
-                      }}
-                      onFetchHistory={handleFetchHistory}
-                      onRerunScript={async (scriptRunId) => {
-                        await apiClient.rerunScript(scriptRunId);
-                        if (activeInvestigationId) {
-                          const runs = await apiClient.listScriptRuns(activeInvestigationId);
-                          setScriptRuns(runs);
-                        }
-                      }}
-                      onArcEdge={(edgeId, delta) => graphRef.current?.setEdgeArc(edgeId, delta)}
-                    />
-                  </FloatingPanel>
-                )}
-
-                {editingInvestigation && (
-                  <FloatingPanel
-                    title="Investigation"
-                    onClose={() => setEditingInvestigation(null)}
-                    className="absolute top-4 left-4"
-                  >
-                    <InvestigationForm
-                      investigation={editingInvestigation}
-                      traces={investigation?.id === editingInvestigation.id ? (investigation.traces as any) : undefined}
-                      onSave={async (updates) => {
-                        await apiClient.updateInvestigation(editingInvestigation.id, updates);
-                        setEditingInvestigation(null);
-                        setSidebarRefresh((n) => n + 1);
-                      }}
-                      onDelete={async () => {
-                        await apiClient.deleteInvestigation(editingInvestigation.id);
-                        setEditingInvestigation(null);
-                        setActiveInvestigationId(null);
-                        setSidebarRefresh((n) => n + 1);
-                      }}
-                      onCancel={() => setEditingInvestigation(null)}
-                    />
-                  </FloatingPanel>
-                )}
-
-                {fetchModalWallet && investigation && (
-                  <FetchModal
-                    initialAddress={fetchModalWallet.address}
-                    initialChain={fetchModalWallet.chain}
-                    traces={investigation.traces}
-                    existingTxKeys={new Set(
-                      investigation.traces.flatMap((t) =>
-                        t.edges.map((e) => `${e.txHash}-${e.from}-${e.to}`)
-                      )
-                    )}
-                    onAdd={handleAddStagedToTrace}
-                    onClose={() => setFetchModalWallet(null)}
+            {selectedItem && selectedNodeIds.length < 2 && selectedEdgeIds.length < 2 && (
+              <FloatingPanel
+                title={`${selectedItem.type === 'wallet' ? 'Address' : selectedItem.type === 'scriptRun' ? 'Script' : selectedItem.type} Details`}
+                onClose={() => { setSelectedItem(null); graphRef.current?.unselectAll(); }}
+                className="absolute bottom-4 left-4"
+                width="w-[420px]"
+                actions={selectedItem.type === 'wallet' ? (
+                  <WalletHeaderActions
+                    wallet={selectedItem.data as WalletNode}
+                    onEdit={() => detailsPanelRef.current?.startEdit()}
+                    onDelete={() => {
+                      const w = selectedItem.data as WalletNode;
+                      deleteWallet(w.parentTrace, w.id);
+                      setSelectedItem(null);
+                      graphRef.current?.unselectAll();
+                    }}
+                    onColorChange={(color) => updateWallet(selectedItem.data.parentTrace, selectedItem.data.id, { color })}
                   />
-                )}
+                ) : selectedItem.type === 'transaction' ? (
+                  <TransactionHeaderActions
+                    transaction={selectedItem.data as TransactionEdge}
+                    onEdit={() => detailsPanelRef.current?.startEdit()}
+                    onDelete={() => {
+                      const tx = selectedItem.data as TransactionEdge;
+                      const traceId = investigation.traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
+                      deleteTransaction(traceId, tx.id);
+                      setSelectedItem(null);
+                      graphRef.current?.unselectAll();
+                    }}
+                    onColorChange={(color) => {
+                      const tx = selectedItem.data as TransactionEdge;
+                      const traceId = investigation.traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
+                      updateTransaction(traceId, tx.id, { color });
+                    }}
+                  />
+                ) : undefined}
+              >
+                <DetailsPanel
+                  ref={detailsPanelRef}
+                  selectedItem={selectedItem}
+                  traces={investigation.traces}
+                  allWallets={allWallets}
+                  onUpdateWallet={updateWallet}
+                  onDeleteWallet={(traceId, walletId) => {
+                    deleteWallet(traceId, walletId);
+                    setSelectedItem(null);
+                  }}
+                  onUpdateTransaction={updateTransaction}
+                  onDeleteTransaction={(traceId, txId) => {
+                    deleteTransaction(traceId, txId);
+                    setSelectedItem(null);
+                  }}
+                  onUpdateTrace={updateTrace}
+                  onDeleteTrace={(traceId) => {
+                    apiClient.deleteTrace(traceId).catch(console.error);
+                    deleteTrace(traceId);
+                    setSelectedItem(null);
+                  }}
+                  onUpdateGroup={updateGroup}
+                  onDeleteGroup={(traceId, groupId) => {
+                    deleteGroup(traceId, groupId);
+                    setSelectedItem(null);
+                  }}
+                  onSetNodeGroup={setNodeGroup}
+                  onToggleEdgeBundle={toggleEdgeBundle}
+                  onUpdateEdgeBundle={updateEdgeBundle}
+                  onDeleteEdgeBundle={(traceId, bundleId) => {
+                    deleteEdgeBundle(traceId, bundleId);
+                    setSelectedItem(null);
+                  }}
+                  onFetchHistory={handleFetchHistory}
+                  onRerunScript={async (scriptRunId) => {
+                    await apiClient.rerunScript(scriptRunId);
+                    if (activeInvestigationId) {
+                      const runs = await apiClient.listScriptRuns(activeInvestigationId);
+                      setScriptRuns(runs);
+                    }
+                  }}
+                  onArcEdge={(edgeId, delta) => graphRef.current?.setEdgeArc(edgeId, delta)}
+                />
+              </FloatingPanel>
+            )}
 
-                {stagedItems.length > 0 && (
-                  <div className="absolute bottom-0 left-0 right-0 z-20">
-                    <StagingPanel
-                      items={stagedItems}
-                      traces={investigation.traces}
-                      onAddToTrace={handleAddStagedToTrace}
-                      onClear={() => setStagedItems([])}
-                    />
-                  </div>
+            {editingInvestigation && (
+              <FloatingPanel
+                title="Investigation"
+                onClose={() => setEditingInvestigation(null)}
+                className="absolute top-4 left-4"
+              >
+                <InvestigationForm
+                  investigation={editingInvestigation}
+                  traces={investigation?.id === editingInvestigation.id ? (investigation.traces as any) : undefined}
+                  onSave={async (updates) => {
+                    await apiClient.updateInvestigation(editingInvestigation.id, updates);
+                    setEditingInvestigation(null);
+                    setSidebarRefresh((n) => n + 1);
+                  }}
+                  onDelete={async () => {
+                    await apiClient.deleteInvestigation(editingInvestigation.id);
+                    setEditingInvestigation(null);
+                    setActiveInvestigationId(null);
+                    setSidebarRefresh((n) => n + 1);
+                  }}
+                  onCancel={() => setEditingInvestigation(null)}
+                />
+              </FloatingPanel>
+            )}
+
+            {fetchModalWallet && investigation && (
+              <FetchModal
+                initialAddress={fetchModalWallet.address}
+                initialChain={fetchModalWallet.chain}
+                traces={investigation.traces}
+                existingTxKeys={new Set(
+                  investigation.traces.flatMap((t) =>
+                    t.edges.map((e) => `${e.txHash}-${e.from}-${e.to}`)
+                  )
                 )}
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold mb-2">Daubert</h2>
-              <p className="text-gray-500">Select or create an investigation to begin</p>
-            </div>
+                onAdd={handleAddStagedToTrace}
+                onClose={() => setFetchModalWallet(null)}
+              />
+            )}
+
+            {stagedItems.length > 0 && (
+              <div className="absolute bottom-0 left-0 right-0 z-20">
+                <StagingPanel
+                  items={stagedItems}
+                  traces={investigation.traces}
+                  onAddToTrace={handleAddStagedToTrace}
+                  onClear={() => setStagedItems([])}
+                />
+              </div>
+            )}
           </div>
-        )}
-      </div>
-
-      <div
-        className={`relative flex-shrink-0 overflow-hidden h-full ${chatOpen ? '' : 'w-0'}`}
-        style={chatOpen ? { width: chatWidth } : undefined}
-      >
-        {chatOpen && (
-          <div
-            className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              chatDragRef.current = { startX: e.clientX, startW: chatWidth };
-              document.body.style.cursor = 'col-resize';
-              document.body.style.userSelect = 'none';
-            }}
-          />
-        )}
-        <AIChat
-          activeCaseId={caseId}
-          activeInvestigationId={activeInvestigationId}
-          onGraphUpdated={() => {
-            if (activeInvestigationId) loadInvestigationFromApi(activeInvestigationId);
-          }}
-        />
-      </div>
+        </>
+      ) : (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-2">Daubert</h2>
+            <p className="text-gray-500">Select or create an investigation to begin</p>
+          </div>
+        </div>
+      )}
 
       {contextMenu && (
         <ContextMenu
@@ -1239,7 +1176,7 @@ function InvestigationsWorkspace() {
       )}
 
       {renderCreationPanel()}
-    </div>
+    </>
   );
 }
 

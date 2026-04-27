@@ -48,9 +48,9 @@ function sanitizeToolPairs(
   const out: Anthropic.Beta.BetaMessageParam[] = [];
 
   // Types that act like tool_use and need a matching result in the next turn
-  const USE_TYPES = new Set(['tool_use', 'code_execution']);
+  const USE_TYPES = new Set(['tool_use', 'code_execution', 'server_tool_use']);
   // Types that act like tool_result and need a matching use in the prev turn
-  const RESULT_TYPES = new Set(['tool_result', 'code_execution_tool_result']);
+  const RESULT_TYPES = new Set(['tool_result', 'code_execution_tool_result', 'server_tool_result']);
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
@@ -135,22 +135,6 @@ function mergeConsecutiveRoles(
 }
 
 /**
- * Detects whether an Anthropic API error is the "tool use without result" class
- * of invalid_request_error that can be auto-healed by stripping server-side
- * tool blocks from the history.
- */
-function isOrphanedToolError(err: unknown): boolean {
-  if (!(err instanceof Anthropic.BadRequestError)) return false;
-  const msg = (err as any)?.error?.error?.message ?? err.message ?? '';
-  return (
-    msg.includes('code_execution') ||
-    msg.includes('tool_use') ||
-    msg.includes('without a corresponding') ||
-    msg.includes('tool_result')
-  );
-}
-
-/**
  * Produce a compact version of a tool result for DB persistence. The full
  * result feeds the current agent loop (in-memory); the slim version is what
  * future requests see when loading conversation history. The model can
@@ -232,14 +216,12 @@ export class AiService {
     await this.conversationsService.findOne(conversationId);
 
     // Load history and reconstruct MessageParam[] verbatim.
-    // Compaction blocks stored in assistant content are preserved automatically.
+    // The Anthropic provider strips server-side and thinking blocks at the
+    // stream layer, so persisted history is already clean of them.
     const dbMessages = await this.conversationsService.getMessages(conversationId);
     const rawMessages: Anthropic.Beta.BetaMessageParam[] = dbMessages.map(
-      (m) => ({
-        role: m.role,
-        content: m.content as Anthropic.Beta.BetaContentBlockParam[],
-      }),
-    );
+      (m) => ({ role: m.role, content: m.content }),
+    ) as Anthropic.Beta.BetaMessageParam[];
     // Sanitize: remove orphaned tool_use / tool_result pairs that can arise
     // from same-transaction timestamps or compaction replacing old tool_use blocks.
     // Then merge any consecutive same-role messages (API requires alternating roles).
@@ -351,8 +333,14 @@ export class AiService {
     if (newUserIdx > 0) {
       const lastOld = messages[newUserIdx - 1];
       const blocks = Array.isArray(lastOld.content) ? lastOld.content : [];
-      if (blocks.length > 0) {
-        (blocks[blocks.length - 1] as any).cache_control = { type: 'ephemeral' };
+      // Defensive: legacy DB rows persisted before the provider-layer strip
+      // may still contain thinking blocks. The API rejects cache_control on them.
+      for (let j = blocks.length - 1; j >= 0; j--) {
+        const t = (blocks[j] as any).type;
+        if (t !== 'thinking' && t !== 'redacted_thinking') {
+          (blocks[j] as any).cache_control = { type: 'ephemeral' };
+          break;
+        }
       }
     }
     {
@@ -362,15 +350,16 @@ export class AiService {
       }
     }
 
+    // Fire title generation on the first message in a conversation.
+    // Uses only the user message (no need to wait for assistant response).
+    const isFirstMessage = dbMessages.length === 0;
+    if (isFirstMessage) {
+      void this.generateTitle(conversationId, userMessage);
+    }
+
     let prevToolKey = '';
-    let isFirstTurn = true;
-    let firstAssistantText = '';
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-      // Stream from LLM provider — with one auto-heal retry on orphaned-tool errors
-      let response: Anthropic.Beta.BetaMessage | undefined;
-      let streamMessages = messages;
-
       // System prompt is stable across all requests — cache it.
       const system: Anthropic.Beta.BetaTextBlockParam[] = [
         {
@@ -380,46 +369,23 @@ export class AiService {
         },
       ];
 
-      for (let attempt = 0; attempt < 2; attempt++) {
-        response = undefined;
-        try {
-          for await (const event of this.llm.streamChat({
-            system,
-            messages: streamMessages,
-            tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
-            model,
-          })) {
-            if (event.type === 'text') {
-              if (isFirstTurn) firstAssistantText += event.content;
-              yield { type: 'text_delta', data: { content: event.content } };
-            } else if (event.type === 'end_turn') {
-              response = event.response;
-            }
-          }
-          break; // success — exit retry loop
-        } catch (err) {
-          if (attempt === 0 && isOrphanedToolError(err)) {
-            // Strip ALL server-side / code_execution blocks from history and retry
-            streamMessages = streamMessages.map((m) => {
-              if (!Array.isArray(m.content)) return m;
-              const STRIP = new Set(['code_execution', 'code_execution_tool_result']);
-              const kept = (m.content as any[]).filter((b) => !STRIP.has(b.type));
-              return kept.length ? { ...m, content: kept } : m;
-            }).filter((m) => {
-              if (!Array.isArray(m.content)) return true;
-              return (m.content as any[]).length > 0;
-            });
-            // Re-sanitize after stripping
-            streamMessages = sanitizeToolPairs(streamMessages);
-            yield { type: 'text_delta', data: { content: '' } }; // keep SSE alive
-            continue;
-          }
-          throw err; // non-recoverable — re-throw
+      let response: Anthropic.Beta.BetaMessage | undefined;
+      for await (const event of this.llm.streamChat({
+        system,
+        messages,
+        tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
+        model,
+      })) {
+        if (event.type === 'text') {
+          yield { type: 'text_delta', data: { content: event.content } };
+        } else if (event.type === 'end_turn') {
+          response = event.response;
         }
       }
 
       if (!response) break;
 
+      // Provider already stripped server-side and thinking blocks.
       const responseContent =
         response.content as unknown as Anthropic.Beta.BetaContentBlock[];
 
@@ -436,14 +402,6 @@ export class AiService {
             content: responseContent,
           }),
         );
-
-        if (isFirstTurn) {
-          void this.generateTitle(
-            conversationId,
-            userMessage,
-            firstAssistantText,
-          );
-        }
 
         yield { type: 'done', data: { conversationId } };
         return;
@@ -514,7 +472,6 @@ export class AiService {
         messages.push({ role: 'user', content: toolResults });
       }
 
-      isFirstTurn = false;
     }
 
     // Exhausted iterations
@@ -672,21 +629,23 @@ export class AiService {
   private async generateTitle(
     conversationId: string,
     userMessage: string | undefined,
-    assistantResponse: string,
   ): Promise<void> {
     try {
       const userPart = userMessage?.trim() || '(attachment)';
+      if (userPart === '(attachment)') return; // nothing useful to title
       const title = await this.llm.generateText({
         maxTokens: 20,
         messages: [
           {
             role: 'user',
-            content: `Summarize this conversation exchange in 5 words or fewer. Return only the title, no punctuation.\n\nUser: ${userPart}\n\nAssistant: ${assistantResponse.slice(0, 500)}`,
+            content: `Generate a short title (5 words or fewer) for a conversation that starts with this message. Return only the title, no quotes or punctuation.\n\n${userPart}`,
           },
         ],
       });
       if (title) {
-        await this.conversationsService.updateTitle(conversationId, title);
+        // Hard cap at 30 chars — the chat header has limited space
+        const truncated = title.length > 30 ? title.slice(0, 27) + '...' : title;
+        await this.conversationsService.updateTitle(conversationId, truncated);
       }
     } catch {
       // Best-effort — title generation failure is non-fatal

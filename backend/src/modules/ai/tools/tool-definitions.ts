@@ -53,7 +53,7 @@ export const GET_SKILL_TOOL: Anthropic.Tool = {
 export const EXECUTE_SCRIPT_TOOL: Anthropic.Tool = {
   name: 'execute_script',
   description:
-    'Write and execute a JavaScript script with fetch() and blockchain API key env vars. Use for batch API calls, data aggregation, complex queries, and graph mutations (fetch blockchain data → POST to import endpoint). The script runs in Node.js with top-level await support. Available env vars: process.env.ETHERSCAN_API_KEY, process.env.TRONSCAN_API_KEY, process.env.API_URL (backend base URL). Use console.log() for output. No filesystem or npm access. 30s timeout, 100KB output limit.',
+    'Write and execute a JavaScript script with fetch() for HTTP calls. Use for batch API calls, data aggregation, complex queries, and graph mutations (fetch blockchain data → POST to import endpoint). The script runs in a sandboxed V8 isolate with top-level await support. API keys for Etherscan and Tronscan are injected automatically — do NOT include apikey params or TRON-PRO-API-KEY headers, just call the URLs directly. Available env: process.env.API_URL (backend base URL). Use console.log() for output. No filesystem or npm access. 30s timeout, 100KB output limit.',
   input_schema: {
     type: 'object' as const,
     properties: {

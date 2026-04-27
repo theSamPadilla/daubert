@@ -1,62 +1,44 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
-import { FaPen, FaChevronRight, FaChevronDown, FaArrowLeft, FaGoogleDrive } from 'react-icons/fa6';
+import { FaPen, FaChevronRight, FaChevronDown, FaArrowLeft } from 'react-icons/fa6';
 import { useRouter, usePathname } from 'next/navigation';
-import { apiClient, type Case, type Investigation, type ScriptRun, type Production, type DataRoomConnection } from '@/lib/api-client';
+import { apiClient, type Investigation, type DataRoomConnection } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
 import { ScriptsPanel } from './ScriptsPanel';
+import { useCaseContext } from '@/contexts/CaseContext';
 
 interface InvestigationsSidebarProps {
   caseId: string;
-  activeInvestigationId: string | null;
-  onSelectInvestigation: (inv: Investigation) => void;
-  onEditInvestigation: (inv: Investigation) => void;
-  refreshTrigger?: number;
-  traces?: Trace[];
-  selectedTraceId?: string;
-  onAddTrace?: () => void;
-  onSelectTrace?: (trace: Trace) => void;
-  onToggleVisibility?: (traceId: string) => void;
-  onToggleCollapsed?: (traceId: string) => void;
-  scriptRuns?: ScriptRun[];
-  selectedScriptRunId?: string;
-  onSelectScriptRun?: (run: ScriptRun) => void;
-  productions?: Production[];
-  selectedProductionId?: string;
-  onSelectProduction?: (production: Production) => void;
-  onAddProduction?: () => void;
 }
 
-export function InvestigationsSidebar({
-  caseId,
-  activeInvestigationId,
-  onSelectInvestigation,
-  onEditInvestigation,
-  refreshTrigger,
-  traces,
-  selectedTraceId,
-  onAddTrace,
-  onSelectTrace,
-  onToggleVisibility,
-  onToggleCollapsed,
-  scriptRuns,
-  selectedScriptRunId,
-  onSelectScriptRun,
-  productions,
-  selectedProductionId,
-  onSelectProduction,
-  onAddProduction,
-}: InvestigationsSidebarProps) {
+export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const ctx = useCaseContext();
+
+  const {
+    activeInvestigationId,
+    traces,
+    selectedTraceId,
+    onAddTrace,
+    onSelectTrace,
+    onToggleVisibility,
+    onToggleCollapsed,
+    scriptRuns,
+    selectedScriptRunId,
+    onSelectScriptRun,
+    selectedProductionId,
+    onSelectProduction,
+    onEditInvestigation,
+  } = ctx.sidebar;
+
+  const { productions } = ctx;
+
   const [caseName, setCaseName] = useState('');
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
   const [collapsedInvs, setCollapsedInvs] = useState<Set<string>>(new Set());
-  const [addingInv, setAddingInv] = useState(false);
-  const [newInvName, setNewInvName] = useState('');
-  // undefined = still loading; null = no connection; populated = connected.
   const [dataRoom, setDataRoom] = useState<DataRoomConnection | null | undefined>(undefined);
 
   const toggleInv = (invId: string) => {
@@ -82,13 +64,7 @@ export function InvestigationsSidebar({
     loadInvestigations();
   }, [loadInvestigations]);
 
-  useEffect(() => {
-    if (refreshTrigger) loadInvestigations();
-  }, [refreshTrigger, loadInvestigations]);
-
-  // Refetch data-room state on mount and whenever the user navigates within
-  // the case (returning from /data-room may have changed the connection).
-  // Cheap: one network call, no payload.
+  // Refetch data-room state on mount and pathname changes
   useEffect(() => {
     let cancelled = false;
     apiClient
@@ -98,21 +74,12 @@ export function InvestigationsSidebar({
     return () => { cancelled = true; };
   }, [caseId, pathname]);
 
-  const handleCreateInvestigation = async () => {
-    if (!newInvName.trim()) return;
-    try {
-      const inv = await apiClient.createInvestigation(caseId, { name: newInvName.trim() });
-      setNewInvName('');
-      setAddingInv(false);
-      await loadInvestigations();
-      onSelectInvestigation(inv);
-    } catch (err) {
-      console.error('Failed to create investigation:', err);
-    }
-  };
+  const handleSelectInvestigation = useCallback((inv: Investigation) => {
+    router.push(`/cases/${caseId}/investigations?inv=${inv.id}`);
+  }, [router, caseId]);
 
   return (
-    <div className="w-60 bg-gray-800 border-r border-gray-700 flex flex-col h-full overflow-hidden">
+    <div className="w-full bg-gray-800 flex flex-col h-full overflow-hidden">
       {/* Case header with back button */}
       <div className="p-3 border-b border-gray-700 flex items-center gap-2">
         <button
@@ -131,39 +98,13 @@ export function InvestigationsSidebar({
       <div className="px-3 py-2 flex items-center justify-between border-b border-gray-700">
         <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Investigations</span>
         <button
-          onClick={() => setAddingInv(!addingInv)}
+          onClick={() => ctx.openNewPrimary('investigation')}
           className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
-          title="Add investigation"
+          title="New investigation"
         >
           +
         </button>
       </div>
-
-      {/* New investigation input */}
-      {addingInv && (
-        <div className="px-2 py-1 border-b border-gray-700">
-          <div className="flex gap-1">
-            <input
-              type="text"
-              value={newInvName}
-              onChange={(e) => setNewInvName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreateInvestigation();
-                if (e.key === 'Escape') { setAddingInv(false); setNewInvName(''); }
-              }}
-              placeholder="Investigation name..."
-              className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-xs min-w-0"
-              autoFocus
-            />
-            <button
-              onClick={handleCreateInvestigation}
-              className="px-1.5 py-0.5 bg-blue-600 hover:bg-blue-500 rounded text-xs shrink-0 transition-colors"
-            >
-              +
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Investigation list */}
       <div className="flex-1 overflow-y-auto">
@@ -173,7 +114,15 @@ export function InvestigationsSidebar({
           return (
             <div key={inv.id}>
               <div
-                onClick={() => onSelectInvestigation(inv)}
+                onClick={() => {
+                  handleSelectInvestigation(inv);
+                  // Always expand when clicking the row
+                  setCollapsedInvs((prev) => {
+                    const next = new Set(prev);
+                    next.delete(inv.id);
+                    return next;
+                  });
+                }}
                 className={`flex items-center group px-3 pr-2 py-1.5 cursor-pointer text-sm transition-colors ${
                   isActive
                     ? 'bg-blue-600/20 text-blue-300'
@@ -190,7 +139,7 @@ export function InvestigationsSidebar({
                 </button>
                 <span className="truncate flex-1 text-xs font-medium">{inv.name}</span>
                 <button
-                  onClick={(e) => { e.stopPropagation(); onEditInvestigation(inv); }}
+                  onClick={(e) => { e.stopPropagation(); onEditInvestigation?.(inv); }}
                   className="px-0.5 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Edit investigation"
                 >
@@ -245,100 +194,79 @@ export function InvestigationsSidebar({
         )}
 
         {/* Productions */}
-        {(
-          <div className="mt-2 border-t border-gray-700">
-            <div className="px-3 py-2 flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Productions</span>
-              {onAddProduction && (
-                <button
-                  onClick={onAddProduction}
-                  className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
-                  title="Add production"
-                >
-                  +
-                </button>
-              )}
-            </div>
-            {(productions || []).map((prod) => {
-              const dotColor = prod.type === 'report' ? '#3b82f6' : prod.type === 'chart' ? '#10b981' : '#8b5cf6';
-              return (
-                <div
-                  key={prod.id}
-                  onClick={() => onSelectProduction?.(prod)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors ${
-                    selectedProductionId === prod.id
-                      ? 'bg-blue-600/20 text-blue-300'
-                      : 'hover:bg-gray-700/60 text-gray-400'
-                  }`}
-                >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: dotColor }}
-                  />
-                  <span className="truncate flex-1 font-medium">{prod.name}</span>
-                  <span className="text-[10px] text-gray-600">{prod.type}</span>
-                </div>
-              );
-            })}
-            {(!productions || productions.length === 0) && (
-              <p className="text-gray-600 text-xs px-3 py-1">No productions yet.</p>
-            )}
+        <div className="mt-2 border-t border-gray-700">
+          <div className="px-3 py-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Productions</span>
+            <button
+              onClick={() => ctx.openNewPrimary('production')}
+              className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
+              title="New production"
+            >
+              +
+            </button>
           </div>
-        )}
+          {(productions || []).map((prod) => (
+              <div
+                key={prod.id}
+                onClick={() => onSelectProduction?.(prod)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors ${
+                  selectedProductionId === prod.id
+                    ? 'bg-blue-600/20 text-blue-300'
+                    : 'hover:bg-gray-700/60 text-gray-400'
+                }`}
+              >
+                <span className="truncate flex-1 font-medium">{prod.name}</span>
+                <span className="text-[10px] text-gray-600">{prod.type}</span>
+              </div>
+          ))}
+          {(!productions || productions.length === 0) && (
+            <p className="text-gray-600 text-xs px-3 py-1">No productions yet.</p>
+          )}
+        </div>
 
         {/* Data Room */}
         {(() => {
           const dataRoomHref = `/cases/${caseId}/data-room`;
           const dataRoomActive = pathname === dataRoomHref || pathname?.startsWith(dataRoomHref + '/');
-          // Resolve the status row driven by `dataRoom`:
-          //   undefined → still loading (don't show a stale "not connected")
-          //   null      → no connection
-          //   broken    → token revoked / refresh-failed → reconnect needed
-          //   active+folder    → folder name
-          //   active+no folder → "Connected." with sub-line "(no folder selected)"
-          let dot = 'bg-gray-600';
-          let primary = 'Loading…';
-          let secondary: string | null = null;
+
+          let statusText = 'Loading...';
+          let statusColor = 'text-gray-600';
+          let folderText: string | null = null;
+
           if (dataRoom === null) {
-            dot = 'bg-gray-600';
-            primary = 'Not connected';
+            statusText = 'Not connected';
+            statusColor = 'text-gray-500';
           } else if (dataRoom && dataRoom.status === 'broken') {
-            dot = 'bg-yellow-500';
-            primary = 'Reconnect needed';
+            statusText = 'Reconnect needed';
+            statusColor = 'text-yellow-500';
           } else if (dataRoom && dataRoom.status === 'active') {
-            dot = 'bg-green-500';
-            if (dataRoom.folderName) {
-              primary = dataRoom.folderName;
-            } else {
-              primary = 'Connected.';
-              secondary = '(no folder selected)';
-            }
+            statusText = 'Connected';
+            statusColor = 'text-green-500';
+            folderText = dataRoom.folderName ?? 'No folder selected';
           }
+
           return (
             <div className="mt-2 border-t border-gray-700">
               <div className="px-3 py-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <FaGoogleDrive size={11} className="text-gray-500" />
-                  Data Room
-                </span>
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Data Room</span>
               </div>
-              <div
-                onClick={() => router.push(dataRoomHref)}
-                className={`flex items-start gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors ${
+              <a
+                href={dataRoomHref}
+                onClick={(e) => {
+                  e.preventDefault();
+                  router.push(dataRoomHref);
+                }}
+                className={`block px-3 py-1.5 cursor-pointer text-xs transition-colors ${
                   dataRoomActive
                     ? 'bg-blue-600/20 text-blue-300'
                     : 'hover:bg-gray-700/60 text-gray-400'
                 }`}
-                title={secondary ? `${primary} ${secondary}` : primary}
               >
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1 ${dot}`} />
-                <span className="flex-1 min-w-0">
-                  <span className="block truncate font-medium">{primary}</span>
-                  {secondary && (
-                    <span className="block truncate text-[10px] text-gray-500">{secondary}</span>
-                  )}
-                </span>
-              </div>
+                <span className={`text-[10px] ${statusColor}`}>{statusText}</span>
+                {folderText && (
+                  <p className="truncate font-medium mt-0.5">{folderText}</p>
+                )}
+              </a>
             </div>
           );
         })()}

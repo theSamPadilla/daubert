@@ -10,12 +10,19 @@ export interface GraphCanvasHandle {
 
 interface GraphCanvasProps {
   investigation: Investigation | null;
+  selectedNodeIds: { id: string; traceId: string }[];
+  selectedEdgeIds: string[];
   callbacks: CytoscapeCallbacks;
 }
 
 export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
-  ({ investigation, callbacks }, ref) => {
-    const { containerRef, unselectAll, exportImage, setEdgeArc } = useCytoscape(investigation, callbacks);
+  ({ investigation, selectedNodeIds, selectedEdgeIds, callbacks }, ref) => {
+    const { containerRef, unselectAll, exportImage, setEdgeArc } = useCytoscape(
+      investigation,
+      selectedNodeIds,
+      selectedEdgeIds,
+      callbacks
+    );
 
     useImperativeHandle(ref, () => ({ unselectAll, exportImage, setEdgeArc }), [unselectAll, exportImage, setEdgeArc]);
 

@@ -6,7 +6,9 @@ Use this reference to construct direct API calls via `web_search` or when advisi
 
 ## Etherscan V2 (EVM Chains)
 
-**Base URL:** `https://api.etherscan.io/v2/api?chainid={CHAIN_ID}&module={MODULE}&action={ACTION}&apikey={KEY}`
+**Base URL:** `https://api.etherscan.io/v2/api?chainid={CHAIN_ID}&module={MODULE}&action={ACTION}`
+
+> **API keys are injected automatically.** Do not include `apikey` in your query parameters — the sandbox adds it for you.
 
 ### Supported Chain IDs
 
@@ -127,7 +129,8 @@ No additional params. Key response: `{ethbtc, ethbtc_timestamp, ethusd, ethusd_t
 ## Tronscan API
 
 **Base URL:** `https://apilist.tronscanapi.com/api`
-**Auth header:** `TRON-PRO-API-KEY: {KEY}`
+
+> **Auth header is injected automatically.** Do not include `TRON-PRO-API-KEY` in your headers — the sandbox adds it for you.
 
 ### Endpoints
 
@@ -228,7 +231,8 @@ Key response: `{priceInTrx, priceInUsd, volume24h, marketCap}`.
 ## TronGrid v1
 
 **Base URL:** `https://api.trongrid.io`
-**Auth header:** `TRON-PRO-API-KEY: {KEY}` (same key as Tronscan)
+
+> **Auth header is injected automatically** (same as Tronscan).
 
 ### Endpoints
 
@@ -279,20 +283,15 @@ Key response: `data[]` with `{transaction_id, from, to, value, token_info{symbol
 
 ## Script Execution Patterns
 
-Use these patterns with the `execute_script` tool. Scripts run in Node.js with top-level await.
+Use these patterns with the `execute_script` tool. Scripts run in a sandboxed V8 isolate with top-level await.
 
-### Environment Variables
-
-```js
-const ETHERSCAN_KEY = process.env.ETHERSCAN_API_KEY;
-const TRONSCAN_KEY = process.env.TRONSCAN_API_KEY;
-```
+> **API keys are injected automatically by the sandbox.** Do not read them from `process.env` or include them in URLs/headers. The only env var available is `process.env.API_URL` (the backend base URL for graph mutations).
 
 ### Etherscan fetch helper
 
 ```js
 async function etherscan(chainId, module, action, params = {}) {
-  const qs = new URLSearchParams({ chainid: chainId, module, action, apikey: ETHERSCAN_KEY, ...params });
+  const qs = new URLSearchParams({ chainid: chainId, module, action, ...params });
   const res = await fetch(`https://api.etherscan.io/v2/api?${qs}`);
   const json = await res.json();
   if (json.status === '0' && json.message !== 'No transactions found') throw new Error(json.result);
@@ -305,9 +304,7 @@ async function etherscan(chainId, module, action, params = {}) {
 ```js
 async function tronscan(endpoint, params = {}) {
   const qs = new URLSearchParams(params);
-  const res = await fetch(`https://apilist.tronscanapi.com/api/${endpoint}?${qs}`, {
-    headers: { 'TRON-PRO-API-KEY': TRONSCAN_KEY },
-  });
+  const res = await fetch(`https://apilist.tronscanapi.com/api/${endpoint}?${qs}`);
   return res.json();
 }
 ```

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import {
   FaCloudArrowUp,
   FaDownload,
@@ -12,8 +12,7 @@ import {
   FaFolderOpen,
   FaPenToSquare,
 } from 'react-icons/fa6';
-import { apiClient, type DataRoomConnection, type DataRoomFile, type Investigation as ApiInvestigation } from '@/lib/api-client';
-import { InvestigationsSidebar } from '@/components/InvestigationsSidebar';
+import { apiClient, type DataRoomConnection, type DataRoomFile } from '@/lib/api-client';
 import { openDriveFolderPicker } from '@/lib/google-picker';
 
 function formatBytes(raw: string | undefined): string {
@@ -55,7 +54,6 @@ function shortMime(mt: string): string {
 }
 
 export default function DataRoomPage() {
-  const router = useRouter();
   const params = useParams();
   const caseId = params.caseId as string;
 
@@ -227,21 +225,6 @@ export default function DataRoomPage() {
     }
   };
 
-  // Sidebar navigation handlers — this page has no active investigation,
-  // so selecting one routes to the investigations workspace.
-  const handleSelectInvestigation = useCallback(
-    (inv: ApiInvestigation) => {
-      router.push(`/cases/${caseId}/investigations?inv=${inv.id}`);
-    },
-    [router, caseId],
-  );
-  const handleEditInvestigation = useCallback(
-    (inv: ApiInvestigation) => {
-      router.push(`/cases/${caseId}/investigations?inv=${inv.id}&edit=1`);
-    },
-    [router, caseId],
-  );
-
   // ----------------------------- Render -----------------------------
 
   const state: 'loading' | 'disconnected' | 'noFolder' | 'connected' | 'broken' = loading
@@ -255,20 +238,8 @@ export default function DataRoomPage() {
           : 'noFolder';
 
   return (
-    <div className="h-screen flex bg-gray-900 text-white">
-      {/* Case sidebar — same component as /investigations, just with no
-          active investigation (this page sits outside an investigation). */}
-      <div className="flex-shrink-0 h-full">
-        <InvestigationsSidebar
-          caseId={caseId}
-          activeInvestigationId={null}
-          onSelectInvestigation={handleSelectInvestigation}
-          onEditInvestigation={handleEditInvestigation}
-        />
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-6xl mx-auto">
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -589,7 +560,6 @@ export default function DataRoomPage() {
           )}
         </div>
       </div>
-    </div>
   );
 }
 

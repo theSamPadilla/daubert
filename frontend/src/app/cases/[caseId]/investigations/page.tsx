@@ -263,7 +263,7 @@ function InvestigationsWorkspace() {
   const [loading, setLoading] = useState(false);
   const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
   const [selectedProduction, setSelectedProduction] = useState<Production | null>(null);
-  const { updateSidebar, setOnGraphUpdated, productions, setProductions } = useCaseContext();
+  const { updateSidebar, setOnGraphUpdated, setOnProductionUpdated, productions, setProductions } = useCaseContext();
 
   // Load investigation from backend when selection changes
   const loadInvestigationFromApi = useCallback(async (id: string) => {
@@ -418,6 +418,22 @@ function InvestigationsWorkspace() {
     });
     return () => setOnGraphUpdated(undefined);
   }, [activeInvestigationId, loadInvestigationFromApi, setOnGraphUpdated]);
+
+  useEffect(() => {
+    setOnProductionUpdated(() => {
+      apiClient.listProductions(caseId).then((updated) => {
+        setProductions(updated);
+        // Auto-select the most recently created/updated production
+        if (updated.length > 0) {
+          const latest = updated.reduce((a, b) =>
+            new Date(b.updatedAt) > new Date(a.updatedAt) ? b : a,
+          );
+          setSelectedProduction(latest);
+        }
+      }).catch(console.error);
+    });
+    return () => setOnProductionUpdated(undefined);
+  }, [caseId, setProductions, setOnProductionUpdated]);
 
   // Sidebar callback
   const handleSelectInvestigation = useCallback((inv: ApiInvestigation) => {

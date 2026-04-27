@@ -259,9 +259,10 @@ interface AIChatProps {
   activeCaseId: string | null;
   activeInvestigationId: string | null;
   onGraphUpdated?: () => void;
+  onProductionUpdated?: () => void;
 }
 
-export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: AIChatProps) {
+export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, onProductionUpdated }: AIChatProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<LocalMessage[]>([]);
@@ -559,6 +560,8 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated }: 
               ]);
             } else if (eventType === 'graph_updated') {
               onGraphUpdated?.();
+            } else if (eventType === 'production_updated') {
+              onProductionUpdated?.();
             } else if (eventType === 'done') {
               removeStatus();
               setMessages((prev) => {

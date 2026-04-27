@@ -174,7 +174,7 @@ function slimToolResult(toolName: string, full: string): string {
 }
 
 export interface SseEvent {
-  type: 'text_delta' | 'tool_start' | 'tool_done' | 'graph_updated' | 'done' | 'error';
+  type: 'text_delta' | 'tool_start' | 'tool_done' | 'graph_updated' | 'production_updated' | 'done' | 'error';
   data: unknown;
 }
 
@@ -423,6 +423,13 @@ export class AiService {
 
         if (toolUse.name === EXECUTE_SCRIPT_TOOL.name) {
           yield { type: 'graph_updated', data: {} };
+        }
+
+        if (
+          toolUse.name === CREATE_PRODUCTION_TOOL.name ||
+          toolUse.name === UPDATE_PRODUCTION_TOOL.name
+        ) {
+          yield { type: 'production_updated', data: {} };
         }
 
         const fullContent = JSON.stringify(result);

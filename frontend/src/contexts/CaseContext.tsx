@@ -61,6 +61,8 @@ export interface CaseContextValue {
   activeInvestigationId: string | null;
   onGraphUpdated?: () => void;
   setOnGraphUpdated: (fn: (() => void) | undefined) => void;
+  onProductionUpdated?: () => void;
+  setOnProductionUpdated: (fn: (() => void) | undefined) => void;
 }
 
 const CaseContext = createContext<CaseContextValue | null>(null);
@@ -75,9 +77,11 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
   const [newPrimaryOpen, setNewPrimaryOpen] = useState(false);
   const [newPrimaryDefault, setNewPrimaryDefault] = useState<'investigation' | 'production'>('investigation');
 
-  // Store onGraphUpdated in a ref so chat doesn't re-render on every callback change
+  // Store callbacks in refs so chat doesn't re-render on every callback change
   const graphUpdatedRef = useRef<(() => void) | undefined>(undefined);
   const [, forceGraphUpdate] = useState(0);
+  const productionUpdatedRef = useRef<(() => void) | undefined>(undefined);
+  const [, forceProductionUpdate] = useState(0);
 
   // Fetch productions once on mount — shared across all pages
   useEffect(() => {
@@ -102,6 +106,11 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
     forceGraphUpdate((n) => n + 1);
   }, []);
 
+  const setOnProductionUpdated = useCallback((fn: (() => void) | undefined) => {
+    productionUpdatedRef.current = fn;
+    forceProductionUpdate((n) => n + 1);
+  }, []);
+
   const value: CaseContextValue = {
     caseId,
     sidebar,
@@ -123,6 +132,8 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
     activeInvestigationId: sidebar.activeInvestigationId,
     onGraphUpdated: graphUpdatedRef.current,
     setOnGraphUpdated,
+    onProductionUpdated: productionUpdatedRef.current,
+    setOnProductionUpdated,
   };
 
   return <CaseContext.Provider value={value}>{children}</CaseContext.Provider>;

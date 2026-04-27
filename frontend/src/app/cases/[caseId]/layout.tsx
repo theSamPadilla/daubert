@@ -27,6 +27,7 @@ function CaseShell({ children }: { children: React.ReactNode }) {
     setChatWidth,
     activeInvestigationId,
     onGraphUpdated,
+    onProductionUpdated,
     newPrimaryOpen,
   } = useCaseContext();
 
@@ -125,6 +126,7 @@ function CaseShell({ children }: { children: React.ReactNode }) {
           activeCaseId={caseId}
           activeInvestigationId={activeInvestigationId}
           onGraphUpdated={onGraphUpdated}
+          onProductionUpdated={onProductionUpdated}
         />
       </div>
 

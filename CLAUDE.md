@@ -30,3 +30,6 @@ Example format:
 - Migrations are created **only** with `./migrations.sh` (never via raw `typeorm` invocations or one-off SQL).
 - **Never apply migrations.** The user runs `./migrations.sh --prod --run` themselves. Generate the file, leave it for review.
 - Dev does not need migrations applied — `synchronize: true` in dev auto-syncs the schema from entities. Migrations are a prod-only artifact.
+
+## Making changes
+If you find an architectural issue, NEVER patch it with a "short term fix to get the user unstuck". Always flag it and discuss the deep, REAL fix.

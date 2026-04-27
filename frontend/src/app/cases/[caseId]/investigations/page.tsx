@@ -19,8 +19,7 @@ import { LinkInputModal, type LinkInputResult } from '@/components/LinkInputModa
 import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
 import { CytoscapeCallbacks, FocusItem } from '@/hooks/useCytoscape';
-import { apiClient, type Investigation as ApiInvestigation, type ScriptRun, type Production } from '@/lib/api-client';
-import { ProductionViewer } from '@/components/ProductionViewer';
+import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } from '@/lib/api-client';
 import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
 import { normalizeToken } from '@/utils/formatAmount';
 import UserMenu from '@/components/UserMenu';
@@ -262,8 +261,7 @@ function InvestigationsWorkspace() {
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
-  const [selectedProduction, setSelectedProduction] = useState<Production | null>(null);
-  const { updateSidebar, setOnGraphUpdated, setOnProductionUpdated, productions, setProductions } = useCaseContext();
+  const { updateSidebar, setOnGraphUpdated } = useCaseContext();
 
   // Load investigation from backend when selection changes
   const loadInvestigationFromApi = useCallback(async (id: string) => {
@@ -316,7 +314,6 @@ function InvestigationsWorkspace() {
     const invId = searchParams.get('inv');
     if (invId && invId !== activeInvestigationId) {
       setActiveInvestigationId(invId);
-      setSelectedProduction(null);
     }
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -419,26 +416,9 @@ function InvestigationsWorkspace() {
     return () => setOnGraphUpdated(undefined);
   }, [activeInvestigationId, loadInvestigationFromApi, setOnGraphUpdated]);
 
-  useEffect(() => {
-    setOnProductionUpdated(() => {
-      apiClient.listProductions(caseId).then((updated) => {
-        setProductions(updated);
-        // Auto-select the most recently created/updated production
-        if (updated.length > 0) {
-          const latest = updated.reduce((a, b) =>
-            new Date(b.updatedAt) > new Date(a.updatedAt) ? b : a,
-          );
-          setSelectedProduction(latest);
-        }
-      }).catch(console.error);
-    });
-    return () => setOnProductionUpdated(undefined);
-  }, [caseId, setProductions, setOnProductionUpdated]);
-
   // Sidebar callback
   const handleSelectInvestigation = useCallback((inv: ApiInvestigation) => {
     setActiveInvestigationId(inv.id);
-    setSelectedProduction(null);
     router.push(`/cases/${caseId}/investigations?inv=${inv.id}`, { scroll: false });
   }, [router, caseId]);
 
@@ -473,7 +453,6 @@ function InvestigationsWorkspace() {
 
   const handleSelectTrace = useCallback((trace: Trace) => {
     setSelectedItem({ type: 'trace', data: trace });
-    setSelectedProduction(null);
   }, []);
 
   const handleSelectScriptRun = useCallback((run: ScriptRun) => {
@@ -499,8 +478,6 @@ function InvestigationsWorkspace() {
       scriptRuns,
       selectedScriptRunId,
       onSelectScriptRun: handleSelectScriptRun,
-      selectedProductionId: selectedProduction?.id,
-      onSelectProduction: setSelectedProduction,
       onEditInvestigation: setEditingInvestigation,
     });
   }, [
@@ -515,7 +492,6 @@ function InvestigationsWorkspace() {
     scriptRuns,
     selectedScriptRunId,
     handleSelectScriptRun,
-    selectedProduction?.id,
   ]);
 
   const handleAddWallet = useCallback(() => {
@@ -981,10 +957,6 @@ function InvestigationsWorkspace() {
         // open script-run panel — script-run selection is derived from selectedItem.
         setSelectedEdgeIds(edgeIds);
         setSelectedItem(resolveFocusItem(focusItem, investigation));
-        // Cross-context reconciliation: focusing a graph item closes other context panels.
-        if (focusItem) {
-          setSelectedProduction(null);
-        }
       },
       onNodeDrag: updateNodePosition,
       onGroupDrag: (groupId, newPos) => {
@@ -1099,14 +1071,6 @@ function InvestigationsWorkspace() {
               <div className="flex items-center justify-center h-full">
                 <p className="text-gray-400">Loading...</p>
               </div>
-            ) : selectedProduction ? (
-              <ProductionViewer
-                production={selectedProduction}
-                onUpdate={(updated) => {
-                  setSelectedProduction(updated);
-                  setProductions((prev) => prev.map((p) => p.id === updated.id ? updated : p));
-                }}
-              />
             ) : (
               <GraphCanvas
                 ref={graphRef}

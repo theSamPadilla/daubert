@@ -29,12 +29,12 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
     scriptRuns,
     selectedScriptRunId,
     onSelectScriptRun,
-    selectedProductionId,
-    onSelectProduction,
     onEditInvestigation,
   } = ctx.sidebar;
 
   const { productions } = ctx;
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const selectedProductionId = pathname?.startsWith(`/cases/${caseId}/productions`) ? searchParams.get('id') : null;
 
   const [caseName, setCaseName] = useState('');
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
@@ -76,11 +76,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
 
   const handleSelectInvestigation = useCallback((inv: Investigation) => {
     router.push(`/cases/${caseId}/investigations?inv=${inv.id}`);
-    // Also close any production the user was viewing — clicking an investigation
-    // should always navigate to its main view, even when the URL doesn't change
-    // (e.g., viewing a production whose parent investigation is already active).
-    onSelectProduction?.(null);
-  }, [router, caseId, onSelectProduction]);
+  }, [router, caseId]);
 
   return (
     <div className="w-full bg-gray-800 flex flex-col h-full overflow-hidden">
@@ -212,7 +208,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           {(productions || []).map((prod) => (
               <div
                 key={prod.id}
-                onClick={() => onSelectProduction?.(prod)}
+                onClick={() => router.push(`/cases/${caseId}/productions?id=${prod.id}`)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors ${
                   selectedProductionId === prod.id
                     ? 'bg-blue-600/20 text-blue-300'

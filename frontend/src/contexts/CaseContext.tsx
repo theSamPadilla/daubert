@@ -21,8 +21,6 @@ interface SidebarSlice {
   scriptRuns?: ScriptRun[];
   selectedScriptRunId?: string;
   onSelectScriptRun?: (run: ScriptRun) => void;
-  selectedProductionId?: string;
-  onSelectProduction?: (prod: Production) => void;
   onEditInvestigation?: (inv: ApiInvestigation) => void;
 }
 
@@ -61,8 +59,7 @@ export interface CaseContextValue {
   activeInvestigationId: string | null;
   onGraphUpdated?: () => void;
   setOnGraphUpdated: (fn: (() => void) | undefined) => void;
-  onProductionUpdated?: () => void;
-  setOnProductionUpdated: (fn: (() => void) | undefined) => void;
+  onProductionUpdated: () => void;
 }
 
 const CaseContext = createContext<CaseContextValue | null>(null);
@@ -77,11 +74,10 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
   const [newPrimaryOpen, setNewPrimaryOpen] = useState(false);
   const [newPrimaryDefault, setNewPrimaryDefault] = useState<'investigation' | 'production'>('investigation');
 
-  // Store callbacks in refs so chat doesn't re-render on every callback change
+  // Store graph callback in a ref so chat doesn't re-render on every callback change
   const graphUpdatedRef = useRef<(() => void) | undefined>(undefined);
   const [, forceGraphUpdate] = useState(0);
-  const productionUpdatedRef = useRef<(() => void) | undefined>(undefined);
-  const [, forceProductionUpdate] = useState(0);
+
 
   // Fetch productions once on mount — shared across all pages
   useEffect(() => {
@@ -106,10 +102,9 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
     forceGraphUpdate((n) => n + 1);
   }, []);
 
-  const setOnProductionUpdated = useCallback((fn: (() => void) | undefined) => {
-    productionUpdatedRef.current = fn;
-    forceProductionUpdate((n) => n + 1);
-  }, []);
+  const refreshProductions = useCallback(() => {
+    apiClient.listProductions(caseId).then(setProductions).catch(console.error);
+  }, [caseId]);
 
   const value: CaseContextValue = {
     caseId,
@@ -132,8 +127,7 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
     activeInvestigationId: sidebar.activeInvestigationId,
     onGraphUpdated: graphUpdatedRef.current,
     setOnGraphUpdated,
-    onProductionUpdated: productionUpdatedRef.current,
-    setOnProductionUpdated,
+    onProductionUpdated: refreshProductions,
   };
 
   return <CaseContext.Provider value={value}>{children}</CaseContext.Provider>;

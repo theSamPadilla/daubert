@@ -10,7 +10,7 @@ type ProductionType = 'report' | 'chart' | 'chronology';
 
 export function NewPrimaryModal() {
   const router = useRouter();
-  const { caseId, newPrimaryDefault, closeNewPrimary, setProductions, sidebar } = useCaseContext();
+  const { caseId, newPrimaryDefault, closeNewPrimary, setProductions } = useCaseContext();
 
   const [tab, setTab] = useState<PrimaryType>(newPrimaryDefault);
   const [name, setName] = useState('');
@@ -40,8 +40,8 @@ export function NewPrimaryModal() {
           data: defaultData,
         });
         setProductions((prev) => [...prev, prod]);
-        sidebar.onSelectProduction?.(prod);
         closeNewPrimary();
+        router.push(`/cases/${caseId}/productions?id=${prod.id}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create');

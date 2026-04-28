@@ -23,7 +23,7 @@ export function Loader({ inline = false, className = '' }: LoaderProps) {
     >
       <div className="flex flex-col items-center gap-4">
         <img
-          src="/logo.png"
+          src="/logo-light.png"
           alt=""
           aria-hidden="true"
           draggable={false}

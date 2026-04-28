@@ -22,6 +22,19 @@ log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="${PROJECT_ROOT}/backend"
 
+RESET=0
+for arg in "$@"; do
+    case "$arg" in
+        --reset) RESET=1 ;;
+        -h|--help)
+            echo "Usage: $(basename "$0") [--reset]"
+            echo "  --reset  TRUNCATE all public tables (except migrations) on prod before importing."
+            exit 0
+            ;;
+        *) log_error "Unknown argument: $arg"; exit 1 ;;
+    esac
+done
+
 # Load dev DATABASE_URL
 load_env_file() {
     local env_file="$1"
@@ -92,7 +105,10 @@ PROD_USER_EMAIL="sam@incite.ventures"
 
 echo ""
 log_warning "This will:"
-log_warning "  1. Copy all data EXCEPT users and data_room_connections"
+if [ "$RESET" = "1" ]; then
+    log_warning "  0. TRUNCATE all public tables (except migrations) on prod — destroys existing prod data"
+fi
+log_warning "  1. Copy all data EXCEPT data_room_connections (users included, then pruned)"
 log_warning "  2. Create user: ${PROD_USER_EMAIL} (Firebase UID linked on first login)"
 log_warning "  3. Reassign all cases + case_members to that user"
 log_warning "  Source: $(echo "$LOCAL_DATABASE_URL" | sed 's|://[^@]*@|://***@|')"
@@ -104,7 +120,31 @@ if [ "$confirmation" != "yes" ]; then
     exit 0
 fi
 
-log_info "Dumping data-only from local Postgres (excluding users, data_room_connections, migrations)..."
+if [ "$RESET" = "1" ]; then
+    log_warning "Resetting prod: truncating all public tables except migrations..."
+    "$PSQL" --set ON_ERROR_STOP=on "$PROD_DATABASE_ADMIN_URL" <<'SQL'
+SET search_path TO public;
+DO $$
+DECLARE
+    tbls text;
+BEGIN
+    SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
+    INTO tbls
+    FROM pg_tables
+    WHERE schemaname = 'public' AND tablename <> 'migrations';
+
+    IF tbls IS NULL THEN
+        RAISE NOTICE 'No tables to truncate.';
+    ELSE
+        EXECUTE 'TRUNCATE TABLE ' || tbls || ' RESTART IDENTITY CASCADE';
+        RAISE NOTICE 'Truncated: %', tbls;
+    END IF;
+END
+$$;
+SQL
+fi
+
+log_info "Dumping data-only from local Postgres (excluding data_room_connections, migrations)..."
 DUMP_FILE=$(mktemp -t daubert-dump.XXXXXX.sql)
 trap 'rm -f "$DUMP_FILE"' EXIT
 
@@ -131,11 +171,16 @@ log_info "Creating prod user, reassigning ownership, and removing imported dev u
 SET search_path TO public;
 BEGIN;
 
--- Create the prod user (firebase_uid NULL — linked on first sign-in via email match)
-INSERT INTO public.users (id, name, email, created_at, updated_at)
-VALUES (uuid_generate_v4(), '${PROD_USER_NAME}', '${PROD_USER_EMAIL}', now(), now());
+-- Upsert the prod user. If dev already had a row with this email, claim it and
+-- NULL its firebase_uid (dev UID is invalid for prod; first sign-in re-links via email).
+INSERT INTO public.users (id, name, email, firebase_uid, created_at, updated_at)
+VALUES (uuid_generate_v4(), '${PROD_USER_NAME}', '${PROD_USER_EMAIL}', NULL, now(), now())
+ON CONFLICT (email) DO UPDATE
+SET name = EXCLUDED.name,
+    firebase_uid = NULL,
+    updated_at = now();
 
--- Reassign ownership to the new prod user
+-- Reassign ownership to the prod user
 UPDATE public.cases        SET user_id = (SELECT id FROM public.users WHERE email = '${PROD_USER_EMAIL}');
 UPDATE public.case_members SET user_id = (SELECT id FROM public.users WHERE email = '${PROD_USER_EMAIL}');
 

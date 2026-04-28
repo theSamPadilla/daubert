@@ -5,7 +5,7 @@ description: Daubert product overview — features, concepts, and capabilities f
 
 # Daubert
 
-Daubert is a blockchain transaction investigation tool for forensic analysis. It helps investigators trace fund flows across chains, visualize transaction networks, and produce deliverables for litigation or compliance.
+Daubert is a The ai platform for tech experts for forensic analysis. It helps investigators trace fund flows across chains, visualize transaction networks, and produce deliverables for litigation or compliance.
 
 ## Core Concepts
 

@@ -13,6 +13,7 @@ import {
   FaPenToSquare,
 } from 'react-icons/fa6';
 import { apiClient, type DataRoomConnection, type DataRoomFile } from '@/lib/api-client';
+import { Loader } from '@/components/Loader';
 import { openDriveFolderPicker } from '@/lib/google-picker';
 
 function formatBytes(raw: string | undefined): string {
@@ -275,9 +276,7 @@ export default function DataRoomPage() {
           )}
 
           {state === 'loading' && (
-            <div className="flex items-center justify-center py-16">
-              <p className="text-gray-400 text-sm">Loading data room...</p>
-            </div>
+            <Loader inline />
           )}
 
           {state === 'disconnected' && (
@@ -423,7 +422,7 @@ export default function DataRoomPage() {
 
               {/* File table */}
               {filesLoading && files.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">Loading files...</div>
+                <Loader inline />
               ) : files.length === 0 ? (
                 <div className="text-center py-12 text-gray-400 text-sm">
                   No files in this folder yet. Upload one to get started.

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient, type AdminUser, type Case, type CaseRole } from '@/lib/api-client';
 import { FaTrash, FaPlus, FaCircleCheck, FaCircleExclamation } from 'react-icons/fa6';
+import { Loader } from '@/components/Loader';
 
 interface FormState {
   email: string;
@@ -172,7 +173,7 @@ export default function AdminUsersPage() {
       )}
 
       {loading ? (
-        <p className="py-12 text-center text-gray-400">Loading users...</p>
+        <Loader inline />
       ) : users.length === 0 ? (
         <p className="py-12 text-center text-gray-400">No users yet.</p>
       ) : (

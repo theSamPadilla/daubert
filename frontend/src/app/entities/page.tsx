@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import { apiClient, type LabeledEntity } from '@/lib/api-client';
 import { CATEGORIES, CATEGORY_COLORS, type Category } from '@/lib/labeled-entities';
 import { FaChevronDown, FaChevronRight } from 'react-icons/fa6';
+import { Loader } from '@/components/Loader';
 
 export default function EntitiesPage() {
   const [entities, setEntities] = useState<LabeledEntity[]>([]);
@@ -77,7 +78,7 @@ export default function EntitiesPage() {
         )}
 
         {loading ? (
-          <p className="py-12 text-center text-gray-400">Loading entities...</p>
+          <Loader inline />
         ) : entities.length === 0 ? (
           <p className="py-12 text-center text-gray-400">No entities found.</p>
         ) : (

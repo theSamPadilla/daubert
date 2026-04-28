@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AuthGuard } from '@/components/AuthGuard';
 import UserMenu from '@/components/UserMenu';
 import { apiClient, type Case } from '@/lib/api-client';
+import { Loader } from '@/components/Loader';
 
 function CaseSelector() {
   const router = useRouter();
@@ -34,7 +35,7 @@ function CaseSelector() {
         <h2 className="text-xl font-semibold mb-6">Your Cases</h2>
 
         {loading ? (
-          <p className="text-gray-400">Loading cases...</p>
+          <Loader inline />
         ) : cases.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-gray-400">No cases assigned to your account yet.</p>

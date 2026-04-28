@@ -62,27 +62,33 @@ if [ -z "$PROD_DATABASE_ADMIN_URL" ]; then
     exit 1
 fi
 
-if ! command -v pg_dump >/dev/null 2>&1; then
-    log_error "pg_dump not found — install postgresql client tools"
+# Pick pg_dump/psql that match the dev server major version (16).
+# The server is Postgres 16; using a 15.x client trips a version-mismatch abort.
+PG_MAJOR=16
+PG_BIN_CANDIDATES=(
+    "/opt/homebrew/opt/postgresql@${PG_MAJOR}/bin"
+    "/usr/local/opt/postgresql@${PG_MAJOR}/bin"
+)
+PG_BIN=""
+for candidate in "${PG_BIN_CANDIDATES[@]}"; do
+    if [ -x "${candidate}/pg_dump" ] && [ -x "${candidate}/psql" ]; then
+        PG_BIN="$candidate"
+        break
+    fi
+done
+
+if [ -z "$PG_BIN" ]; then
+    log_error "Postgres ${PG_MAJOR} client tools not found. Install with: brew install postgresql@${PG_MAJOR}"
     exit 1
 fi
 
-if ! command -v psql >/dev/null 2>&1; then
-    log_error "psql not found — install postgresql client tools"
-    exit 1
-fi
+PG_DUMP="${PG_BIN}/pg_dump"
+PSQL="${PG_BIN}/psql"
+log_info "Using ${PG_DUMP}"
 
-# Collect prod user info
-echo ""
-log_info "We need to create your prod user and reassign all data to them."
-log_info "Firebase UID will be linked automatically on first sign-in (matched by email)."
-read -p "Name (e.g. Sam Padilla): " PROD_USER_NAME
-read -p "Email (e.g. sam@incite.ventures): " PROD_USER_EMAIL
-
-if [ -z "$PROD_USER_NAME" ] || [ -z "$PROD_USER_EMAIL" ]; then
-    log_error "Both fields are required."
-    exit 1
-fi
+# Hardcoded prod user — Firebase UID linked automatically on first sign-in via email match.
+PROD_USER_NAME="Sam Padilla"
+PROD_USER_EMAIL="sam@incite.ventures"
 
 echo ""
 log_warning "This will:"
@@ -102,13 +108,14 @@ log_info "Dumping data-only from local Postgres (excluding users, data_room_conn
 DUMP_FILE=$(mktemp -t daubert-dump.XXXXXX.sql)
 trap 'rm -f "$DUMP_FILE"' EXIT
 
-pg_dump \
+# Note: --disable-triggers is intentionally omitted — Neon rejects it (requires superuser).
+# We include `users` in the dump so FK checks pass during import; dev users are
+# deleted in the post-import step below after ownership is reassigned to the prod user.
+"$PG_DUMP" \
     --data-only \
-    --disable-triggers \
     --no-owner \
     --no-privileges \
     --exclude-table=migrations \
-    --exclude-table=users \
     --exclude-table=data_room_connections \
     "$LOCAL_DATABASE_URL" \
     > "$DUMP_FILE"
@@ -117,10 +124,10 @@ DUMP_SIZE=$(wc -c < "$DUMP_FILE" | tr -d ' ')
 log_info "Dump complete: ${DUMP_SIZE} bytes"
 
 log_info "Loading data into Neon prod..."
-psql --single-transaction --set ON_ERROR_STOP=on "$PROD_DATABASE_ADMIN_URL" < "$DUMP_FILE"
+"$PSQL" --single-transaction --set ON_ERROR_STOP=on "$PROD_DATABASE_ADMIN_URL" < "$DUMP_FILE"
 
 log_info "Creating prod user and reassigning ownership..."
-psql --set ON_ERROR_STOP=on "$PROD_DATABASE_ADMIN_URL" <<SQL
+"$PSQL" --set ON_ERROR_STOP=on "$PROD_DATABASE_ADMIN_URL" <<SQL
 BEGIN;
 
 -- Create the prod user (firebase_uid linked automatically on first sign-in via email match)

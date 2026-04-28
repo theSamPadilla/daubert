@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import { apiClient, LabeledEntity } from '@/lib/api-client';
 import { CATEGORIES, CATEGORY_COLORS, type Category } from '@/lib/labeled-entities';
 import { FaPenToSquare, FaTrash, FaPlus, FaMinus, FaChevronDown, FaChevronRight } from 'react-icons/fa6';
+import { Loader } from '@/components/Loader';
 
 interface EntityFormData {
   name: string;
@@ -292,9 +293,7 @@ export default function AdminEntitiesPage() {
 
         {/* Table */}
         {loading ? (
-          <div className="text-center py-12">
-            <p className="text-gray-400">Loading entities...</p>
-          </div>
+          <Loader inline />
         ) : entities.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-400">No entities found.</p>

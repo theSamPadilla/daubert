@@ -8,7 +8,7 @@
 
 ## Summary
 
-Blockchain transaction investigation tool — graph-based visualization (Cytoscape.js), multi-chain data fetching (Etherscan V2 + Tronscan), and an agentic AI assistant that can write/run scripts to fetch and import data.
+The ai platform for tech experts — graph-based visualization (Cytoscape.js), multi-chain data fetching (Etherscan V2 + Tronscan), and an agentic AI assistant that can write/run scripts to fetch and import data.
 
 ## Architecture — What's Good
 

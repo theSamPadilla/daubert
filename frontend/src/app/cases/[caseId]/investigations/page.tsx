@@ -23,6 +23,7 @@ import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } fro
 import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
 import { normalizeToken } from '@/utils/formatAmount';
 import UserMenu from '@/components/UserMenu';
+import { Loader } from '@/components/Loader';
 
 type PanelMode =
   | { type: 'none' }
@@ -1068,9 +1069,7 @@ function InvestigationsWorkspace() {
           />
           <div className="flex-1 bg-gray-900 relative overflow-hidden">
             {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-gray-400">Loading...</p>
-              </div>
+              <Loader inline />
             ) : (
               <GraphCanvas
                 ref={graphRef}

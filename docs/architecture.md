@@ -1,6 +1,6 @@
 # Architecture
 
-Daubert is a blockchain transaction investigation tool. Monorepo with a Next.js frontend, NestJS backend, and OpenAPI contracts.
+Daubert is a The ai platform for tech experts. Monorepo with a Next.js frontend, NestJS backend, and OpenAPI contracts.
 
 ## Repository Layout
 

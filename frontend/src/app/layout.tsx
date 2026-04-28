@@ -4,7 +4,7 @@ import { AuthProvider } from '@/components/AuthProvider';
 
 export const metadata: Metadata = {
   title: 'Daubert',
-  description: 'Blockchain transaction investigation tool',
+  description: 'The ai platform for tech experts',
 };
 
 export default function RootLayout({

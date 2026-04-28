@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
+import { Loader } from './Loader';
 
 /**
  * Wraps authenticated pages. Redirects to /login if not signed in OR if the
@@ -29,11 +30,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [loading, firebaseUser, error, user, noAccount, router]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <p className="text-gray-400">Loading...</p>
-      </div>
-    );
+    return <Loader />;
   }
 
   if (!firebaseUser) {
@@ -47,7 +44,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           <h2 className="text-xl font-bold text-white">No Account Found</h2>
           <p className="text-gray-400">
             No account found for {firebaseUser.email}.
-            Contact your administrator to get access.
+            Contact our team to get access.
           </p>
         </div>
       </div>
@@ -55,11 +52,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <p className="text-gray-400">Loading...</p>
-      </div>
-    );
+    return <Loader />;
   }
 
   return <>{children}</>;

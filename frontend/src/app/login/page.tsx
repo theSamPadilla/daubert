@@ -41,7 +41,7 @@ export default function LoginPage() {
         <div className="text-center">
           <h1 className="text-3xl font-bold text-white">Daubert</h1>
           <p className="mt-2 text-gray-400 text-sm">
-            Blockchain transaction investigation tool
+            The ai platform for tech experts
           </p>
         </div>
 
@@ -50,7 +50,7 @@ export default function LoginPage() {
             <p className="text-red-300 text-sm">
               No account found for {getFirebaseAuth().currentUser?.email}.
               <br />
-              Contact your administrator to get access.
+              Contact our team to get access.
             </p>
             <button
               onClick={signOut}

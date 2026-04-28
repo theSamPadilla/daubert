@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { apiClient, LabeledEntity } from '@/lib/api-client';
 import { FaArrowLeft } from 'react-icons/fa6';
 import Link from 'next/link';
+import { Loader } from '@/components/Loader';
 
 const CATEGORY_COLORS: Record<string, string> = {
   exchange: 'bg-blue-900/50 text-blue-300',
@@ -34,11 +35,7 @@ export default function EntityDetailPage() {
   }, [id]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
-      </div>
-    );
+    return <Loader />;
   }
 
   if (error || !entity) {

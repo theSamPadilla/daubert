@@ -24,7 +24,7 @@ RUN useradd -r -u 1001 -g users nodeapp
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY package*.json ./
-RUN npm prune --omit=dev && npm cache clean --force
+RUN npm prune --omit=dev --legacy-peer-deps && npm cache clean --force
 
 ENV NODE_ENV=production
 ENV PORT=8080

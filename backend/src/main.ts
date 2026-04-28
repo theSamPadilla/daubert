@@ -1,11 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import * as express from 'express';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   // Disable NestJS's built-in body parser so ours (with a higher limit) wins
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  app.use(helmet());
 
   // Register before any other middleware so the limit applies everywhere
   app.use(express.json({ limit: '50mb' }));
@@ -52,6 +55,13 @@ async function bootstrap() {
   const host = isProduction ? '0.0.0.0' : '127.0.0.1';
   await app.listen(port, host);
   console.log(`Daubert backend running on http://${host}:${port}`);
+
+  // Cloud Run sends SIGTERM on deploy/scale-down
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    await app.close();
+    process.exit(0);
+  });
 }
 
 bootstrap();

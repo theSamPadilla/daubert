@@ -126,22 +126,24 @@ log_info "Dump complete: ${DUMP_SIZE} bytes"
 log_info "Loading data into Neon prod..."
 "$PSQL" --single-transaction --set ON_ERROR_STOP=on "$PROD_DATABASE_ADMIN_URL" < "$DUMP_FILE"
 
-log_info "Creating prod user and reassigning ownership..."
+log_info "Creating prod user, reassigning ownership, and removing imported dev users..."
 "$PSQL" --set ON_ERROR_STOP=on "$PROD_DATABASE_ADMIN_URL" <<SQL
+SET search_path TO public;
 BEGIN;
 
--- Create the prod user (firebase_uid linked automatically on first sign-in via email match)
-INSERT INTO users (id, name, email, created_at, updated_at)
+-- Create the prod user (firebase_uid NULL — linked on first sign-in via email match)
+INSERT INTO public.users (id, name, email, created_at, updated_at)
 VALUES (uuid_generate_v4(), '${PROD_USER_NAME}', '${PROD_USER_EMAIL}', now(), now());
 
--- Reassign all cases to the new user
-UPDATE cases SET user_id = (SELECT id FROM users WHERE email = '${PROD_USER_EMAIL}');
+-- Reassign ownership to the new prod user
+UPDATE public.cases        SET user_id = (SELECT id FROM public.users WHERE email = '${PROD_USER_EMAIL}');
+UPDATE public.case_members SET user_id = (SELECT id FROM public.users WHERE email = '${PROD_USER_EMAIL}');
 
--- Reassign all case_members to the new user
-UPDATE case_members SET user_id = (SELECT id FROM users WHERE email = '${PROD_USER_EMAIL}');
+-- Remove the imported dev users now that nothing references them
+DELETE FROM public.users WHERE email <> '${PROD_USER_EMAIL}';
 
 COMMIT;
 SQL
 
 log_success "Data migration complete"
-log_info "Skipped: users (new user created), data_room_connections (reconnect via OAuth in prod)"
+log_info "Skipped: data_room_connections (reconnect via OAuth in prod)"

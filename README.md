@@ -1,94 +1,82 @@
-# Onchain Transaction Tracker
+# Daubert
 
-A web-based blockchain transaction flow visualization tool for tracking and analyzing transactions across EVM-compatible chains.
+Blockchain transaction investigation tool. Trace fund flows across EVM-compatible chains, organize findings into cases, and use AI-assisted analysis.
 
-## Features (Phase 1 - MVP)
+## Architecture
 
-- 🎨 Interactive graph visualization using Cytoscape.js
-- 📊 Trace-based organization (time-based, wallet-group-based)
-- 🔍 Click to inspect wallets, transactions, and traces
-- 💾 Save/load investigations as JSON files
-- 🎯 Compound nodes for trace grouping
+Monorepo: Next.js frontend + NestJS backend + OpenAPI contracts.
 
-## Tech Stack
+- **Frontend**: Next.js 14 (App Router), Cytoscape.js, Tailwind CSS
+- **Backend**: NestJS, TypeORM, PostgreSQL
+- **Contracts**: OpenAPI YAML specs, codegen for shared types
+- **Auth**: Firebase Authentication (Google sign-in) + App Check (reCAPTCHA Enterprise)
 
-- React 18 + TypeScript
-- Vite
-- Cytoscape.js
-- Tailwind CSS
+## Infrastructure
 
-## Getting Started
+| Component | Dev | Prod |
+|-----------|-----|------|
+| Database | Postgres 16 (Docker, port 5433) | Neon |
+| Backend | localhost:8081 | Cloud Run (GCP) |
+| Frontend | localhost:3001 | Vercel |
+| Auth | Firebase (daubert-dev) | Firebase (daubert-prod) |
+
+## Local Development
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or yarn
+- Node.js 22+
+- Docker (for Postgres)
 
-### Installation
-
-```bash
-npm install
-```
-
-### Development
+### Setup
 
 ```bash
-npm run dev
+# Start Postgres
+npm run db
+
+# Start backend (port 8081)
+npm run be
+
+# Start frontend (port 3001)
+npm run fe
+
+# Regenerate API types from OpenAPI specs
+npm run gen
 ```
 
-Open http://localhost:5173
+### Environment Files
 
-### Build
+- `backend/.env.development` -- backend dev config (DB, API keys, Firebase)
+- `backend/.env.production` -- prod config (Neon, Cloud Run secrets)
+- `frontend/.env.development` -- frontend dev config (API URL, Firebase)
+
+## Database Migrations
+
+Migrations are managed via `./migrations.sh`. Dev uses `synchronize: true` (auto-sync from entities). Migrations are a prod-only artifact.
 
 ```bash
-npm run build
-npm run preview
+# Generate a migration against prod
+./migrations.sh --prod --generate MigrationName
+
+# Apply migrations to prod
+./migrations.sh --prod --run
 ```
 
-## Usage
+Never apply migrations directly -- always use the script.
 
-1. **View Mock Data**: App starts with sample investigation data
-2. **Explore Graph**:
-   - Click wallet nodes to see details
-   - Click transaction edges to see transfer info
-   - Click trace containers to see stats
-3. **File Operations**:
-   - **New**: Create empty investigation
-   - **Open**: Load investigation from JSON file
-   - **Save**: Download current investigation as JSON
+## Data Model
 
-## Project Structure
+Cases > Investigations > Traces (graph data as JSONB)
 
-```
-src/
-├── components/
-│   ├── GraphCanvas.tsx      # Cytoscape graph wrapper
-│   ├── SidePanel.tsx        # Side panel container
-│   ├── DetailsPanel.tsx     # Contextual details viewer
-│   ├── AIChat.tsx           # AI chat placeholder
-│   └── Header.tsx           # Top navigation with file menu
-├── hooks/
-│   └── useCytoscape.ts      # Cytoscape initialization and events
-├── types/
-│   └── investigation.ts     # Core data types
-├── utils/
-│   └── fileOperations.ts    # Save/load utilities
-├── data/
-│   └── mockInvestigation.ts # Sample data
-└── App.tsx                  # Main app component
-```
+Supporting entities: Users, Case Members, Conversations, Messages, Productions, Labeled Entities, Script Runs, Data Room Connections.
 
-## Coming Next
+## Backend Modules
 
-- **Phase 2**: Manual data entry UI
-- **Phase 3**: Blockchain API integration
-- **Phase 4**: AI-assisted investigation
-- **Phase 5**: Advanced pattern detection
+`auth`, `users`, `cases`, `investigations`, `traces`, `blockchain`, `ai`, `labeled-entities`, `productions`, `data-room`, `export`, `script`, `admin`
 
-## Design Document
+## Deployment
 
-See [docs/plans/2026-02-22-onchain-transaction-tracker-design.md](docs/plans/2026-02-22-onchain-transaction-tracker-design.md)
-
-## License
-
-MIT
+1. Generate and run initial migration against Neon
+2. Run `./migrate-dev-to-prod.sh` to copy local data
+3. Cloud Run auto-deploys from `main` branch
+4. Vercel deploys frontend from `main` branch
+5. Smoke test: login > create case > run trace > AI chat

@@ -2,6 +2,9 @@
 #
 # One-shot: copy data from local dev Postgres to Neon prod.
 # Assumes prod schema already exists (run migrations.sh --prod --run first).
+#
+# Skips: users, data_room_connections (Firebase UIDs differ, encrypted creds invalid).
+# After import: creates the prod user and reassigns all ownership.
 
 set -euo pipefail
 
@@ -69,10 +72,25 @@ if ! command -v psql >/dev/null 2>&1; then
     exit 1
 fi
 
-log_warning "⚠️  This will COPY ALL DATA from local dev Postgres → Neon prod."
-log_warning "⚠️  Source: $(echo "$LOCAL_DATABASE_URL" | sed 's|://[^@]*@|://***@|')"
-log_warning "⚠️  Target: $(echo "$PROD_DATABASE_ADMIN_URL" | sed 's|://[^@]*@|://***@|')"
-log_warning "⚠️  Existing rows in prod tables will likely conflict on PK collisions."
+# Collect prod user info
+echo ""
+log_info "We need to create your prod user and reassign all data to them."
+log_info "Firebase UID will be linked automatically on first sign-in (matched by email)."
+read -p "Name (e.g. Sam Padilla): " PROD_USER_NAME
+read -p "Email (e.g. sam@incite.ventures): " PROD_USER_EMAIL
+
+if [ -z "$PROD_USER_NAME" ] || [ -z "$PROD_USER_EMAIL" ]; then
+    log_error "Both fields are required."
+    exit 1
+fi
+
+echo ""
+log_warning "This will:"
+log_warning "  1. Copy all data EXCEPT users and data_room_connections"
+log_warning "  2. Create user: ${PROD_USER_EMAIL} (Firebase UID linked on first login)"
+log_warning "  3. Reassign all cases + case_members to that user"
+log_warning "  Source: $(echo "$LOCAL_DATABASE_URL" | sed 's|://[^@]*@|://***@|')"
+log_warning "  Target: $(echo "$PROD_DATABASE_ADMIN_URL" | sed 's|://[^@]*@|://***@|')"
 echo ""
 read -p "Type 'yes' to continue: " confirmation
 if [ "$confirmation" != "yes" ]; then
@@ -80,7 +98,7 @@ if [ "$confirmation" != "yes" ]; then
     exit 0
 fi
 
-log_info "Dumping data-only from local Postgres..."
+log_info "Dumping data-only from local Postgres (excluding users, data_room_connections, migrations)..."
 DUMP_FILE=$(mktemp -t daubert-dump.XXXXXX.sql)
 trap 'rm -f "$DUMP_FILE"' EXIT
 
@@ -90,13 +108,33 @@ pg_dump \
     --no-owner \
     --no-privileges \
     --exclude-table=migrations \
+    --exclude-table=users \
+    --exclude-table=data_room_connections \
     "$LOCAL_DATABASE_URL" \
     > "$DUMP_FILE"
 
 DUMP_SIZE=$(wc -c < "$DUMP_FILE" | tr -d ' ')
-log_info "Dump complete: ${DUMP_SIZE} bytes at ${DUMP_FILE}"
+log_info "Dump complete: ${DUMP_SIZE} bytes"
 
-log_info "Loading into Neon prod..."
+log_info "Loading data into Neon prod..."
 psql --single-transaction --set ON_ERROR_STOP=on "$PROD_DATABASE_ADMIN_URL" < "$DUMP_FILE"
 
+log_info "Creating prod user and reassigning ownership..."
+psql --set ON_ERROR_STOP=on "$PROD_DATABASE_ADMIN_URL" <<SQL
+BEGIN;
+
+-- Create the prod user (firebase_uid linked automatically on first sign-in via email match)
+INSERT INTO users (id, name, email, created_at, updated_at)
+VALUES (uuid_generate_v4(), '${PROD_USER_NAME}', '${PROD_USER_EMAIL}', now(), now());
+
+-- Reassign all cases to the new user
+UPDATE cases SET user_id = (SELECT id FROM users WHERE email = '${PROD_USER_EMAIL}');
+
+-- Reassign all case_members to the new user
+UPDATE case_members SET user_id = (SELECT id FROM users WHERE email = '${PROD_USER_EMAIL}');
+
+COMMIT;
+SQL
+
 log_success "Data migration complete"
+log_info "Skipped: users (new user created), data_room_connections (reconnect via OAuth in prod)"

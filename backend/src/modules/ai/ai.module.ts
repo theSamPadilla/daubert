@@ -11,7 +11,7 @@ import { AnthropicProvider } from './providers/anthropic.provider';
 import { ScriptExecutionService } from './services/script-execution.service';
 import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
-import { ConversationsController } from './conversations.controller';
+import { ConversationsController, CaseConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
 import { AuthModule } from '../auth/auth.module';
 import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
@@ -34,7 +34,7 @@ import { ScriptModule } from '../script/script.module';
     ProductionsModule,
     ScriptModule,
   ],
-  controllers: [AiController, ConversationsController],
+  controllers: [AiController, ConversationsController, CaseConversationsController],
   providers: [
     AnthropicProvider,
     ScriptExecutionService,

@@ -38,6 +38,22 @@
               items:
                 $ref: '../schemas/ai.yaml#/Conversation'
 
+/conversations/{id}:
+  delete:
+    summary: Delete a conversation and its messages
+    operationId: deleteConversation
+    tags: [AI]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Deleted
+
 /conversations/{id}/messages:
   get:
     summary: Get message history for a conversation

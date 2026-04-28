@@ -150,6 +150,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a conversation and its messages */
+        delete: operations["deleteConversation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/conversations/{id}/messages": {
         parameters: {
             query?: never;
@@ -726,6 +743,8 @@ export interface components {
             id: string;
             /** Format: uuid */
             caseId: string;
+            /** Format: uuid */
+            userId: string;
             title?: string | null;
             /** Format: date-time */
             createdAt: string;
@@ -748,7 +767,7 @@ export interface components {
         };
         ChatSseEvent: {
             /** @enum {string} */
-            type?: "text_delta" | "tool_start" | "tool_done" | "done" | "error";
+            type?: "text_delta" | "tool_start" | "tool_done" | "graph_updated" | "production_updated" | "done" | "error";
             data?: Record<string, never>;
         };
         /** @enum {string} */
@@ -1469,6 +1488,26 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Conversation"];
                 };
+            };
+        };
+    };
+    deleteConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

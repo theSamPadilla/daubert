@@ -7,7 +7,15 @@ import { apiClient, type Conversation, type ChatMessage } from '@/lib/api-client
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+const ACCEPTED_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/csv', 'application/csv', 'application/vnd.ms-excel',
+  'text/markdown',
+];
+const ACCEPT_ATTR = [...ACCEPTED_TYPES, '.csv', '.docx', '.xlsx', '.txt', '.md'].join(',');
 
 const MODELS = [
   { id: 'claude-opus-4-6', label: 'Opus 4.6' },
@@ -177,6 +185,52 @@ function XlsxIcon() {
   );
 }
 
+function CsvIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="shrink-0">
+      <rect width="20" height="20" rx="4" fill="#14b8a6" fillOpacity="0.15"/>
+      <path d="M5 3h7l4 4v10a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="#14b8a6" strokeWidth="1.2" fill="none"/>
+      <path d="M12 3v4h4" stroke="#14b8a6" strokeWidth="1.2" strokeLinejoin="round"/>
+      <text x="4" y="15" fontSize="5" fill="#14b8a6" fontWeight="700" fontFamily="monospace">CSV</text>
+    </svg>
+  );
+}
+
+function DocxIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="shrink-0">
+      <rect width="20" height="20" rx="4" fill="#3b82f6" fillOpacity="0.15"/>
+      <path d="M5 3h7l4 4v10a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="#3b82f6" strokeWidth="1.2" fill="none"/>
+      <path d="M12 3v4h4" stroke="#3b82f6" strokeWidth="1.2" strokeLinejoin="round"/>
+      <text x="3" y="15" fontSize="4" fill="#3b82f6" fontWeight="700" fontFamily="monospace">DOCX</text>
+    </svg>
+  );
+}
+
+function TxtIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="shrink-0">
+      <rect width="20" height="20" rx="4" fill="#a1a1aa" fillOpacity="0.15"/>
+      <path d="M5 3h7l4 4v10a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="#a1a1aa" strokeWidth="1.2" fill="none"/>
+      <path d="M12 3v4h4" stroke="#a1a1aa" strokeWidth="1.2" strokeLinejoin="round"/>
+      <text x="4" y="15" fontSize="5" fill="#a1a1aa" fontWeight="700" fontFamily="monospace">TXT</text>
+    </svg>
+  );
+}
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+function iconForMediaType(mt: string, name: string) {
+  if (mt.startsWith('image/')) return null;
+  if (mt === XLSX_MIME) return <XlsxIcon />;
+  if (mt === DOCX_MIME) return <DocxIcon />;
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.csv')) return <CsvIcon />;
+  if (lower.endsWith('.txt') || lower.endsWith('.md')) return <TxtIcon />;
+  return <PdfIcon />;
+}
+
 function AttachmentChip({
   attachment,
   onRemove,
@@ -185,7 +239,6 @@ function AttachmentChip({
   onRemove: () => void;
 }) {
   const isImage = attachment.mediaType.startsWith('image/');
-  const isXlsx = attachment.mediaType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   return (
     <div className="relative group shrink-0">
       {isImage ? (
@@ -196,7 +249,7 @@ function AttachmentChip({
         />
       ) : (
         <div className="w-14 h-14 rounded-lg border border-gray-600 bg-gray-800 flex flex-col items-center justify-center gap-1 px-1">
-          {isXlsx ? <XlsxIcon /> : <PdfIcon />}
+          {iconForMediaType(attachment.mediaType, attachment.name)}
           <span className="text-[9px] text-gray-400 truncate w-full text-center leading-tight">
             {attachment.name}
           </span>
@@ -233,7 +286,7 @@ function MessageAttachments({
             key={i}
             className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2.5 py-1.5 text-xs font-medium"
           >
-            {att.mediaType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ? <XlsxIcon /> : <PdfIcon />}
+            {iconForMediaType(att.mediaType, att.name)}
             <span className="truncate max-w-[120px]">{att.name}</span>
           </div>
         )
@@ -280,31 +333,36 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   const abortRef = useRef<AbortController | null>(null);
   const dragCounterRef = useRef(0);
 
-  const loadConversations = useCallback(async () => {
-    try {
-      const convs = await apiClient.listConversations();
-      setConversations(convs);
-      return convs;
-    } catch {
-      return [];
-    }
-  }, []);
-
   useEffect(() => {
-    loadConversations().then((convs) => {
-      if (convs.length > 0 && !activeConvId) setActiveConvId(convs[0].id);
-    });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    setConversations([]);
+    setActiveConvId(null);
+    setMessages([]);
+    if (!activeCaseId) return;
+
+    let cancelled = false;
+    apiClient.listConversations(activeCaseId).then((convs) => {
+      if (cancelled) return;
+      setConversations(convs);
+      if (convs.length > 0) setActiveConvId(convs[0].id);
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [activeCaseId]);
 
   useEffect(() => {
     if (!activeConvId) { setMessages([]); return; }
+
+    let cancelled = false;
     apiClient.getConversationMessages(activeConvId).then((msgs) => {
+      if (cancelled) return;
       setMessages(
         msgs
           .filter((m) => extractText(m.content).length > 0)
           .map((m) => ({ id: m.id, role: m.role, text: extractText(m.content) }))
       );
     }).catch(() => {});
+
+    return () => { cancelled = true; };
   }, [activeConvId]);
 
   useEffect(() => {
@@ -331,11 +389,28 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   const processFiles = useCallback(async (files: FileList | File[]) => {
     setFileError(null);
     const arr = Array.from(files);
-    const valid = arr.filter((f) => ACCEPTED_TYPES.includes(f.type));
-    const invalid = arr.filter((f) => !ACCEPTED_TYPES.includes(f.type));
+    const isAccepted = (f: File) => {
+      const name = f.name.toLowerCase();
+      // application/vnd.ms-excel is in ACCEPTED_TYPES as a CSV alias (Excel-on-Windows
+      // mislabels CSVs with this mime). Reject it for non-CSV filenames so legacy .xls
+      // doesn't sneak past the picker and get silently dropped server-side.
+      if (f.type === 'application/vnd.ms-excel' && !name.endsWith('.csv')) return false;
+      if (ACCEPTED_TYPES.includes(f.type)) return true;
+      // text/plain is mime-ambiguous (covers .csv, .txt, .md, .log, .json, …). Gate on
+      // extension so unsupported text-y files are rejected here rather than being
+      // silently dropped server-side.
+      const ambiguousText = ['text/plain', 'application/octet-stream', ''];
+      if (
+        ambiguousText.includes(f.type) &&
+        (name.endsWith('.csv') || name.endsWith('.txt') || name.endsWith('.md'))
+      ) return true;
+      return false;
+    };
+    const valid = arr.filter(isAccepted);
+    const invalid = arr.filter((f) => !isAccepted(f));
 
     if (invalid.length > 0) {
-      setFileError(`Unsupported type: ${invalid.map((f) => f.name).join(', ')}. Use images, PDF, or XLSX.`);
+      setFileError(`Unsupported type: ${invalid.map(f => f.name).join(', ')}. Accepted: images, PDF, CSV, TXT, MD, XLSX, DOCX.`);
     }
 
     const okFiles = valid;
@@ -390,8 +465,9 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   };
 
   const handleNewConversation = async () => {
+    if (!activeCaseId) return;
     try {
-      const conv = await apiClient.createConversation(activeCaseId || '');
+      const conv = await apiClient.createConversation(activeCaseId);
       setConversations((prev) => [conv, ...prev]);
       setActiveConvId(conv.id);
       setMessages([]);
@@ -427,8 +503,9 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
     // Auto-create conversation if none exists
     let convId = activeConvId;
     if (!convId) {
+      if (!activeCaseId) return;
       try {
-        const conv = await apiClient.createConversation(activeCaseId || '');
+        const conv = await apiClient.createConversation(activeCaseId);
         setConversations((prev) => [conv, ...prev]);
         setActiveConvId(conv.id);
         convId = conv.id;
@@ -593,7 +670,10 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
     } finally {
       setStreaming(false);
       abortRef.current = null;
-      loadConversations();
+      // Intentionally not refreshing the conversation list here — a captured
+      // callback would close over the case at send-start and could clobber
+      // a different case's state if the user switched cases mid-stream.
+      // Auto-generated title appears on next case-load.
     }
   };
 
@@ -628,7 +708,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept={ACCEPT_ATTR}
         onChange={handleFileInputChange}
         className="hidden"
       />
@@ -647,7 +727,9 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
             <span className="text-sm font-bold text-white">Conversations</span>
             <button
               onClick={handleNewConversation}
-              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              disabled={!activeCaseId}
+              title={activeCaseId ? 'New conversation' : 'Select a case to start a conversation'}
+              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
               aria-label="New conversation"
             >
               +
@@ -683,8 +765,9 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
               </button>
               <button
                 onClick={handleNewConversation}
-                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors text-lg leading-none"
-                title="New conversation"
+                disabled={!activeCaseId}
+                title={activeCaseId ? 'New conversation' : 'Select a case to start a conversation'}
+                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors text-lg leading-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
               >
                 +
               </button>

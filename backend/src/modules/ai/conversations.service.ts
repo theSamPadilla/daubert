@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ConversationEntity } from '../../database/entities/conversation.entity';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
@@ -24,19 +24,15 @@ export class ConversationsService {
 
   async create(caseId: string, userId: string): Promise<ConversationEntity> {
     await this.assertCaseMembership(userId, caseId);
-    const conversation = this.conversationRepo.create({ title: null, caseId });
-    return this.conversationRepo.save(conversation);
+    return this.conversationRepo.save(
+      this.conversationRepo.create({ caseId, userId, title: null }),
+    );
   }
 
-  async findAllForUser(userId: string): Promise<ConversationEntity[]> {
-    const memberships = await this.memberRepo.find({
-      where: { userId },
-      select: ['caseId'],
-    });
-    const caseIds = memberships.map((m) => m.caseId);
-    if (caseIds.length === 0) return [];
+  async findAllForUserInCase(caseId: string, userId: string): Promise<ConversationEntity[]> {
+    await this.assertCaseMembership(userId, caseId);
     return this.conversationRepo.find({
-      where: { caseId: In(caseIds) },
+      where: { caseId, userId },
       order: { createdAt: 'DESC' },
     });
   }
@@ -44,9 +40,10 @@ export class ConversationsService {
   async findOne(id: string, userId: string): Promise<ConversationEntity> {
     const conv = await this.conversationRepo.findOneBy({ id });
     if (!conv) throw new NotFoundException(`Conversation ${id} not found`);
-    if (conv.caseId) {
-      await this.assertCaseMembership(userId, conv.caseId);
-    }
+    if (conv.userId !== userId) throw new ForbiddenException('Not your conversation');
+    // User owns the conversation, but they may have been removed from the
+    // case since creating it — re-check membership here as defense-in-depth.
+    await this.assertCaseMembership(userId, conv.caseId);
     return conv;
   }
 
@@ -58,7 +55,8 @@ export class ConversationsService {
     });
   }
 
-  async updateTitle(id: string, title: string): Promise<void> {
+  async updateTitle(id: string, userId: string, title: string): Promise<void> {
+    await this.findOne(id, userId);
     await this.conversationRepo.update(id, { title });
   }
 

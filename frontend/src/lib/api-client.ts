@@ -306,10 +306,10 @@ export const apiClient = {
     }),
 
   // Conversations
-  listConversations: () =>
-    request<Conversation[]>('/conversations'),
+  listConversations: (caseId: string) =>
+    request<Conversation[]>(`/cases/${caseId}/conversations`),
   createConversation: (caseId: string) =>
-    request<Conversation>('/conversations', { method: 'POST', body: JSON.stringify({ caseId }) }),
+    request<Conversation>(`/cases/${caseId}/conversations`, { method: 'POST' }),
   getConversationMessages: (conversationId: string) =>
     request<ChatMessage[]>(`/conversations/${conversationId}/messages`),
   deleteConversation: (conversationId: string) =>

@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
-import * as XLSX from 'xlsx';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
@@ -31,6 +30,7 @@ import {
 } from './tools';
 import { stripTraceForAgent, filterTraceData } from './investigation-data.utils';
 import { AttachmentDto } from './dto/chat-message.dto';
+import { buildAttachmentBlocks } from './attachment-blocks';
 
 /**
  * Ensures every tool_use / code_execution block in an assistant message has a
@@ -221,84 +221,11 @@ export class AiService {
     // Then merge any consecutive same-role messages (API requires alternating roles).
     const messages = mergeConsecutiveRoles(sanitizeToolPairs(rawMessages));
 
-    // Build content blocks for the user turn
-    const userContentBlocks: Anthropic.Beta.BetaContentBlockParam[] = [];
-
-    // Anthropic size limits (base64 chars ≈ raw bytes * 1.37)
-    // Images: 5 MB raw → ~6.8 MB base64 chars
-    // PDFs:   4.5 MB raw → ~6.2 MB base64 chars (API hard limit for document blocks)
-    // XLSX:   same document limit as PDFs
-    const IMAGE_B64_LIMIT = 6_800_000;
-    const PDF_B64_LIMIT   = 6_200_000;
-    const XLSX_B64_LIMIT  = 6_200_000;
-
-    // Attach images and documents before the text
-    if (attachments?.length) {
-      for (const att of attachments) {
-        if (att.mediaType === 'application/pdf') {
-          if (att.data.length > PDF_B64_LIMIT) {
-            // Too large for the API — send a text stub so the turn still works
-            userContentBlocks.push({
-              type: 'text',
-              text: `[Attached PDF "${att.name}" (${(att.data.length * 0.75 / 1_048_576).toFixed(1)} MB) is too large to pass verbatim. Summarise or ask the user for the relevant excerpt.]`,
-            });
-          } else {
-            userContentBlocks.push({
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: att.data },
-              title: att.name,
-            } as any);
-          }
-        } else if (att.mediaType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-          if (att.data.length > XLSX_B64_LIMIT) {
-            userContentBlocks.push({
-              type: 'text',
-              text: `[Attached spreadsheet "${att.name}" (${(att.data.length * 0.75 / 1_048_576).toFixed(1)} MB) is too large to process. Ask the user for the relevant excerpt.]`,
-            });
-          } else {
-            try {
-              const buf = Buffer.from(att.data, 'base64');
-              const workbook = XLSX.read(buf, { type: 'buffer' });
-              const sheets: string[] = [];
-              for (const name of workbook.SheetNames) {
-                const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name]);
-                sheets.push(`--- Sheet: ${name} ---\n${csv}`);
-              }
-              userContentBlocks.push({
-                type: 'text',
-                text: `[Spreadsheet: ${att.name}]\n\n${sheets.join('\n\n')}`,
-              });
-            } catch {
-              userContentBlocks.push({
-                type: 'text',
-                text: `[Failed to parse spreadsheet "${att.name}". The file may be corrupted.]`,
-              });
-            }
-          }
-        } else if (
-          att.mediaType === 'image/jpeg' ||
-          att.mediaType === 'image/png' ||
-          att.mediaType === 'image/gif' ||
-          att.mediaType === 'image/webp'
-        ) {
-          if (att.data.length > IMAGE_B64_LIMIT) {
-            userContentBlocks.push({
-              type: 'text',
-              text: `[Attached image "${att.name}" (${(att.data.length * 0.75 / 1_048_576).toFixed(1)} MB) exceeds the 5 MB image limit and was not included.]`,
-            });
-          } else {
-            userContentBlocks.push({
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: att.mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-                data: att.data,
-              },
-            });
-          }
-        }
-      }
-    }
+    // Build content blocks for the user turn — attachments are processed by
+    // the shared helper so the same logic applies to chat uploads and (later)
+    // Drive-tool reads.
+    const attachmentBlocks = await buildAttachmentBlocks(attachments);
+    const userContentBlocks: Anthropic.Beta.BetaContentBlockParam[] = [...attachmentBlocks];
 
     if (userMessage?.trim()) {
       userContentBlocks.push({ type: 'text', text: userMessage });
@@ -348,7 +275,7 @@ export class AiService {
     // Uses only the user message (no need to wait for assistant response).
     const isFirstMessage = dbMessages.length === 0;
     if (isFirstMessage) {
-      void this.generateTitle(conversationId, userMessage);
+      void this.generateTitle(conversationId, userId, userMessage);
     }
 
     let prevToolKey = '';
@@ -691,6 +618,7 @@ export class AiService {
 
   private async generateTitle(
     conversationId: string,
+    userId: string,
     userMessage: string | undefined,
   ): Promise<void> {
     try {
@@ -708,7 +636,7 @@ export class AiService {
       if (title) {
         // Hard cap at 30 chars — the chat header has limited space
         const truncated = title.length > 30 ? title.slice(0, 27) + '...' : title;
-        await this.conversationsService.updateTitle(conversationId, truncated);
+        await this.conversationsService.updateTitle(conversationId, userId, truncated);
       }
     } catch {
       // Best-effort — title generation failure is non-fatal

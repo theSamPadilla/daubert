@@ -15,3 +15,17 @@ export function getPrincipal(req: any): AccessPrincipal {
   }
   return p;
 }
+
+/**
+ * Read the principal off a request and assert it's a user (not a script
+ * token). Use this on routes that are user-only by design — conversations,
+ * case administration, member management, etc. Returns the userId for
+ * downstream service calls.
+ */
+export function requireUserPrincipal(req: any): string {
+  const principal = getPrincipal(req);
+  if (principal.kind !== 'user') {
+    throw new ForbiddenException('User authentication required');
+  }
+  return principal.userId;
+}

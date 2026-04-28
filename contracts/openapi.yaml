@@ -24,6 +24,8 @@ paths:
     $ref: './paths/blockchain.yaml#/~1blockchain~1fetch-history'
   /cases/{caseId}/conversations:
     $ref: './paths/ai.yaml#/~1cases~1{caseId}~1conversations'
+  /conversations/{id}:
+    $ref: './paths/ai.yaml#/~1conversations~1{id}'
   /conversations/{id}/messages:
     $ref: './paths/ai.yaml#/~1conversations~1{id}~1messages'
   /conversations/{id}/chat:

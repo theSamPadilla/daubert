@@ -80,6 +80,41 @@ Union-type schemas are slightly less explicit than dedicated tools. Claude handl
 
 ---
 
+## Phase 3: Add missing capability — `create_investigation`
+
+The agent can read investigations (`get_case_data`, `get_investigation`) but cannot create them. Today the user must leave the chat, create an investigation in the UI, then return — a friction point when the agent has identified a new lead worth tracking separately.
+
+### Tool shape
+
+```typescript
+// create_investigation({ name: string, notes?: string })
+// → { id, name, notes, caseId }
+```
+
+- Scoped to the current `caseId` from conversation context (same pattern as `create_production`).
+- Returns `{ error: ... }` if no case context, matching existing tool conventions.
+- Does NOT create traces — those are produced via `execute_script`. Empty investigation is fine; the agent populates it next turn.
+
+### Wiring
+
+- Add `CREATE_INVESTIGATION_TOOL` to `backend/src/modules/ai/tools.ts` and into `AGENT_TOOLS`.
+- Dispatch in `AiService.executeTool()` calling `investigationsService.create(caseId, { name, notes })`.
+- Emit a new SSE event (`investigation_created`) so the frontend sidebar refreshes the investigation list — mirrors how `graph_updated` and `production_updated` already work.
+- Frontend: subscribe to `investigation_created` in `AIChat.tsx` and invalidate the case's investigation query.
+
+### Tradeoff
+
+Adds one tool to the array (cuts into Phase 1/2 savings by ~250 tokens). Worth it: investigation creation is a core workflow gap, and Phase 2 grouping can later absorb it into an `investigation({ action: "create" | "get" })` tool if the count gets unwieldy.
+
+### Files touched
+
+- `backend/src/modules/ai/tools.ts` — new tool definition
+- `backend/src/modules/ai/ai.service.ts` — dispatch + SSE event + `InvestigationsService` injection
+- `backend/src/modules/ai/ai.module.ts` — import `InvestigationsModule`
+- `frontend/src/components/AIChat.tsx` — handle `investigation_created` event
+
+---
+
 ## What not to do
 
 - **Dynamic tool discovery mid-conversation** (meta-tools that "activate" other tools). Adds round-trips, confuses the model, breaks prompt caching since the tools array changes between iterations within the same conversation.

@@ -8,13 +8,30 @@ import {
   Res,
   Req,
   HttpCode,
-  ForbiddenException,
+  UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ConversationsService } from './conversations.service';
 import { AiService } from './ai.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
-import { CreateConversationDto } from './dto/create-conversation.dto';
+import { CaseMemberGuard } from '../auth/case-member.guard';
+import { requireUserPrincipal } from '../auth/access-principal';
+
+@Controller('cases/:caseId/conversations')
+@UseGuards(CaseMemberGuard)
+export class CaseConversationsController {
+  constructor(private readonly conversationsService: ConversationsService) {}
+
+  @Post()
+  create(@Param('caseId') caseId: string, @Req() req: any) {
+    return this.conversationsService.create(caseId, requireUserPrincipal(req));
+  }
+
+  @Get()
+  findAll(@Param('caseId') caseId: string, @Req() req: any) {
+    return this.conversationsService.findAllForUserInCase(caseId, requireUserPrincipal(req));
+  }
+}
 
 @Controller('conversations')
 export class ConversationsController {
@@ -23,34 +40,15 @@ export class ConversationsController {
     private readonly aiService: AiService,
   ) {}
 
-  /**
-   * Conversations are user-only — script tokens have no `req.user` and are
-   * rejected here. Returns the user id for downstream service calls.
-   */
-  private requireUser(req: any): string {
-    if (!req.user) throw new ForbiddenException('User authentication required');
-    return req.user.id;
-  }
-
-  @Post()
-  create(@Body() dto: CreateConversationDto, @Req() req: any) {
-    return this.conversationsService.create(dto.caseId, this.requireUser(req));
-  }
-
-  @Get()
-  findAll(@Req() req: any) {
-    return this.conversationsService.findAllForUser(this.requireUser(req));
-  }
-
   @Get(':id/messages')
   getMessages(@Param('id') id: string, @Req() req: any) {
-    return this.conversationsService.getMessages(id, this.requireUser(req));
+    return this.conversationsService.getMessages(id, requireUserPrincipal(req));
   }
 
   @Delete(':id')
   @HttpCode(204)
   delete(@Param('id') id: string, @Req() req: any) {
-    return this.conversationsService.delete(id, this.requireUser(req));
+    return this.conversationsService.delete(id, requireUserPrincipal(req));
   }
 
   @Post(':id/chat')
@@ -61,7 +59,7 @@ export class ConversationsController {
     @Res() res: Response,
   ) {
     // Verify access to the conversation before streaming (also rejects script tokens)
-    const userId = this.requireUser(req);
+    const userId = requireUserPrincipal(req);
     await this.conversationsService.findOne(id, userId);
 
     res.setHeader('Content-Type', 'text/event-stream');

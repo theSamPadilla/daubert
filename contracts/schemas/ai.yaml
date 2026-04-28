@@ -1,11 +1,14 @@
 Conversation:
   type: object
-  required: [id, caseId, createdAt, updatedAt]
+  required: [id, caseId, userId, createdAt, updatedAt]
   properties:
     id:
       type: string
       format: uuid
     caseId:
+      type: string
+      format: uuid
+    userId:
       type: string
       format: uuid
     title:
@@ -54,6 +57,6 @@ ChatSseEvent:
   properties:
     type:
       type: string
-      enum: [text_delta, tool_start, tool_done, done, error]
+      enum: [text_delta, tool_start, tool_done, graph_updated, production_updated, done, error]
     data:
       type: object

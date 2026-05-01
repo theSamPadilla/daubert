@@ -33,27 +33,30 @@ import { AttachmentDto } from './dto/chat-message.dto';
 import { buildAttachmentBlocks } from './attachment-blocks';
 
 /**
- * Ensures every tool_use / code_execution block in an assistant message has a
- * matching tool_result / code_execution_tool_result in the following user
- * message, and vice-versa. Strips broken pairs so the API never sees orphaned
- * blocks.
+ * Ensures every client tool_use block in an assistant message has a matching
+ * tool_result in the following user message, and vice-versa. Strips broken
+ * pairs so the API never sees orphaned blocks.
  *
- * Broken pairs arise when:
+ * Only client tools cross message boundaries. Server-side tools (web_search,
+ * code_execution) pair within a single assistant message — both the
+ * `server_tool_use` and its `*_tool_result` block live in the same assistant
+ * turn — and must pass through this sanitizer untouched. Including them in
+ * USE_TYPES caused server_tool_use blocks to be stripped (their results aren't
+ * in the next user message), leaving orphaned web_search_tool_result blocks
+ * that the API rejects with a 400.
+ *
+ * Broken cross-message pairs arise when:
  *  - Both rows were saved in the same DB transaction (same NOW() → unstable sort)
  *  - The compact-2026-01-12 beta summarised away a tool_use block but left its
  *    tool_result in the DB.
- *  - adaptive thinking causes the model to emit code_execution blocks that need
- *    a matching code_execution_tool_result in the next user turn.
  */
 function sanitizeToolPairs(
   messages: Anthropic.Beta.BetaMessageParam[],
 ): Anthropic.Beta.BetaMessageParam[] {
   const out: Anthropic.Beta.BetaMessageParam[] = [];
 
-  // Types that act like tool_use and need a matching result in the next turn
-  const USE_TYPES = new Set(['tool_use', 'code_execution', 'server_tool_use']);
-  // Types that act like tool_result and need a matching use in the prev turn
-  const RESULT_TYPES = new Set(['tool_result', 'code_execution_tool_result', 'server_tool_result']);
+  const USE_TYPES = new Set(['tool_use']);
+  const RESULT_TYPES = new Set(['tool_result']);
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];

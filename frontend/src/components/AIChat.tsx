@@ -607,54 +607,71 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
             eventType = line.slice(7).trim();
           } else if (line.startsWith('data: ')) {
             const data = JSON.parse(line.slice(6));
+            // Drop the bubble at curMsgId if it's an empty placeholder, or
+            // finalize it if it has text. Used by tool_start / tool_done so
+            // back-to-back tools don't leave stranded "..." bubbles behind.
+            const finalizeOrDropCurrent = () =>
+              setMessages((prev) =>
+                prev.flatMap((m) => {
+                  if (m.id !== curMsgId) return [m];
+                  return m.text ? [{ ...m, isStreaming: false }] : [];
+                }),
+              );
+
             if (eventType === 'text_delta') {
               const content = data.content ?? '';
               removeStatus();
-              if (curMsgId !== assistantId) {
-                setMessages((prev) => {
-                  const cur = prev.find((m) => m.id === curMsgId);
-                  if (cur && !cur.isStreaming) {
-                    const newId = crypto.randomUUID();
-                    curMsgId = newId;
-                    return [...prev, { id: newId, role: 'assistant', text: content, isStreaming: true }];
-                  }
-                  return prev.map((m) => m.id === curMsgId ? { ...m, text: m.text + content } : m);
-                });
-              } else {
-                updateMsg(curMsgId, (m) => ({ ...m, text: m.text + content }));
-              }
+              setMessages((prev) => {
+                const cur = prev.find((m) => m.id === curMsgId);
+                if (!cur || !cur.isStreaming) {
+                  // Lazily create a new assistant bubble. Happens after
+                  // tool_done dropped the previous one, or if the very first
+                  // event is text_delta after assistantId was already
+                  // finalized somehow.
+                  const newId = crypto.randomUUID();
+                  curMsgId = newId;
+                  return [...prev, { id: newId, role: 'assistant', text: content, isStreaming: true }];
+                }
+                return prev.map((m) => m.id === curMsgId ? { ...m, text: m.text + content } : m);
+              });
             } else if (eventType === 'tool_start') {
-              updateMsg(curMsgId, (m) => m.text ? { ...m, isStreaming: false } : m);
+              finalizeOrDropCurrent();
               const tool: ToolStatus = { name: data.name, input: data.input };
               showStatus(formatToolStatus(tool));
             } else if (eventType === 'tool_done') {
               removeStatus();
-              const newId = crypto.randomUUID();
-              curMsgId = newId;
-              setMessages((prev) => [
-                ...prev,
-                { id: newId, role: 'assistant', text: '', isStreaming: true },
-              ]);
+              // Don't pre-create an empty assistant bubble — text_delta
+              // creates one lazily when text actually arrives.
+              finalizeOrDropCurrent();
+              curMsgId = '';
             } else if (eventType === 'graph_updated') {
               onGraphUpdated?.();
             } else if (eventType === 'production_updated') {
               onProductionUpdated?.();
             } else if (eventType === 'done') {
               removeStatus();
-              setMessages((prev) => {
-                const last = prev[prev.length - 1];
-                if (last && last.id === curMsgId && !last.text) {
-                  return prev.filter((m) => m.id !== curMsgId);
-                }
-                return prev.map((m) => m.id === curMsgId ? { ...m, isStreaming: false } : m);
-              });
+              finalizeOrDropCurrent();
             } else if (eventType === 'error') {
               removeStatus();
-              updateMsg(curMsgId, (m) => ({
-                ...m,
-                text: m.text || `Error: ${data.message}`,
-                isStreaming: false,
-              }));
+              const errorText = data.errorId
+                ? `${data.message} (ref: ${data.errorId})`
+                : data.message;
+              setMessages((prev) => {
+                const cur = prev.find((m) => m.id === curMsgId);
+                if (cur) {
+                  return prev.map((m) =>
+                    m.id === curMsgId
+                      ? { ...m, text: m.text || errorText, isStreaming: false }
+                      : m,
+                  );
+                }
+                // No current bubble (post tool_done with no text yet) — append
+                // a fresh assistant bubble carrying the error.
+                return [
+                  ...prev,
+                  { id: crypto.randomUUID(), role: 'assistant', text: errorText, isStreaming: false },
+                ];
+              });
             }
           }
         }

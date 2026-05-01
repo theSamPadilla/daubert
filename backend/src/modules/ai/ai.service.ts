@@ -117,6 +117,52 @@ function sanitizeToolPairs(
 }
 
 /**
+ * Drop server-side tool result blocks (web_search_tool_result,
+ * code_execution_tool_result) whose paired server_tool_use / code_execution
+ * block is missing earlier in the same message. Server-side tool blocks pair
+ * intra-message; an orphan result triggers a 400 ("Each web_search_tool_result
+ * block must have a corresponding server_tool_use block before it.").
+ *
+ * This is a safety net for two cases:
+ *   1. Historical messages persisted before the provider stopped stripping
+ *      server_tool_use blocks at end-of-stream. Those rows have orphan results
+ *      already in the DB and would keep failing on every replay.
+ *   2. Any future regression that drops a use block while keeping its result.
+ */
+function dropOrphanServerToolResults(
+  messages: Anthropic.Beta.BetaMessageParam[],
+): Anthropic.Beta.BetaMessageParam[] {
+  const SERVER_RESULT_TO_USE: Record<string, string> = {
+    web_search_tool_result: 'server_tool_use',
+    code_execution_tool_result: 'code_execution',
+  };
+
+  return messages.map((msg) => {
+    if (!Array.isArray(msg.content)) return msg;
+    const content = msg.content as any[];
+
+    const seenUseIds = new Set<string>();
+    const kept: any[] = [];
+    for (const block of content) {
+      const expectedUseType = SERVER_RESULT_TO_USE[block.type];
+      if (expectedUseType) {
+        // Result block — keep only if a matching use block already appeared.
+        if (block.tool_use_id && seenUseIds.has(block.tool_use_id)) {
+          kept.push(block);
+        }
+        // else: drop the orphan
+        continue;
+      }
+      if (block.type === 'server_tool_use' || block.type === 'code_execution') {
+        if (block.id) seenUseIds.add(block.id);
+      }
+      kept.push(block);
+    }
+    return kept.length === content.length ? msg : { ...msg, content: kept };
+  });
+}
+
+/**
  * Merge consecutive messages with the same role. This can happen when tool
  * results from compaction or DB ordering produce adjacent user messages.
  * The Anthropic API requires strictly alternating roles.
@@ -219,10 +265,16 @@ export class AiService {
     const rawMessages: Anthropic.Beta.BetaMessageParam[] = dbMessages.map(
       (m) => ({ role: m.role, content: m.content }),
     ) as Anthropic.Beta.BetaMessageParam[];
-    // Sanitize: remove orphaned tool_use / tool_result pairs that can arise
-    // from same-transaction timestamps or compaction replacing old tool_use blocks.
-    // Then merge any consecutive same-role messages (API requires alternating roles).
-    const messages = mergeConsecutiveRoles(sanitizeToolPairs(rawMessages));
+    // Sanitize, in order:
+    //   1. dropOrphanServerToolResults — strip intra-message orphan
+    //      web_search_tool_result / code_execution_tool_result blocks left
+    //      behind by older provider code that stripped server_tool_use only.
+    //   2. sanitizeToolPairs — strip cross-message client tool_use/tool_result
+    //      orphans from same-transaction timestamps or compaction.
+    //   3. mergeConsecutiveRoles — API requires strictly alternating roles.
+    const messages = mergeConsecutiveRoles(
+      sanitizeToolPairs(dropOrphanServerToolResults(rawMessages)),
+    );
 
     // Build content blocks for the user turn — attachments are processed by
     // the shared helper so the same logic applies to chat uploads and (later)

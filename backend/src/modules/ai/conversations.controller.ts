@@ -8,8 +8,10 @@ import {
   Res,
   Req,
   HttpCode,
+  Logger,
   UseGuards,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { ConversationsService } from './conversations.service';
 import { AiService } from './ai.service';
@@ -35,6 +37,8 @@ export class CaseConversationsController {
 
 @Controller('conversations')
 export class ConversationsController {
+  private readonly logger = new Logger(ConversationsController.name);
+
   constructor(
     private readonly conversationsService: ConversationsService,
     private readonly aiService: AiService,
@@ -81,9 +85,32 @@ export class ConversationsController {
         );
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
+      const errorId = randomUUID();
+      this.logger.error(
+        `Chat stream failed [errorId=${errorId} conversationId=${id} userId=${userId} caseId=${body.caseId} model=${body.model ?? 'default'}]`,
+        err instanceof Error ? err.stack : String(err),
+      );
+      // Some upstream errors (e.g. Anthropic 400s) carry useful structured
+      // detail on the error object itself — log it separately so the stack
+      // trace stays readable.
+      const detail =
+        err && typeof err === 'object'
+          ? {
+              name: (err as any).name,
+              status: (err as any).status,
+              code: (err as any).code,
+              type: (err as any).type,
+              request_id: (err as any).request_id,
+              error: (err as any).error,
+            }
+          : undefined;
+      if (detail) this.logger.error(`Chat stream error detail [${errorId}]: ${JSON.stringify(detail)}`);
+
       res.write(
-        `event: error\ndata: ${JSON.stringify({ message })}\n\n`,
+        `event: error\ndata: ${JSON.stringify({
+          message: 'An error occurred and has been logged. Please try again.',
+          errorId,
+        })}\n\n`,
       );
     } finally {
       clearInterval(heartbeat);

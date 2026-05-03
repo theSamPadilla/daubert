@@ -12,6 +12,7 @@ type Action =
   | { type: 'ADD_WALLET'; payload: { traceId: string; wallet: WalletNode } }
   | { type: 'UPDATE_WALLET'; payload: { traceId: string; walletId: string; updates: Partial<WalletNode> } }
   | { type: 'DELETE_WALLET'; payload: { traceId: string; walletId: string } }
+  | { type: 'DELETE_OUTBOUND_EDGES'; payload: { walletId: string } }
   | { type: 'ADD_TRANSACTION'; payload: { traceId: string; transaction: TransactionEdge } }
   | { type: 'UPDATE_TRANSACTION'; payload: { traceId: string; transactionId: string; updates: Partial<TransactionEdge> } }
   | { type: 'DELETE_TRANSACTION'; payload: { traceId: string; transactionId: string } }
@@ -159,6 +160,19 @@ function applyAction(state: Investigation | null, action: Action): Investigation
           (e) => e.from !== action.payload.walletId && e.to !== action.payload.walletId
         ),
       }));
+
+    case 'DELETE_OUTBOUND_EDGES': {
+      if (!state) return state;
+      const { walletId } = action.payload;
+      return {
+        ...state,
+        traces: state.traces.map((t) => ({
+          ...t,
+          edges: t.edges.filter((e) => e.from !== walletId),
+          edgeBundles: (t.edgeBundles || []).filter((b) => b.fromNodeId !== walletId),
+        })),
+      };
+    }
 
     case 'ADD_TRANSACTION':
       return mapTrace(state, action.payload.traceId, (t) => ({
@@ -418,6 +432,12 @@ export function useInvestigation(initial: Investigation | null) {
     []
   );
 
+  const deleteOutboundEdges = useCallback(
+    (walletId: string) =>
+      dispatch({ type: 'DELETE_OUTBOUND_EDGES', payload: { walletId } }),
+    []
+  );
+
   const addTransaction = useCallback(
     (traceId: string, transaction: TransactionEdge) =>
       dispatch({ type: 'ADD_TRANSACTION', payload: { traceId, transaction } }),
@@ -510,6 +530,7 @@ export function useInvestigation(initial: Investigation | null) {
     addWallet,
     updateWallet,
     deleteWallet,
+    deleteOutboundEdges,
     addTransaction,
     updateTransaction,
     deleteTransaction,

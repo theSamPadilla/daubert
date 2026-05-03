@@ -234,6 +234,7 @@ function InvestigationsWorkspace() {
     addWallet,
     updateWallet,
     deleteWallet,
+    deleteOutboundEdges,
     addTransaction,
     updateTransaction,
     deleteTransaction,
@@ -860,6 +861,10 @@ function InvestigationsWorkspace() {
     }
   }, [investigation, addEdgeBundle, deleteEdgeBundle, updateTransaction]);
 
+  const handleDeleteAllOutbound = useCallback((walletId: string) => {
+    deleteOutboundEdges(walletId);
+  }, [deleteOutboundEdges]);
+
   const handleAddToGroup = useCallback(() => {
     if (!selectedGroupEntry) return;
     const { group, traceId } = selectedGroupEntry;
@@ -1188,6 +1193,7 @@ function InvestigationsWorkspace() {
                   }}
                   onFetchHistory={handleFetchHistory}
                   onBundleAllOutbound={handleBundleAllOutbound}
+                  onDeleteAllOutbound={handleDeleteAllOutbound}
                   onRerunScript={async (scriptRunId) => {
                     await apiClient.rerunScript(scriptRunId);
                     if (activeInvestigationId) {

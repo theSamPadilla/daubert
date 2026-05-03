@@ -190,6 +190,7 @@ interface DetailsPanelProps {
   onSetNodeGroup: (traceId: string, nodeIds: string[], groupId: string | null) => void;
   onFetchHistory: (address: string, chain: string) => void;
   onBundleAllOutbound?: (walletId: string, color: string) => void;
+  onDeleteAllOutbound?: (walletId: string) => void;
   onRerunScript?: (scriptRunId: string) => Promise<void>;
   onToggleEdgeBundle?: (traceId: string, bundleId: string) => void;
   onUpdateEdgeBundle?: (traceId: string, bundleId: string, updates: Partial<EdgeBundle>) => void;
@@ -262,12 +263,14 @@ function WalletDetails({
   wallet,
   onFetchHistory,
   onBundleAllOutbound,
+  onDeleteAllOutbound,
   onUpdate,
   lookupAddress,
 }: {
   wallet: WalletNode;
   onFetchHistory: (address: string, chain: string) => void;
   onBundleAllOutbound?: (walletId: string, color: string) => void;
+  onDeleteAllOutbound?: (walletId: string) => void;
   onUpdate?: (updates: Partial<WalletNode>) => void;
   lookupAddress: (address: string) => import('@/lib/api-client').LabeledEntity | undefined;
 }) {
@@ -275,6 +278,7 @@ function WalletDetails({
   const addrType = wallet.addressType || 'unknown';
   const [notes, setNotes] = useState(wallet.notes || '');
   const [pickingBundleColor, setPickingBundleColor] = useState(false);
+  const [confirmDeleteOutbound, setConfirmDeleteOutbound] = useState(false);
 
   const walletId = wallet.id;
   const prevWalletId = useRef(walletId);
@@ -282,6 +286,7 @@ function WalletDetails({
     prevWalletId.current = walletId;
     setNotes(wallet.notes || '');
     setPickingBundleColor(false);
+    setConfirmDeleteOutbound(false);
   }
 
   return (
@@ -425,6 +430,34 @@ function WalletDetails({
               </button>
             </div>
           )}
+          {onDeleteAllOutbound && !confirmDeleteOutbound && (
+            <button
+              onClick={() => setConfirmDeleteOutbound(true)}
+              className="w-full px-3 py-1.5 bg-gray-700 hover:bg-red-900/40 hover:text-red-300 rounded text-sm transition-colors text-left"
+            >
+              Delete all outbound
+            </button>
+          )}
+          {onDeleteAllOutbound && confirmDeleteOutbound && (
+            <div className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm flex items-center gap-2">
+              <span className="text-gray-300 text-xs flex-1">Delete all outbound transactions?</span>
+              <button
+                onClick={() => {
+                  onDeleteAllOutbound(wallet.id);
+                  setConfirmDeleteOutbound(false);
+                }}
+                className="text-[11px] px-2 py-0.5 bg-red-600 hover:bg-red-500 rounded text-white"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setConfirmDeleteOutbound(false)}
+                className="text-[11px] text-gray-400 hover:text-white"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -436,11 +469,11 @@ function resolveWalletDisplay(id: string, allWallets: { wallet: WalletNode; trac
   if (match) {
     const addr = match.wallet.address;
     const truncated = addr.length > 12 ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : addr;
-    return { label: match.wallet.label, address: truncated };
+    return { label: match.wallet.label, address: truncated, fullAddress: addr };
   }
   // Fallback: treat as raw address
   const truncated = id.length > 12 ? `${id.slice(0, 6)}...${id.slice(-4)}` : id;
-  return { label: truncated, address: '' };
+  return { label: truncated, address: '', fullAddress: id };
 }
 
 function TransactionHeader({
@@ -611,10 +644,20 @@ function TransactionDetails({
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">From → To</h4>
         <p className="text-xs text-gray-300">{fromDisplay.label}</p>
-        {fromDisplay.address && <p className="text-[10px] font-mono text-gray-500">{fromDisplay.address}</p>}
+        {fromDisplay.address && (
+          <div className="flex items-center gap-1.5">
+            <p className="text-[10px] font-mono text-gray-500">{fromDisplay.address}</p>
+            <CopyButton text={fromDisplay.fullAddress} />
+          </div>
+        )}
         <p className="text-xs text-gray-500 my-1">↓</p>
         <p className="text-xs text-gray-300">{toDisplay.label}</p>
-        {toDisplay.address && <p className="text-[10px] font-mono text-gray-500">{toDisplay.address}</p>}
+        {toDisplay.address && (
+          <div className="flex items-center gap-1.5">
+            <p className="text-[10px] font-mono text-gray-500">{toDisplay.address}</p>
+            <CopyButton text={toDisplay.fullAddress} />
+          </div>
+        )}
       </div>
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Timestamp</h4>
@@ -1061,6 +1104,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
   onSetNodeGroup,
   onFetchHistory,
   onBundleAllOutbound,
+  onDeleteAllOutbound,
   onRerunScript,
   onToggleEdgeBundle,
   onUpdateEdgeBundle,
@@ -1165,6 +1209,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
           wallet={selectedItem.data}
           onFetchHistory={onFetchHistory}
           onBundleAllOutbound={onBundleAllOutbound}
+          onDeleteAllOutbound={onDeleteAllOutbound}
           onUpdate={(updates) => {
             const w = selectedItem.data as WalletNode;
             onUpdateWallet(w.parentTrace, w.id, updates);

@@ -26,16 +26,18 @@ type Action =
   | { type: 'UPDATE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string; updates: Partial<EdgeBundle> } }
   | { type: 'TOGGLE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
   | { type: 'DELETE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
-  | { type: 'UNDO' };
+  | { type: 'UNDO' }
+  | { type: 'REDO' };
 
 // Actions that bypass the history stack (too granular or are load operations)
-const SKIP_HISTORY = new Set<Action['type']>(['SET_INVESTIGATION', 'UPDATE_NODE_POSITION', 'UNDO']);
+const SKIP_HISTORY = new Set<Action['type']>(['SET_INVESTIGATION', 'UPDATE_NODE_POSITION', 'UNDO', 'REDO']);
 
 const MAX_HISTORY = 50;
 
 interface HistoryState {
   past: (Investigation | null)[];
   present: Investigation | null;
+  future: (Investigation | null)[];
 }
 
 // ─── Pure investigation logic ────────────────────────────────────────────────
@@ -339,6 +341,17 @@ function historyReducer(state: HistoryState, action: Action): HistoryState {
     return {
       past: state.past.slice(0, -1),
       present: previous,
+      future: [state.present, ...state.future].slice(0, MAX_HISTORY),
+    };
+  }
+
+  if (action.type === 'REDO') {
+    if (state.future.length === 0) return state;
+    const next = state.future[0];
+    return {
+      past: [...state.past.slice(-MAX_HISTORY + 1), state.present],
+      present: next,
+      future: state.future.slice(1),
     };
   }
 
@@ -346,37 +359,47 @@ function historyReducer(state: HistoryState, action: Action): HistoryState {
 
   // SET_INVESTIGATION resets history entirely (fresh load)
   if (action.type === 'SET_INVESTIGATION') {
-    return { past: [], present: nextPresent };
+    return { past: [], present: nextPresent, future: [] };
   }
 
   if (SKIP_HISTORY.has(action.type)) {
     return { ...state, present: nextPresent };
   }
 
+  // Any new mutating action invalidates the redo stack.
   return {
     past: [...state.past.slice(-MAX_HISTORY + 1), state.present],
     present: nextPresent,
+    future: [],
   };
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useInvestigation(initial: Investigation | null) {
-  const [{ past, present: investigation }, dispatch] = useReducer(historyReducer, {
+  const [{ past, present: investigation, future }, dispatch] = useReducer(historyReducer, {
     past: [],
     present: initial,
+    future: [],
   });
 
   const canUndo = past.length > 0;
+  const canRedo = future.length > 0;
 
   const undo = useCallback(() => dispatch({ type: 'UNDO' }), []);
+  const redo = useCallback(() => dispatch({ type: 'REDO' }), []);
 
-  // Cmd+Z / Ctrl+Z keyboard shortcut
+  // Cmd+Z = undo, Cmd+Shift+Z (and Cmd+Y) = redo
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      if (e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         dispatch({ type: 'UNDO' });
+      } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+        e.preventDefault();
+        dispatch({ type: 'REDO' });
       }
     };
     window.addEventListener('keydown', handler);
@@ -521,6 +544,8 @@ export function useInvestigation(initial: Investigation | null) {
     dispatch,
     canUndo,
     undo,
+    canRedo,
+    redo,
     setInvestigation,
     addTrace,
     updateTrace,

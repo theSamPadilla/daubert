@@ -226,6 +226,8 @@ function InvestigationsWorkspace() {
     setInvestigation,
     canUndo,
     undo,
+    canRedo,
+    redo,
     addTrace,
     updateTrace,
     deleteTrace,
@@ -1068,6 +1070,8 @@ function InvestigationsWorkspace() {
             onAddTransaction={handleAddTransaction}
             onUndo={undo}
             canUndo={canUndo}
+            onRedo={redo}
+            canRedo={canRedo}
             onRefresh={() => activeInvestigationId && loadInvestigationFromApi(activeInvestigationId)}
             onExport={(format) => graphRef.current?.exportImage(format, investigation?.name || 'graph')}
             rightContent={<UserMenu />}

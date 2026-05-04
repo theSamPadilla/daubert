@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { FaRotateLeft, FaArrowsRotate, FaDownload, FaChevronDown } from 'react-icons/fa6';
+import { FaRotateLeft, FaRotateRight, FaArrowsRotate, FaDownload, FaChevronDown } from 'react-icons/fa6';
 import { Investigation } from '../types/investigation';
 
 interface HeaderProps {
@@ -8,6 +8,8 @@ interface HeaderProps {
   onAddTransaction: () => void;
   onUndo?: () => void;
   canUndo?: boolean;
+  onRedo?: () => void;
+  canRedo?: boolean;
   onRefresh?: () => void;
   onExport?: (format: 'png' | 'pdf') => void;
   rightContent?: React.ReactNode;
@@ -19,6 +21,8 @@ export function Header({
   onAddTransaction,
   onUndo,
   canUndo,
+  onRedo,
+  canRedo,
   onRefresh,
   onExport,
   rightContent,
@@ -53,14 +57,24 @@ export function Header({
             >
               <FaArrowsRotate size={12} /> Refresh
             </button>
-            <button
-              onClick={onUndo}
-              disabled={!canUndo}
-              title="Undo (⌘Z)"
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed rounded text-sm transition-colors flex items-center gap-1.5"
-            >
-              <FaRotateLeft size={12} /> Undo
-            </button>
+            <div className="flex">
+              <button
+                onClick={onUndo}
+                disabled={!canUndo}
+                title="Undo (⌘Z)"
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-l text-sm transition-colors flex items-center gap-1.5"
+              >
+                <FaRotateLeft size={12} /> Undo
+              </button>
+              <button
+                onClick={onRedo}
+                disabled={!canRedo}
+                title="Redo (⌘⇧Z)"
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-r border-l border-gray-600 text-sm transition-colors flex items-center gap-1.5"
+              >
+                <FaRotateRight size={12} /> Redo
+              </button>
+            </div>
 
             {/* Export dropdown */}
             <div ref={exportRef} className="relative">

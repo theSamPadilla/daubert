@@ -320,7 +320,9 @@ Body:
 }
 ```
 
-Returns the created bundle (with server-generated `id`). `fromNodeId`, `toNodeId`, `token`, and `edgeIds` are required; `collapsed` defaults to `false`; `color` and `label` are optional. When `label` is set it overrides the auto-generated `<total> <token> (<n>)` rendered on the graph — useful for naming a bundle after what it represents (e.g. "Aave deposits", "Refunds Q2"). The server validates that both node IDs exist in the trace and every entry in `edgeIds` is a real edge in the trace — otherwise the call returns `404`.
+Returns the created bundle (with server-generated `id`). `fromNodeId`, `toNodeId`, `token`, and `edgeIds` are required; `collapsed` defaults to `false`; `color` and `label` are optional. When `label` is set it overrides the auto-generated `<total> <token> (<n>)` rendered on the graph — useful for naming a bundle after what it represents (e.g. "Aave deposits", "Refunds Q2").
+
+Validation is **investigation-scoped**, not trace-scoped: `fromNodeId`, `toNodeId`, and every entry in `edgeIds` must exist somewhere in the parent investigation, but they don't have to live in the same trace as the bundle. This matches the UI, where bundles routinely span traces (e.g. an edge in trace A whose `to` node lives in trace B can be bundled with other A→B edges, with the bundle stored in either trace). Choose the bundle's `traceId` to match where the source edges live (use the trace of `edgeIds[0]`). The call returns `404` only if a node/edge ID isn't found anywhere in the investigation.
 
 Use this to declutter a graph that has many edges between the same two nodes (e.g. 20 USDC transfers from Wallet A to Exchange B over time): bundle them into a single visual edge that the user can expand. Get the trace via `GET /traces/{traceId}` to find candidate `edgeIds`.
 

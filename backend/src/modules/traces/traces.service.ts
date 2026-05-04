@@ -251,21 +251,39 @@ export class TracesService {
     return data.edgeBundles || [];
   }
 
+  // Bundles are investigation-scoped, not trace-scoped: a bundle stored in
+  // trace X can legitimately reference nodes and edges that live in sibling
+  // traces (e.g. a wallet in trace A sending USDC to a wallet in trace B is
+  // an edge in trace A but its `to` node is in trace B). Validate identifiers
+  // against the union of all nodes/edges across the parent investigation.
+  private async loadInvestigationGraphIds(
+    investigationId: string,
+  ): Promise<{ nodeIds: Set<string>; edgeIds: Set<string> }> {
+    const traces = await this.repo.find({ where: { investigationId } });
+    const nodeIds = new Set<string>();
+    const edgeIds = new Set<string>();
+    for (const t of traces) {
+      const d = (t.data || {}) as { nodes?: any[]; edges?: any[] };
+      for (const n of d.nodes || []) nodeIds.add(n.id);
+      for (const e of d.edges || []) edgeIds.add(e.id);
+    }
+    return { nodeIds, edgeIds };
+  }
+
   async createEdgeBundle(traceId: string, dto: CreateEdgeBundleDto, principal: AccessPrincipal) {
     const trace = await this.findOne(traceId, principal);
-    const data = (trace.data || {}) as { nodes?: any[]; edges?: any[]; edgeBundles?: any[] };
+    const data = (trace.data || {}) as { edgeBundles?: any[] };
 
-    const nodeIds = new Set((data.nodes || []).map((n: any) => n.id));
+    const { nodeIds, edgeIds } = await this.loadInvestigationGraphIds(trace.investigationId);
     if (!nodeIds.has(dto.fromNodeId)) {
-      throw new NotFoundException(`fromNodeId ${dto.fromNodeId} not found in trace ${traceId}`);
+      throw new NotFoundException(`fromNodeId ${dto.fromNodeId} not found in investigation`);
     }
     if (!nodeIds.has(dto.toNodeId)) {
-      throw new NotFoundException(`toNodeId ${dto.toNodeId} not found in trace ${traceId}`);
+      throw new NotFoundException(`toNodeId ${dto.toNodeId} not found in investigation`);
     }
-    const edgeIdSet = new Set((data.edges || []).map((e: any) => e.id));
-    const missingEdges = dto.edgeIds.filter((id) => !edgeIdSet.has(id));
+    const missingEdges = dto.edgeIds.filter((id) => !edgeIds.has(id));
     if (missingEdges.length > 0) {
-      throw new NotFoundException(`Edges not found in trace ${traceId}: ${missingEdges.join(', ')}`);
+      throw new NotFoundException(`Edges not found in investigation: ${missingEdges.join(', ')}`);
     }
 
     const bundle = {
@@ -292,25 +310,28 @@ export class TracesService {
     principal: AccessPrincipal,
   ) {
     const trace = await this.findOne(traceId, principal);
-    const data = (trace.data || {}) as { nodes?: any[]; edges?: any[]; edgeBundles?: any[] };
+    const data = (trace.data || {}) as { edgeBundles?: any[] };
     const bundles: any[] = data.edgeBundles || [];
     const idx = bundles.findIndex((b) => b.id === bundleId);
     if (idx === -1) throw new NotFoundException(`Edge bundle ${bundleId} not found in trace ${traceId}`);
 
-    if (dto.fromNodeId !== undefined || dto.toNodeId !== undefined) {
-      const nodeIds = new Set((data.nodes || []).map((n: any) => n.id));
+    if (
+      dto.fromNodeId !== undefined ||
+      dto.toNodeId !== undefined ||
+      dto.edgeIds !== undefined
+    ) {
+      const { nodeIds, edgeIds } = await this.loadInvestigationGraphIds(trace.investigationId);
       if (dto.fromNodeId !== undefined && !nodeIds.has(dto.fromNodeId)) {
-        throw new NotFoundException(`fromNodeId ${dto.fromNodeId} not found in trace ${traceId}`);
+        throw new NotFoundException(`fromNodeId ${dto.fromNodeId} not found in investigation`);
       }
       if (dto.toNodeId !== undefined && !nodeIds.has(dto.toNodeId)) {
-        throw new NotFoundException(`toNodeId ${dto.toNodeId} not found in trace ${traceId}`);
+        throw new NotFoundException(`toNodeId ${dto.toNodeId} not found in investigation`);
       }
-    }
-    if (dto.edgeIds !== undefined) {
-      const edgeIdSet = new Set((data.edges || []).map((e: any) => e.id));
-      const missingEdges = dto.edgeIds.filter((id) => !edgeIdSet.has(id));
-      if (missingEdges.length > 0) {
-        throw new NotFoundException(`Edges not found in trace ${traceId}: ${missingEdges.join(', ')}`);
+      if (dto.edgeIds !== undefined) {
+        const missingEdges = dto.edgeIds.filter((id) => !edgeIds.has(id));
+        if (missingEdges.length > 0) {
+          throw new NotFoundException(`Edges not found in investigation: ${missingEdges.join(', ')}`);
+        }
       }
     }
 

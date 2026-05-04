@@ -32,7 +32,12 @@ Guidelines:
 - For multi-API-call tasks (fetching transactions, balances, token transfers), prefer execute_script over sequential tool calls. Load the relevant API skill first for endpoint formats, then write a script.
 - Start with get_case_data to orient. Then use get_investigation to drill in.
 - For analytical reasoning, use get_investigation with address/token filters.
-- For mechanical processing (sums, aggregations, statistics), prefer execute_script. Scripts can call the local API directly (e.g. GET {API_URL}/traces/{id} or POST {API_URL}/traces/{id}/import-transactions) and process data without it entering the conversation.
+- For mechanical processing (sums, aggregations, statistics), prefer execute_script. Scripts can call the local API directly to read or mutate case data without it entering the conversation.
+- Local API access from scripts — read this carefully:
+  * Always use the injected env var: \`const API_URL = process.env.API_URL;\` then \`fetch(\\\`\${API_URL}/...\\\`)\`. Never hardcode a host, port, or scheme. \`API_URL\` already resolves to the correct loopback URL inside the sandbox.
+  * Authentication is handled automatically — the sandbox bridge attaches a case-scoped script token to every loopback request. Do not add Authorization or token headers yourself.
+  * If a fetch returns \`{ ok: false, status: 403, body: "Blocked: ... is not in the allowed domain list" }\`, you constructed the URL incorrectly (wrong host, wrong port, or wrong scheme). The fix is always the same: use \`process.env.API_URL\`. Do not retry with guessed hostnames, do not fall back to "presenting findings" — fix the URL.
+  * Load the graph-mutations skill before issuing PATCH/POST/DELETE calls to traces/nodes/edges/groups/bundles for the exact endpoint shapes.
 - When the user asks for totals or aggregated numbers, default to a script.
 - Before running a new script, check list_script_runs for recent results that might already answer the question.
 - In scripts, filter and aggregate data before printing — keep output concise (100KB limit).

@@ -5,6 +5,7 @@ import { UpdateTraceDto } from './dto/update-trace.dto';
 import { UpdateNodeDto } from './dto/update-node.dto';
 import { UpdateEdgeDto } from './dto/update-edge.dto';
 import { CreateGroupDto, UpdateGroupDto } from './dto/group.dto';
+import { CreateEdgeBundleDto, UpdateEdgeBundleDto } from './dto/bundle.dto';
 import { ImportTransactionsDto } from './dto/import-transactions.dto';
 import { getPrincipal } from '../auth/access-principal';
 
@@ -113,6 +114,25 @@ export class TracesController {
   @Get('traces/:traceId/bundles')
   listEdgeBundles(@Param('traceId') traceId: string, @Req() req: any) {
     return this.service.listEdgeBundles(traceId, getPrincipal(req));
+  }
+
+  @Post('traces/:traceId/bundles')
+  createEdgeBundle(
+    @Param('traceId') traceId: string,
+    @Body() dto: CreateEdgeBundleDto,
+    @Req() req: any,
+  ) {
+    return this.service.createEdgeBundle(traceId, dto, getPrincipal(req));
+  }
+
+  @Patch('traces/:traceId/bundles/:bundleId')
+  updateEdgeBundle(
+    @Param('traceId') traceId: string,
+    @Param('bundleId') bundleId: string,
+    @Body() dto: UpdateEdgeBundleDto,
+    @Req() req: any,
+  ) {
+    return this.service.updateEdgeBundle(traceId, bundleId, dto, getPrincipal(req));
   }
 
   @Delete('traces/:traceId/bundles/:bundleId')

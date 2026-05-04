@@ -162,7 +162,8 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
           const raw = parseFloat(String(e.amount)) || 0;
           totalHuman += tok.decimals > 0 ? raw / Math.pow(10, tok.decimals) : raw;
         });
-        const label = `${abbr(totalHuman)} ${labelSym} (${bundleEdges.length})`;
+        const autoLabel = `${abbr(totalHuman)} ${labelSym} (${bundleEdges.length})`;
+        const label = bundle.label || autoLabel;
         const color = bundle.color || bundleEdges[0].color || '#f59e0b';
         // Compute date range for the bundle sublabel
         const timestamps = bundleEdges

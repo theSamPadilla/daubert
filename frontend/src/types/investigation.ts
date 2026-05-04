@@ -16,6 +16,7 @@ export interface EdgeBundle {
   collapsed: boolean;
   edgeIds: string[];     // IDs of the bundled TransactionEdges
   color?: string;
+  label?: string;        // optional display label; falls back to "<total> <token> (<n>)"
 }
 
 export interface Investigation {

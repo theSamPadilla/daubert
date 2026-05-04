@@ -298,7 +298,39 @@ Returns `204 No Content`. Also removes all edges connected to that node within t
 GET {API_URL}/traces/{traceId}/bundles
 ```
 
-Returns an array of edge bundle objects for the trace. Each bundle has `id`, `traceId`, `fromNodeId`, `toNodeId`, `token`, `collapsed`, `edgeIds[]`, and optional `color`. Use this to discover bundle IDs before deleting them.
+Returns an array of edge bundle objects for the trace. Each bundle has `id`, `traceId`, `fromNodeId`, `toNodeId`, `token`, `collapsed`, `edgeIds[]`, optional `color`, and optional `label`. Use this to discover bundle IDs before updating or deleting them.
+
+## Create an Edge Bundle
+
+```
+POST {API_URL}/traces/{traceId}/bundles
+```
+
+Body:
+
+```json
+{
+  "fromNodeId": "<node-id>",
+  "toNodeId": "<node-id>",
+  "token": "USDC",
+  "edgeIds": ["<edge-id>", "<edge-id>", ...],
+  "collapsed": false,
+  "color": "#10b981",
+  "label": "Aave deposits (May 2024)"
+}
+```
+
+Returns the created bundle (with server-generated `id`). `fromNodeId`, `toNodeId`, `token`, and `edgeIds` are required; `collapsed` defaults to `false`; `color` and `label` are optional. When `label` is set it overrides the auto-generated `<total> <token> (<n>)` rendered on the graph — useful for naming a bundle after what it represents (e.g. "Aave deposits", "Refunds Q2"). The server validates that both node IDs exist in the trace and every entry in `edgeIds` is a real edge in the trace — otherwise the call returns `404`.
+
+Use this to declutter a graph that has many edges between the same two nodes (e.g. 20 USDC transfers from Wallet A to Exchange B over time): bundle them into a single visual edge that the user can expand. Get the trace via `GET /traces/{traceId}` to find candidate `edgeIds`.
+
+## Update an Edge Bundle
+
+```
+PATCH {API_URL}/traces/{traceId}/bundles/{bundleId}
+```
+
+Body: any subset of `{ fromNodeId, toNodeId, token, edgeIds, collapsed, color, label }`. Same validation as create when those fields are present. Returns the updated bundle. Common uses: toggle `collapsed`, change `color`, set/clear `label`, or extend `edgeIds` after importing more transactions. To clear a label, pass `"label": ""` (empty string clears it; omit the field to leave it unchanged).
 
 ## Delete an Edge Bundle
 

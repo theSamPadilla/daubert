@@ -12,6 +12,7 @@ import { UpdateTraceDto } from './dto/update-trace.dto';
 import { UpdateNodeDto } from './dto/update-node.dto';
 import { UpdateEdgeDto } from './dto/update-edge.dto';
 import { CreateGroupDto, UpdateGroupDto } from './dto/group.dto';
+import { CreateEdgeBundleDto, UpdateEdgeBundleDto } from './dto/bundle.dto';
 import { ImportTransactionsDto } from './dto/import-transactions.dto';
 
 @Injectable()
@@ -248,6 +249,75 @@ export class TracesService {
     const trace = await this.findOne(traceId, principal);
     const data = (trace.data || {}) as { edgeBundles?: any[] };
     return data.edgeBundles || [];
+  }
+
+  async createEdgeBundle(traceId: string, dto: CreateEdgeBundleDto, principal: AccessPrincipal) {
+    const trace = await this.findOne(traceId, principal);
+    const data = (trace.data || {}) as { nodes?: any[]; edges?: any[]; edgeBundles?: any[] };
+
+    const nodeIds = new Set((data.nodes || []).map((n: any) => n.id));
+    if (!nodeIds.has(dto.fromNodeId)) {
+      throw new NotFoundException(`fromNodeId ${dto.fromNodeId} not found in trace ${traceId}`);
+    }
+    if (!nodeIds.has(dto.toNodeId)) {
+      throw new NotFoundException(`toNodeId ${dto.toNodeId} not found in trace ${traceId}`);
+    }
+    const edgeIdSet = new Set((data.edges || []).map((e: any) => e.id));
+    const missingEdges = dto.edgeIds.filter((id) => !edgeIdSet.has(id));
+    if (missingEdges.length > 0) {
+      throw new NotFoundException(`Edges not found in trace ${traceId}: ${missingEdges.join(', ')}`);
+    }
+
+    const bundle = {
+      id: crypto.randomUUID(),
+      traceId,
+      fromNodeId: dto.fromNodeId,
+      toNodeId: dto.toNodeId,
+      token: dto.token,
+      edgeIds: dto.edgeIds,
+      collapsed: dto.collapsed ?? false,
+      ...(dto.color !== undefined ? { color: dto.color } : {}),
+      ...(dto.label !== undefined ? { label: dto.label } : {}),
+    };
+
+    trace.data = { ...data, edgeBundles: [...(data.edgeBundles || []), bundle] };
+    await this.repo.save(trace);
+    return bundle;
+  }
+
+  async updateEdgeBundle(
+    traceId: string,
+    bundleId: string,
+    dto: UpdateEdgeBundleDto,
+    principal: AccessPrincipal,
+  ) {
+    const trace = await this.findOne(traceId, principal);
+    const data = (trace.data || {}) as { nodes?: any[]; edges?: any[]; edgeBundles?: any[] };
+    const bundles: any[] = data.edgeBundles || [];
+    const idx = bundles.findIndex((b) => b.id === bundleId);
+    if (idx === -1) throw new NotFoundException(`Edge bundle ${bundleId} not found in trace ${traceId}`);
+
+    if (dto.fromNodeId !== undefined || dto.toNodeId !== undefined) {
+      const nodeIds = new Set((data.nodes || []).map((n: any) => n.id));
+      if (dto.fromNodeId !== undefined && !nodeIds.has(dto.fromNodeId)) {
+        throw new NotFoundException(`fromNodeId ${dto.fromNodeId} not found in trace ${traceId}`);
+      }
+      if (dto.toNodeId !== undefined && !nodeIds.has(dto.toNodeId)) {
+        throw new NotFoundException(`toNodeId ${dto.toNodeId} not found in trace ${traceId}`);
+      }
+    }
+    if (dto.edgeIds !== undefined) {
+      const edgeIdSet = new Set((data.edges || []).map((e: any) => e.id));
+      const missingEdges = dto.edgeIds.filter((id) => !edgeIdSet.has(id));
+      if (missingEdges.length > 0) {
+        throw new NotFoundException(`Edges not found in trace ${traceId}: ${missingEdges.join(', ')}`);
+      }
+    }
+
+    bundles[idx] = { ...bundles[idx], ...dto };
+    trace.data = { ...data, edgeBundles: bundles };
+    await this.repo.save(trace);
+    return bundles[idx];
   }
 
   async deleteEdgeBundle(traceId: string, bundleId: string, principal: AccessPrincipal) {

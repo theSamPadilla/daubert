@@ -27,6 +27,21 @@ function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onUpdate, onArc
     .map((id) => trace?.edges.find((e) => e.id === id))
     .filter(Boolean) as TransactionEdge[];
 
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelValue, setLabelValue] = useState(bundle.label || '');
+  const prevBundleId = useRef(bundle.id);
+  if (prevBundleId.current !== bundle.id) {
+    prevBundleId.current = bundle.id;
+    setLabelValue(bundle.label || '');
+    setEditingLabel(false);
+  }
+  const commitLabel = () => {
+    setEditingLabel(false);
+    const next = labelValue.trim();
+    const prev = bundle.label || '';
+    if (next !== prev) onUpdate?.({ label: next || undefined });
+  };
+
   const abbr = (h: number) =>
     h >= 1e12 ? `${(h/1e12).toFixed(2).replace(/\.?0+$/, '')}T`
     : h >= 1e9 ? `${(h/1e9).toFixed(2).replace(/\.?0+$/, '')}B`
@@ -70,9 +85,26 @@ function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onUpdate, onArc
         </span>
       </div>
 
-      <p className="text-sm font-semibold text-white">
-        {fromLabel} → {toLabel}
-      </p>
+      {editingLabel ? (
+        <input
+          autoFocus
+          type="text"
+          value={labelValue}
+          onChange={(e) => setLabelValue(e.target.value)}
+          onBlur={commitLabel}
+          onKeyDown={(e) => { if (e.key === 'Enter') commitLabel(); if (e.key === 'Escape') setEditingLabel(false); }}
+          placeholder={`${fromLabel} → ${toLabel}`}
+          className="w-full bg-gray-700/50 border border-blue-500 rounded px-2 py-0.5 text-sm font-semibold text-white placeholder-gray-500 focus:outline-none"
+        />
+      ) : (
+        <p
+          className={`text-sm font-semibold text-white ${onUpdate ? 'cursor-pointer hover:text-blue-300 transition-colors' : ''}`}
+          onClick={() => onUpdate && setEditingLabel(true)}
+          title={onUpdate ? 'Click to rename' : undefined}
+        >
+          {bundle.label || `${fromLabel} → ${toLabel}`}
+        </p>
+      )}
 
       <div className="bg-gray-900/60 rounded p-3 space-y-1">
         <div className="flex justify-between text-xs">

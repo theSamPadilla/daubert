@@ -560,19 +560,22 @@ function TransactionDetails({
         return (
           <div>
             <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">Hash</h4>
-            {explorerUrl ? (
-              <a
-                href={explorerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-mono text-blue-400 hover:text-blue-300 break-all underline decoration-blue-400/30 hover:decoration-blue-300/60 transition-colors"
-              >
-                {transaction.txHash}
-                <FaArrowUpRightFromSquare size={10} className="shrink-0 opacity-60" />
-              </a>
-            ) : (
-              <p className="text-xs font-mono text-gray-300 break-all">{transaction.txHash}</p>
-            )}
+            <div className="flex items-start gap-2">
+              {explorerUrl ? (
+                <a
+                  href={explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-mono text-blue-400 hover:text-blue-300 break-all underline decoration-blue-400/30 hover:decoration-blue-300/60 transition-colors min-w-0"
+                >
+                  {transaction.txHash}
+                  <FaArrowUpRightFromSquare size={10} className="shrink-0 opacity-60" />
+                </a>
+              ) : (
+                <p className="text-xs font-mono text-gray-300 break-all min-w-0">{transaction.txHash}</p>
+              )}
+              <CopyButton text={transaction.txHash} title="Copy tx hash" />
+            </div>
           </div>
         );
       })()}

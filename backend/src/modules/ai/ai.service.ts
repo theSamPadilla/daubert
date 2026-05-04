@@ -166,6 +166,14 @@ function dropOrphanServerToolResults(
  * Merge consecutive messages with the same role. This can happen when tool
  * results from compaction or DB ordering produce adjacent user messages.
  * The Anthropic API requires strictly alternating roles.
+ *
+ * Special case: when both adjacent user messages would mix tool_result blocks
+ * with non-tool_result blocks (text/document/image/etc), we cannot merge —
+ * the compact-2026-01-12 (programmatic tool calling) beta requires that a
+ * user turn responding to a tool_use contain ONLY tool_result blocks. In that
+ * case we insert a synthetic assistant separator between them. This repairs
+ * wedged conversations whose tail was left as user(tool_result) by a previous
+ * loop that exited without a terminating assistant turn.
  */
 function mergeConsecutiveRoles(
   messages: Anthropic.Beta.BetaMessageParam[],
@@ -178,6 +186,22 @@ function mergeConsecutiveRoles(
     if (prev.role === curr.role) {
       const prevBlocks = Array.isArray(prev.content) ? prev.content : [{ type: 'text' as const, text: prev.content as string }];
       const currBlocks = Array.isArray(curr.content) ? curr.content : [{ type: 'text' as const, text: curr.content as string }];
+
+      if (prev.role === 'user') {
+        const prevHasToolResult = prevBlocks.some((b: any) => b.type === 'tool_result');
+        const currHasToolResult = currBlocks.some((b: any) => b.type === 'tool_result');
+        const prevHasOther = prevBlocks.some((b: any) => b.type !== 'tool_result');
+        const currHasOther = currBlocks.some((b: any) => b.type !== 'tool_result');
+        if ((prevHasToolResult && currHasOther) || (currHasToolResult && prevHasOther)) {
+          merged.push({
+            role: 'assistant',
+            content: [{ type: 'text', text: '(continuing)' }],
+          });
+          merged.push(curr);
+          continue;
+        }
+      }
+
       prev.content = [...prevBlocks, ...currBlocks] as any;
     } else {
       merged.push(curr);
@@ -335,42 +359,118 @@ export class AiService {
 
     let prevToolKey = '';
 
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
-      // System prompt is stable across all requests — cache it.
-      const system: Anthropic.Beta.BetaTextBlockParam[] = [
-        {
-          type: 'text',
-          text: INVESTIGATOR_PROMPT,
-          cache_control: { type: 'ephemeral' },
-        },
-      ];
+    // Tracks whether the last persisted DB row is a user(tool_result). The
+    // compact-2026-01-12 beta requires that any user turn responding to a
+    // tool_use contain ONLY tool_result blocks — so leaving the conversation
+    // tail as user(tool_result) wedges every subsequent message (the next
+    // user turn cannot mix text/attachments with the orphan tool_result).
+    // The finally block below persists a synthetic assistant terminator
+    // whenever the loop exits in this state (MAX_ITERATIONS, repeat-tool
+    // guard, mid-loop API error, dropped stream, etc.).
+    let lastPersistedWasToolResult = false;
 
-      let response: Anthropic.Beta.BetaMessage | undefined;
-      for await (const event of this.llm.streamChat({
-        system,
-        messages,
-        tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
-        model,
-      })) {
-        if (event.type === 'text') {
-          yield { type: 'text_delta', data: { content: event.content } };
-        } else if (event.type === 'end_turn') {
-          response = event.response;
+    try {
+      for (let i = 0; i < MAX_ITERATIONS; i++) {
+        // System prompt is stable across all requests — cache it.
+        const system: Anthropic.Beta.BetaTextBlockParam[] = [
+          {
+            type: 'text',
+            text: INVESTIGATOR_PROMPT,
+            cache_control: { type: 'ephemeral' },
+          },
+        ];
+
+        let response: Anthropic.Beta.BetaMessage | undefined;
+        for await (const event of this.llm.streamChat({
+          system,
+          messages,
+          tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
+          model,
+        })) {
+          if (event.type === 'text') {
+            yield { type: 'text_delta', data: { content: event.content } };
+          } else if (event.type === 'end_turn') {
+            response = event.response;
+          }
         }
-      }
 
-      if (!response) break;
+        if (!response) break;
 
-      // Provider already stripped server-side and thinking blocks.
-      const responseContent =
-        response.content as unknown as Anthropic.Beta.BetaContentBlock[];
+        // Provider already stripped server-side and thinking blocks.
+        const responseContent =
+          response.content as unknown as Anthropic.Beta.BetaContentBlock[];
 
-      // Find user-defined tool calls (web_search is server-side, never appears here)
-      const toolUseBlocks = responseContent.filter(
-        (b) => b.type === 'tool_use',
-      ) as Anthropic.ToolUseBlock[];
+        // Find user-defined tool calls (web_search is server-side, never appears here)
+        const toolUseBlocks = responseContent.filter(
+          (b) => b.type === 'tool_use',
+        ) as Anthropic.ToolUseBlock[];
 
-      if (response.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
+        if (response.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
+          await this.messageRepo.save(
+            this.messageRepo.create({
+              conversationId,
+              role: 'assistant',
+              content: responseContent,
+            }),
+          );
+          lastPersistedWasToolResult = false;
+
+          yield { type: 'done', data: { conversationId } };
+          return;
+        }
+
+        // Repeat-tool guard: break if same tools called with same inputs.
+        // We have not yet saved this iteration's assistant/tool_result, so
+        // the DB tail is still the previous iteration's user(tool_result) —
+        // the finally block will append the terminator.
+        const toolKey = toolUseBlocks
+          .map((b) => `${b.name}:${JSON.stringify(b.input)}`)
+          .join('|');
+        if (toolKey === prevToolKey) {
+          yield { type: 'done', data: { conversationId } };
+          return;
+        }
+        prevToolKey = toolKey;
+
+        // Execute tools — keep full results in memory, slim versions for DB
+        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+        const slimResults: Anthropic.ToolResultBlockParam[] = [];
+        for (const toolUse of toolUseBlocks) {
+          yield { type: 'tool_start', data: { name: toolUse.name, input: toolUse.input } };
+
+          const result = await this.executeTool(toolUse, caseId, investigationId);
+
+          yield { type: 'tool_done', data: { name: toolUse.name } };
+
+          if (toolUse.name === EXECUTE_SCRIPT_TOOL.name) {
+            yield { type: 'graph_updated', data: {} };
+          }
+
+          if (
+            toolUse.name === CREATE_PRODUCTION_TOOL.name ||
+            toolUse.name === UPDATE_PRODUCTION_TOOL.name
+          ) {
+            yield { type: 'production_updated', data: {} };
+          }
+
+          const fullContent = JSON.stringify(result);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: fullContent,
+          });
+          slimResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: slimToolResult(toolUse.name, fullContent),
+          });
+        }
+
+        // Save assistant message first, then slim tool results in a separate
+        // save so each row gets a distinct created_at timestamp. Saving both
+        // inside one transaction gives them the same PostgreSQL NOW() value,
+        // making the ORDER BY created_at ASC retrieval non-deterministic and
+        // causing orphaned tool_result errors on the next request.
         await this.messageRepo.save(
           this.messageRepo.create({
             conversationId,
@@ -378,87 +478,49 @@ export class AiService {
             content: responseContent,
           }),
         );
-
-        yield { type: 'done', data: { conversationId } };
-        return;
-      }
-
-      // Repeat-tool guard: break if same tools called with same inputs
-      const toolKey = toolUseBlocks
-        .map((b) => `${b.name}:${JSON.stringify(b.input)}`)
-        .join('|');
-      if (toolKey === prevToolKey) {
-        yield { type: 'done', data: { conversationId } };
-        return;
-      }
-      prevToolKey = toolKey;
-
-      // Execute tools — keep full results in memory, slim versions for DB
-      const toolResults: Anthropic.ToolResultBlockParam[] = [];
-      const slimResults: Anthropic.ToolResultBlockParam[] = [];
-      for (const toolUse of toolUseBlocks) {
-        yield { type: 'tool_start', data: { name: toolUse.name, input: toolUse.input } };
-
-        const result = await this.executeTool(toolUse, caseId, investigationId);
-
-        yield { type: 'tool_done', data: { name: toolUse.name } };
-
-        if (toolUse.name === EXECUTE_SCRIPT_TOOL.name) {
-          yield { type: 'graph_updated', data: {} };
+        lastPersistedWasToolResult = false;
+        if (slimResults.length > 0) {
+          await this.messageRepo.save(
+            this.messageRepo.create({
+              conversationId,
+              role: 'user',
+              content: slimResults,
+            }),
+          );
+          lastPersistedWasToolResult = true;
         }
 
-        if (
-          toolUse.name === CREATE_PRODUCTION_TOOL.name ||
-          toolUse.name === UPDATE_PRODUCTION_TOOL.name
-        ) {
-          yield { type: 'production_updated', data: {} };
+        // In-memory history uses full results for the current agent loop
+        messages.push({ role: 'assistant', content: responseContent });
+        if (toolResults.length > 0) {
+          messages.push({ role: 'user', content: toolResults });
         }
 
-        const fullContent = JSON.stringify(result);
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: toolUse.id,
-          content: fullContent,
-        });
-        slimResults.push({
-          type: 'tool_result',
-          tool_use_id: toolUse.id,
-          content: slimToolResult(toolUse.name, fullContent),
-        });
       }
 
-      // Save assistant message first, then slim tool results in a separate
-      // save so each row gets a distinct created_at timestamp. Saving both
-      // inside one transaction gives them the same PostgreSQL NOW() value,
-      // making the ORDER BY created_at ASC retrieval non-deterministic and
-      // causing orphaned tool_result errors on the next request.
-      await this.messageRepo.save(
-        this.messageRepo.create({
-          conversationId,
-          role: 'assistant',
-          content: responseContent,
-        }),
-      );
-      if (slimResults.length > 0) {
-        await this.messageRepo.save(
-          this.messageRepo.create({
-            conversationId,
-            role: 'user',
-            content: slimResults,
-          }),
-        );
+      // Exhausted iterations — falls through to finally to persist terminator
+      // if the last save was a user(tool_result).
+      yield { type: 'done', data: { conversationId } };
+    } finally {
+      if (lastPersistedWasToolResult) {
+        try {
+          await this.messageRepo.save(
+            this.messageRepo.create({
+              conversationId,
+              role: 'assistant',
+              content: [
+                {
+                  type: 'text',
+                  text: '(Stopped before continuation. Send another message to resume.)',
+                },
+              ],
+            }),
+          );
+        } catch {
+          // Best-effort — never mask the original error from the loop.
+        }
       }
-
-      // In-memory history uses full results for the current agent loop
-      messages.push({ role: 'assistant', content: responseContent });
-      if (toolResults.length > 0) {
-        messages.push({ role: 'user', content: toolResults });
-      }
-
     }
-
-    // Exhausted iterations
-    yield { type: 'done', data: { conversationId } };
   }
 
   // ---- Tool dispatch ----

@@ -29,6 +29,15 @@ function truncateAddr(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
+// Strip commas (thousands separators) and reject any non-numeric characters
+// except a single decimal point. Keeps fields strictly parseable as Number().
+function sanitizeNumeric(input: string): string {
+  const cleaned = input.replace(/,/g, '').replace(/[^\d.]/g, '');
+  const firstDot = cleaned.indexOf('.');
+  if (firstDot === -1) return cleaned;
+  return cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+}
+
 function AddressField({
   label,
   value,
@@ -308,8 +317,9 @@ export function TransactionForm({
           <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Amount</label>
           <input
             type="text"
+            inputMode="decimal"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => setAmount(sanitizeNumeric(e.target.value))}
             className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
             required
           />
@@ -327,8 +337,9 @@ export function TransactionForm({
           <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">USD</label>
           <input
             type="text"
+            inputMode="decimal"
             value={usdValue}
-            onChange={(e) => setUsdValue(e.target.value)}
+            onChange={(e) => setUsdValue(sanitizeNumeric(e.target.value))}
             className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
             placeholder="0.00"
           />

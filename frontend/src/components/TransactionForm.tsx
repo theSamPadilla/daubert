@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { TransactionEdge, WalletNode, Trace } from '../types/investigation';
 import { ColorPicker } from './ColorPicker';
 import { TagInput } from './TagInput';
+import { CopyButton } from './CopyButton';
 import { SUPPORTED_CHAINS } from '../services/types';
 import { parseTimestamp } from '../utils/formatAmount';
 
@@ -290,13 +291,23 @@ export function TransactionForm({
         <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">
           Tx Hash <span className="text-gray-600 normal-case font-normal">(optional)</span>
         </label>
-        <input
-          type="text"
-          value={txHash}
-          onChange={(e) => setTxHash(e.target.value)}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm font-mono"
-          placeholder="0x..."
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={txHash}
+            onChange={(e) => setTxHash(e.target.value)}
+            className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm font-mono"
+            placeholder="0x..."
+          />
+          {txHash && (
+            <CopyButton
+              text={txHash}
+              title="Copy tx hash"
+              className="shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
+              size={13}
+            />
+          )}
+        </div>
       </div>
 
       <div>

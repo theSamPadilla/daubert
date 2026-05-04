@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
-import { FaXmark, FaChevronDown, FaChevronRight, FaArrowUpRightFromSquare, FaCopy, FaCheck } from 'react-icons/fa6';
+import { FaXmark, FaChevronDown, FaChevronRight, FaArrowUpRightFromSquare } from 'react-icons/fa6';
+import { CopyButton } from './CopyButton';
 import { WalletNode, TransactionEdge, Trace, Group, EdgeBundle } from '../types/investigation';
 import { type ScriptRun } from '@/lib/api-client';
 import { WalletForm } from './WalletForm';
@@ -218,23 +219,6 @@ const NODE_SHAPES: { value: WalletNode['shape']; label: string; icon: string }[]
   { value: 'hexagon',        label: 'Hex',      icon: '⬡' },
   { value: 'triangle',       label: 'Triangle', icon: '▲' },
 ];
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      onClick={() => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }}
-      className="shrink-0 mt-0.5 text-gray-500 hover:text-gray-300 transition-colors"
-      title="Copy address"
-    >
-      {copied ? <FaCheck size={11} className="text-emerald-400" /> : <FaCopy size={11} />}
-    </button>
-  );
-}
 
 function getCategoryStyle(category: string): string {
   switch (category) {

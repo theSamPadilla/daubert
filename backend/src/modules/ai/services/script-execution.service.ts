@@ -291,8 +291,13 @@ export class ScriptExecutionService {
       // --- Inject process.env (read-only, no secrets) ---
       // API keys are NOT exposed — they're injected by the fetch bridge
       // based on the request domain. Scripts never see the raw keys.
+      // Derive the loopback URL from the port the backend is actually listening
+      // on (set by Cloud Run via PORT, default 8081 in dev — must stay in sync
+      // with main.ts). API_URL env var still overrides for any out-of-process
+      // setup, but in-process it should never need to be set.
+      const port = this.configService.get<string>('PORT') || '8081';
       const envObj: Record<string, string> = {
-        API_URL: this.configService.get<string>('API_URL') || 'http://localhost:8081',
+        API_URL: this.configService.get<string>('API_URL') || `http://localhost:${port}`,
       };
 
       await jail.set('_env', new ivm.ExternalCopy(envObj).copyInto());

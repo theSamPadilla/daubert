@@ -31,6 +31,7 @@ interface ChronologyData {
 interface ChronologyTableProps {
   data: ChronologyData;
   onColumnResize?: (widths: ColumnWidths) => void;
+  onEntryEdit?: (index: number, entry: ChronologyEntry) => void;
 }
 
 // Mirror of backend default in chronology.ts. Keep in sync.
@@ -44,7 +45,7 @@ const COL_KEYS: (keyof ColumnWidths)[] = ['source', 'date', 'description', 'deta
 const MIN_PCT = 5;
 const MAX_PCT = 80;
 
-export function ChronologyTable({ data, onColumnResize }: ChronologyTableProps) {
+export function ChronologyTable({ data, onColumnResize, onEntryEdit }: ChronologyTableProps) {
   const persisted: Required<ColumnWidths> = {
     ...DEFAULT_WIDTHS,
     ...(data.columnWidths ?? {}),
@@ -54,6 +55,8 @@ export function ChronologyTable({ data, onColumnResize }: ChronologyTableProps) 
   const [drag, setDrag] = useState<Required<ColumnWidths> | null>(null);
   const widths = drag ?? persisted;
   const tableRef = useRef<HTMLTableElement>(null);
+
+  const [activeHandle, setActiveHandle] = useState<number | null>(null);
 
   // Drop the drag override once the saved widths catch up. Compares by value
   // because parent passes a new object each render.
@@ -74,6 +77,7 @@ export function ChronologyTable({ data, onColumnResize }: ChronologyTableProps) 
       e.preventDefault();
       const tableEl = tableRef.current;
       if (!tableEl) return;
+      setActiveHandle(handleIdx);
       const tableWidth = tableEl.offsetWidth;
       const startX = e.clientX;
       const aKey = COL_KEYS[handleIdx];
@@ -112,6 +116,7 @@ export function ChronologyTable({ data, onColumnResize }: ChronologyTableProps) 
       const onUp = () => {
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
+        setActiveHandle(null);
         // Capture latest drag state via setter.
         setDrag((latest) => {
           if (latest && onColumnResize) onColumnResize(latest);
@@ -164,9 +169,9 @@ export function ChronologyTable({ data, onColumnResize }: ChronologyTableProps) 
           </colgroup>
           <thead>
             <tr className="bg-gray-800/50 text-left text-gray-400 select-none">
-              <ResizableTh label="Source" onResizeStart={(e) => startDrag(0, e)} resizable={!!onColumnResize} />
-              <ResizableTh label="Date" onResizeStart={(e) => startDrag(1, e)} resizable={!!onColumnResize} />
-              <ResizableTh label="Description" onResizeStart={(e) => startDrag(2, e)} resizable={!!onColumnResize} />
+              <ResizableTh label="Source" onResizeStart={(e) => startDrag(0, e)} resizable={!!onColumnResize} active={activeHandle === 0} />
+              <ResizableTh label="Date" onResizeStart={(e) => startDrag(1, e)} resizable={!!onColumnResize} active={activeHandle === 1} />
+              <ResizableTh label="Description" onResizeStart={(e) => startDrag(2, e)} resizable={!!onColumnResize} active={activeHandle === 2} />
               <ResizableTh label="Details" />
             </tr>
           </thead>
@@ -191,9 +196,39 @@ export function ChronologyTable({ data, onColumnResize }: ChronologyTableProps) 
                       <span className="text-gray-500">N/A</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{entry.date}</td>
-                  <td className="px-4 py-3 text-gray-300">{entry.description}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs break-words">{entry.details || '--'}</td>
+                  <td className="px-4 py-3 text-gray-300 whitespace-nowrap">
+                    {onEntryEdit ? (
+                      <EditableCell
+                        value={entry.date}
+                        onSave={(v) => onEntryEdit(i, { ...entry, date: v })}
+                      />
+                    ) : (
+                      entry.date
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-300">
+                    {onEntryEdit ? (
+                      <EditableCell
+                        value={entry.description}
+                        multiline
+                        onSave={(v) => onEntryEdit(i, { ...entry, description: v })}
+                      />
+                    ) : (
+                      entry.description
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-400 text-xs break-words">
+                    {onEntryEdit ? (
+                      <EditableCell
+                        value={entry.details ?? ''}
+                        multiline
+                        emptyText="--"
+                        onSave={(v) => onEntryEdit(i, { ...entry, details: v || null })}
+                      />
+                    ) : (
+                      entry.details || '--'
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -215,10 +250,12 @@ function ResizableTh({
   label,
   onResizeStart,
   resizable,
+  active,
 }: {
   label: string;
   onResizeStart?: (e: React.PointerEvent) => void;
   resizable?: boolean;
+  active?: boolean;
 }) {
   return (
     <th className="relative px-4 py-3">
@@ -226,9 +263,18 @@ function ResizableTh({
       {resizable && onResizeStart && (
         <span
           onPointerDown={onResizeStart}
-          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500"
-          title="Drag to resize"
-        />
+          className="group absolute top-0 -right-1.5 z-10 h-full w-3 flex items-center justify-center cursor-col-resize"
+          title="Drag to resize column"
+        >
+          {/* The visible grip — always present, brighter on hover, brightest while dragging. */}
+          <span
+            className={`block w-0.5 rounded-full transition-all ${
+              active
+                ? 'bg-blue-400 h-6 w-1'
+                : 'bg-gray-500 h-4 group-hover:bg-blue-400 group-hover:h-6 group-hover:w-1'
+            }`}
+          />
+        </span>
       )}
     </th>
   );
@@ -236,6 +282,101 @@ function ResizableTh({
 
 function round(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+function EditableCell({
+  value,
+  multiline,
+  onSave,
+  emptyText,
+}: {
+  value: string;
+  multiline?: boolean;
+  onSave: (newValue: string) => void;
+  emptyText?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      // Place cursor at end of text rather than selecting all — feels less destructive.
+      const len = inputRef.current.value.length;
+      inputRef.current.setSelectionRange(len, len);
+    }
+  }, [editing]);
+
+  const startEdit = () => {
+    setDraft(value);
+    setEditing(true);
+  };
+
+  const commit = () => {
+    setEditing(false);
+    if (draft !== value) onSave(draft);
+  };
+
+  const cancel = () => {
+    setEditing(false);
+  };
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancel();
+      return;
+    }
+    if (e.key === 'Enter') {
+      // Single-line: Enter commits. Multiline: only Cmd/Ctrl+Enter commits;
+      // bare Enter inserts a newline.
+      if (!multiline || e.metaKey || e.ctrlKey) {
+        e.preventDefault();
+        commit();
+      }
+    }
+  };
+
+  if (editing) {
+    const sharedProps = {
+      value: draft,
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+        setDraft(e.target.value),
+      onBlur: commit,
+      onKeyDown: onKey,
+      className:
+        'w-full bg-gray-900 text-gray-100 px-2 py-1 rounded border border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-400',
+    };
+    return multiline ? (
+      <textarea
+        {...sharedProps}
+        ref={(el) => {
+          inputRef.current = el;
+        }}
+        rows={3}
+        className={`${sharedProps.className} resize-y min-h-[60px]`}
+      />
+    ) : (
+      <input
+        {...sharedProps}
+        ref={(el) => {
+          inputRef.current = el;
+        }}
+      />
+    );
+  }
+
+  const isEmpty = !value;
+  return (
+    <div
+      onClick={startEdit}
+      className="cursor-text rounded -mx-1 -my-0.5 px-1 py-0.5 hover:bg-gray-800/60 hover:outline hover:outline-1 hover:outline-gray-600 transition-colors whitespace-pre-wrap"
+      title="Click to edit"
+    >
+      {isEmpty ? <span className="text-gray-600 italic">{emptyText ?? 'click to add'}</span> : value}
+    </div>
+  );
 }
 
 function deriveSourceLabel(url: string): string {

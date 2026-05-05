@@ -72,6 +72,20 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
     [production.id, production.type, production.name],
   );
 
+  const handleEntryEdit = useCallback(
+    async (index: number, entry: object) => {
+      try {
+        const updated = await apiClient.updateProduction(production.id, {
+          ops: [{ op: 'chronology_replace', index, entry: entry as Record<string, unknown> }],
+        });
+        onUpdate?.(updated);
+      } catch (err) {
+        console.error('Failed to save entry edit:', err);
+      }
+    },
+    [production.id, onUpdate],
+  );
+
   const handleColumnResize = useCallback(
     async (widths: { source?: number; date?: number; description?: number; details?: number }) => {
       try {
@@ -177,7 +191,11 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
         )}
         {production.type === 'chart' && <ChartViewer data={data} />}
         {production.type === 'chronology' && (
-          <ChronologyTable data={data} onColumnResize={handleColumnResize} />
+          <ChronologyTable
+            data={data}
+            onColumnResize={handleColumnResize}
+            onEntryEdit={handleEntryEdit}
+          />
         )}
       </div>
     </div>

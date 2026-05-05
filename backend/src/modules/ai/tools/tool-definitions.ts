@@ -171,7 +171,7 @@ export const READ_PRODUCTION_TOOL: Anthropic.Tool = {
 export const UPDATE_PRODUCTION_TOOL: Anthropic.Tool = {
   name: 'update_production',
   description:
-    'Update a production\'s name or data. Replaces `data` entirely. For chronologies, prefer `append_chronology_entries` when adding rows — full replacement re-emits every existing row in the tool input and burns tokens proportional to chronology size.',
+    'Update a production by FULL replacement of `data` (and/or rename via `name`). Use this for: renaming a production, rewriting a report or chart entirely, replacing or deleting individual chronology entries (no atomic ops for those yet), or editing only the chronology `title`. DO NOT use this to add rows to an existing chronology — that re-emits every existing row in the tool input and burns tokens proportional to chronology size; use `append_chronology_entries` instead.',
   input_schema: {
     type: 'object' as const,
     properties: {

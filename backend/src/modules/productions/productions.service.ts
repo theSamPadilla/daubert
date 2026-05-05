@@ -11,11 +11,18 @@ import { UpdateProductionDto } from './dto/update-production.dto';
 // extend with `report_*` and `chart_*` shapes as those types acquire
 // equivalent token-cost issues. The discriminator is the `op` field.
 type ChronologyEntry = Record<string, unknown>;
+type ColumnWidths = {
+  source?: number;
+  date?: number;
+  description?: number;
+  details?: number;
+};
 type Op =
   | { op: 'chronology_append'; entries: ChronologyEntry[] }
   | { op: 'chronology_replace'; index: number; entry: ChronologyEntry }
   | { op: 'chronology_delete'; indexes: number[] }
-  | { op: 'chronology_set_title'; title: string };
+  | { op: 'chronology_set_title'; title: string }
+  | { op: 'chronology_set_column_widths'; widths: ColumnWidths };
 
 @Injectable()
 export class ProductionsService {
@@ -122,6 +129,22 @@ function parseOp(raw: Record<string, unknown>, i: number): Op {
       }
       return { op: 'chronology_set_title', title: raw.title };
     }
+    case 'chronology_set_column_widths': {
+      if (raw.widths === null || typeof raw.widths !== 'object') {
+        throw new BadRequestException(`ops[${i}] (chronology_set_column_widths): \`widths\` must be an object`);
+      }
+      const widths: ColumnWidths = {};
+      const allowed: (keyof ColumnWidths)[] = ['source', 'date', 'description', 'details'];
+      for (const k of allowed) {
+        const v = (raw.widths as Record<string, unknown>)[k];
+        if (v === undefined) continue;
+        if (typeof v !== 'number' || !Number.isFinite(v) || v < 5 || v > 80) {
+          throw new BadRequestException(`ops[${i}] (chronology_set_column_widths): widths.${k} must be a number between 5 and 80`);
+        }
+        widths[k] = v;
+      }
+      return { op: 'chronology_set_column_widths', widths };
+    }
     default:
       throw new BadRequestException(`ops[${i}]: unknown op "${opName}"`);
   }
@@ -160,5 +183,9 @@ function applyOp(
     }
     case 'chronology_set_title':
       return { ...data, title: op.title };
+    case 'chronology_set_column_widths': {
+      const existing = (data.columnWidths ?? {}) as ColumnWidths;
+      return { ...data, columnWidths: { ...existing, ...op.widths } };
+    }
   }
 }

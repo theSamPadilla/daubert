@@ -11,10 +11,27 @@ interface ChronologyEntry {
   details?: string | null;
 }
 
+interface ChronologyColumnWidths {
+  source?: number;
+  date?: number;
+  description?: number;
+  details?: number;
+}
+
 interface ChronologyData {
   title?: string;
   entries: ChronologyEntry[];
+  columnWidths?: ChronologyColumnWidths;
 }
+
+// Defaults shared with frontend ChronologyTable. Sum equals 100; user-set widths
+// from the UI may diverge slightly — that's fine, table-layout:fixed is forgiving.
+const DEFAULT_COLUMN_WIDTHS: Required<ChronologyColumnWidths> = {
+  source: 18,
+  date: 14,
+  description: 40,
+  details: 28,
+};
 
 // Pulls the last 0x-prefixed hex run (a tx/address hash) and returns "0x6ae5…".
 // Falls back to host+path truncation when no hash is present.
@@ -34,6 +51,7 @@ function deriveSourceLabel(url: string): string {
 
 export function renderChronology(name: string, data: ChronologyData): string {
   const title = data.title || name;
+  const w = { ...DEFAULT_COLUMN_WIDTHS, ...(data.columnWidths ?? {}) };
   const rows = (data.entries || []).map((e) => {
     const url = e.sourceUrl ?? e.source ?? null;
     const label = e.sourceLabel ?? (url ? deriveSourceLabel(url) : null);
@@ -59,10 +77,10 @@ export function renderChronology(name: string, data: ChronologyData): string {
 <h1>${escapeHtml(title)}</h1>
 <table class="chronology">
   <colgroup>
-    <col style="width:18%">
-    <col style="width:14%">
-    <col style="width:40%">
-    <col style="width:28%">
+    <col style="width:${w.source}%">
+    <col style="width:${w.date}%">
+    <col style="width:${w.description}%">
+    <col style="width:${w.details}%">
   </colgroup>
   <thead><tr><th>Source</th><th>Date</th><th>Description</th><th>Details</th></tr></thead>
   <tbody>${rows}</tbody>

@@ -184,6 +184,7 @@ Supported operations (extend over time):
 - \`{ op: "chronology_replace", index: <int>, entry: {...} }\` — replace the entry at zero-based index. Use the index from the most recent \`read_production\`. If you sequenced multiple ops in one call, the index applies to the chronology AFTER prior ops in the array have been applied.
 - \`{ op: "chronology_delete", indexes: [<int>, ...] }\` — delete entries at the given zero-based indexes (applied in descending order so earlier indexes stay valid).
 - \`{ op: "chronology_set_title", title: "..." }\` — replace just the chronology title.
+- \`{ op: "chronology_set_column_widths", widths: { source?: <pct>, date?: <pct>, description?: <pct>, details?: <pct> } }\` — set the table column widths used in both the in-app view and the PDF/HTML export. Each value is a number between 5 and 80 (percent of total table width). Partial updates are merged; missing columns keep their current width. The user normally sets these by dragging in the UI.
 
 Use atomic ops aggressively — they are the difference between a 200-token call and a 10,000-token call on a long chronology.`,
   input_schema: {

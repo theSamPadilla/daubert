@@ -374,7 +374,7 @@ export const apiClient = {
     request<Production>(`/productions/${id}`),
   createProduction: (caseId: string, body: { name: string; type: string; data: Record<string, unknown> }) =>
     request<Production>(`/cases/${caseId}/productions`, { method: 'POST', body: JSON.stringify(body) }),
-  updateProduction: (id: string, body: Partial<{ name: string; type: string; data: Record<string, unknown> }>) =>
+  updateProduction: (id: string, body: Partial<{ name: string; type: string; data: Record<string, unknown>; ops: Record<string, unknown>[] }>) =>
     request<Production>(`/productions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteProduction: (id: string) =>
     request<void>(`/productions/${id}`, { method: 'DELETE' }),

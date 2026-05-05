@@ -72,6 +72,20 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
     [production.id, production.type, production.name],
   );
 
+  const handleColumnResize = useCallback(
+    async (widths: { source?: number; date?: number; description?: number; details?: number }) => {
+      try {
+        const updated = await apiClient.updateProduction(production.id, {
+          ops: [{ op: 'chronology_set_column_widths', widths }],
+        });
+        onUpdate?.(updated);
+      } catch (err) {
+        console.error('Failed to save column widths:', err);
+      }
+    },
+    [production.id, onUpdate],
+  );
+
   const handleRefresh = useCallback(async () => {
     setExportError(null);
     setRefreshing(true);
@@ -162,7 +176,9 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
           />
         )}
         {production.type === 'chart' && <ChartViewer data={data} />}
-        {production.type === 'chronology' && <ChronologyTable data={data} />}
+        {production.type === 'chronology' && (
+          <ChronologyTable data={data} onColumnResize={handleColumnResize} />
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { FaPenToSquare, FaEye, FaDownload, FaSpinner } from 'react-icons/fa6';
+import { FaPenToSquare, FaEye, FaDownload, FaSpinner, FaArrowsRotate } from 'react-icons/fa6';
 import { apiClient, type Production } from '@/lib/api-client';
 import { ReportEditor } from './ReportEditor';
 import { ChartViewer } from './ChartViewer';
@@ -22,6 +22,7 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
   const [editing, setEditing] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportingFormat, setExportingFormat] = useState<'pdf' | 'html' | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +72,20 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
     [production.id, production.type, production.name],
   );
 
+  const handleRefresh = useCallback(async () => {
+    setExportError(null);
+    setRefreshing(true);
+    try {
+      const fresh = await apiClient.getProduction(production.id);
+      onUpdate?.(fresh);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Refresh failed';
+      setExportError(msg);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [production.id, onUpdate]);
+
   const data = production.data as any;
 
   return (
@@ -85,8 +100,17 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={handleRefresh}
+            disabled={refreshing || exportingFormat !== null}
+            title="Reload from server"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-gray-700"
+          >
+            <FaArrowsRotate className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+          <button
             onClick={() => handleExport('pdf')}
-            disabled={exportingFormat !== null}
+            disabled={exportingFormat !== null || refreshing}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-gray-700"
           >
             {exportingFormat === 'pdf' ? (
@@ -98,7 +122,7 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
           </button>
           <button
             onClick={() => handleExport('html')}
-            disabled={exportingFormat !== null}
+            disabled={exportingFormat !== null || refreshing}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-gray-700"
           >
             {exportingFormat === 'html' ? (

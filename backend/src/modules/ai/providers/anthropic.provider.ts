@@ -4,7 +4,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import { LlmProvider, StreamEvent } from './llm-provider.interface';
 
 const DEFAULT_MODEL = 'claude-opus-4-6';
-const MAX_TOKENS = 4096;
+// Output budget for one streaming turn. Includes thinking, tool_use inputs,
+// and visible text — all share the same cap. With `thinking: adaptive`, the
+// model routinely burns 2-4k tokens on reasoning before emitting anything,
+// so a 4k cap left almost no room for tool_use blocks and caused silent
+// `stop_reason: max_tokens` terminations mid-task. Opus 4.x supports up to
+// 32k output by default; 16k is a comfortable headroom for agentic loops.
+const MAX_TOKENS = 16384;
 
 @Injectable()
 export class AnthropicProvider implements LlmProvider {

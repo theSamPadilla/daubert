@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ProductionEntity, ProductionType } from '../../database/entities/production.entity';
@@ -38,6 +38,27 @@ export class ProductionsService {
   async update(id: string, dto: UpdateProductionDto, principal: AccessPrincipal) {
     const production = await this.findOne(id, principal);
     Object.assign(production, dto);
+    return this.repo.save(production);
+  }
+
+  // Atomic append of chronology entries. Used by the AI tool to avoid making
+  // the model re-emit the full data blob just to add a few rows — that pattern
+  // burns tokens proportional to chronology size and was hitting max_tokens
+  // on long timelines.
+  async appendChronologyEntries(
+    id: string,
+    entries: Record<string, unknown>[],
+    principal: AccessPrincipal,
+  ) {
+    const production = await this.findOne(id, principal);
+    if (production.type !== ProductionType.CHRONOLOGY) {
+      throw new BadRequestException(
+        `Production ${id} is type "${production.type}", not "chronology"`,
+      );
+    }
+    const data = (production.data ?? {}) as { title?: string; entries?: unknown[] };
+    const existing = Array.isArray(data.entries) ? data.entries : [];
+    production.data = { ...data, entries: [...existing, ...entries] };
     return this.repo.save(production);
   }
 

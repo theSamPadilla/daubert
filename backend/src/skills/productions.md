@@ -154,4 +154,30 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
 
 Use `update_production` with the production ID (from `create_production` or `read_production`). The `data` field is a **full replacement** — always send the complete data object, not a partial update.
 
-To add entries to a chronology: read it first with `read_production`, append new entries to the array, then `update_production` with the full data.
+### Adding rows to a chronology — use `append_chronology_entries`
+
+`update_production` requires the full `data` blob. For chronologies, that means re-emitting every existing row just to add a few new ones — token cost grows with chronology size and routinely hits `max_tokens` on long timelines.
+
+Use `append_chronology_entries` instead:
+
+```json
+{
+  "productionId": "<chronology id>",
+  "entries": [
+    {
+      "sourceUrl": "https://etherscan.io/tx/0xddc0fe45...",
+      "sourceLabel": "0xddc0…",
+      "date": "2025-08-29",
+      "description": "Sun sends 300,000 USDC to 0xa624 / Gnosis Safe",
+      "details": "Block 19700730. Intermediary route."
+    }
+  ]
+}
+```
+
+This appends to `data.entries`, preserves existing entries and `title`, and returns the full updated production. Atomic — no read/modify/write race.
+
+Only fall back to `update_production` when:
+- Renaming the chronology (use `name` parameter — `data` not needed).
+- Replacing or deleting existing rows (no atomic tool for those yet — full rewrite is the only option).
+- Editing the chronology `title` only.

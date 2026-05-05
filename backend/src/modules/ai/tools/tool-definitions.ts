@@ -171,7 +171,7 @@ export const READ_PRODUCTION_TOOL: Anthropic.Tool = {
 export const UPDATE_PRODUCTION_TOOL: Anthropic.Tool = {
   name: 'update_production',
   description:
-    'Update a production\'s name, type, or data. Use to iteratively refine a report, update a chart, or add entries to a chronology.',
+    'Update a production\'s name or data. Replaces `data` entirely. For chronologies, prefer `append_chronology_entries` when adding rows — full replacement re-emits every existing row in the tool input and burns tokens proportional to chronology size.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -189,6 +189,37 @@ export const UPDATE_PRODUCTION_TOOL: Anthropic.Tool = {
       },
     },
     required: ['productionId'],
+  },
+};
+
+export const APPEND_CHRONOLOGY_ENTRIES_TOOL: Anthropic.Tool = {
+  name: 'append_chronology_entries',
+  description:
+    'Atomically append new entries to an existing chronology production without re-emitting the existing rows. Strongly preferred over `update_production` when adding to a chronology — saves output tokens proportional to chronology size. Existing entries, title, and other fields are preserved. Returns the full updated production.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      productionId: {
+        type: 'string',
+        description: 'The chronology production ID. Must be type "chronology" — request fails otherwise.',
+      },
+      entries: {
+        type: 'array',
+        description: 'Entries to append in order. Each entry has the same shape as in `create_production`: { sourceUrl, sourceLabel?, date, description, details? }. Use sourceLabel for short display text (e.g. "0x6ae5…") — auto-derived from sourceUrl if omitted.',
+        items: {
+          type: 'object',
+          properties: {
+            sourceUrl: { type: 'string' },
+            sourceLabel: { type: 'string' },
+            date: { type: 'string' },
+            description: { type: 'string' },
+            details: { type: 'string' },
+          },
+          required: ['date', 'description'],
+        },
+      },
+    },
+    required: ['productionId', 'entries'],
   },
 };
 

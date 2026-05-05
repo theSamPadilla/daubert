@@ -170,8 +170,22 @@ export const READ_PRODUCTION_TOOL: Anthropic.Tool = {
 
 export const UPDATE_PRODUCTION_TOOL: Anthropic.Tool = {
   name: 'update_production',
-  description:
-    'Update a production by FULL replacement of `data` (and/or rename via `name`). Use this for: renaming a production, rewriting a report or chart entirely, replacing or deleting individual chronology entries (no atomic ops for those yet), or editing only the chronology `title`. DO NOT use this to add rows to an existing chronology — that re-emits every existing row in the tool input and burns tokens proportional to chronology size; use `append_chronology_entries` instead.',
+  description: `Update a production. Three modes — pick the cheapest one that does the job:
+
+1. **Rename only** — pass \`name\`, omit \`data\` and \`ops\`.
+2. **Atomic ops** (preferred when modifying part of a large production) — pass \`ops\` as a list of operations applied in order. Each op carries only the slice that changes, so token cost is proportional to the change, not the whole production.
+3. **Full replacement** (last resort) — pass \`data\`. Re-emits the entire data blob in the tool input. Token cost grows with production size and routinely hits max_tokens on long chronologies and reports. Only use when no \`ops\` covers your case.
+
+\`data\` and \`ops\` are mutually exclusive. \`name\` may accompany either.
+
+Supported operations (extend over time):
+
+- \`{ op: "chronology_append", entries: [...] }\` — append rows to the end of a chronology. Each entry: { sourceUrl, sourceLabel?, date, description, details? }.
+- \`{ op: "chronology_replace", index: <int>, entry: {...} }\` — replace the entry at zero-based index. Use the index from the most recent \`read_production\`. If you sequenced multiple ops in one call, the index applies to the chronology AFTER prior ops in the array have been applied.
+- \`{ op: "chronology_delete", indexes: [<int>, ...] }\` — delete entries at the given zero-based indexes (applied in descending order so earlier indexes stay valid).
+- \`{ op: "chronology_set_title", title: "..." }\` — replace just the chronology title.
+
+Use atomic ops aggressively — they are the difference between a 200-token call and a 10,000-token call on a long chronology.`,
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -181,45 +195,19 @@ export const UPDATE_PRODUCTION_TOOL: Anthropic.Tool = {
       },
       name: {
         type: 'string',
-        description: 'New name (optional).',
+        description: 'New name. Optional. Compatible with both `data` and `ops` modes, or alone for a rename-only update.',
       },
       data: {
         type: 'object',
-        description: 'New data (replaces existing data entirely).',
+        description: 'Full replacement of the production data. Mutually exclusive with `ops`. Avoid for chronologies and large reports — use `ops` instead.',
+      },
+      ops: {
+        type: 'array',
+        description: 'List of atomic operations applied in order. Each item is an object with an `op` discriminator field. See the tool description for the supported op shapes. Mutually exclusive with `data`.',
+        items: { type: 'object' },
       },
     },
     required: ['productionId'],
-  },
-};
-
-export const APPEND_CHRONOLOGY_ENTRIES_TOOL: Anthropic.Tool = {
-  name: 'append_chronology_entries',
-  description:
-    'Atomically append new entries to an existing chronology production without re-emitting the existing rows. Strongly preferred over `update_production` when adding to a chronology — saves output tokens proportional to chronology size. Existing entries, title, and other fields are preserved. Returns the full updated production.',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      productionId: {
-        type: 'string',
-        description: 'The chronology production ID. Must be type "chronology" — request fails otherwise.',
-      },
-      entries: {
-        type: 'array',
-        description: 'Entries to append in order. Each entry has the same shape as in `create_production`: { sourceUrl, sourceLabel?, date, description, details? }. Use sourceLabel for short display text (e.g. "0x6ae5…") — auto-derived from sourceUrl if omitted.',
-        items: {
-          type: 'object',
-          properties: {
-            sourceUrl: { type: 'string' },
-            sourceLabel: { type: 'string' },
-            date: { type: 'string' },
-            description: { type: 'string' },
-            details: { type: 'string' },
-          },
-          required: ['date', 'description'],
-        },
-      },
-    },
-    required: ['productionId', 'entries'],
   },
 };
 

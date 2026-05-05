@@ -152,18 +152,25 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
 
 ## Updating productions
 
-Use `update_production` with the production ID (from `create_production` or `read_production`). The `data` field is a **full replacement** — always send the complete data object, not a partial update.
+`update_production` has three modes — pick the cheapest one:
 
-### Adding rows to a chronology — use `append_chronology_entries`
+| Want to... | Pass | Token cost |
+|---|---|---|
+| Rename only | `name` | tiny |
+| Modify part of the data | `ops` (preferred) | proportional to the change |
+| Replace the whole data blob | `data` (last resort) | proportional to the entire production |
 
-`update_production` requires the full `data` blob. For chronologies, that means re-emitting every existing row just to add a few new ones — token cost grows with chronology size and routinely hits `max_tokens` on long timelines.
+`data` and `ops` are mutually exclusive. `name` may accompany either.
 
-Use `append_chronology_entries` instead:
+### Atomic ops
+
+Each entry in `ops` is an object with an `op` discriminator. Ops are applied in order, each operating on the result of the prior op. Indexes refer to the chronology *after* prior ops in the same call.
+
+Supported ops:
 
 ```json
-{
-  "productionId": "<chronology id>",
-  "entries": [
+// Append rows to the end
+{ "op": "chronology_append", "entries": [
     {
       "sourceUrl": "https://etherscan.io/tx/0xddc0fe45...",
       "sourceLabel": "0xddc0…",
@@ -173,11 +180,34 @@ Use `append_chronology_entries` instead:
     }
   ]
 }
+
+// Replace one row by zero-based index
+{ "op": "chronology_replace", "index": 5, "entry": { ... } }
+
+// Delete one or more rows by zero-based index
+{ "op": "chronology_delete", "indexes": [3, 7] }
+
+// Replace just the chronology title
+{ "op": "chronology_set_title", "title": "Updated timeline — May 2026" }
 ```
 
-This appends to `data.entries`, preserves existing entries and `title`, and returns the full updated production. Atomic — no read/modify/write race.
+### Example: add three rows + fix one row + delete one row, in one call
 
-Only fall back to `update_production` when:
-- Renaming the chronology (use `name` parameter — `data` not needed).
-- Replacing or deleting existing rows (no atomic tool for those yet — full rewrite is the only option).
-- Editing the chronology `title` only.
+```json
+{
+  "productionId": "<chronology id>",
+  "ops": [
+    { "op": "chronology_replace", "index": 4, "entry": { ... } },
+    { "op": "chronology_delete", "indexes": [9] },
+    { "op": "chronology_append", "entries": [{ ... }, { ... }, { ... }] }
+  ]
+}
+```
+
+Cost: ~size of the four changed rows. Not proportional to the chronology length.
+
+### When `data` (full replace) is correct
+
+- Rewriting a report (HTML blob) end-to-end. There are no `ops` for reports yet.
+- Replacing an entire chart's datasets/options. No chart ops yet either.
+- Migrating a chronology to a totally different shape (rare).

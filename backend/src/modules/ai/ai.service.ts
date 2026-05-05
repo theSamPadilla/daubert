@@ -25,7 +25,6 @@ import {
   CREATE_PRODUCTION_TOOL,
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
-  APPEND_CHRONOLOGY_ENTRIES_TOOL,
   SKILL_NAMES,
   getSkillContent,
 } from './tools';
@@ -214,10 +213,10 @@ function mergeConsecutiveRoles(
 /**
  * Produce a compact version of a tool result for DB persistence.
  *
- * Only Production tools (create_production / read_production / update_production /
- * append_chronology_entries) are slimmed: their payloads can be large
- * documents/reports, and the production itself is persisted in the DB — the
- * model can re-read full data via read_production if it later needs the body.
+ * Only Production tools (create_production / read_production / update_production)
+ * are slimmed: their payloads can be large documents/reports, and the production
+ * itself is persisted in the DB — the model can re-read full data via
+ * read_production if it later needs the body.
  *
  * Every other tool result (get_*, list_*, query_*, execute_*) is preserved
  * verbatim. Slimming retrieval results was misleading the agent: it would see
@@ -228,8 +227,7 @@ function slimToolResult(toolName: string, full: string): string {
   if (
     toolName !== 'create_production' &&
     toolName !== 'read_production' &&
-    toolName !== 'update_production' &&
-    toolName !== 'append_chronology_entries'
+    toolName !== 'update_production'
   ) {
     return full;
   }
@@ -472,8 +470,7 @@ export class AiService {
 
           if (
             toolUse.name === CREATE_PRODUCTION_TOOL.name ||
-            toolUse.name === UPDATE_PRODUCTION_TOOL.name ||
-            toolUse.name === APPEND_CHRONOLOGY_ENTRIES_TOOL.name
+            toolUse.name === UPDATE_PRODUCTION_TOOL.name
           ) {
             yield { type: 'production_updated', data: {} };
           }
@@ -652,31 +649,18 @@ export class AiService {
         if (!caseId) {
           return { error: 'No case context. Ask the user to open a case.' };
         }
-        const input = toolUse.input as { productionId: string; name?: string; data?: Record<string, unknown> };
+        const input = toolUse.input as {
+          productionId: string;
+          name?: string;
+          data?: Record<string, unknown>;
+          ops?: Record<string, unknown>[];
+        };
         if (!input.productionId) {
           return { error: 'productionId is required' };
         }
         return this.productionsService.update(
           input.productionId,
-          { name: input.name, data: input.data },
-          { kind: 'script', caseId },
-        );
-      }
-
-      case APPEND_CHRONOLOGY_ENTRIES_TOOL.name: {
-        if (!caseId) {
-          return { error: 'No case context. Ask the user to open a case.' };
-        }
-        const input = toolUse.input as { productionId?: string; entries?: unknown };
-        if (!input.productionId) {
-          return { error: 'productionId is required' };
-        }
-        if (!Array.isArray(input.entries) || input.entries.length === 0) {
-          return { error: 'entries must be a non-empty array' };
-        }
-        return this.productionsService.appendChronologyEntries(
-          input.productionId,
-          input.entries as Record<string, unknown>[],
+          { name: input.name, data: input.data, ops: input.ops },
           { kind: 'script', caseId },
         );
       }

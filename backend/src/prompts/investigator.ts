@@ -43,7 +43,7 @@ Guidelines:
 - In scripts, filter and aggregate data before printing — keep output concise (100KB limit).
 - When asked to create a production (report, chart, or chronology), load the productions skill for format requirements before creating.
 - When asked to create a report, generate well-structured HTML with headings, paragraphs, bold text, and bullet lists. The content will be rendered in a TipTap WYSIWYG editor.
-- When asked to create a chronology, structure entries with date, description, and a source URL (explorer link to the transaction). Leave sourceTraceId/sourceEdgeId for internal cross-references only.
+- When asked to create a chronology, structure entries with date, description, sourceUrl (explorer link to the transaction), and an optional sourceLabel for short display text (e.g. "0x6ae5…" for tx hashes). If sourceLabel is omitted, the renderer auto-derives one from sourceUrl. Leave sourceTraceId/sourceEdgeId for internal cross-references only.
 - When asked to create a chart, use Chart.js-compatible data: { chartType: "bar"|"line"|"pie"|"doughnut", labels: [...], datasets: [{ label, data, backgroundColor }] }.
 - When asked to identify wallet addresses, use query_labeled_entities to check the entity registry before making assumptions.
 - If the user asks about Daubert itself (features, capabilities, how things work), load the product-knowledge skill.`.trim();

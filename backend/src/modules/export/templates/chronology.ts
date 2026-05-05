@@ -2,7 +2,10 @@ import { BASE_STYLES, CSP_META } from './styles';
 import { escapeHtml, sanitizeUrl } from './util';
 
 interface ChronologyEntry {
-  source: string | null;
+  /** @deprecated use sourceUrl. Still accepted for backward compatibility. */
+  source?: string | null;
+  sourceUrl?: string | null;
+  sourceLabel?: string | null;
   date: string;
   description: string;
   details?: string | null;
@@ -13,23 +16,54 @@ interface ChronologyData {
   entries: ChronologyEntry[];
 }
 
+// Pulls the last 0x-prefixed hex run (a tx/address hash) and returns "0x6ae5…".
+// Falls back to host+path truncation when no hash is present.
+function deriveSourceLabel(url: string): string {
+  const matches = url.match(/0x[a-fA-F0-9]{8,}/g);
+  if (matches && matches.length > 0) {
+    return matches[matches.length - 1].slice(0, 6) + '…';
+  }
+  try {
+    const u = new URL(url);
+    const tail = u.pathname + u.search;
+    return tail.length > 30 ? u.host + tail.slice(0, 30) + '…' : u.host + tail;
+  } catch {
+    return url.length > 32 ? url.slice(0, 32) + '…' : url;
+  }
+}
+
 export function renderChronology(name: string, data: ChronologyData): string {
   const title = data.title || name;
-  const rows = (data.entries || []).map((e) => `
+  const rows = (data.entries || []).map((e) => {
+    const url = e.sourceUrl ?? e.source ?? null;
+    const label = e.sourceLabel ?? (url ? deriveSourceLabel(url) : null);
+    const sourceCell = url
+      ? `<a href="${escapeHtml(sanitizeUrl(url))}">${escapeHtml(label ?? url)}</a>`
+      : 'N/A';
+    return `
     <tr>
-      <td>${e.source ? `<a href="${escapeHtml(sanitizeUrl(e.source))}">${escapeHtml(e.source)}</a>` : 'N/A'}</td>
+      <td style="font-size:9pt;font-family:monospace">${sourceCell}</td>
       <td style="white-space:nowrap">${escapeHtml(e.date)}</td>
       <td>${escapeHtml(e.description)}</td>
-      <td style="font-size:9pt;color:#666">${e.details ? escapeHtml(e.details) : '--'}</td>
+      <td style="font-size:9pt;color:#666;overflow-wrap:anywhere">${e.details ? escapeHtml(e.details) : '--'}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">${CSP_META}<title>${escapeHtml(title)}</title>
-<style>${BASE_STYLES}</style>
+<style>${BASE_STYLES}
+  .chronology { table-layout: fixed; }
+</style>
 </head><body>
 <h1>${escapeHtml(title)}</h1>
-<table>
+<table class="chronology">
+  <colgroup>
+    <col style="width:18%">
+    <col style="width:14%">
+    <col style="width:40%">
+    <col style="width:28%">
+  </colgroup>
   <thead><tr><th>Source</th><th>Date</th><th>Description</th><th>Details</th></tr></thead>
   <tbody>${rows}</tbody>
 </table>

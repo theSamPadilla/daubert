@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { FaPenToSquare, FaEye, FaDownload } from 'react-icons/fa6';
+import { FaPenToSquare, FaEye, FaDownload, FaSpinner } from 'react-icons/fa6';
 import { apiClient, type Production } from '@/lib/api-client';
 import { ReportEditor } from './ReportEditor';
 import { ChartViewer } from './ChartViewer';
@@ -21,6 +21,7 @@ interface ProductionViewerProps {
 export function ProductionViewer({ production, onUpdate }: ProductionViewerProps) {
   const [editing, setEditing] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [exportingFormat, setExportingFormat] = useState<'pdf' | 'html' | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +51,7 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
   const handleExport = useCallback(
     async (format: 'pdf' | 'html') => {
       setExportError(null);
+      setExportingFormat(format);
       let imageDataUrl: string | undefined;
       if (production.type === 'chart') {
         const canvas = contentRef.current?.querySelector('[data-chart-export] canvas, canvas') as HTMLCanvasElement | null;
@@ -62,6 +64,8 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Export failed';
         setExportError(msg);
+      } finally {
+        setExportingFormat(null);
       }
     },
     [production.id, production.type, production.name],
@@ -82,15 +86,27 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
         <div className="flex items-center gap-2">
           <button
             onClick={() => handleExport('pdf')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300"
+            disabled={exportingFormat !== null}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-gray-700"
           >
-            <FaDownload className="w-3 h-3" /> PDF
+            {exportingFormat === 'pdf' ? (
+              <FaSpinner className="w-3 h-3 animate-spin" />
+            ) : (
+              <FaDownload className="w-3 h-3" />
+            )}
+            {exportingFormat === 'pdf' ? 'Generating…' : 'PDF'}
           </button>
           <button
             onClick={() => handleExport('html')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300"
+            disabled={exportingFormat !== null}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-gray-700"
           >
-            <FaDownload className="w-3 h-3" /> HTML
+            {exportingFormat === 'html' ? (
+              <FaSpinner className="w-3 h-3 animate-spin" />
+            ) : (
+              <FaDownload className="w-3 h-3" />
+            )}
+            {exportingFormat === 'html' ? 'Generating…' : 'HTML'}
           </button>
           {production.type === 'report' && (
             <button

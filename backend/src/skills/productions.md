@@ -110,13 +110,15 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
     "title": "Key Events — Wallet 0xABC...",
     "entries": [
       {
-        "source": "https://etherscan.io/tx/0x123...",
+        "sourceUrl": "https://etherscan.io/tx/0x6ae5fc12abcd...",
+        "sourceLabel": "0x6ae5…",
         "date": "2025-01-15",
         "description": "Initial deposit of 50 ETH from Coinbase",
         "details": "Block 19500000. Withdrawal from verified Coinbase hot wallet."
       },
       {
-        "source": "https://etherscan.io/tx/0x456...",
+        "sourceUrl": "https://etherscan.io/tx/0x14b5ef89cdef...",
+        "sourceLabel": "0x14b5…",
         "date": "2025-01-16",
         "description": "Transfer of 25 ETH to mixer contract",
         "details": "Tornado Cash 10 ETH pool, 2.5 deposits over 3 hours."
@@ -130,7 +132,9 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `source` | no | URL to the blockchain explorer transaction (renders as a clickable link) |
+| `sourceUrl` | no | URL to the blockchain explorer transaction (used as the link `href`) |
+| `sourceLabel` | no | Short display text for the link (e.g. `"0x6ae5…"`). If omitted, a label is auto-derived from `sourceUrl` (last 0x-hash, first 6 chars). |
+| `source` | no | **Deprecated** alias for `sourceUrl`. Still accepted for backward compatibility. Prefer `sourceUrl`. |
 | `date` | yes | Date string displayed in the Date column (e.g. `"2025-01-15"` or `"Jan 15, 2025"`) |
 | `description` | yes | What happened — concise summary |
 | `details` | no | Additional context (block number, amounts, counterparty info) |
@@ -140,7 +144,8 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
 ### Best practices
 
 - Order entries chronologically (earliest first).
-- Always include the explorer URL as `source` when the entry references an on-chain transaction.
+- Always include the explorer URL as `sourceUrl` when the entry references an on-chain transaction.
+- Provide a `sourceLabel` for tx hashes (e.g. `"0x6ae5…"`) — keeps the Source column compact. The renderer will auto-derive one if you omit it.
 - Keep `description` to one sentence. Put specifics in `details`.
 - Use consistent date formatting across entries.
 - The `title` field is optional but helpful for multi-chronology cases.

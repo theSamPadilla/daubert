@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
@@ -255,6 +255,8 @@ const MAX_ITERATIONS = 10;
 
 @Injectable()
 export class AiService {
+  private readonly logger = new Logger(AiService.name);
+
   constructor(
     private readonly llm: AnthropicProvider,
     private readonly conversationsService: ConversationsService,
@@ -414,6 +416,26 @@ export class AiService {
             }),
           );
           lastPersistedWasToolResult = false;
+
+          // Surface non-end_turn terminations so the user knows the agent
+          // didn't finish naturally. The loop is exiting because either:
+          //   - end_turn  (intentional completion — no warning)
+          //   - max_tokens (output budget exhausted mid-thought)
+          //   - pause_turn / stop_sequence / refusal / other (unexpected)
+          // Without this, "stop_reason === 'max_tokens' && no tool_use" looked
+          // identical to a normal completion, so the user just saw the partial
+          // text with no signal that the agent had been cut off.
+          if (response.stop_reason && response.stop_reason !== 'end_turn') {
+            const reason = response.stop_reason;
+            this.logger.warn(
+              `Chat loop terminated early [conversationId=${conversationId} stop_reason=${reason} iteration=${i} toolUseBlocks=${toolUseBlocks.length}]`,
+            );
+            const message =
+              reason === 'max_tokens'
+                ? 'The model ran out of output budget mid-response. Try asking again, or break the request into smaller steps.'
+                : `The model stopped with reason "${reason}" before finishing. Try again.`;
+            yield { type: 'error', data: { message } };
+          }
 
           yield { type: 'done', data: { conversationId } };
           return;

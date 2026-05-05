@@ -56,6 +56,7 @@ export class ExportService implements OnModuleDestroy {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--font-render-hinting=none',
+        '--user-data-dir=/tmp/chrome-user-data',
       ],
     });
   }

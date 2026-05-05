@@ -18,6 +18,10 @@ RUN npm run build
 FROM node:22-slim AS runtime
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium fonts-liberation \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN useradd -r -u 1001 -g users nodeapp
 
 # Copy node_modules from builder (includes compiled native addons like isolated-vm)

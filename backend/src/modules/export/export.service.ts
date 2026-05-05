@@ -1,5 +1,13 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { accessSync } from 'fs';
 import puppeteer, { Browser } from 'puppeteer-core';
+
+const DEV_CHROME_CANDIDATES = [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+];
 
 @Injectable()
 export class ExportService implements OnModuleDestroy {
@@ -18,33 +26,30 @@ export class ExportService implements OnModuleDestroy {
     return this.browserPromise;
   }
 
-  private async launchBrowser(): Promise<Browser> {
-    let executablePath: string;
-    try {
-      const chromium = await import('@sparticuz/chromium');
-      executablePath = await chromium.default.executablePath();
-    } catch {
-      // Fallback for dev: use system Chrome
-      const fs = await import('fs');
-      const paths = [
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        '/usr/bin/google-chrome',
-        '/usr/bin/chromium-browser',
-      ];
-      executablePath =
-        paths.find((p) => {
-          try {
-            fs.accessSync(p);
-            return true;
-          } catch {
-            return false;
-          }
-        }) || 'google-chrome';
+  private resolveExecutablePath(): string {
+    if (process.env.NODE_ENV === 'production') {
+      return '/usr/bin/chromium';
     }
+    const found = DEV_CHROME_CANDIDATES.find((p) => {
+      try {
+        accessSync(p);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    if (!found) {
+      throw new Error(
+        `No Chrome/Chromium executable found. Tried: ${DEV_CHROME_CANDIDATES.join(', ')}`,
+      );
+    }
+    return found;
+  }
 
+  private async launchBrowser(): Promise<Browser> {
     return puppeteer.launch({
       headless: true,
-      executablePath,
+      executablePath: this.resolveExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',

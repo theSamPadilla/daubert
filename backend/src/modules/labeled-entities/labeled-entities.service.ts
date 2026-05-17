@@ -47,6 +47,45 @@ export class LabeledEntitiesService {
       .getMany();
   }
 
+  /**
+   * Bulk version of lookupByAddress. One round-trip for N addresses.
+   * Returns a Map keyed by lowercased address; missing addresses are absent.
+   */
+  async lookupByAddresses(addresses: string[]): Promise<Map<string, LabeledEntityEntity[]>> {
+    const map = new Map<string, LabeledEntityEntity[]>();
+    if (addresses.length === 0) return map;
+
+    const lowered = Array.from(
+      new Set(addresses.map((a) => a.trim().toLowerCase()).filter(Boolean)),
+    );
+    if (lowered.length === 0) return map;
+
+    // Single query: any entity whose wallets array contains any of the input addresses.
+    const matches = await this.repo
+      .createQueryBuilder('e')
+      .where(
+        `EXISTS (
+           SELECT 1
+           FROM jsonb_array_elements_text(e.wallets) w
+           WHERE LOWER(w) = ANY(:addresses)
+         )`,
+        { addresses: lowered },
+      )
+      .getMany();
+
+    for (const entity of matches) {
+      for (const wallet of entity.wallets ?? []) {
+        const w = wallet.toLowerCase();
+        if (!lowered.includes(w)) continue;
+        const existing = map.get(w);
+        if (existing) existing.push(entity);
+        else map.set(w, [entity]);
+      }
+    }
+
+    return map;
+  }
+
   async create(dto: CreateLabeledEntityDto) {
     const entity = this.repo.create(dto);
     return this.repo.save(entity);

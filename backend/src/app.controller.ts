@@ -7,6 +7,12 @@ export class AppController {
   constructor(private readonly dataSource: DataSource) {}
 
   @Public()
+  @Get()
+  root() {
+    return { status: 'ok' };
+  }
+
+  @Public()
   @Get('health')
   async health() {
     await this.dataSource.query('SELECT 1');

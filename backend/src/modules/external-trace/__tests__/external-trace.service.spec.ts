@@ -115,4 +115,48 @@ describe('ExternalTraceService', () => {
       expect.any(Object),
     );
   });
+
+  it('expires cached entries after CACHE_TTL_MS and re-fetches', async () => {
+    jest.useFakeTimers();
+    try {
+      blockchain.fetchHistory.mockResolvedValue({
+        transactions: [tx('0xaaa000000000000000000000000000000000000a', '0xbbb000000000000000000000000000000000000b')],
+        chain: 'ethereum',
+        address: '0xaaa000000000000000000000000000000000000a',
+      });
+
+      await service.trace('0xaaa000000000000000000000000000000000000a', 'ethereum', 1);
+      expect(blockchain.fetchHistory).toHaveBeenCalledTimes(1);
+
+      // Advance past 60s (CACHE_TTL_MS = 60_000)
+      jest.setSystemTime(Date.now() + 61_000);
+
+      await service.trace('0xaaa000000000000000000000000000000000000a', 'ethereum', 1);
+      expect(blockchain.fetchHistory).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('evicts oldest cache entry when CACHE_MAX_ENTRIES is reached', async () => {
+    blockchain.fetchHistory.mockResolvedValue({
+      transactions: [],
+      chain: 'ethereum',
+      address: 'x',
+    });
+
+    // Fill cache with 201 unique addresses (CACHE_MAX_ENTRIES = 200).
+    // The 201st insertion triggers eviction of the first entry.
+    for (let i = 0; i < 201; i++) {
+      const addr = `0x${i.toString(16).padStart(40, '0')}`;
+      await service.trace(addr, 'ethereum', 1);
+    }
+
+    // Re-trace the very first address — eviction should have removed it,
+    // so fetchHistory must be called again (cache miss).
+    const firstAddr = `0x${(0).toString(16).padStart(40, '0')}`;
+    const callsBefore = blockchain.fetchHistory.mock.calls.length;
+    await service.trace(firstAddr, 'ethereum', 1);
+    expect(blockchain.fetchHistory.mock.calls.length).toBe(callsBefore + 1);
+  });
 });

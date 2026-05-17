@@ -3,8 +3,15 @@ import { BlockchainService, TransactionResult } from '../blockchain/blockchain.s
 import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.service';
 import { buildGraph, GraphResult } from './graph-builder';
 
-const HOP_1_TX_LIMIT = 10;
-const HOP_2_TX_LIMIT = 10;
+// Per-direction cap: 5 incoming + 5 outgoing per address (root and hop-2 alike).
+// The previous flat 10-tx cap let one direction dominate when an address skewed
+// heavily inbound or outbound, making graphs read as one-sided. Splitting
+// keeps both flows visible and bounds the rendered node count tightly.
+const PER_DIRECTION_LIMIT = 5;
+// We fetch a larger window from the provider, then partition + trim, because
+// Etherscan/Tronscan don't expose a direction filter. 40 is enough to find
+// both directions for nearly any active address.
+const FETCH_WINDOW = 40;
 const HOP_2_FANOUT = 5;
 const NODE_CAP = 100;
 const EDGE_CAP = 200;
@@ -56,16 +63,19 @@ export class ExternalTraceService {
 
     const allTxs: TransactionResult[] = [];
 
-    // Hop 1
+    // Hop 1: fetch a window, partition by direction relative to `address`,
+    // keep up to PER_DIRECTION_LIMIT of each.
     const rootHistory = await this.blockchain.fetchHistory(address, chain, {
-      offset: HOP_1_TX_LIMIT,
+      offset: FETCH_WINDOW,
     });
-    allTxs.push(...rootHistory.transactions);
+    const rootTrimmed = this.trimByDirection(rootHistory.transactions, address);
+    allTxs.push(...rootTrimmed);
 
-    // Hop 2 (parallelized, capped)
+    // Hop 2 (parallelized, capped). Counterparty ranking uses the trimmed
+    // root window so direction balance carries through to hop-2 fan-out.
     if (hops === 2) {
       const counterCounts = new Map<string, number>();
-      for (const tx of rootHistory.transactions) {
+      for (const tx of rootTrimmed) {
         // tx.from/tx.to are already chain-normalized by BlockchainService.fetchHistory
         // (lowercased for EVM, base58 preserved for Tron). The same normalization
         // produced `address` above, so equality holds without further transform.
@@ -81,17 +91,19 @@ export class ExternalTraceService {
       const hop2Results = await Promise.all(
         topCps.map((cp) =>
           this.withHop2Slot(() =>
-            this.blockchain.fetchHistory(cp, chain, { offset: HOP_2_TX_LIMIT }),
-          ).catch((err) => {
-            this.logger.warn(`hop-2 fetch failed for ${cp}: ${err.message}`);
-            return null;
-          }),
+            this.blockchain.fetchHistory(cp, chain, { offset: FETCH_WINDOW }),
+          )
+            .then((r) => ({ cp, transactions: r.transactions }))
+            .catch((err) => {
+              this.logger.warn(`hop-2 fetch failed for ${cp}: ${err.message}`);
+              return null;
+            }),
         ),
       );
 
       for (const r of hop2Results) {
         if (!r) continue;
-        allTxs.push(...r.transactions);
+        allTxs.push(...this.trimByDirection(r.transactions, r.cp));
       }
     }
 
@@ -139,6 +151,37 @@ export class ExternalTraceService {
       }
     }
     return obj;
+  }
+
+  /**
+   * Keep the top PER_DIRECTION_LIMIT incoming and outgoing transactions
+   * for `address`, deduped by txHash. Input is assumed already sorted by
+   * timestamp desc (BlockchainService.fetchHistory does this).
+   */
+  private trimByDirection(
+    txs: TransactionResult[],
+    address: string,
+  ): TransactionResult[] {
+    const incoming: TransactionResult[] = [];
+    const outgoing: TransactionResult[] = [];
+    const seen = new Set<string>();
+    for (const tx of txs) {
+      if (seen.has(tx.txHash)) continue;
+      if (tx.to === address && incoming.length < PER_DIRECTION_LIMIT) {
+        incoming.push(tx);
+        seen.add(tx.txHash);
+      } else if (tx.from === address && outgoing.length < PER_DIRECTION_LIMIT) {
+        outgoing.push(tx);
+        seen.add(tx.txHash);
+      }
+      if (
+        incoming.length >= PER_DIRECTION_LIMIT &&
+        outgoing.length >= PER_DIRECTION_LIMIT
+      ) {
+        break;
+      }
+    }
+    return [...incoming, ...outgoing];
   }
 
   /** Minimal counting semaphore. Resolves when a slot is available. */

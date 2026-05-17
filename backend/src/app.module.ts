@@ -14,6 +14,7 @@ import { ProductionsModule } from './modules/productions/productions.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ExportModule } from './modules/export/export.module';
 import { DataRoomModule } from './modules/data-room/data-room.module';
+import { ExternalTraceModule } from './modules/external-trace/external-trace.module';
 import { ScriptModule } from './modules/script/script.module';
 
 @Module({
@@ -32,6 +33,7 @@ import { ScriptModule } from './modules/script/script.module';
     AdminModule,
     ExportModule,
     DataRoomModule,
+    ExternalTraceModule,
     ScriptModule,
   ],
   controllers: [AppController],

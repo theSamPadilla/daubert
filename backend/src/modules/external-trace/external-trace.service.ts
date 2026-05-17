@@ -3,8 +3,8 @@ import { BlockchainService, TransactionResult } from '../blockchain/blockchain.s
 import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.service';
 import { buildGraph, GraphResult } from './graph-builder';
 
-const HOP_1_TX_LIMIT = 50;
-const HOP_2_TX_LIMIT = 30;
+const HOP_1_TX_LIMIT = 10;
+const HOP_2_TX_LIMIT = 10;
 const HOP_2_FANOUT = 5;
 const NODE_CAP = 100;
 const EDGE_CAP = 200;

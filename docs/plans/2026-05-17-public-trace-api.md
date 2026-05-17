@@ -65,7 +65,7 @@ Follow-up: `../website-daubert/docs/plans/2026-05-17-interactive-trace-demo.md` 
 4. **Throttler tracker**: `ForwardedIpTracker` overrides `getTracker(req)` to return the first IP in `X-Forwarded-For`. `app.set('trust proxy', true)` is added in `main.ts` so Express also populates `req.ip` correctly. Without this, every visitor would share the proxy IP and one flood would lock everyone out.
 5. **No CORS update**: this endpoint is called server-to-server only. `ALLOWED_ORIGINS` is NOT touched, so browsers still cannot call `/external/trace` directly even if they had the key. Defense in depth.
 6. **URL prefix**: `/external/trace`, not `/public/trace`. "Public" was misleading; this is a keyed external-integrations route. Future external API consumers can sit under `/external/*` with their own keys.
-7. **Hop strategy**: Hop-2 fetches in parallel via `Promise.all` over the top 5 hop-1 counterparties (ranked by tx count). Hard caps: 50 txs per address, 100 unique nodes total, 200 edges total. Truncation flag returned to client.
+7. **Hop strategy**: Hop-2 fetches in parallel via `Promise.all` over the top 5 hop-1 counterparties (ranked by tx count). Hard caps: 10 txs per address (root and hop-2 alike), 100 unique nodes total, 200 edges total. Truncation flag returned to client. The 10-tx-per-address cap keeps the rendered graph readable; at 50 txs the canvas was unreadably dense.
 8. **Edge dedup key**: `${from}->${to}->${token.address}`. Keying by `token.symbol` would collapse two contracts that both call themselves USDC into a single bogus aggregate. `token.symbol` is still returned on the edge as a display field. Native tokens use the existing sentinel address (`0x` on EVM, `''` on Tron) so two ETH transfers between the same pair still aggregate correctly.
 9. **Amount math**: edges keep a `bigint` accumulator internally (`rawAmount`); we sum raw transaction values directly and format only once at serialization. The previous draft summed already-formatted decimal strings, which silently corrupted any amount with a fractional part.
 10. **Amount formatting**: returned as a decimal string normalized by `token.decimals` (e.g. `"1.523"`, capped to 4 decimal places). The frontend never does `BigInt` math.
@@ -682,8 +682,8 @@ import { BlockchainService, TransactionResult } from '../blockchain/blockchain.s
 import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.service';
 import { buildGraph, GraphResult } from './graph-builder';
 
-const HOP_1_TX_LIMIT = 50;
-const HOP_2_TX_LIMIT = 30;
+const HOP_1_TX_LIMIT = 10;
+const HOP_2_TX_LIMIT = 10;
 const HOP_2_FANOUT = 5;
 const NODE_CAP = 100;
 const EDGE_CAP = 200;
@@ -1182,7 +1182,7 @@ Query:
 
 Limits:
 - 10 requests / minute per visitor IP (counted from `X-Forwarded-For`)
-- 50 txs at the root, 30 txs per hop-2 node, fanout 5, node cap 100, edge cap 200
+- 10 txs at the root, 10 txs per hop-2 node, fanout 5, node cap 100, edge cap 200
 
 Example:
 ```

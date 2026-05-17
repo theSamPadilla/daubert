@@ -18,7 +18,7 @@ Query:
 
 Limits:
 - 10 requests / minute per visitor IP (counted from `X-Forwarded-For`)
-- 50 txs at the root, 30 txs per hop-2 node, fanout 5, node cap 100, edge cap 200
+- 10 txs at the root, 10 txs per hop-2 node, fanout 5, node cap 100, edge cap 200
 
 Example:
 ```

@@ -7,7 +7,7 @@ export interface GraphNode {
   chain: string;
   isRoot: boolean;
   txCount: number;
-  label?: { name: string; category: string };
+  label: { name: string; category: string } | null;
 }
 
 export interface GraphEdge {
@@ -86,6 +86,7 @@ export function buildGraph(
       chain,
       isRoot: address === rootAddress,
       txCount: 0,
+      label: null,
     };
     nodesMap.set(address, node);
     return node;

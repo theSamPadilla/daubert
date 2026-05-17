@@ -12,6 +12,8 @@ const EDGE_CAP = 200;
 const CACHE_TTL_MS = 60_000;
 const CACHE_MAX_ENTRIES = 200;
 
+const HOP_2_CONCURRENCY = 2;
+
 const EVM_CHAINS = ['ethereum', 'polygon', 'arbitrum', 'base'];
 
 export interface TraceResponse extends GraphResult {
@@ -30,6 +32,8 @@ interface CacheEntry {
 export class ExternalTraceService {
   private readonly logger = new Logger(ExternalTraceService.name);
   private readonly cache = new Map<string, CacheEntry>();
+  private hop2InFlight = 0;
+  private readonly hop2Waiters: Array<() => void> = [];
 
   constructor(
     private readonly blockchain: BlockchainService,
@@ -41,6 +45,9 @@ export class ExternalTraceService {
     const address = this.normalizeAddress(rawAddress, chain);
     this.validateAddressChain(address, chain);
 
+    // Cache key MUST include every input that affects the response shape.
+    // If you add a new query parameter (e.g. `since`, `tokenFilter`),
+    // append it here or callers will see stale results.
     const cacheKey = `${chain}:${address}:${hops}`;
     const hit = this.cache.get(cacheKey);
     if (hit && hit.expiresAt > Date.now()) {
@@ -59,6 +66,9 @@ export class ExternalTraceService {
     if (hops === 2) {
       const counterCounts = new Map<string, number>();
       for (const tx of rootHistory.transactions) {
+        // tx.from/tx.to are already chain-normalized by BlockchainService.fetchHistory
+        // (lowercased for EVM, base58 preserved for Tron). The same normalization
+        // produced `address` above, so equality holds without further transform.
         const other = tx.from === address ? tx.to : tx.from;
         if (!other || other === address) continue;
         counterCounts.set(other, (counterCounts.get(other) ?? 0) + 1);
@@ -70,12 +80,12 @@ export class ExternalTraceService {
 
       const hop2Results = await Promise.all(
         topCps.map((cp) =>
-          this.blockchain
-            .fetchHistory(cp, chain, { offset: HOP_2_TX_LIMIT })
-            .catch((err) => {
-              this.logger.warn(`hop-2 fetch failed for ${cp}: ${err.message}`);
-              return null;
-            }),
+          this.withHop2Slot(() =>
+            this.blockchain.fetchHistory(cp, chain, { offset: HOP_2_TX_LIMIT }),
+          ).catch((err) => {
+            this.logger.warn(`hop-2 fetch failed for ${cp}: ${err.message}`);
+            return null;
+          }),
         ),
       );
 
@@ -108,7 +118,7 @@ export class ExternalTraceService {
       cachedAt: new Date().toISOString(),
     };
 
-    this.putCache(cacheKey, result);
+    this.putCache(cacheKey, this.deepFreeze(result));
     return result;
   }
 
@@ -119,6 +129,31 @@ export class ExternalTraceService {
       if (oldest !== undefined) this.cache.delete(oldest);
     }
     this.cache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+  }
+
+  private deepFreeze<T>(obj: T): T {
+    if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
+      Object.freeze(obj);
+      for (const key of Object.keys(obj)) {
+        this.deepFreeze((obj as any)[key]);
+      }
+    }
+    return obj;
+  }
+
+  /** Minimal counting semaphore. Resolves when a slot is available. */
+  private async withHop2Slot<T>(work: () => Promise<T>): Promise<T> {
+    while (this.hop2InFlight >= HOP_2_CONCURRENCY) {
+      await new Promise<void>((resolve) => this.hop2Waiters.push(resolve));
+    }
+    this.hop2InFlight += 1;
+    try {
+      return await work();
+    } finally {
+      this.hop2InFlight -= 1;
+      const next = this.hop2Waiters.shift();
+      if (next) next();
+    }
   }
 
   private normalizeAddress(addr: string, chain: string): string {

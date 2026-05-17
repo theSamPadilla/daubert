@@ -8,6 +8,10 @@ async function bootstrap() {
   // Disable NestJS's built-in body parser so ours (with a higher limit) wins
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
+  // Trust X-Forwarded-For from Cloud Run + the marketing site proxy.
+  // Required for the external-trace throttler to count real visitor IPs.
+  (app.getHttpAdapter().getInstance() as any).set('trust proxy', true);
+
   app.use(helmet());
 
   // Register before any other middleware so the limit applies everywhere

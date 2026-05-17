@@ -1,0 +1,142 @@
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BlockchainService, TransactionResult } from '../blockchain/blockchain.service';
+import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.service';
+import { buildGraph, GraphResult } from './graph-builder';
+
+const HOP_1_TX_LIMIT = 50;
+const HOP_2_TX_LIMIT = 30;
+const HOP_2_FANOUT = 5;
+const NODE_CAP = 100;
+const EDGE_CAP = 200;
+
+const CACHE_TTL_MS = 60_000;
+const CACHE_MAX_ENTRIES = 200;
+
+const EVM_CHAINS = ['ethereum', 'polygon', 'arbitrum', 'base'];
+
+export interface TraceResponse extends GraphResult {
+  root: string;
+  chain: string;
+  hops: number;
+  cachedAt: string; // ISO timestamp set at generation; preserved across cache hits
+}
+
+interface CacheEntry {
+  result: TraceResponse;
+  expiresAt: number;
+}
+
+@Injectable()
+export class ExternalTraceService {
+  private readonly logger = new Logger(ExternalTraceService.name);
+  private readonly cache = new Map<string, CacheEntry>();
+
+  constructor(
+    private readonly blockchain: BlockchainService,
+    private readonly labels: LabeledEntitiesService,
+  ) {}
+
+  async trace(rawAddress: string, chain: string, hopsIn: number): Promise<TraceResponse> {
+    const hops = hopsIn === 2 ? 2 : 1; // clamp; DTO bounds it but defense in depth
+    const address = this.normalizeAddress(rawAddress, chain);
+    this.validateAddressChain(address, chain);
+
+    const cacheKey = `${chain}:${address}:${hops}`;
+    const hit = this.cache.get(cacheKey);
+    if (hit && hit.expiresAt > Date.now()) {
+      return hit.result;
+    }
+
+    const allTxs: TransactionResult[] = [];
+
+    // Hop 1
+    const rootHistory = await this.blockchain.fetchHistory(address, chain, {
+      offset: HOP_1_TX_LIMIT,
+    });
+    allTxs.push(...rootHistory.transactions);
+
+    // Hop 2 (parallelized, capped)
+    if (hops === 2) {
+      const counterCounts = new Map<string, number>();
+      for (const tx of rootHistory.transactions) {
+        const other = tx.from === address ? tx.to : tx.from;
+        if (!other || other === address) continue;
+        counterCounts.set(other, (counterCounts.get(other) ?? 0) + 1);
+      }
+      const topCps = [...counterCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, HOP_2_FANOUT)
+        .map(([addr]) => addr);
+
+      const hop2Results = await Promise.all(
+        topCps.map((cp) =>
+          this.blockchain
+            .fetchHistory(cp, chain, { offset: HOP_2_TX_LIMIT })
+            .catch((err) => {
+              this.logger.warn(`hop-2 fetch failed for ${cp}: ${err.message}`);
+              return null;
+            }),
+        ),
+      );
+
+      for (const r of hop2Results) {
+        if (!r) continue;
+        allTxs.push(...r.transactions);
+      }
+    }
+
+    const graph = buildGraph(allTxs, address, {
+      nodeCap: NODE_CAP,
+      edgeCap: EDGE_CAP,
+    });
+
+    // Batch label lookup: one SQL round-trip for every node in the graph.
+    const addresses = graph.nodes.map((n) => n.address);
+    const labelMap = await this.labels.lookupByAddresses(addresses);
+    for (const node of graph.nodes) {
+      const entities = labelMap.get(node.address.toLowerCase());
+      if (entities && entities.length > 0) {
+        node.label = { name: entities[0].name, category: entities[0].category };
+      }
+    }
+
+    const result: TraceResponse = {
+      root: address,
+      chain,
+      hops,
+      ...graph,
+      cachedAt: new Date().toISOString(),
+    };
+
+    this.putCache(cacheKey, result);
+    return result;
+  }
+
+  private putCache(key: string, result: TraceResponse) {
+    if (this.cache.size >= CACHE_MAX_ENTRIES) {
+      // Simple LRU-ish: drop oldest insertion. Map iteration order = insertion order.
+      const oldest = this.cache.keys().next().value;
+      if (oldest !== undefined) this.cache.delete(oldest);
+    }
+    this.cache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+  }
+
+  private normalizeAddress(addr: string, chain: string): string {
+    const t = addr.trim();
+    return EVM_CHAINS.includes(chain) ? t.toLowerCase() : t;
+  }
+
+  private validateAddressChain(addr: string, chain: string): void {
+    if (EVM_CHAINS.includes(chain)) {
+      if (!/^0x[a-f0-9]{40}$/.test(addr)) {
+        throw new BadRequestException(`${chain} requires an EVM address (0x + 40 hex)`);
+      }
+    } else if (chain === 'tron') {
+      if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(addr)) {
+        throw new BadRequestException('tron requires a base58 address starting with T');
+      }
+    } else {
+      throw new BadRequestException(`unsupported chain: ${chain}`);
+    }
+  }
+}

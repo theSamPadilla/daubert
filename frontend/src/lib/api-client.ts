@@ -261,7 +261,7 @@ export const apiClient = {
   deleteTrace: (id: string) => request<void>(`/traces/${id}`, { method: 'DELETE' }),
 
   // Blockchain
-  fetchHistory: (address: string, chain: string, options?: { startBlock?: number; endBlock?: number; page?: number; offset?: number; sort?: 'asc' | 'desc' }) =>
+  fetchHistory: (address: string, chain: string, options?: { startBlock?: number; endBlock?: number; startDate?: string; endDate?: string; page?: number; offset?: number; sort?: 'asc' | 'desc' }) =>
     request<{ transactions: any[]; chain: string; address: string }>('/blockchain/fetch-history', {
       method: 'POST',
       body: JSON.stringify({ address, chain, options }),

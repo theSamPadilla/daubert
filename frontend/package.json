@@ -16,6 +16,7 @@
     "@tiptap/pm": "^3.22.4",
     "@tiptap/react": "^3.22.4",
     "@tiptap/starter-kit": "^3.22.4",
+    "@web3icons/react": "^4.1.17",
     "chart.js": "^4.5.1",
     "chartjs-plugin-annotation": "^3.1.0",
     "cytoscape": "^3.30.4",

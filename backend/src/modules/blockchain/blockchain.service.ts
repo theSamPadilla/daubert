@@ -63,14 +63,16 @@ export class BlockchainService {
   async fetchHistory(
     address: string,
     chain: string,
-    options?: FetchOptions,
+    options?: FetchOptions & { startDate?: string; endDate?: string },
   ): Promise<FetchHistoryResult> {
     const provider = this.providerRegistry.get(chain);
     const chainConfig = CHAIN_CONFIGS[chain];
 
+    const normalized = this.normalizeOptions(options);
+
     const [rawTxs, rawTokenTxs] = await Promise.all([
-      provider.getTransactions(address, options),
-      provider.getTokenTransfers(address, options),
+      provider.getTransactions(address, normalized),
+      provider.getTokenTransfers(address, normalized),
     ]);
 
     const transactions: TransactionResult[] = [];
@@ -190,6 +192,33 @@ export class BlockchainService {
       tokenTransfers,
       isError: detail.isError === '1',
     };
+  }
+
+  private normalizeOptions(
+    options?: FetchOptions & { startDate?: string; endDate?: string },
+  ): FetchOptions | undefined {
+    if (!options) return undefined;
+    const { startDate, endDate, ...rest } = options;
+    const out: FetchOptions = { ...rest };
+    if (startDate) {
+      // Start of day UTC
+      out.startTimestamp = Math.floor(Date.UTC(
+        Number(startDate.slice(0, 4)),
+        Number(startDate.slice(5, 7)) - 1,
+        Number(startDate.slice(8, 10)),
+        0, 0, 0,
+      ) / 1000);
+    }
+    if (endDate) {
+      // End of day UTC
+      out.endTimestamp = Math.floor(Date.UTC(
+        Number(endDate.slice(0, 4)),
+        Number(endDate.slice(5, 7)) - 1,
+        Number(endDate.slice(8, 10)),
+        23, 59, 59,
+      ) / 1000);
+    }
+    return out;
   }
 
   async getAddressInfo(

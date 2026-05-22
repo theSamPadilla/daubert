@@ -93,12 +93,21 @@ export class TronscanProvider implements BlockchainProvider {
       data: TronscanTransfer[];
     }
 
-    const data = await this.fetchApi<TransferResponse>('transfer', {
+    // Tronscan expects timestamps in milliseconds.
+    const params: Record<string, string> = {
       address,
       start,
       limit,
       sort: options?.sort === 'asc' ? 'timestamp' : '-timestamp',
-    });
+    };
+    if (options?.startTimestamp) {
+      params.start_timestamp = String(options.startTimestamp * 1000);
+    }
+    if (options?.endTimestamp) {
+      params.end_timestamp = String(options.endTimestamp * 1000);
+    }
+
+    const data = await this.fetchApi<TransferResponse>('transfer', params);
 
     this.cache.set(
       this.cache.buildKey('tron', 'transfer', { address, start, limit }),
@@ -136,14 +145,22 @@ export class TronscanProvider implements BlockchainProvider {
       token_transfers: TronscanTrc20Transfer[];
     }
 
+    const params: Record<string, string> = {
+      relatedAddress: address,
+      start,
+      limit,
+      sort: options?.sort === 'asc' ? 'timestamp' : '-timestamp',
+    };
+    if (options?.startTimestamp) {
+      params.start_timestamp = String(options.startTimestamp * 1000);
+    }
+    if (options?.endTimestamp) {
+      params.end_timestamp = String(options.endTimestamp * 1000);
+    }
+
     const data = await this.fetchApi<Trc20Response>(
       'token_trc20/transfers',
-      {
-        relatedAddress: address,
-        start,
-        limit,
-        sort: options?.sort === 'asc' ? 'timestamp' : '-timestamp',
-      },
+      params,
     );
 
     this.cache.set(

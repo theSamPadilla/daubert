@@ -81,14 +81,45 @@ export class EtherscanProvider implements BlockchainProvider {
     return result;
   }
 
+  // Etherscan v2 has no native timestamp filter on txlist/tokentx — translate
+  // dates to blocks via getblocknobytime. `closest=after` for the lower bound,
+  // `closest=before` for the upper bound so the resulting block range is
+  // inclusive of the requested time window.
+  private async blockByTime(
+    timestamp: number,
+    closest: 'before' | 'after',
+  ): Promise<number> {
+    const result = await this.fetchApi<string>('block', 'getblocknobytime', {
+      timestamp: String(timestamp),
+      closest,
+    });
+    return Number(result);
+  }
+
+  private async resolveBlockRange(options?: FetchOptions): Promise<{
+    startBlock: number;
+    endBlock: number;
+  }> {
+    const [startBlock, endBlock] = await Promise.all([
+      options?.startTimestamp
+        ? this.blockByTime(options.startTimestamp, 'after')
+        : Promise.resolve(options?.startBlock ?? 0),
+      options?.endTimestamp
+        ? this.blockByTime(options.endTimestamp, 'before')
+        : Promise.resolve(options?.endBlock ?? 99999999),
+    ]);
+    return { startBlock, endBlock };
+  }
+
   async getTransactions(
     address: string,
     options?: FetchOptions,
   ): Promise<RawTransaction[]> {
+    const { startBlock, endBlock } = await this.resolveBlockRange(options);
     return this.fetchApi<RawTransaction[]>('account', 'txlist', {
       address,
-      startblock: String(options?.startBlock ?? 0),
-      endblock: String(options?.endBlock ?? 99999999),
+      startblock: String(startBlock),
+      endblock: String(endBlock),
       page: String(options?.page ?? 1),
       offset: String(options?.offset ?? 100),
       sort: options?.sort ?? 'desc',
@@ -99,10 +130,11 @@ export class EtherscanProvider implements BlockchainProvider {
     address: string,
     options?: FetchOptions,
   ): Promise<RawTokenTransfer[]> {
+    const { startBlock, endBlock } = await this.resolveBlockRange(options);
     return this.fetchApi<RawTokenTransfer[]>('account', 'tokentx', {
       address,
-      startblock: String(options?.startBlock ?? 0),
-      endblock: String(options?.endBlock ?? 99999999),
+      startblock: String(startBlock),
+      endblock: String(endBlock),
       page: String(options?.page ?? 1),
       offset: String(options?.offset ?? 100),
       sort: options?.sort ?? 'desc',

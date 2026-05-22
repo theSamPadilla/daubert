@@ -17,6 +17,14 @@ FetchHistoryRequest:
           type: integer
         endBlock:
           type: integer
+        startDate:
+          type: string
+          format: date
+          description: ISO date (YYYY-MM-DD). Filters to transactions at/after this date (UTC start of day). When set, overrides startBlock.
+        endDate:
+          type: string
+          format: date
+          description: ISO date (YYYY-MM-DD). Filters to transactions at/before this date (UTC end of day). When set, overrides endBlock.
         page:
           type: integer
         offset:

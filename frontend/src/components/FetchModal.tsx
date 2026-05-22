@@ -36,6 +36,8 @@ export function FetchModal({
   // ── Configure step ────────────────────────────────────────────────────
   const [address, setAddress] = useState(initialAddress);
   const [chain, setChain] = useState(initialChain);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [startBlock, setStartBlock] = useState('');
   const [endBlock, setEndBlock] = useState('');
   const [sort, setSort] = useState<'desc' | 'asc'>('desc');
@@ -69,6 +71,8 @@ export function FetchModal({
       const res = await apiClient.fetchHistory(address.trim(), chain, {
         ...(startBlock ? { startBlock: parseInt(startBlock) } : {}),
         ...(endBlock ? { endBlock: parseInt(endBlock) } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
         offset: limit,
         sort,
       });
@@ -158,13 +162,34 @@ export function FetchModal({
               </select>
             </div>
             <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Start Date <span className="text-gray-600 normal-case font-normal">(optional)</span></label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                max={endDate || undefined}
+                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">End Date <span className="text-gray-600 normal-case font-normal">(optional)</span></label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                min={startDate || undefined}
+                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm"
+              />
+            </div>
+            <div>
               <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Start Block <span className="text-gray-600 normal-case font-normal">(optional)</span></label>
               <input
                 type="number"
                 value={startBlock}
                 onChange={(e) => setStartBlock(e.target.value)}
                 placeholder="e.g. 18000000"
-                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm"
+                disabled={!!startDate}
+                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
               />
             </div>
             <div>
@@ -174,7 +199,8 @@ export function FetchModal({
                 value={endBlock}
                 onChange={(e) => setEndBlock(e.target.value)}
                 placeholder="e.g. 19000000"
-                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm"
+                disabled={!!endDate}
+                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
               />
             </div>
             <div>

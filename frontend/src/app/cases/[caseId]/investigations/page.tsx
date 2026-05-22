@@ -16,7 +16,9 @@ import { StagingPanel } from '@/components/StagingPanel';
 import { ContextMenu, ContextMenuItem } from '@/components/ContextMenu';
 import { WalletForm } from '@/components/WalletForm';
 import { TransactionForm } from '@/components/TransactionForm';
-import { LinkInputModal, type LinkInputResult } from '@/components/LinkInputModal';
+import { CanvasToolPill } from '@/components/CanvasToolPill';
+import { ExportModal } from '@/components/ExportModal';
+import { QuickAddInput } from '@/components/QuickAddInput';
 import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
 import { CytoscapeCallbacks, FocusItem } from '@/hooks/useCytoscape';
@@ -28,7 +30,6 @@ import { Loader } from '@/components/Loader';
 
 type PanelMode =
   | { type: 'none' }
-  | { type: 'linkInput'; intent: 'address' | 'transaction'; position?: { x: number; y: number } }
   | { type: 'createWallet'; position?: { x: number; y: number }; prefill?: Partial<WalletNode> }
   | { type: 'createTransaction'; prefill?: Partial<TransactionEdge> };
 
@@ -263,6 +264,7 @@ function InvestigationsWorkspace() {
   const [selectedNodeIds, setSelectedNodeIds] = useState<{ id: string; traceId: string }[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   const [panelMode, setPanelMode] = useState<PanelMode>({ type: 'none' });
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
@@ -499,12 +501,8 @@ function InvestigationsWorkspace() {
     handleSelectScriptRun,
   ]);
 
-  const handleAddWallet = useCallback(() => {
-    setPanelMode({ type: 'linkInput', intent: 'address' });
-  }, []);
-
   const handleCreateWalletAtPosition = useCallback((position: { x: number; y: number }) => {
-    setPanelMode({ type: 'linkInput', intent: 'address', position });
+    setPanelMode({ type: 'createWallet', position });
   }, []);
 
   const handleSaveNewWallet = useCallback(
@@ -541,10 +539,6 @@ function InvestigationsWorkspace() {
     },
     [addWallet, updateWallet, panelMode]
   );
-
-  const handleAddTransaction = useCallback(() => {
-    setPanelMode({ type: 'linkInput', intent: 'transaction' });
-  }, []);
 
   const findOrCreateWallet = useCallback(
     (address: string, chain: string, traceId: string): string => {
@@ -994,33 +988,8 @@ function InvestigationsWorkspace() {
     [updateNodePosition, updateWallet, updateGroup, investigation, handleContextMenu, handleCreateWalletAtPosition]
   );
 
-  const handleLinkResolved = useCallback((result: LinkInputResult, position?: { x: number; y: number }) => {
-    if (result.type === 'transaction' && result.txPrefill) {
-      setPanelMode({ type: 'createTransaction', prefill: result.txPrefill });
-    } else if (result.addressPrefill) {
-      setPanelMode({ type: 'createWallet', position, prefill: result.addressPrefill });
-    }
-  }, []);
-
   const renderCreationPanel = () => {
     if (!investigation) return null;
-
-    if (panelMode.type === 'linkInput') {
-      return (
-        <LinkInputModal
-          intent={panelMode.intent}
-          onResolved={(result) => handleLinkResolved(result, panelMode.position)}
-          onSkip={() => {
-            if (panelMode.intent === 'transaction') {
-              setPanelMode({ type: 'createTransaction' });
-            } else {
-              setPanelMode({ type: 'createWallet', position: panelMode.position });
-            }
-          }}
-          onCancel={() => setPanelMode({ type: 'none' })}
-        />
-      );
-    }
 
     if (panelMode.type === 'createWallet') {
       return (
@@ -1067,17 +1036,28 @@ function InvestigationsWorkspace() {
         <>
           <Header
             investigation={investigation}
-            onAddAddress={handleAddWallet}
-            onAddTransaction={handleAddTransaction}
-            onUndo={undo}
-            canUndo={canUndo}
-            onRedo={redo}
-            canRedo={canRedo}
-            onRefresh={() => activeInvestigationId && loadInvestigationFromApi(activeInvestigationId)}
-            onExport={(format) => graphRef.current?.exportImage(format, investigation?.name || 'graph')}
+            onExportClick={() => setExportModalOpen(true)}
             rightContent={<UserMenu />}
           />
           <div className="flex-1 bg-gray-900 relative overflow-hidden">
+            {investigation && (
+              <CanvasToolPill
+                onRefresh={() => activeInvestigationId && loadInvestigationFromApi(activeInvestigationId)}
+                onUndo={undo}
+                canUndo={canUndo}
+                onRedo={redo}
+                canRedo={canRedo}
+              />
+            )}
+            {investigation && (
+              <div className="absolute top-3 right-3 z-20">
+                <QuickAddInput
+                  investigationId={investigation.id}
+                  onResolveAddress={(prefill) => setPanelMode({ type: 'createWallet', prefill })}
+                  onResolveTransaction={(prefill) => setPanelMode({ type: 'createTransaction', prefill })}
+                />
+              </div>
+            )}
             {loading ? (
               <Loader inline />
             ) : (
@@ -1306,6 +1286,12 @@ function InvestigationsWorkspace() {
       )}
 
       {renderCreationPanel()}
+
+      <ExportModal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        onExport={(format) => graphRef.current?.exportImage(format, investigation?.name || 'graph')}
+      />
     </>
   );
 }

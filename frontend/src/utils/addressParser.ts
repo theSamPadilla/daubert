@@ -141,3 +141,67 @@ export function buildTxExplorerUrl(chain: string, txHash: string): string {
   }
   return `${config.explorerUrl}/tx/${txHash}`;
 }
+
+export interface InspectedInput {
+  kind: 'address' | 'transaction' | 'unknown';
+  family: 'evm' | 'tron' | 'unknown';
+  chain?: string;        // exact chain id when derivable (URL host or Tron prefix); undefined for ambiguous EVM
+  address?: string;      // populated when kind === 'address'
+  txHash?: string;       // populated when kind === 'transaction'
+  explorerUrl?: string;  // populated when input was a URL
+}
+
+// Canonical entry point for "what is this input?" queries. parseAddressInput/parseTxInput/detectInputType are kept for legacy parse-on-edit callers (e.g., WalletForm.handleAddressChange).
+export function inspectInput(input: string): InspectedInput {
+  const kind = detectInputType(input);
+  const trimmed = input.trim();
+
+  if (kind === 'address') {
+    const parsed = parseAddressInput(input);
+    const chain = parsed.chain;
+    let family: InspectedInput['family'];
+    if (chain === 'tron') {
+      family = 'tron';
+    } else if (chain) {
+      family = 'evm';
+    } else if (TRON_ADDRESS_RE.test(trimmed)) {
+      family = 'tron';
+    } else if (EVM_ADDRESS_RE.test(trimmed)) {
+      family = 'evm';
+    } else {
+      family = 'unknown';
+    }
+    return {
+      kind,
+      family,
+      chain,
+      address: parsed.address,
+      explorerUrl: parsed.explorerUrl,
+    };
+  }
+
+  if (kind === 'transaction') {
+    const parsed = parseTxInput(input);
+    const chain = parsed.chain;
+    let family: InspectedInput['family'];
+    if (chain === 'tron') {
+      family = 'tron';
+    } else if (chain) {
+      family = 'evm';
+    } else if (/^0x[0-9a-fA-F]{64}$/.test(trimmed) || /^[0-9a-fA-F]{64}$/.test(trimmed)) {
+      family = 'evm';
+    } else {
+      family = 'unknown';
+    }
+    return {
+      kind,
+      family,
+      chain,
+      txHash: parsed.txHash,
+      explorerUrl: parsed.explorerUrl,
+    };
+  }
+
+  // kind === 'unknown'
+  return { kind: 'unknown', family: 'unknown' };
+}

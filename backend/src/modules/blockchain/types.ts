@@ -73,6 +73,11 @@ export interface TokenMetadata {
 export interface FetchOptions {
   startBlock?: number;
   endBlock?: number;
+  // Unix timestamps in seconds. When set, providers translate these to
+  // their native filter (block range for Etherscan, ms timestamps for Tron)
+  // and they take precedence over startBlock/endBlock.
+  startTimestamp?: number;
+  endTimestamp?: number;
   page?: number;
   offset?: number;
   sort?: 'asc' | 'desc';

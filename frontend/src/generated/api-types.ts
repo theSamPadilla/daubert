@@ -78,6 +78,23 @@ export interface paths {
         patch: operations["updateInvestigation"];
         trace?: never;
     };
+    "/investigations/{id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duplicate an investigation and all of its traces */
+        post: operations["duplicateInvestigation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/investigations/{investigationId}/traces": {
         parameters: {
             query?: never;
@@ -727,6 +744,16 @@ export interface components {
             options?: {
                 startBlock?: number;
                 endBlock?: number;
+                /**
+                 * Format: date
+                 * @description ISO date (YYYY-MM-DD). Filters to transactions at/after this date (UTC start of day). When set, overrides startBlock.
+                 */
+                startDate?: string;
+                /**
+                 * Format: date
+                 * @description ISO date (YYYY-MM-DD). Filters to transactions at/before this date (UTC end of day). When set, overrides endBlock.
+                 */
+                endDate?: string;
                 page?: number;
                 offset?: number;
                 /** @enum {string} */
@@ -1253,6 +1280,37 @@ export interface operations {
         responses: {
             /** @description Updated investigation */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Investigation"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    duplicateInvestigation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The newly created investigation */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

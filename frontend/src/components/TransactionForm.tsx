@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TransactionEdge, WalletNode, Trace } from '../types/investigation';
 import { ColorPicker } from './ColorPicker';
 import { TagInput } from './TagInput';
@@ -151,6 +151,12 @@ export function TransactionForm({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [traceId, setTraceId] = useState(traces[0]?.id || '');
   const [creatingTrace, setCreatingTrace] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  // Focus the name input on mount so keyboard flow continues after the panel opens
+  useEffect(() => {
+    nameRef.current?.focus();
+  }, []);
 
   // Sync traceId when traces list changes (e.g. after inline create)
   useEffect(() => {
@@ -262,6 +268,7 @@ export function TransactionForm({
           Name <span className="text-gray-600 normal-case font-normal">(optional)</span>
         </label>
         <input
+          ref={nameRef}
           type="text"
           value={label}
           onChange={(e) => setLabel(e.target.value)}

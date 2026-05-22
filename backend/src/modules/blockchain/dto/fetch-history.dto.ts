@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsIn, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsIn, ValidateNested, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class FetchHistoryOptions {
@@ -9,6 +9,16 @@ class FetchHistoryOptions {
   @IsOptional()
   @IsNumber()
   endBlock?: number;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'startDate must be YYYY-MM-DD' })
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'endDate must be YYYY-MM-DD' })
+  endDate?: string;
 
   @IsOptional()
   @IsNumber()

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { WalletNode, Trace } from '../types/investigation';
 import { ColorPicker } from './ColorPicker';
 import { TagInput } from './TagInput';
@@ -29,6 +29,12 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [labelTouched, setLabelTouched] = useState(!!wallet?.label && !prefill);
   const [creatingTrace, setCreatingTrace] = useState(false);
+  const labelRef = useRef<HTMLInputElement>(null);
+
+  // Focus the label input on mount so keyboard flow continues after the panel opens
+  useEffect(() => {
+    labelRef.current?.focus();
+  }, []);
 
   // Sync traceId when traces list changes (e.g. after inline create)
   useEffect(() => {
@@ -114,6 +120,7 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
       <div>
         <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Label</label>
         <input
+          ref={labelRef}
           type="text"
           value={label}
           onChange={(e) => { setLabel(e.target.value); setLabelTouched(true); }}

@@ -87,6 +87,61 @@ Charts store Chart.js-compatible data. The frontend renders them with react-char
 | `borderColor` | no | Line/border color |
 | `borderWidth` | no | Line/border width in pixels |
 
+### Annotations (reference lines, highlights, markers)
+
+The frontend registers `chartjs-plugin-annotation`, so you can attach annotations to any cartesian chart (`bar` or `line`) via `options.plugins.annotation.annotations`. Each entry is keyed by an arbitrary id.
+
+Supported annotation `type`s:
+
+| Type | Use case |
+|------|----------|
+| `line` | Horizontal threshold (constant `yMin`/`yMax`) or vertical event marker (constant `xMin`/`xMax`) |
+| `box` | Highlight a rectangular region (e.g. a time window of interest) |
+| `label` | Free-floating text label anchored to data coordinates |
+| `point` | Emphasise a single data point |
+| `ellipse` | Highlight a circular/elliptical region |
+
+#### Example: horizontal threshold + vertical event + highlighted window
+
+```json
+{
+  "chartType": "line",
+  "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+  "datasets": [{ "label": "NFTs held", "data": [40, 70, 120, 180, 220, 260], "borderColor": "rgba(59,130,246,1)" }],
+  "options": {
+    "plugins": {
+      "annotation": {
+        "annotations": {
+          "threshold": {
+            "type": "line",
+            "yMin": 100, "yMax": 100,
+            "borderColor": "rgba(239, 68, 68, 0.8)",
+            "borderWidth": 2,
+            "borderDash": [6, 4],
+            "label": { "display": true, "content": "100 NFT threshold", "position": "end", "color": "#fca5a5" }
+          },
+          "airdropEvent": {
+            "type": "line",
+            "xMin": "Mar", "xMax": "Mar",
+            "borderColor": "rgba(168, 85, 247, 0.8)",
+            "borderWidth": 2,
+            "label": { "display": true, "content": "Airdrop", "position": "start", "color": "#d8b4fe" }
+          },
+          "accumulationWindow": {
+            "type": "box",
+            "xMin": "Feb", "xMax": "Apr",
+            "backgroundColor": "rgba(59, 130, 246, 0.08)",
+            "borderColor": "rgba(59, 130, 246, 0.3)"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+For category-axis charts (the default), `xMin`/`xMax` must be **exact label strings** (e.g. `"Mar"`), not indices. For time/linear axes, use the raw value.
+
 ### Best practices
 
 - Use descriptive labels that make sense without context.
@@ -94,7 +149,8 @@ Charts store Chart.js-compatible data. The frontend renders them with react-char
 - Prefer `bar` for comparisons, `line` for time series.
 - Keep label count reasonable (under 20) — too many labels crowd the axis.
 - The chart renders at a fixed height of 384px (h-96), so design for a landscape aspect ratio.
-- The `options` field accepts any Chart.js options object — use it for axis labels, custom scales, or legend positioning.
+- The `options` field accepts any Chart.js options object — use it for axis labels, custom scales, legend positioning, or annotations.
+- Annotations are great for: regulatory thresholds, event timelines (airdrops, hacks, regime changes), and zone highlighting. Keep them sparse — too many turn the chart into noise.
 
 ## Chronologies
 

@@ -140,7 +140,7 @@ export const CREATE_PRODUCTION_TOOL: Anthropic.Tool = {
       },
       data: {
         type: 'object',
-        description: 'Production data. For report: { content: "<html>" }. For chart: { chartType, datasets[], labels[], options }. For chronology: { title, entries: [{ sourceUrl, sourceLabel?, date, description, details? }] }. sourceLabel is the short clickable text (e.g. "0x6ae5…"); if omitted, a label is auto-derived from sourceUrl. Legacy `source` is also accepted as an alias for sourceUrl.',
+        description: 'Production data. For report: { content: "<html>" }. For chart: { chartType, datasets[], labels[], options }. `options` accepts any Chart.js options object including `plugins.annotation.annotations` (chartjs-plugin-annotation is registered) for reference lines, thresholds, highlighted boxes, and labels — see the productions skill for the schema. For chronology: { title, entries: [{ sourceUrl, sourceLabel?, date, description, details? }] }. sourceLabel is the short clickable text (e.g. "0x6ae5…"); if omitted, a label is auto-derived from sourceUrl. Legacy `source` is also accepted as an alias for sourceUrl.',
       },
     },
     required: ['name', 'type', 'data'],

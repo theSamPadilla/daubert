@@ -6,12 +6,14 @@ import {
   BarElement, LineElement, PointElement, ArcElement,
   Title, Tooltip, Legend,
 } from 'chart.js';
+import annotationPlugin from 'chartjs-plugin-annotation';
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale, LinearScale,
   BarElement, LineElement, PointElement, ArcElement,
   Title, Tooltip, Legend,
+  annotationPlugin,
 );
 
 interface ChartData {

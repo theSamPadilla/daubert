@@ -20,8 +20,8 @@ This plan collapses the bar into a single consolidated input + one `Export` butt
 | 3 | `frontend/src/components/QuickAddInput.tsx` | Create | Consolidated input — accepts addresses or tx URLs/hashes; auto-routes via parser |
 | 4 | `frontend/src/components/ChainSelect.tsx` | Create | EVM-only chain dropdown with branded network icons from `@web3icons/react` |
 | 5 | `frontend/src/components/ExportModal.tsx` | Create | PNG vs. PDF picker, replaces the inline split-button + chevron dropdown |
-| 6 | `frontend/src/utils/addressParser.ts` | Modify | Add `detectChainFamily()` helper returning `'evm' \| 'tron' \| 'unknown'` |
-| 7 | `frontend/src/app/cases/[caseId]/investigations/page.tsx` | Modify | Render `CanvasToolPill`; wire `QuickAddInput` submit to `addWallet` directly for addresses, to the existing prefilled `createTransaction` form for txs; wire `ExportModal` |
+| 6 | `frontend/src/utils/addressParser.ts` | Modify | Add `inspectInput()` helper consolidating kind + family + chain inference into a single call |
+| 7 | `frontend/src/app/cases/[caseId]/investigations/page.tsx` | Modify | Render `CanvasToolPill`; wire `QuickAddInput` submit to `setPanelMode({ type: 'createWallet', prefill })` for addresses and `setPanelMode({ type: 'createTransaction', prefill })` for txs — both reuse today's form path. Wire `ExportModal`. Delete now-dead `handleAddWallet` / `handleAddTransaction` / `panelMode.linkInput` branches |
 | 8 | `frontend/src/components/LinkInputModal.tsx` | Delete | Fully replaced by `QuickAddInput` |
 | 9 | `frontend/package.json` | Modify | Add `@web3icons/react` dependency |
 
@@ -29,17 +29,28 @@ This plan collapses the bar into a single consolidated input + one `Export` butt
 
 **For the user (UX):**
 - Top bar contains: title (left) → consolidated input + chain dropdown + Export (right) → UserMenu. No more six-chip stripe.
-- Pasting a known-chain address (Tron, or any explorer URL) drops a wallet node onto the active trace immediately with a truncated label — no form step. Faster for the common "I have a list of addresses to add" flow.
-- Pasting a raw `0x…` EVM address uses whichever chain is selected in the dropdown next to the input.
-- Pasting a transaction (any form) still opens the prefilled `createTransaction` form so the user can wire endpoints — transactions are inherently multi-entity and don't survive a "skip the form" treatment.
+- Pasting an address (any form) opens the existing prefilled `WalletForm` — same form as today, just reached via the header input instead of a separate modal step. User glances over trace/label/chain/color/notes before committing.
+- Pasting a transaction (any form) fetches details, then opens the existing prefilled `createTransaction` form — unchanged from today's behavior.
 - Refresh / Undo / Redo become a floating icon-only pill in the top-left of the canvas, out of the way of primary controls but still one click away.
 - Export becomes a single button → modal with two clear choices instead of a split-button with a hidden chevron.
 
 **For the developer (DX):**
 - One add-entity entry point (`QuickAddInput`) instead of two near-identical buttons + a shared modal.
-- Parser gains a single source of truth for chain family: `detectChainFamily()`. The dropdown's disabled state is derived from this, not re-inferred per-callsite.
-- `LinkInputModal` deleted (~180 lines).
+- Parser gains a single source of truth: `inspectInput()` returns kind + family + chain in one call.
+- `LinkInputModal` deleted (~180 lines). The 3-step "modal → form" flow becomes "input → form."
 - Chain icons live in a library, not in-repo SVGs — adding a chain later is a one-line entry in `SUPPORTED_CHAINS` plus the matching `<Network*>` component.
+
+---
+
+## Engineering Decisions Made
+
+Folded in after a review pass — not product-facing, but worth recording so the implementer doesn't re-litigate:
+
+- **Tx fetch is `AbortController`-cancelable.** `QuickAddInput` keeps a ref to the in-flight controller and aborts on input change, unmount, or investigation change. Prevents a stale tx response from popping the form open over later state.
+- **`QuickAddInput` resets on `investigation.id` change.** A `useEffect` keyed on `investigation?.id` clears `value`, `loading`, and `error`, and aborts any in-flight tx fetch.
+- **Tx prefill uses the `primaryTransfer || detail` fallback verbatim** from `LinkInputModal.tsx:55-73` (token-transfer-first, native-tx fallback). Load-bearing detail; called out so it doesn't get dropped in translation.
+- **Parser consolidation:** `inspectInput()` is the single front door; `parseAddressInput` / `parseTxInput` / `detectInputType` stay exported for any other current consumers but `QuickAddInput` only calls `inspectInput`.
+- **Naming:** `family: 'evm'` covers ambiguous EVM-shaped input including bare tx hashes (which could be Tron). Acceptable because the dropdown is EVM-only by design; if Tron is needed, the user prefixes with the URL or uses raw `T…` for addresses.
 
 ---
 
@@ -48,10 +59,11 @@ This plan collapses the bar into a single consolidated input + one `Export` butt
 | Decision | Choice | Rationale |
 |---|---|---|
 | Pill placement | Floating, top-left of canvas | Matches Figma/tldraw convention; zero added vertical chrome. |
-| Address form step | **Skipped** — drop directly onto canvas with default label | Address adds are high-volume and have no required follow-up fields. |
-| Transaction form step | **Kept** — prefilled `createTransaction` form opens after tx fetch | Txs have two endpoints; "skip" would require an auto-create-missing-endpoint policy that's a real behavior change, not a UI move. Out of scope. |
-| Chain disambiguation | Family from prefix; EVM-only icon dropdown next to input; locked when family/chain already known from input | Single visible control, predictable. No surprise modal. |
-| LinkInputModal | Delete | Every path it handled is covered by `QuickAddInput`. |
+| Address form step | **Kept** — prefilled `WalletForm` opens after parse | User picks trace, glances over label/chain/color/notes/tags before committing. Resolves trace-destination, empty-investigation, and "lost on creation fields" concerns in one move. |
+| Transaction form step | **Kept** — prefilled `createTransaction` form opens after tx fetch | Unchanged from today's behavior. Symmetric with the address flow. |
+| Chain disambiguation | Family from prefix; EVM-only icon dropdown next to input; locked when family/chain already known from input | Pre-selects chain in the form prefill (and supplies chain for tx fetches on raw hex). Form's own chain picker remains the final override. |
+| Position-aware paths (double-click background, "Add Address Here" context menu) | Keep `WalletForm` directly — same form as the header path, just with position prefilled | One form across all entry points. |
+| LinkInputModal | Delete | Every path it handled is covered by `QuickAddInput` + existing form. |
 | Icon library | `@web3icons/react` (v4.x) | Maintained, tree-shakeable, covers Ethereum / Polygon / Arbitrum / Base / Tron with branded variants. |
 
 ---
@@ -62,33 +74,32 @@ This plan collapses the bar into a single consolidated input + one `Export` butt
 
 ```ts
 interface QuickAddInputProps {
-  onAddAddress: (prefill: Partial<WalletNode>) => void;   // address path — caller adds directly
-  onResolveTransaction: (prefill: Partial<TransactionEdge>) => void;  // tx path — caller opens prefilled form
+  onResolveAddress: (prefill: Partial<WalletNode>) => void;       // caller opens prefilled WalletForm
+  onResolveTransaction: (prefill: Partial<TransactionEdge>) => void;  // caller opens prefilled TransactionForm
   disabled?: boolean;
 }
 ```
 
-Internal state: `value`, `chain` (EVM-only id), `loading` (during tx fetch), `error`.
+Internal state: `value`, `chain` (EVM-only id, used for prefill chain when input is raw), `loading` (during tx fetch), `error`.
 
 Submit flow on Enter:
 
-1. `detectInputType(value)` → `'address' | 'transaction' | 'unknown'`.
+1. `inspectInput(value)` → `{ kind, family, chain?, address?, txHash?, explorerUrl? }`.
 2. **Address:**
-   - `parseAddressInput(value)` → if `parsed.chain` present (Tron raw, or explorer URL), use it. Else use selected EVM `chain`.
-   - Call `onAddAddress({ address, chain, label: truncate(address), explorerUrl })`.
+   - Resolved chain = `inspected.chain ?? (family === 'tron' ? 'tron' : dropdownChain)`.
+   - Call `onResolveAddress({ address, chain, label: truncate(address), explorerUrl })`. Caller opens `WalletForm` prefilled — same as today's `handleLinkResolved` address branch.
    - Clear input.
 3. **Transaction:**
-   - `parseTxInput(value)` → resolve chain same way (URL > selected EVM dropdown).
-   - Set `loading=true`, call `apiClient.getTransaction(hash, chain)`.
-   - On success: build prefill (same shape as today's `LinkInputModal.handleSubmit`), call `onResolveTransaction(prefill)`. Clear input.
+   - Resolved chain = `inspected.chain ?? dropdownChain`.
+   - Set `loading=true`, call `apiClient.getTransaction(txHash, chain)` with an `AbortController`.
+   - On success: build prefill (token-transfer-first, native-tx fallback), call `onResolveTransaction(prefill)`. Clear input.
    - On failure: surface error under input. Don't clear.
 4. **Unknown:** inline error "Not a recognized address or transaction." Don't submit.
 
-Chain dropdown gating:
-- `detectChainFamily(value)`:
-  - `'tron'` → dropdown shows Tron, disabled.
-  - `'evm'` or `'unknown'` → dropdown active, EVM chains only (Ethereum, Arbitrum, Base, Polygon).
-- If `parseAddressInput`/`parseTxInput` extracted a chain from a URL → dropdown reflects that chain, disabled.
+Chain dropdown gating (driven by `inspected.family` + `inspected.chain`):
+- Family `'tron'` → dropdown shows Tron, disabled.
+- `inspected.chain` set (URL-derived) → dropdown reflects that chain, disabled.
+- Otherwise → active, EVM options only (Ethereum, Arbitrum, Base, Polygon). Default = Ethereum.
 
 ### `ChainSelect`
 
@@ -129,49 +140,42 @@ interface ExportModalProps {
 
 Two large buttons (PNG / PDF) with brief one-liner under each. Closes on selection.
 
-### `detectChainFamily` (in `addressParser.ts`)
+### `inspectInput` (in `addressParser.ts`)
+
+Single helper that consolidates `detectInputType` + `parseAddressInput`/`parseTxInput` + the new family inference, so `QuickAddInput` calls one function instead of three with overlapping logic.
 
 ```ts
-export function detectChainFamily(input: string): 'evm' | 'tron' | 'unknown' {
-  const trimmed = input.trim();
-  if (!trimmed) return 'unknown';
-
-  // URL → derive from host (use existing EXPLORER_PATTERNS); we already get exact chain elsewhere,
-  // so for the family check, URL → 'evm' or 'tron' based on the matched chain.
-  try {
-    const url = new URL(trimmed);
-    const match = EXPLORER_PATTERNS.find(p => url.hostname === p.host || url.hostname === `www.${p.host}`);
-    if (match) return match.chain === 'tron' ? 'tron' : 'evm';
-  } catch { /* not a URL */ }
-
-  if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) return 'evm';
-  if (/^0x[0-9a-fA-F]{64}$/.test(trimmed)) return 'evm';
-  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) return 'evm';   // bare tx hash, EVM-shaped
-  if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(trimmed)) return 'tron';
-  return 'unknown';
+export interface InspectedInput {
+  kind: 'address' | 'transaction' | 'unknown';
+  family: 'evm' | 'tron' | 'unknown';  // determines whether the chain dropdown is active or locked
+  chain?: string;                       // exact chain id when derivable (URL host or Tron prefix); undefined for ambiguous EVM
+  address?: string;                     // populated when kind === 'address'
+  txHash?: string;                      // populated when kind === 'transaction'
+  explorerUrl?: string;                 // populated when input was a URL
 }
+
+export function inspectInput(input: string): InspectedInput;
 ```
+
+Internally reuses the existing `parseAddressInput` / `parseTxInput` / `detectInputType` (they stay for back-compat with anything else in the tree); `inspectInput` is the new front door. Family is derived from `chain` when present, otherwise from prefix/shape. Bare 64-hex with no `0x` is labeled `family: 'evm'` (the dropdown is EVM-only anyway; users can override).
+
+The dropdown's disabled state:
+- `family === 'tron'` → locked to Tron, disabled.
+- `chain` is set (URL-derived) → locked to that chain, disabled.
+- Otherwise → active, EVM options only.
 
 ---
 
 ## Wiring in `page.tsx`
 
-Replace today's `<Header ... onAddAddress={handleAddWallet} onAddTransaction={handleAddTransaction} ... />` with:
+Both callbacks reuse the existing form path — the only change vs today is that the input source becomes `QuickAddInput` instead of `LinkInputModal`. Downstream (`handleSaveNewWallet`, `handleSaveNewTransaction`, the `createWallet` / `createTransaction` panel modes, the `getAddressInfo` enrichment) is unchanged.
 
 ```tsx
 <Header
   investigation={investigation}
-  onAddAddress={(prefill) => {
-    if (!activeTraceId) return; // need an active trace
-    addWallet(activeTraceId, {
-      ...prefill,
-      position: defaultDropPosition(),
-    });
-  }}
-  onResolveTransaction={(prefill) => {
-    setPanelMode({ type: 'createTransaction', prefill });
-  }}
-  onExport={(format) => graphRef.current?.exportImage(format, investigation?.name || 'graph')}
+  onResolveAddress={(prefill) => setPanelMode({ type: 'createWallet', prefill })}
+  onResolveTransaction={(prefill) => setPanelMode({ type: 'createTransaction', prefill })}
+  onExportClick={() => setExportModalOpen(true)}
   rightContent={<UserMenu />}
 />
 <div className="flex-1 bg-gray-900 relative overflow-hidden">
@@ -182,33 +186,42 @@ Replace today's `<Header ... onAddAddress={handleAddWallet} onAddTransaction={ha
   />
   {/* ...rest unchanged */}
 </div>
+<ExportModal
+  open={exportModalOpen}
+  onClose={() => setExportModalOpen(false)}
+  onExport={(format) => graphRef.current?.exportImage(format, investigation?.name || 'graph')}
+/>
 ```
 
-`defaultDropPosition()` = canvas viewport center via `graphRef.current?.getViewportCenter()` (add if missing) or fall back to `{ x: 0, y: 0 }`.
+`handleCreateWalletAtPosition` (double-click background + "Add Address Here" context menu) gets repointed from `setPanelMode({ type: 'linkInput', ... })` to `setPanelMode({ type: 'createWallet', position })` directly — same `WalletForm`, no LinkInputModal step. Confirms the "one form everywhere" decision.
 
 ---
 
 ## Task breakdown (execution order)
 
 1. **Add `@web3icons/react` + build `ChainSelect`.** Verify all five chain icons render. No app wiring yet.
-2. **Add `detectChainFamily()` to `addressParser.ts`.** Pure function, easy to unit-check inline.
-3. **Build `QuickAddInput`.** Self-contained, accepts the two callbacks. Test in isolation by mounting it in a scratch route or storybook-style page if available — otherwise wire straight into Header in step 5 and test manually.
+2. **Add `inspectInput()` to `addressParser.ts`.** Pure function, easy to unit-check inline.
+3. **Build `QuickAddInput`.** Self-contained, accepts the two callbacks. Includes `AbortController` for tx fetch and `useEffect` reset on `investigation.id`.
 4. **Build `ExportModal` and `CanvasToolPill`.** Both are pure visual; trivial.
-5. **Refactor `Header.tsx`.** Strip old buttons, embed `QuickAddInput` + Export trigger. Open `ExportModal` from a single button.
-6. **Wire `page.tsx`.** Render `CanvasToolPill`; wire new Header callbacks; ensure `addWallet` receives a viewport-center position; add `getViewportCenter` on `GraphCanvas` if it doesn't exist.
-7. **Delete `LinkInputModal.tsx`** and any imports. Remove now-dead code paths in `page.tsx` (`panelMode.type === 'linkInput'`, `handleAddWallet`, `handleAddTransaction`).
+5. **Refactor `Header.tsx`.** Strip old buttons, embed `QuickAddInput` + Export trigger.
+6. **Wire `page.tsx`.** Render `CanvasToolPill`; wire `onResolveAddress` / `onResolveTransaction` to `setPanelMode`; wire `ExportModal`. Repoint `handleCreateWalletAtPosition` to `createWallet` panel mode directly.
+7. **Delete `LinkInputModal.tsx`** and remove dead paths (`panelMode.type === 'linkInput'`, `handleAddWallet`, `handleAddTransaction`) from `page.tsx`.
 8. **Manual QA pass.** See checklist below.
 
 ---
 
 ## Manual QA checklist
 
-- [ ] Paste raw EVM address with chain dropdown set to Ethereum → wallet node appears on canvas immediately, labeled `0x1234…abcd`, on active trace, at viewport center.
-- [ ] Switch chain dropdown to Arbitrum → paste raw address → wallet appears with `chain: 'arbitrum'`.
-- [ ] Paste a Tron raw address (`T…`) → dropdown locks to Tron + disabled → wallet appears with `chain: 'tron'`.
-- [ ] Paste an Etherscan `/address/0x…` URL → dropdown reflects Ethereum + disabled → wallet appears.
-- [ ] Paste an Etherscan `/tx/0x…` URL → spinner in input → `createTransaction` form opens prefilled.
+- [ ] Paste raw EVM address with chain dropdown set to Ethereum → `WalletForm` opens prefilled (chain=Ethereum, label truncated). Confirm save lands on chosen trace.
+- [ ] Switch chain dropdown to Arbitrum → paste raw address → `WalletForm` opens prefilled with `chain: 'arbitrum'`.
+- [ ] Paste a Tron raw address (`T…`) → dropdown locks to Tron + disabled → `WalletForm` opens prefilled with `chain: 'tron'`.
+- [ ] Paste an Etherscan `/address/0x…` URL → dropdown reflects Ethereum + disabled → `WalletForm` opens prefilled.
+- [ ] Paste an Etherscan `/tx/0x…` URL → spinner in input → `TransactionForm` opens prefilled with from/to/amount/token.
 - [ ] Paste a raw EVM tx hash with dropdown on Arbitrum → tx fetched against Arbitrum → form opens prefilled.
+- [ ] Mid-fetch, edit the input → in-flight tx request aborts; no stale form opens.
+- [ ] Switch investigation while input has text + chain selected → input clears, in-flight fetch aborts.
+- [ ] Double-click empty canvas → `WalletForm` opens with position prefilled (no LinkInputModal step).
+- [ ] Right-click empty canvas → "Add Address Here" → same as above.
 - [ ] Paste garbage → inline error, no submit.
 - [ ] Floating pill: Refresh re-fetches investigation; Undo/Redo respect `canUndo/canRedo`; tooltips show `⌘Z` / `⌘⇧Z`.
 - [ ] Export button → modal opens → PNG exports image; PDF exports PDF; modal closes on selection.
@@ -221,11 +234,10 @@ Replace today's `<Header ... onAddAddress={handleAddWallet} onAddTransaction={ha
 
 **Risks:**
 - **Input width on narrow viewports.** Header has title (left) + input + chain dropdown + Export + UserMenu (right). At ~1100px and below this gets tight. Mitigation: set input `min-w-[260px]`, allow it to flex-shrink, hide dropdown label text below `md` (icon-only). Title can truncate.
-- **Active trace assumption.** Skipping the form for addresses requires knowing which trace to add to. If `activeTraceId` is null (e.g., no traces yet), the input should be disabled with a tooltip ("Create a trace first"). Verify the empty-investigation state.
-- **Tx fetch latency in the header.** A 1–2s spinner sitting in the top bar is more visible than a spinner inside a modal. Acceptable, but worth noting if it feels janky.
+- **Tx fetch latency in the header.** A 1–2s spinner sitting in the top bar is more visible than a spinner inside a modal. Acceptable, but worth noting if it feels janky. Cancelable per Engineering Decisions.
 
 **Non-goals:**
-- Auto-creating missing tx endpoints (would let us skip the tx form too — deferred, real behavior change).
+- Restyling `WalletForm` / `TransactionForm` to feel more "brief" (deferred — separate density pass if needed).
 - Last-used-chain memory in the dropdown (nice-to-have, not in scope).
 - Pill shortcut customization (uses existing shortcuts unchanged).
 - Any visual changes to the canvas itself or to the sidebars.

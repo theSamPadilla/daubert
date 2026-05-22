@@ -17,6 +17,7 @@
     "@tiptap/react": "^3.22.4",
     "@tiptap/starter-kit": "^3.22.4",
     "chart.js": "^4.5.1",
+    "chartjs-plugin-annotation": "^3.1.0",
     "cytoscape": "^3.30.4",
     "firebase": "^12.12.1",
     "next": "^14.2.0",

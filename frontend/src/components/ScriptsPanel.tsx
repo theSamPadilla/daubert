@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { FaChevronRight, FaChevronDown } from 'react-icons/fa6';
 import { type ScriptRun } from '@/lib/api-client';
 
 const STATUS_DOT: Record<string, string> = {
@@ -30,35 +32,49 @@ export function ScriptsPanel({
   selectedScriptRunId,
   onSelectScriptRun,
 }: ScriptsPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <div className="border-t border-gray-700 flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2">
-        <h3 className="text-xs font-semibold text-gray-400 uppercase">Scripts</h3>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-1.5 w-full px-3 py-2 hover:bg-gray-700/40 transition-colors text-left"
+        title={expanded ? 'Collapse scripts' : 'Expand scripts'}
+      >
+        <span className="text-gray-500">
+          {expanded ? <FaChevronDown size={9} /> : <FaChevronRight size={9} />}
+        </span>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex-1">Scripts</h3>
         <span className="text-[10px] text-gray-500">{scriptRuns.length}</span>
-      </div>
-      <div className="overflow-y-auto max-h-48">
-        {scriptRuns.map((run) => (
-          <div
-            key={run.id}
-            onClick={() => onSelectScriptRun(run)}
-            className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-700 text-sm transition-colors ${
-              selectedScriptRunId === run.id ? 'bg-gray-700' : ''
-            }`}
-          >
-            <span
-              className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[run.status] || STATUS_DOT.error}`}
-            />
-            <span className="flex-1 truncate text-xs text-gray-300">{run.name}</span>
-            <span className="text-[10px] text-gray-500 shrink-0">{timeAgo(run.createdAt)}</span>
+      </button>
+      {expanded && (
+        <>
+          <div className="overflow-y-auto max-h-48">
+            {scriptRuns.map((run) => (
+              <div
+                key={run.id}
+                onClick={() => onSelectScriptRun(run)}
+                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-700 text-sm transition-colors ${
+                  selectedScriptRunId === run.id ? 'bg-gray-700' : ''
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[run.status] || STATUS_DOT.error}`}
+                />
+                <span className="flex-1 truncate text-xs text-gray-300">{run.name}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{timeAgo(run.createdAt)}</span>
+              </div>
+            ))}
+            {scriptRuns.length === 0 && (
+              <p className="text-gray-500 text-xs px-3 pb-2">
+                No scripts yet. Ask the AI to query blockchain APIs.
+              </p>
+            )}
           </div>
-        ))}
-        {scriptRuns.length === 0 && (
-          <p className="text-gray-500 text-xs px-3 pb-2">
-            No scripts yet. Ask the AI to query blockchain APIs.
-          </p>
-        )}
-      </div>
-      <div className="h-4" />
+          <div className="h-2" />
+        </>
+      )}
     </div>
   );
 }

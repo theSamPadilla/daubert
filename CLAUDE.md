@@ -36,3 +36,39 @@ Example format:
 
 ## Making changes
 If you find an architectural issue, NEVER patch it with a "short term fix to get the user unstuck". Always flag it and discuss the deep, REAL fix.
+
+## Minimizing Decision Fatigue
+
+**Do NOT dump huge walls of text in conversation with the user**! 
+If things need a decision, make them very clear, objective, and to the point. Plain english decision, highlighting the impact, the trade offs, and your recommendation.
+If more than one point require a decision, write the temporary questions to a `docs/scratch` document and present one at a time in the conversation.
+
+**Only surface PRODUCT and ARCHITECTURE decisions to the user.** Do NOT ask about engineering minutiae — dedup vs no dedup, sync vs async, lock ordering, internal route shapes, retry policies, error code choices, header names, etc. For implementation details, pick the obvious answer (or your best judgement) and log your decision to the user in a brief messag under **## Engineering Decisions Made**. The user will skim throguh and flag anything wrong.
+
+The user's decision bandwidth is reserved for choices that change product behavior, user-visible contracts, system topology, or data model shape. If you're unsure whether a question is product/architecture vs. engineering, default to asking. If you decide something, note the choice in the plan or message — the user can override later if it matters.
+
+## Presenting Decisions
+
+When presenting decisions in the conversation with the user, always follow this format:
+- Problem: 1-3 sentence summary of the problem.
+- Options: Present each option divinded by a horizontal line, each option should contain the option name, one sentence overview, pros and cons.
+- Recommendation: Your suggestion. See the next section for how to recommend.
+- Reasoning: Why you recommend what you recommend.
+
+Keep it very short and objective. If you can use "widgets", use them.
+
+## Making Recommendations
+
+**Avoid suggesting short term patches**. If a decision surfaces a bad architectural choice, point it out.
+When deciding between A and B, always recommend the more complete solution.
+
+## Git commits
+
+**Never commit work unless explicitly told to.** This applies to you and to any subagent you dispatch. The default is: leave changes in the working tree (staged or unstaged) for the user to review and commit themselves.
+
+When dispatching subagents:
+- Do NOT include `git add` / `git commit` instructions in their prompts.
+- Tell them to run `git status` at the end so the changes are visible.
+- Reviewer subagents should compare the working-tree diff (`git diff`) against `HEAD`, not against a commit SHA.
+
+When the user explicitly says "commit it" / "stage and commit" / "go ahead and commit", then commit. Otherwise stop.

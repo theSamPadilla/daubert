@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { AuthGuard } from '@/components/AuthGuard';
 import UserMenu from '@/components/UserMenu';
 import { apiClient, type Case } from '@/lib/api-client';
@@ -23,10 +24,32 @@ function CaseSelector() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="relative min-h-screen bg-gray-900 text-white overflow-hidden">
+      {/* Subtle decorative gradient + watermark */}
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            'radial-gradient(900px 500px at 15% -10%, rgba(59, 130, 246, 0.08), transparent 60%), radial-gradient(700px 400px at 95% 110%, rgba(168, 85, 247, 0.06), transparent 60%)',
+        }}
+      />
+      <div className="pointer-events-none absolute -right-24 top-24 -z-10 opacity-[0.035] select-none">
+        <Image src="/logo-light.png" alt="" width={520} height={520} priority />
+      </div>
+
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-        <h1 className="text-lg font-bold">Daubert</h1>
+        <div className="flex items-center gap-2.5">
+          <Image
+            src="/logo-light.png"
+            alt="Daubert"
+            width={28}
+            height={28}
+            priority
+            className="opacity-90"
+          />
+          <h1 className="text-lg font-bold tracking-tight">Daubert</h1>
+        </div>
         <UserMenu />
       </header>
 

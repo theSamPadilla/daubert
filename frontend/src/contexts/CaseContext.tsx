@@ -49,6 +49,10 @@ export interface CaseContextValue {
   productions: Production[];
   setProductions: Dispatch<SetStateAction<Production[]>>;
 
+  // --- Investigations list refresh (sidebar watches this) ---
+  investigationsVersion: number;
+  reloadInvestigations: () => void;
+
   // --- New Primary modal ---
   newPrimaryOpen: boolean;
   newPrimaryDefault: 'investigation' | 'production';
@@ -73,6 +77,8 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
   const [chatWidth, setChatWidth] = useState(480);
   const [newPrimaryOpen, setNewPrimaryOpen] = useState(false);
   const [newPrimaryDefault, setNewPrimaryDefault] = useState<'investigation' | 'production'>('investigation');
+  const [investigationsVersion, setInvestigationsVersion] = useState(0);
+  const reloadInvestigations = useCallback(() => setInvestigationsVersion((n) => n + 1), []);
 
   // Store graph callback in a ref so chat doesn't re-render on every callback change
   const graphUpdatedRef = useRef<(() => void) | undefined>(undefined);
@@ -112,6 +118,8 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
     updateSidebar,
     productions,
     setProductions,
+    investigationsVersion,
+    reloadInvestigations,
     sidebarOpen,
     setSidebarOpen,
     sidebarWidth,

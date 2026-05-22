@@ -7,12 +7,13 @@ interface InvestigationFormProps {
   onSave: (updates: { name: string; notes: string }) => void;
   onDelete: () => void;
   onCancel: () => void;
+  onDuplicate?: () => void | Promise<void>;
 }
 
-export function InvestigationForm({ investigation, traces, onSave, onDelete, onCancel }: InvestigationFormProps) {
+export function InvestigationForm({ investigation, traces, onSave, onDelete, onCancel, onDuplicate }: InvestigationFormProps) {
   const [name, setName] = useState(investigation.name);
   const [notes, setNotes] = useState(investigation.notes || '');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,23 +73,31 @@ export function InvestigationForm({ investigation, traces, onSave, onDelete, onC
         <button type="button" onClick={onCancel} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">
           Cancel
         </button>
-        {showDeleteConfirm ? (
+        {onDuplicate && (
           <button
             type="button"
-            onClick={onDelete}
-            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded text-sm ml-auto transition-colors"
+            disabled={duplicating}
+            onClick={async () => {
+              setDuplicating(true);
+              try {
+                await onDuplicate();
+              } finally {
+                setDuplicating(false);
+              }
+            }}
+            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded text-sm transition-colors"
+            title="Create a copy with the same traces"
           >
-            Confirm Delete
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowDeleteConfirm(true)}
-            className="px-3 py-1.5 text-red-400 hover:text-red-300 rounded text-sm ml-auto transition-colors"
-          >
-            Delete
+            {duplicating ? 'Duplicating…' : 'Duplicate'}
           </button>
         )}
+        <button
+          type="button"
+          onClick={onDelete}
+          className="px-3 py-1.5 text-red-400 hover:text-red-300 rounded text-sm ml-auto transition-colors"
+        >
+          Delete
+        </button>
       </div>
     </form>
   );

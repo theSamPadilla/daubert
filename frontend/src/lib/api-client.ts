@@ -247,6 +247,8 @@ export const apiClient = {
     request<Investigation>(`/investigations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteInvestigation: (id: string) =>
     request<void>(`/investigations/${id}`, { method: 'DELETE' }),
+  duplicateInvestigation: (id: string) =>
+    request<Investigation>(`/investigations/${id}/duplicate`, { method: 'POST' }),
 
   // Traces
   listTraces: (investigationId: string) =>

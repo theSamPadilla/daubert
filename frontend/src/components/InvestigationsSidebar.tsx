@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
 import { FaPen, FaChevronRight, FaChevronDown, FaArrowLeft } from 'react-icons/fa6';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { apiClient, type Investigation, type DataRoomConnection } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
 import { ScriptsPanel } from './ScriptsPanel';
@@ -32,9 +32,11 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
     onEditInvestigation,
   } = ctx.sidebar;
 
-  const { productions } = ctx;
-  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-  const selectedProductionId = pathname?.startsWith(`/cases/${caseId}/productions`) ? searchParams.get('id') : null;
+  const { productions, investigationsVersion } = ctx;
+  const searchParams = useSearchParams();
+  const onInvestigationsRoute = !!pathname?.startsWith(`/cases/${caseId}/investigations`);
+  const onProductionsRoute = !!pathname?.startsWith(`/cases/${caseId}/productions`);
+  const selectedProductionId = onProductionsRoute ? searchParams?.get('id') ?? null : null;
 
   const [caseName, setCaseName] = useState('');
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
@@ -62,7 +64,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
 
   useEffect(() => {
     loadInvestigations();
-  }, [loadInvestigations]);
+  }, [loadInvestigations, investigationsVersion]);
 
   // Refetch data-room state on mount and pathname changes
   useEffect(() => {
@@ -109,7 +111,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
       {/* Investigation list */}
       <div className="flex-1 overflow-y-auto">
         {investigations.map((inv) => {
-          const isActive = activeInvestigationId === inv.id;
+          const isActive = activeInvestigationId === inv.id && onInvestigationsRoute;
           const isInvCollapsed = collapsedInvs.has(inv.id);
           return (
             <div key={inv.id}>

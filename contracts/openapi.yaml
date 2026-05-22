@@ -16,6 +16,8 @@ paths:
     $ref: './paths/investigations.yaml#/~1cases~1{caseId}~1investigations'
   /investigations/{id}:
     $ref: './paths/investigations.yaml#/~1investigations~1{id}'
+  /investigations/{id}/duplicate:
+    $ref: './paths/investigations.yaml#/~1investigations~1{id}~1duplicate'
   /investigations/{investigationId}/traces:
     $ref: './paths/traces.yaml#/~1investigations~1{investigationId}~1traces'
   /traces/{id}:

@@ -39,6 +39,11 @@ export class InvestigationsController {
     return this.service.remove(id, getPrincipal(req));
   }
 
+  @Post('investigations/:id/duplicate')
+  duplicate(@Param('id') id: string, @Req() req: any) {
+    return this.service.duplicate(id, getPrincipal(req));
+  }
+
   @Get('investigations/:id/script-runs')
   listScriptRuns(@Param('id') id: string, @Req() req: any) {
     return this.service.listScriptRuns(id, getPrincipal(req));

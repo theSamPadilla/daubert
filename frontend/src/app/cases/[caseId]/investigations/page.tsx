@@ -8,6 +8,7 @@ import { Header } from '@/components/Header';
 import { DetailsPanel, type DetailsPanelHandle } from '@/components/DetailsPanel';
 import { FloatingPanel } from '@/components/FloatingPanel';
 import { InvestigationForm } from '@/components/InvestigationForm';
+import { ConfirmDeleteModal } from '@/components/ConfirmDeleteModal';
 import { FetchModal } from '@/components/FetchModal';
 import { BatchEditPanel } from '@/components/BatchEditPanel';
 import { EdgeBatchPanel } from '@/components/EdgeBatchPanel';
@@ -257,15 +258,15 @@ function InvestigationsWorkspace() {
   const graphRef = useRef<GraphCanvasHandle>(null);
   const detailsPanelRef = useRef<DetailsPanelHandle>(null);
   const [editingInvestigation, setEditingInvestigation] = useState<ApiInvestigation | null>(null);
+  const [deletingInvestigation, setDeletingInvestigation] = useState<ApiInvestigation | null>(null);
   const [fetchModalWallet, setFetchModalWallet] = useState<{ address: string; chain: string } | null>(null);
-  const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [selectedNodeIds, setSelectedNodeIds] = useState<{ id: string; traceId: string }[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   const [panelMode, setPanelMode] = useState<PanelMode>({ type: 'none' });
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
-  const { updateSidebar, setOnGraphUpdated } = useCaseContext();
+  const { updateSidebar, setOnGraphUpdated, reloadInvestigations } = useCaseContext();
 
   // Load investigation from backend when selection changes
   const loadInvestigationFromApi = useCallback(async (id: string) => {
@@ -1222,17 +1223,41 @@ function InvestigationsWorkspace() {
                   onSave={async (updates) => {
                     await apiClient.updateInvestigation(editingInvestigation.id, updates);
                     setEditingInvestigation(null);
-                    setSidebarRefresh((n) => n + 1);
+                    reloadInvestigations();
                   }}
-                  onDelete={async () => {
-                    await apiClient.deleteInvestigation(editingInvestigation.id);
+                  onDelete={() => {
+                    setDeletingInvestigation(editingInvestigation);
                     setEditingInvestigation(null);
-                    setActiveInvestigationId(null);
-                    setSidebarRefresh((n) => n + 1);
+                  }}
+                  onDuplicate={async () => {
+                    const copy = await apiClient.duplicateInvestigation(editingInvestigation.id);
+                    setEditingInvestigation(null);
+                    reloadInvestigations();
+                    router.push(`/cases/${caseId}/investigations?inv=${copy.id}`);
                   }}
                   onCancel={() => setEditingInvestigation(null)}
                 />
               </FloatingPanel>
+            )}
+
+            {deletingInvestigation && (
+              <ConfirmDeleteModal
+                title="Delete investigation"
+                expectedText={deletingInvestigation.name}
+                message={
+                  <>
+                    This will permanently delete <span className="text-gray-200 font-medium">{deletingInvestigation.name}</span> and all of its traces, nodes, edges, and scripts. This cannot be undone.
+                  </>
+                }
+                onConfirm={async () => {
+                  const id = deletingInvestigation.id;
+                  await apiClient.deleteInvestigation(id);
+                  setDeletingInvestigation(null);
+                  if (activeInvestigationId === id) setActiveInvestigationId(null);
+                  reloadInvestigations();
+                }}
+                onCancel={() => setDeletingInvestigation(null)}
+              />
             )}
 
             {fetchModalWallet && investigation && (

@@ -32,10 +32,10 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 
   if (noAccount) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-surface">
         <div className="max-w-sm text-center space-y-4">
-          <h2 className="text-xl font-bold text-white">No Account Found</h2>
-          <p className="text-gray-400">
+          <h2 className="text-xl font-bold text-ink">No Account Found</h2>
+          <p className="text-ink-muted">
             No account found for {firebaseUser.email}.
             Contact our team to get access.
           </p>
@@ -50,10 +50,10 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 
   if (user.email.split('@')[1] !== ADMIN_EMAIL_DOMAIN) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-surface">
         <div className="max-w-sm text-center space-y-4">
-          <h2 className="text-xl font-bold text-white">Access Denied</h2>
-          <p className="text-gray-400">
+          <h2 className="text-xl font-bold text-ink">Access Denied</h2>
+          <p className="text-ink-muted">
             This page requires administrator access.
           </p>
         </div>

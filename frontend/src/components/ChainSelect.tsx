@@ -30,7 +30,7 @@ function ChainIcon({ chainId }: { chainId: string }) {
   if (Icon) {
     return <Icon variant="branded" size={16} />;
   }
-  return <span className="w-4 h-4 rounded-full bg-gray-500 inline-block flex-shrink-0" />;
+  return <span className="w-4 h-4 rounded-full bg-surface-raised inline-block flex-shrink-0" />;
 }
 
 export function ChainSelect({ value, options, onChange, disabled }: ChainSelectProps) {
@@ -78,8 +78,8 @@ export function ChainSelect({ value, options, onChange, disabled }: ChainSelectP
         className={[
           'flex items-center gap-1.5 px-2 py-1.5 rounded text-sm transition-colors',
           disabled
-            ? 'bg-gray-700 opacity-50 cursor-not-allowed'
-            : 'bg-gray-700 hover:bg-gray-600 cursor-pointer',
+            ? 'bg-surface-raised opacity-50 cursor-not-allowed'
+            : 'bg-surface-raised hover:bg-surface-raised cursor-pointer',
         ].join(' ')}
       >
         <ChainIcon chainId={value} />
@@ -88,7 +88,7 @@ export function ChainSelect({ value, options, onChange, disabled }: ChainSelectP
       </button>
 
       {open && (
-        <div className="absolute left-0 mt-1 min-w-full bg-gray-700 border border-gray-600 rounded shadow-lg z-50 overflow-hidden">
+        <div className="absolute left-0 mt-1 min-w-full bg-surface-raised border border-line-strong rounded shadow-lg z-50 overflow-hidden">
           {options.map((chainId) => {
             const name = SUPPORTED_CHAINS[chainId]?.name ?? chainId;
             const isSelected = chainId === value;
@@ -99,7 +99,7 @@ export function ChainSelect({ value, options, onChange, disabled }: ChainSelectP
                 onClick={() => handleSelect(chainId)}
                 className={[
                   'w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2',
-                  isSelected ? 'bg-gray-600' : 'hover:bg-gray-600',
+                  isSelected ? 'bg-surface-raised' : 'hover:bg-surface-raised',
                 ].join(' ')}
               >
                 <ChainIcon chainId={chainId} />

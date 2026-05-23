@@ -35,18 +35,18 @@ export function ScriptsPanel({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border-t border-gray-700 flex flex-col">
+    <div className="border-t border-line-strong flex flex-col">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex items-center gap-1.5 w-full px-3 py-2 hover:bg-gray-700/40 transition-colors text-left"
+        className="flex items-center gap-1.5 w-full px-3 py-2 hover:bg-surface-raised/40 transition-colors text-left"
         title={expanded ? 'Collapse scripts' : 'Expand scripts'}
       >
-        <span className="text-gray-500">
+        <span className="text-ink-faint">
           {expanded ? <FaChevronDown size={9} /> : <FaChevronRight size={9} />}
         </span>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex-1">Scripts</h3>
-        <span className="text-[10px] text-gray-500">{scriptRuns.length}</span>
+        <h3 className="text-xs font-semibold text-ink-muted uppercase tracking-wider flex-1">Scripts</h3>
+        <span className="text-[10px] text-ink-faint">{scriptRuns.length}</span>
       </button>
       {expanded && (
         <>
@@ -55,19 +55,19 @@ export function ScriptsPanel({
               <div
                 key={run.id}
                 onClick={() => onSelectScriptRun(run)}
-                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-700 text-sm transition-colors ${
-                  selectedScriptRunId === run.id ? 'bg-gray-700' : ''
+                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-surface-raised text-sm transition-colors ${
+                  selectedScriptRunId === run.id ? 'bg-surface-raised' : ''
                 }`}
               >
                 <span
                   className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[run.status] || STATUS_DOT.error}`}
                 />
-                <span className="flex-1 truncate text-xs text-gray-300">{run.name}</span>
-                <span className="text-[10px] text-gray-500 shrink-0">{timeAgo(run.createdAt)}</span>
+                <span className="flex-1 truncate text-xs text-ink-muted">{run.name}</span>
+                <span className="text-[10px] text-ink-faint shrink-0">{timeAgo(run.createdAt)}</span>
               </div>
             ))}
             {scriptRuns.length === 0 && (
-              <p className="text-gray-500 text-xs px-3 pb-2">
+              <p className="text-ink-faint text-xs px-3 pb-2">
                 No scripts yet. Ask the AI to query blockchain APIs.
               </p>
             )}

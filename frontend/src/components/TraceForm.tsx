@@ -36,22 +36,22 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Name</label>
+        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Name</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
           required
         />
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Type</label>
+        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Type</label>
         <select
           value={type}
           onChange={(e) => setType(e.target.value as typeof type)}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
         >
           <option value="custom">Custom</option>
           <option value="time">Time Range</option>
@@ -62,39 +62,39 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
       {type === 'time' && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-xs text-gray-400 block mb-1">Start</label>
+            <label className="text-xs text-ink-muted block mb-1">Start</label>
             <input
               type="date"
               value={startDate}
               max={today}
               onChange={(e) => { setStartDate(e.target.value); if (endDate && e.target.value > endDate) setEndDate(''); }}
-              className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
+              className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-xs"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-400 block mb-1">End</label>
+            <label className="text-xs text-ink-muted block mb-1">End</label>
             <input
               type="date"
               value={endDate}
               min={startDate || undefined}
               max={today}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
+              className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-xs"
             />
           </div>
         </div>
       )}
 
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Color</label>
+        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Color</label>
         <ColorPicker value={color} onChange={setColor} allowNone />
       </div>
 
       <div className="flex gap-2 pt-2">
-        <button type="submit" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded text-sm">
+        <button type="submit" className="px-3 py-1.5 bg-brand hover:bg-brand/90 rounded text-sm">
           Save
         </button>
-        <button type="button" onClick={onCancel} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+        <button type="button" onClick={onCancel} className="px-3 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm">
           Cancel
         </button>
         {onDelete && (

@@ -65,14 +65,14 @@ function ColorPicker({ color, onChange }: { color: string; onChange: (c: string)
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-3.5 h-3.5 rounded-full border-2 border-gray-600 hover:border-gray-400 transition-colors shrink-0"
+        className="w-3.5 h-3.5 rounded-full border-2 border-line-strong hover:border-gray-400 transition-colors shrink-0"
         style={{ backgroundColor: color }}
         title="Change color"
       />
       {open && (
         <>
           <div className="fixed inset-0 z-40" onMouseDown={() => setOpen(false)} />
-          <div className="absolute right-0 top-5 z-50 bg-gray-900 border border-gray-700 rounded-lg p-2 shadow-2xl" style={{ width: '116px' }}>
+          <div className="absolute right-0 top-5 z-50 bg-surface border border-line-strong rounded-lg p-2 shadow-2xl" style={{ width: '116px' }}>
             <div className="grid grid-cols-4 gap-1.5">
               {PRESET_COLORS.map((c) => (
                 <button
@@ -87,7 +87,7 @@ function ColorPicker({ color, onChange }: { color: string; onChange: (c: string)
               ))}
               <button
                 onClick={() => customRef.current?.click()}
-                className="w-6 h-6 rounded-full border-2 border-dashed border-gray-600 hover:border-gray-400 flex items-center justify-center text-gray-400 hover:text-white text-xs transition-colors"
+                className="w-6 h-6 rounded-full border-2 border-dashed border-line-strong hover:border-gray-400 flex items-center justify-center text-ink-muted hover:text-white text-xs transition-colors"
                 title="Custom color"
               >
                 +
@@ -111,7 +111,7 @@ function EditDeleteActions({ onEdit, onDelete }: { onEdit: () => void; onDelete:
   const [confirmDelete, setConfirmDelete] = useState(false);
   return (
     <div className="flex items-center gap-2">
-      <button onClick={onEdit} title="Edit" className="text-gray-500 hover:text-gray-300 transition-colors">
+      <button onClick={onEdit} title="Edit" className="text-ink-faint hover:text-ink-muted transition-colors">
         {EDIT_ICON}
       </button>
       {confirmDelete ? (
@@ -120,12 +120,12 @@ function EditDeleteActions({ onEdit, onDelete }: { onEdit: () => void; onDelete:
             className="text-[10px] px-1.5 py-0.5 bg-red-600 hover:bg-red-500 rounded text-white">
             Delete
           </button>
-          <button onClick={() => setConfirmDelete(false)} className="text-[10px] text-gray-400 hover:text-white">
+          <button onClick={() => setConfirmDelete(false)} className="text-[10px] text-ink-muted hover:text-white">
             Cancel
           </button>
         </div>
       ) : (
-        <button onClick={() => setConfirmDelete(true)} title="Delete" className="text-gray-500 hover:text-red-400 transition-colors">
+        <button onClick={() => setConfirmDelete(true)} title="Delete" className="text-ink-faint hover:text-red-400 transition-colors">
           {TRASH_ICON}
         </button>
       )}
@@ -994,8 +994,8 @@ function InvestigationsWorkspace() {
     if (panelMode.type === 'createWallet') {
       return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40">
-          <div className="bg-gray-800 rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
-            <h3 className="text-sm font-semibold text-gray-300 uppercase mb-4">New Address</h3>
+          <div className="bg-surface-panel rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
+            <h3 className="text-sm font-semibold text-ink-muted uppercase mb-4">New Address</h3>
             <WalletForm
               traces={investigation.traces}
               selectedTraceId={investigation.traces[0]?.id}
@@ -1012,8 +1012,8 @@ function InvestigationsWorkspace() {
     if (panelMode.type === 'createTransaction') {
       return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40">
-          <div className="bg-gray-800 rounded-lg p-6 w-[480px] max-h-[80vh] overflow-y-auto">
-            <h3 className="text-sm font-semibold text-gray-300 uppercase mb-4">New Transaction</h3>
+          <div className="bg-surface-panel rounded-lg p-6 w-[480px] max-h-[80vh] overflow-y-auto">
+            <h3 className="text-sm font-semibold text-ink-muted uppercase mb-4">New Transaction</h3>
             <TransactionForm
               traces={investigation.traces}
               allWallets={allWallets}
@@ -1037,9 +1037,9 @@ function InvestigationsWorkspace() {
           <Header
             investigation={investigation}
             onExportClick={() => setExportModalOpen(true)}
-            rightContent={<UserMenu />}
+            rightContent={<UserMenu variant="light" />}
           />
-          <div className="flex-1 bg-gray-900 relative overflow-hidden">
+          <div className="flex-1 bg-surface relative overflow-hidden">
             {investigation && (
               <CanvasToolPill
                 onRefresh={() => activeInvestigationId && loadInvestigationFromApi(activeInvestigationId)}
@@ -1073,7 +1073,7 @@ function InvestigationsWorkspace() {
             {(selectedNodeIds.length >= 2 || selectedEdgeIds.length >= 2) && (
               <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-20">
                 {selectedNodeIds.length >= 2 && (
-                  <div className="w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl max-h-[60vh] flex flex-col">
+                  <div className="w-80 bg-surface-panel border border-line-strong rounded-lg shadow-2xl max-h-[60vh] flex flex-col">
                     <BatchEditPanel
                       count={selectedNodeIds.length}
                       onRename={handleBatchRename}
@@ -1095,7 +1095,7 @@ function InvestigationsWorkspace() {
                   </div>
                 )}
                 {selectedEdgeIds.length >= 2 && (
-                  <div className="w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl">
+                  <div className="w-80 bg-surface-panel border border-line-strong rounded-lg shadow-2xl">
                     <EdgeBatchPanel
                       count={selectedEdgeIds.length}
                       onBundle={handleBundleEdges}
@@ -1271,7 +1271,7 @@ function InvestigationsWorkspace() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <h2 className="text-2xl font-bold mb-2">Daubert</h2>
-            <p className="text-gray-500">Select or create an investigation to begin</p>
+            <p className="text-ink-faint">Select or create an investigation to begin</p>
           </div>
         </div>
       )}

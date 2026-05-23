@@ -26,37 +26,37 @@ export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselec
     <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-white">{count} nodes selected</span>
-        <button onClick={onDeselect} className="text-xs text-gray-400 hover:text-white">
+        <span className="text-sm font-semibold text-ink">{count} nodes selected</span>
+        <button onClick={onDeselect} className="text-xs text-ink-muted hover:text-ink">
           Deselect
         </button>
       </div>
 
       {/* Rename All */}
       <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Rename All</h4>
+        <h4 className="text-xs font-semibold text-ink-muted uppercase mb-2">Rename All</h4>
         <div className="flex gap-2">
           <input
             type="text"
             value={prefix}
             onChange={(e) => setPrefix(e.target.value)}
             placeholder="Prefix..."
-            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            className="flex-1 bg-surface-raised border border-line-strong rounded px-2 py-1 text-sm text-ink placeholder-ink-faint focus:outline-none focus:border-brand"
           />
           <button
             onClick={() => { if (prefix.trim()) { onRename(prefix.trim()); setPrefix(''); } }}
             disabled={!prefix.trim()}
-            className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 rounded text-xs text-white"
+            className="px-3 py-1 bg-brand hover:bg-brand/90 disabled:opacity-40 disabled:hover:bg-brand rounded text-xs text-white"
           >
             Apply
           </button>
         </div>
-        <p className="text-[10px] text-gray-500 mt-1">Generates &quot;Prefix 1&quot;, &quot;Prefix 2&quot;, etc.</p>
+        <p className="text-[10px] text-ink-faint mt-1">Generates &quot;Prefix 1&quot;, &quot;Prefix 2&quot;, etc.</p>
       </div>
 
       {/* Change Color */}
       <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Change Color</h4>
+        <h4 className="text-xs font-semibold text-ink-muted uppercase mb-2">Change Color</h4>
         <div className="flex gap-2 flex-wrap">
           {COLOR_PRESETS.map((color) => (
             <button
@@ -71,8 +71,8 @@ export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselec
 
       {/* ── Structural actions ─────────────────────────────────────────── */}
       {(onGroupNodes || onExtractToTrace || onAddToGroup) && (
-        <div className="pt-3 border-t border-gray-700 space-y-2">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Organize</h4>
+        <div className="pt-3 border-t border-line-strong space-y-2">
+          <h4 className="text-xs font-semibold text-ink-faint uppercase mb-3">Organize</h4>
 
           {/* Add to existing group */}
           {onAddToGroup && (
@@ -81,7 +81,7 @@ export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselec
                 <FaObjectGroup size={12} className="text-teal-400 shrink-0" />
                 <span className="text-xs font-semibold text-teal-300">Add to group</span>
               </div>
-              <p className="text-[10px] text-gray-400 leading-relaxed">
+              <p className="text-[10px] text-ink-muted leading-relaxed">
                 Add the selected nodes to <span className="text-teal-300 font-medium">{onAddToGroup.groupName}</span>.
               </p>
               <button
@@ -101,7 +101,7 @@ export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselec
                 <FaLayerGroup size={12} className="text-violet-400 shrink-0" />
                 <span className="text-xs font-semibold text-violet-300">Group within trace</span>
               </div>
-              <p className="text-[10px] text-gray-400 leading-relaxed">
+              <p className="text-[10px] text-ink-muted leading-relaxed">
                 Visually cluster these nodes inside a named group. Stays in the same trace.
               </p>
               <div className="flex gap-2">
@@ -111,7 +111,7 @@ export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselec
                   onChange={(e) => setGroupName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && groupName.trim()) { onGroupNodes(groupName.trim()); setGroupName(''); } }}
                   placeholder="Group name..."
-                  className="flex-1 bg-gray-800 border border-violet-500/40 rounded px-2 py-1 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-400"
+                  className="flex-1 bg-surface-panel border border-violet-500/40 rounded px-2 py-1 text-sm text-ink placeholder-ink-faint focus:outline-none focus:border-violet-400"
                 />
                 <button
                   onClick={() => { if (groupName.trim()) { onGroupNodes(groupName.trim()); setGroupName(''); } }}
@@ -131,7 +131,7 @@ export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselec
                 <FaArrowUpRightFromSquare size={11} className="text-indigo-400 shrink-0" />
                 <span className="text-xs font-semibold text-indigo-300">Extract to new trace</span>
               </div>
-              <p className="text-[10px] text-gray-400 leading-relaxed">
+              <p className="text-[10px] text-ink-muted leading-relaxed">
                 Moves these nodes into a brand-new trace. Cross-boundary edges are aggregated.
               </p>
               <button
@@ -146,7 +146,7 @@ export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselec
       )}
 
       {/* Delete All */}
-      <div className="pt-2 border-t border-gray-700">
+      <div className="pt-2 border-t border-line-strong">
         {confirmDelete ? (
           <div className="flex items-center gap-2">
             <span className="text-xs text-red-400">Delete {count} nodes?</span>
@@ -158,7 +158,7 @@ export function BatchEditPanel({ count, onRename, onRecolor, onDelete, onDeselec
             </button>
             <button
               onClick={() => setConfirmDelete(false)}
-              className="px-2 py-1 text-xs text-gray-400 hover:text-white"
+              className="px-2 py-1 text-xs text-ink-muted hover:text-ink"
             >
               Cancel
             </button>

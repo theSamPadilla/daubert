@@ -82,13 +82,13 @@ export default function AdminUsersPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Users</h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <p className="mt-1 text-sm text-ink-muted">
             Create user shells. The user binds to Firebase on first sign-in with the matching email.
           </p>
         </div>
         <button
           onClick={() => setShowForm((s) => !s)}
-          className="flex items-center gap-2 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-500"
+          className="flex items-center gap-2 rounded bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand/90"
         >
           <FaPlus className="h-3 w-3" /> Add user
         </button>
@@ -99,26 +99,26 @@ export default function AdminUsersPage() {
       )}
 
       {showForm && (
-        <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800 p-4">
+        <div className="mb-6 rounded-lg border border-line-strong bg-surface-panel p-4">
           <h2 className="mb-4 text-lg font-semibold text-white">New user</h2>
           <div className="mb-4 grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm text-gray-400">Email</label>
+              <label className="mb-1 block text-sm text-ink-muted">Email</label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
-                className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
                 placeholder="user@example.com"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-gray-400">Name</label>
+              <label className="mb-1 block text-sm text-ink-muted">Name</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
-                className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
                 placeholder="Jane Doe"
               />
             </div>
@@ -126,11 +126,11 @@ export default function AdminUsersPage() {
 
           <div className="mb-4 grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm text-gray-400">Add to case (optional)</label>
+              <label className="mb-1 block text-sm text-ink-muted">Add to case (optional)</label>
               <select
                 value={form.caseId}
                 onChange={(e) => setForm((s) => ({ ...s, caseId: e.target.value }))}
-                className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
               >
                 <option value="">No case</option>
                 {cases.map((c) => (
@@ -141,12 +141,12 @@ export default function AdminUsersPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm text-gray-400">Role</label>
+              <label className="mb-1 block text-sm text-ink-muted">Role</label>
               <select
                 value={form.caseRole}
                 onChange={(e) => setForm((s) => ({ ...s, caseRole: e.target.value as CaseRole }))}
                 disabled={!form.caseId}
-                className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                className="w-full rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none disabled:opacity-50"
               >
                 <option value="guest">guest</option>
                 <option value="owner">owner</option>
@@ -158,13 +158,13 @@ export default function AdminUsersPage() {
             <button
               onClick={handleCreate}
               disabled={saving}
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-500 disabled:opacity-50"
+              className="rounded bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand/90 disabled:opacity-50"
             >
               {saving ? 'Creating...' : 'Create'}
             </button>
             <button
               onClick={() => { setShowForm(false); setForm(emptyForm); }}
-              className="rounded bg-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600"
+              className="rounded bg-surface-raised px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-raised/80"
             >
               Cancel
             </button>
@@ -175,12 +175,12 @@ export default function AdminUsersPage() {
       {loading ? (
         <Loader inline />
       ) : users.length === 0 ? (
-        <p className="py-12 text-center text-gray-400">No users yet.</p>
+        <p className="py-12 text-center text-ink-muted">No users yet.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-gray-700">
+        <div className="overflow-hidden rounded-lg border border-line-strong">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-800/50 text-left text-sm text-gray-400">
+              <tr className="bg-surface-panel/50 text-left text-sm text-ink-muted">
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Linked</th>
@@ -190,9 +190,9 @@ export default function AdminUsersPage() {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-gray-700/50">
+                <tr key={u.id} className="border-b border-line-strong/50">
                   <td className="px-4 py-3 text-sm text-white">{u.email}</td>
-                  <td className="px-4 py-3 text-sm text-gray-300">{u.name}</td>
+                  <td className="px-4 py-3 text-sm text-ink-muted">{u.name}</td>
                   <td className="px-4 py-3 text-sm">
                     {u.linked ? (
                       <span className="inline-flex items-center gap-1 text-green-400">
@@ -204,13 +204,13 @@ export default function AdminUsersPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-400">
+                  <td className="px-4 py-3 text-sm text-ink-muted">
                     {new Date(u.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => handleDelete(u)}
-                      className="p-1.5 text-gray-500 hover:text-red-400"
+                      className="p-1.5 text-ink-faint hover:text-red-400"
                       title="Delete"
                     >
                       <FaTrash className="h-3.5 w-3.5" />

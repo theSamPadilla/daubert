@@ -16,16 +16,16 @@ function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex w-56 shrink-0 flex-col border-r border-gray-700 bg-gray-900 px-3 py-6">
+    <nav className="flex w-56 shrink-0 flex-col border-r border-line-strong bg-surface px-3 py-6">
       <Link
         href="/"
-        className="mb-6 flex items-center gap-2 rounded px-3 py-2 text-sm text-gray-400 transition-colors hover:bg-gray-800 hover:text-gray-200"
+        className="mb-6 flex items-center gap-2 rounded px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-surface-panel hover:text-gray-200"
       >
         <FaArrowLeft className="h-3.5 w-3.5" />
         Back to Cases
       </Link>
 
-      <h2 className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+      <h2 className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-ink-faint">
         Admin
       </h2>
       <ul className="space-y-1">
@@ -41,7 +41,7 @@ function Sidebar() {
                 className={`flex items-center gap-2 rounded px-3 py-2 text-sm transition-colors ${
                   active
                     ? 'bg-blue-900/40 text-blue-200'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                    : 'text-ink-muted hover:bg-surface-panel hover:text-gray-200'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -58,7 +58,7 @@ function Sidebar() {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <AdminGuard>
-      <div className="flex min-h-screen bg-gray-900">
+      <div className="flex min-h-screen bg-surface">
         <Sidebar />
         <div className="flex-1">{children}</div>
       </div>

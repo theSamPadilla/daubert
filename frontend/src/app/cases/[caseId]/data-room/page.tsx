@@ -245,16 +245,16 @@ export default function DataRoomPage() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                <FaFolderOpen className="text-blue-400" /> Data Room
+                <FaFolderOpen className="text-brand" /> Data Room
               </h1>
               {connection?.folderName && (
-                <span className="text-sm text-gray-400 ml-2">/ {connection.folderName}</span>
+                <span className="text-sm text-ink-muted ml-2">/ {connection.folderName}</span>
               )}
             </div>
             {state === 'connected' && (
               <button
                 onClick={() => setShowDisconnectModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700"
+                className="flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-surface-panel hover:bg-surface-raised text-ink-muted border border-line-strong"
                 title="Disconnect Google Drive"
               >
                 <FaPlugCircleXmark className="w-3.5 h-3.5" /> Disconnect
@@ -280,16 +280,16 @@ export default function DataRoomPage() {
           )}
 
           {state === 'disconnected' && (
-            <div className="rounded-lg bg-gray-800 border border-gray-700 p-8 text-center">
-              <FaFolderOpen className="mx-auto text-blue-400 mb-3" size={36} />
+            <div className="rounded-lg bg-surface-panel border border-line-strong p-8 text-center">
+              <FaFolderOpen className="mx-auto text-brand mb-3" size={36} />
               <h2 className="text-lg font-semibold text-white mb-2">Connect a Google Drive folder</h2>
-              <p className="text-sm text-gray-400 max-w-md mx-auto mb-6">
+              <p className="text-sm text-ink-muted max-w-md mx-auto mb-6">
                 Daubert reads and writes case documents directly in your Google Drive. Connect a
                 folder to get started.
               </p>
               <button
                 onClick={handleConnectClick}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-brand hover:bg-brand/90 text-white text-sm"
               >
                 <FaPlug className="w-3.5 h-3.5" /> Connect Google Drive
               </button>
@@ -297,9 +297,9 @@ export default function DataRoomPage() {
           )}
 
           {state === 'noFolder' && (
-            <div className="rounded-lg bg-gray-800 border border-gray-700 p-6">
+            <div className="rounded-lg bg-surface-panel border border-line-strong p-6">
               <h2 className="text-lg font-semibold text-white mb-2">Choose a folder</h2>
-              <p className="text-sm text-gray-400 mb-4">
+              <p className="text-sm text-ink-muted mb-4">
                 Pick the Google Drive folder you want to use as this case&apos;s data room.
                 Daubert will only read or modify files in this folder.
               </p>
@@ -307,7 +307,7 @@ export default function DataRoomPage() {
                 <button
                   onClick={handlePickFolder}
                   disabled={pickerBusy}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm"
                 >
                   <FaFolderOpen className="w-3.5 h-3.5" />
                   {pickerBusy ? 'Opening picker...' : 'Pick a Drive folder'}
@@ -345,13 +345,13 @@ export default function DataRoomPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleConnectClick}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded bg-brand hover:bg-brand/90 text-white text-sm"
                 >
                   <FaPlug className="w-3.5 h-3.5" /> Reconnect
                 </button>
                 <button
                   onClick={() => setShowDisconnectModal(true)}
-                  className="px-3 py-1.5 rounded text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700"
+                  className="px-3 py-1.5 rounded text-sm bg-surface-panel hover:bg-surface-raised text-ink-muted border border-line-strong"
                 >
                   Disconnect
                 </button>
@@ -372,14 +372,14 @@ export default function DataRoomPage() {
                 <button
                   onClick={handleUploadClick}
                   disabled={uploadingName !== null}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed text-white"
                 >
                   <FaCloudArrowUp className="w-3.5 h-3.5" /> Upload file
                 </button>
                 <button
                   onClick={fetchFiles}
                   disabled={filesLoading}
-                  className="px-3 py-1.5 rounded text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded text-sm bg-surface-panel hover:bg-surface-raised text-ink-muted border border-line-strong disabled:opacity-50"
                 >
                   {filesLoading ? 'Refreshing...' : 'Refresh'}
                 </button>
@@ -387,27 +387,27 @@ export default function DataRoomPage() {
                   <button
                     onClick={handlePickFolder}
                     disabled={pickerBusy}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-surface-panel hover:bg-surface-raised text-ink-muted border border-line-strong disabled:opacity-50"
                     title="Point this data room at a different Drive folder"
                   >
                     <FaPenToSquare className="w-3.5 h-3.5" />
                     {pickerBusy ? 'Opening...' : 'Change folder'}
                   </button>
                 )}
-                <p className="text-xs text-gray-500 ml-auto">Max 50MB per upload.</p>
+                <p className="text-xs text-ink-faint ml-auto">Max 50MB per upload.</p>
               </div>
 
               {/* Upload progress */}
               {uploadingName && uploadProgress && (
-                <div className="mb-4 p-3 rounded bg-gray-800 border border-gray-700">
+                <div className="mb-4 p-3 rounded bg-surface-panel border border-line-strong">
                   <div className="flex items-center justify-between mb-2 text-sm">
-                    <span className="text-gray-300 truncate">Uploading {uploadingName}</span>
-                    <span className="text-gray-400 ml-2 shrink-0">
+                    <span className="text-ink-muted truncate">Uploading {uploadingName}</span>
+                    <span className="text-ink-muted ml-2 shrink-0">
                       {formatBytes(String(uploadProgress.loaded))} /{' '}
                       {formatBytes(String(uploadProgress.total))}
                     </span>
                   </div>
-                  <div className="h-1.5 bg-gray-700 rounded overflow-hidden">
+                  <div className="h-1.5 bg-surface-raised rounded overflow-hidden">
                     <div
                       className="h-full bg-blue-500 transition-all"
                       style={{
@@ -424,14 +424,14 @@ export default function DataRoomPage() {
               {filesLoading && files.length === 0 ? (
                 <Loader inline />
               ) : files.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">
+                <div className="text-center py-12 text-ink-muted text-sm">
                   No files in this folder yet. Upload one to get started.
                 </div>
               ) : (
-                <div className="rounded-lg border border-gray-700 overflow-hidden">
+                <div className="rounded-lg border border-line-strong overflow-hidden">
                   <table className="w-full">
                     <thead>
-                      <tr className="bg-gray-800/50 text-left text-sm text-gray-400">
+                      <tr className="bg-surface-panel/50 text-left text-sm text-ink-muted">
                         <th className="px-4 py-3">Name</th>
                         <th className="px-4 py-3 w-32">Type</th>
                         <th className="px-4 py-3 w-24">Size</th>
@@ -443,7 +443,7 @@ export default function DataRoomPage() {
                       {files.map((file) => (
                         <tr
                           key={file.id}
-                          className="border-b border-gray-700/50 hover:bg-gray-800/40"
+                          className="border-b border-line-strong/50 hover:bg-surface-panel/40"
                         >
                           <td className="px-4 py-3 text-sm">
                             {file.webViewLink ? (
@@ -451,33 +451,33 @@ export default function DataRoomPage() {
                                 href={file.webViewLink}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-blue-300 hover:text-blue-200 inline-flex items-center gap-1.5"
+                                className="text-brand hover:text-blue-200 inline-flex items-center gap-1.5"
                                 title="Open in Google Drive"
                               >
                                 {file.name}
                                 <FaArrowUpRightFromSquare className="w-3 h-3 opacity-60" />
                               </a>
                             ) : (
-                              <span className="text-gray-300" title="No web viewer for this file type">
+                              <span className="text-ink-muted" title="No web viewer for this file type">
                                 {file.name}
                               </span>
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-300">
+                            <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-surface-raised text-ink-muted">
                               {shortMime(file.mimeType)}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-400">
+                          <td className="px-4 py-3 text-sm text-ink-muted">
                             {formatBytes(file.size)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-400">
+                          <td className="px-4 py-3 text-sm text-ink-muted">
                             {formatDate(file.modifiedTime)}
                           </td>
                           <td className="px-4 py-3">
                             <button
                               onClick={() => handleDownload(file)}
-                              className="p-1.5 text-gray-500 hover:text-blue-300"
+                              className="p-1.5 text-ink-faint hover:text-brand"
                               title="Download"
                             >
                               <FaDownload className="w-3.5 h-3.5" />
@@ -496,17 +496,17 @@ export default function DataRoomPage() {
           {showConsentModal && (
             <Modal onClose={() => !connecting && setShowConsentModal(false)}>
               <h3 className="text-lg font-semibold text-white mb-3">Connect Google Drive</h3>
-              <p className="text-sm text-gray-300 mb-3">
+              <p className="text-sm text-ink-muted mb-3">
                 Daubert will request access to your full Google Drive. It will only read or modify
                 the folder you select for this case.
               </p>
-              <p className="text-xs text-gray-500 mb-5">
+              <p className="text-xs text-ink-faint mb-5">
                 You&apos;ll be redirected to Google to grant access. You can revoke at any time at{' '}
                 <a
                   href="https://myaccount.google.com/permissions"
                   target="_blank"
                   rel="noreferrer"
-                  className="underline hover:text-gray-300"
+                  className="underline hover:text-ink-muted"
                 >
                   myaccount.google.com/permissions
                 </a>
@@ -516,14 +516,14 @@ export default function DataRoomPage() {
                 <button
                   onClick={() => setShowConsentModal(false)}
                   disabled={connecting}
-                  className="px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmConnect}
                   disabled={connecting}
-                  className="px-3 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50"
+                  className="px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 text-white disabled:opacity-50"
                 >
                   {connecting ? 'Redirecting...' : 'Continue to Google'}
                 </button>
@@ -535,7 +535,7 @@ export default function DataRoomPage() {
           {showDisconnectModal && (
             <Modal onClose={() => !disconnecting && setShowDisconnectModal(false)}>
               <h3 className="text-lg font-semibold text-white mb-3">Disconnect Google Drive?</h3>
-              <p className="text-sm text-gray-300 mb-5">
+              <p className="text-sm text-ink-muted mb-5">
                 Daubert will stop having access to this folder. Your files in Drive are not deleted.
                 You can reconnect later.
               </p>
@@ -543,7 +543,7 @@ export default function DataRoomPage() {
                 <button
                   onClick={() => setShowDisconnectModal(false)}
                   disabled={disconnecting}
-                  className="px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -587,7 +587,7 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 max-w-md w-full shadow-2xl">
+      <div className="bg-surface-panel border border-line-strong rounded-lg p-6 max-w-md w-full shadow-2xl">
         {children}
       </div>
     </div>

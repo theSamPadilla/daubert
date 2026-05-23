@@ -73,7 +73,7 @@ function CaseShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="h-screen flex bg-gray-900 text-white">
+    <div className="h-screen flex bg-surface text-white">
       {/* Sidebar */}
       <div
         className={`relative flex-shrink-0 overflow-hidden h-full ${sidebarOpen ? '' : 'w-0'}`}
@@ -94,7 +94,7 @@ function CaseShell({ children }: { children: React.ReactNode }) {
         {/* Sidebar toggle */}
         <button
           onClick={() => setSidebarOpen((v: boolean) => !v)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-4 h-10 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-r flex items-center justify-center transition-colors"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-4 h-10 bg-surface-raised hover:bg-surface-raised/80 border border-line-strong rounded-r flex items-center justify-center transition-colors"
           title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >
           {sidebarOpen ? <FaChevronLeft size={8} /> : <FaChevronRight size={8} />}
@@ -102,7 +102,7 @@ function CaseShell({ children }: { children: React.ReactNode }) {
         {/* Chat toggle */}
         <button
           onClick={() => setChatOpen((v: boolean) => !v)}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-4 h-10 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-l flex items-center justify-center transition-colors"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-4 h-10 bg-surface-raised hover:bg-surface-raised/80 border border-line-strong rounded-l flex items-center justify-center transition-colors"
           title={chatOpen ? 'Collapse chat' : 'Expand chat'}
         >
           {chatOpen ? <FaChevronRight size={8} /> : <FaChevronLeft size={8} />}

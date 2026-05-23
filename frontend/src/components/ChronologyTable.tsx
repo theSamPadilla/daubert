@@ -144,14 +144,14 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit }: Chronolog
     <div>
       <div className="flex items-baseline justify-between mb-4">
         {data.title ? (
-          <h2 className="text-xl font-bold text-white">{data.title}</h2>
+          <h2 className="text-xl font-bold text-ink">{data.title}</h2>
         ) : (
           <span />
         )}
         {isCustom && onColumnResize && (
           <button
             onClick={resetWidths}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200"
+            className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-gray-200"
             title="Reset column widths to defaults"
           >
             <FaRotateLeft className="w-3 h-3" />
@@ -159,7 +159,7 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit }: Chronolog
           </button>
         )}
       </div>
-      <div className="rounded-lg border border-gray-700 overflow-hidden">
+      <div className="rounded-lg border border-line-strong overflow-hidden">
         <table ref={tableRef} className="w-full text-sm table-fixed">
           <colgroup>
             <col style={{ width: `${widths.source}%` }} />
@@ -168,7 +168,7 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit }: Chronolog
             <col style={{ width: `${widths.details}%` }} />
           </colgroup>
           <thead>
-            <tr className="bg-gray-800/50 text-left text-gray-400 select-none">
+            <tr className="bg-surface-panel/50 text-left text-ink-muted select-none">
               <ResizableTh label="Source" onResizeStart={(e) => startDrag(0, e)} resizable={!!onColumnResize} active={activeHandle === 0} />
               <ResizableTh label="Date" onResizeStart={(e) => startDrag(1, e)} resizable={!!onColumnResize} active={activeHandle === 1} />
               <ResizableTh label="Description" onResizeStart={(e) => startDrag(2, e)} resizable={!!onColumnResize} active={activeHandle === 2} />
@@ -180,23 +180,23 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit }: Chronolog
               const url = entry.sourceUrl ?? entry.source ?? null;
               const label = entry.sourceLabel ?? (url ? deriveSourceLabel(url) : null);
               return (
-                <tr key={i} className="border-t border-gray-700/50 align-top">
+                <tr key={i} className="border-t border-line-strong/50 align-top">
                   <td className="px-4 py-3 break-all">
                     {url ? (
                       <a
                         href={url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-1 text-xs font-mono"
+                        className="text-brand hover:text-brand inline-flex items-center gap-1 text-xs font-mono"
                       >
                         {label ?? url}
                         <FaArrowUpRightFromSquare className="w-2.5 h-2.5 flex-shrink-0" />
                       </a>
                     ) : (
-                      <span className="text-gray-500">N/A</span>
+                      <span className="text-ink-faint">N/A</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-300 whitespace-nowrap">
+                  <td className="px-4 py-3 text-ink-muted whitespace-nowrap">
                     {onEntryEdit ? (
                       <EditableCell
                         value={entry.date}
@@ -206,7 +206,7 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit }: Chronolog
                       entry.date
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-300">
+                  <td className="px-4 py-3 text-ink-muted">
                     {onEntryEdit ? (
                       <EditableCell
                         value={entry.description}
@@ -217,7 +217,7 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit }: Chronolog
                       entry.description
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs break-words">
+                  <td className="px-4 py-3 text-ink-muted text-xs break-words">
                     {onEntryEdit ? (
                       <EditableCell
                         value={entry.details ?? ''}
@@ -234,7 +234,7 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit }: Chronolog
             })}
             {data.entries.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
                   No entries yet.
                 </td>
               </tr>
@@ -270,8 +270,8 @@ function ResizableTh({
           <span
             className={`block w-0.5 rounded-full transition-all ${
               active
-                ? 'bg-blue-400 h-6 w-1'
-                : 'bg-gray-500 h-4 group-hover:bg-blue-400 group-hover:h-6 group-hover:w-1'
+                ? 'bg-brand h-6 w-1'
+                : 'bg-surface-raised h-4 group-hover:bg-brand/90 group-hover:h-6 group-hover:w-1'
             }`}
           />
         </span>
@@ -346,7 +346,7 @@ function EditableCell({
       onBlur: commit,
       onKeyDown: onKey,
       className:
-        'w-full bg-gray-900 text-gray-100 px-2 py-1 rounded border border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-400',
+        'w-full bg-surface text-gray-100 px-2 py-1 rounded border border-brand focus:outline-none focus:ring-1 focus:ring-brand',
     };
     return multiline ? (
       <textarea
@@ -371,10 +371,10 @@ function EditableCell({
   return (
     <div
       onClick={startEdit}
-      className="cursor-text rounded -mx-1 -my-0.5 px-1 py-0.5 hover:bg-gray-800/60 hover:outline hover:outline-1 hover:outline-gray-600 transition-colors whitespace-pre-wrap"
+      className="cursor-text rounded -mx-1 -my-0.5 px-1 py-0.5 hover:bg-surface-panel/60 hover:outline hover:outline-1 hover:outline-line-strong transition-colors whitespace-pre-wrap"
       title="Click to edit"
     >
-      {isEmpty ? <span className="text-gray-600 italic">{emptyText ?? 'click to add'}</span> : value}
+      {isEmpty ? <span className="text-ink-faint italic">{emptyText ?? 'click to add'}</span> : value}
     </div>
   );
 }

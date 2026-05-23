@@ -117,33 +117,33 @@ export function FetchModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-[680px] max-h-[80vh] flex flex-col">
+      <div className="bg-surface-panel border border-line-strong rounded-xl shadow-2xl w-[680px] max-h-[80vh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-700 shrink-0">
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Fetch Transactions</span>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">✕</button>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line-strong shrink-0">
+          <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Fetch Transactions</span>
+          <button onClick={onClose} className="text-ink-faint hover:text-ink transition-colors">✕</button>
         </div>
 
         {/* Configure */}
-        <div className="px-5 py-4 border-b border-gray-700 shrink-0">
+        <div className="px-5 py-4 border-b border-line-strong shrink-0">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Address</label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Address</label>
               <input
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="0x..."
-                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm font-mono focus:border-blue-500 focus:outline-none"
+                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm font-mono focus:border-brand focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Chain</label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Chain</label>
               <select
                 value={chain}
                 onChange={(e) => setChain(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm"
+                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
               >
                 {Object.values(SUPPORTED_CHAINS).map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -151,64 +151,64 @@ export function FetchModal({
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Sort</label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Sort</label>
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value as 'asc' | 'desc')}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm"
+                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
               >
                 <option value="desc">Newest first</option>
                 <option value="asc">Oldest first</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Start Date <span className="text-gray-600 normal-case font-normal">(optional)</span></label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Start Date <span className="text-ink-faint normal-case font-normal">(optional)</span></label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 max={endDate || undefined}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm"
+                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">End Date <span className="text-gray-600 normal-case font-normal">(optional)</span></label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">End Date <span className="text-ink-faint normal-case font-normal">(optional)</span></label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 min={startDate || undefined}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm"
+                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Start Block <span className="text-gray-600 normal-case font-normal">(optional)</span></label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Start Block <span className="text-ink-faint normal-case font-normal">(optional)</span></label>
               <input
                 type="number"
                 value={startBlock}
                 onChange={(e) => setStartBlock(e.target.value)}
                 placeholder="e.g. 18000000"
                 disabled={!!startDate}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">End Block <span className="text-gray-600 normal-case font-normal">(optional)</span></label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">End Block <span className="text-ink-faint normal-case font-normal">(optional)</span></label>
               <input
                 type="number"
                 value={endBlock}
                 onChange={(e) => setEndBlock(e.target.value)}
                 placeholder="e.g. 19000000"
                 disabled={!!endDate}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Limit</label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Limit</label>
               <select
                 value={limit}
                 onChange={(e) => setLimit(Number(e.target.value))}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm"
+                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
               >
                 {[50, 100, 200, 500, 1000, 5000].map((n) => (
                   <option key={n} value={n}>{n} transactions</option>
@@ -219,7 +219,7 @@ export function FetchModal({
               <button
                 onClick={handleFetch}
                 disabled={loading || !address.trim()}
-                className="w-full px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-semibold transition-colors"
+                className="w-full px-4 py-1.5 bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-semibold transition-colors"
               >
                 {loading ? 'Fetching…' : results ? 'Re-fetch' : 'Fetch'}
               </button>
@@ -231,7 +231,7 @@ export function FetchModal({
         {/* Results */}
         {results && (
           <>
-            <div className="flex items-center justify-between px-5 py-2 border-b border-gray-700 shrink-0">
+            <div className="flex items-center justify-between px-5 py-2 border-b border-line-strong shrink-0">
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -239,10 +239,10 @@ export function FetchModal({
                   onChange={toggleAll}
                   className="accent-blue-500"
                 />
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-ink-muted">
                   {results.length} found · {newResults.length} new · {selected.size} selected
                   {results.length - newResults.length > 0 && (
-                    <span className="text-gray-600"> · {results.length - newResults.length} already in graph</span>
+                    <span className="text-ink-faint"> · {results.length - newResults.length} already in graph</span>
                   )}
                 </span>
               </div>
@@ -250,11 +250,11 @@ export function FetchModal({
 
             <div className="overflow-y-auto flex-1 text-xs">
               {results.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No transactions found.</p>
+                <p className="text-ink-faint text-center py-8">No transactions found.</p>
               ) : (
                 <table className="w-full">
-                  <thead className="sticky top-0 bg-gray-800 border-b border-gray-700">
-                    <tr className="text-left text-[10px] font-semibold text-gray-500 uppercase">
+                  <thead className="sticky top-0 bg-surface-panel border-b border-line-strong">
+                    <tr className="text-left text-[10px] font-semibold text-ink-faint uppercase">
                       <th className="px-3 py-2 w-8"></th>
                       <th className="px-3 py-2">Date</th>
                       <th className="px-3 py-2">Amount</th>
@@ -272,17 +272,17 @@ export function FetchModal({
                         <tr
                           key={tx.id}
                           onClick={() => !dup && toggleOne(tx.id)}
-                          className={`border-b border-gray-700/50 transition-colors ${
+                          className={`border-b border-line-strong/50 transition-colors ${
                             dup
                               ? 'opacity-35 cursor-default'
                               : isSelected
-                              ? 'bg-blue-600/10 cursor-pointer hover:bg-blue-600/15'
-                              : 'cursor-pointer hover:bg-gray-700/40'
+                              ? 'bg-brand/10 cursor-pointer hover:bg-brand/15'
+                              : 'cursor-pointer hover:bg-surface-raised/40'
                           }`}
                         >
                           <td className="px-3 py-1.5">
                             {dup ? (
-                              <span className="text-gray-600 text-[10px]">✓</span>
+                              <span className="text-ink-faint text-[10px]">✓</span>
                             ) : (
                               <input
                                 type="checkbox"
@@ -293,13 +293,13 @@ export function FetchModal({
                               />
                             )}
                           </td>
-                          <td className="px-3 py-1.5 text-gray-400 whitespace-nowrap">{formatTs(tx.timestamp as string)}</td>
-                          <td className="px-3 py-1.5 text-gray-200 font-mono whitespace-nowrap">
+                          <td className="px-3 py-1.5 text-ink-muted whitespace-nowrap">{formatTs(tx.timestamp as string)}</td>
+                          <td className="px-3 py-1.5 text-ink font-mono whitespace-nowrap">
                             {formatTokenAmount(tx.amount, tok.decimals)}
                           </td>
-                          <td className="px-3 py-1.5 text-gray-400">{tok.symbol}</td>
-                          <td className="px-3 py-1.5 font-mono text-gray-400">{truncate(tx.from)}</td>
-                          <td className="px-3 py-1.5 font-mono text-gray-400">{truncate(tx.to)}</td>
+                          <td className="px-3 py-1.5 text-ink-muted">{tok.symbol}</td>
+                          <td className="px-3 py-1.5 font-mono text-ink-muted">{truncate(tx.from)}</td>
+                          <td className="px-3 py-1.5 font-mono text-ink-muted">{truncate(tx.to)}</td>
                         </tr>
                       );
                     })}
@@ -309,12 +309,12 @@ export function FetchModal({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center gap-3 px-5 py-3 border-t border-gray-700 shrink-0">
-              <label className="text-xs font-semibold text-gray-400 uppercase whitespace-nowrap">Add to</label>
+            <div className="flex items-center gap-3 px-5 py-3 border-t border-line-strong shrink-0">
+              <label className="text-xs font-semibold text-ink-muted uppercase whitespace-nowrap">Add to</label>
               <select
                 value={targetTraceId}
                 onChange={(e) => setTargetTraceId(e.target.value)}
-                className="flex-1 bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-sm"
+                className="flex-1 bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
               >
                 {traces.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -323,11 +323,11 @@ export function FetchModal({
               <button
                 onClick={handleAdd}
                 disabled={selected.size === 0 || !targetTraceId}
-                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-semibold transition-colors whitespace-nowrap"
+                className="px-4 py-1.5 bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-semibold transition-colors whitespace-nowrap"
               >
                 Add {selected.size > 0 ? `${selected.size} ` : ''}to Graph
               </button>
-              <button onClick={onClose} className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">
+              <button onClick={onClose} className="px-4 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm transition-colors">
                 Cancel
               </button>
             </div>
@@ -335,13 +335,13 @@ export function FetchModal({
         )}
 
         {!results && !loading && (
-          <div className="flex-1 flex items-center justify-center text-gray-600 text-sm py-8">
+          <div className="flex-1 flex items-center justify-center text-ink-faint text-sm py-8">
             Configure your query above and click Fetch.
           </div>
         )}
 
         {loading && (
-          <div className="flex-1 flex items-center justify-center text-gray-400 text-sm py-8">
+          <div className="flex-1 flex items-center justify-center text-ink-muted text-sm py-8">
             Fetching transactions…
           </div>
         )}

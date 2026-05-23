@@ -6,7 +6,7 @@ import { useAuth } from './AuthProvider';
 import { FaChevronDown, FaGear } from 'react-icons/fa6';
 import { ADMIN_EMAIL_DOMAIN } from '@/lib/admin';
 
-export default function UserMenu() {
+export default function UserMenu({ variant = 'dark' }: { variant?: 'dark' | 'light' } = {}) {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -36,7 +36,11 @@ export default function UserMenu() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-700 transition-colors"
+        className={`flex items-center gap-2 px-2 py-1 rounded transition-colors ${
+          variant === 'light'
+            ? 'hover:bg-[#F1F4FA]'
+            : 'hover:bg-surface-raised'
+        }`}
       >
         {user.avatarUrl ? (
           <img
@@ -46,32 +50,32 @@ export default function UserMenu() {
             className="w-7 h-7 rounded-full"
           />
         ) : (
-          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-medium">
+          <div className="w-7 h-7 rounded-full bg-brand flex items-center justify-center text-xs font-medium">
             {initials}
           </div>
         )}
-        <span className="text-sm text-gray-300 hidden sm:inline">{user.name}</span>
-        <FaChevronDown className="w-3 h-3 text-gray-400" />
+        <span className={`text-sm hidden sm:inline ${variant === 'light' ? 'text-[#0B1220]' : 'text-ink-muted'}`}>{user.name}</span>
+        <FaChevronDown className={`w-3 h-3 ${variant === 'light' ? 'text-[#5B6473]' : 'text-ink-muted'}`} />
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
-          <div className="px-3 py-2 border-b border-gray-700">
-            <p className="text-sm font-medium text-white truncate">{user.name}</p>
-            <p className="text-xs text-gray-400 truncate">{user.email}</p>
+        <div className="absolute right-0 mt-1 w-48 bg-surface-panel border border-line-strong rounded-lg shadow-xl z-50">
+          <div className="px-3 py-2 border-b border-line-strong">
+            <p className="text-sm font-medium text-ink truncate">{user.name}</p>
+            <p className="text-xs text-ink-muted truncate">{user.email}</p>
           </div>
           {isAdmin && (
             <button
               onClick={() => { setOpen(false); router.push('/admin/entities'); }}
-              className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-raised transition-colors flex items-center gap-2"
             >
-              <FaGear className="w-3 h-3 text-gray-500" />
+              <FaGear className="w-3 h-3 text-ink-faint" />
               Admin
             </button>
           )}
           <button
             onClick={() => { setOpen(false); signOut(); }}
-            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-lg transition-colors"
+            className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-raised rounded-b-lg transition-colors"
           >
             Sign out
           </button>

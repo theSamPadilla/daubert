@@ -60,7 +60,6 @@ Charts store Chart.js-compatible data. The frontend renders them with react-char
       {
         "label": "ETH Volume",
         "data": [12.5, 8.3, 15.1, 22.7],
-        "backgroundColor": "rgba(59, 130, 246, 0.7)"
       }
     ],
     "options": {}
@@ -83,8 +82,6 @@ Charts store Chart.js-compatible data. The frontend renders them with react-char
 |-------|----------|-------------|
 | `label` | yes | Legend label for this dataset |
 | `data` | yes | Array of numeric values (one per label) |
-| `backgroundColor` | no | Color(s) — string or array of strings. Use `rgba()` for transparency. |
-| `borderColor` | no | Line/border color |
 | `borderWidth` | no | Line/border width in pixels |
 
 ### Annotations (reference lines, highlights, markers)
@@ -107,7 +104,7 @@ Supported annotation `type`s:
 {
   "chartType": "line",
   "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-  "datasets": [{ "label": "NFTs held", "data": [40, 70, 120, 180, 220, 260], "borderColor": "rgba(59,130,246,1)" }],
+  "datasets": [{ "label": "NFTs held", "data": [40, 70, 120, 180, 220, 260] }],
   "options": {
     "plugins": {
       "annotation": {
@@ -145,7 +142,7 @@ For category-axis charts (the default), `xMin`/`xMax` must be **exact label stri
 ### Best practices
 
 - Use descriptive labels that make sense without context.
-- For multi-dataset charts, use distinct colors with consistent opacity.
+- Series colors are assigned automatically by the renderer.
 - Prefer `bar` for comparisons, `line` for time series.
 - Keep label count reasonable (under 20) — too many labels crowd the axis.
 - The chart renders at a fixed height of 384px (h-96), so design for a landscape aspect ratio.

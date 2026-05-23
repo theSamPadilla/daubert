@@ -49,15 +49,15 @@ export function ConfirmDeleteModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-[440px] border border-gray-700 shadow-xl">
-        <h3 className="text-sm font-semibold text-gray-200 uppercase tracking-wider mb-3">
+      <div className="bg-surface-panel rounded-lg p-6 w-[440px] border border-line-strong shadow-xl">
+        <h3 className="text-sm font-semibold text-ink uppercase tracking-wider mb-3">
           {title}
         </h3>
         {message && (
-          <div className="text-sm text-gray-400 mb-4 leading-relaxed">{message}</div>
+          <div className="text-sm text-ink-muted mb-4 leading-relaxed">{message}</div>
         )}
-        <p className="text-xs text-gray-400 mb-2">
-          Type <span className="font-mono text-gray-200">{expectedText}</span> to confirm.
+        <p className="text-xs text-ink-muted mb-2">
+          Type <span className="font-mono text-ink">{expectedText}</span> to confirm.
         </p>
         <input
           ref={inputRef}
@@ -71,7 +71,7 @@ export function ConfirmDeleteModal({
             }
           }}
           disabled={working}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
+          className="w-full bg-surface border border-line-strong rounded px-3 py-2 text-sm focus:outline-none focus:border-line-strong"
           placeholder={expectedText}
           autoComplete="off"
           spellCheck={false}
@@ -90,7 +90,7 @@ export function ConfirmDeleteModal({
             type="button"
             onClick={onCancel}
             disabled={working}
-            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded text-sm ml-auto transition-colors"
+            className="px-3 py-1.5 bg-surface-raised hover:bg-surface-raised disabled:opacity-50 rounded text-sm ml-auto transition-colors"
           >
             Cancel
           </button>

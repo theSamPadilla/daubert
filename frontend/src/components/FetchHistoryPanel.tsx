@@ -21,20 +21,20 @@ export function FetchHistoryPanel({ initialAddress, initialChain, onFetch, loadi
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
-      <h4 className="text-xs font-semibold text-gray-400 uppercase">Fetch History</h4>
+      <h4 className="text-xs font-semibold text-ink-muted uppercase">Fetch History</h4>
       <input
         type="text"
         value={address}
         onChange={(e) => setAddress(e.target.value)}
         placeholder="Wallet address (0x...)"
-        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm font-mono"
+        className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm font-mono"
         required
       />
       <div className="flex gap-2">
         <select
           value={chain}
           onChange={(e) => setChain(e.target.value)}
-          className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+          className="flex-1 bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
         >
           {Object.values(SUPPORTED_CHAINS).map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
@@ -43,7 +43,7 @@ export function FetchHistoryPanel({ initialAddress, initialChain, onFetch, loadi
         <button
           type="submit"
           disabled={loading || !address.trim()}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 rounded text-sm"
+          className="px-3 py-1.5 bg-brand hover:bg-brand/90 disabled:bg-surface-raised disabled:text-ink-faint rounded text-sm"
         >
           {loading ? 'Fetching...' : 'Fetch'}
         </button>

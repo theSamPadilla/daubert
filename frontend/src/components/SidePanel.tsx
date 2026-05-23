@@ -51,7 +51,7 @@ export function SidePanel({
   onClearStaged,
 }: SidePanelProps) {
   return (
-    <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col">
+    <div className="w-96 bg-surface-panel border-l border-line-strong flex flex-col">
       <TraceList
         traces={traces}
         selectedTraceId={selectedTraceId}
@@ -60,7 +60,7 @@ export function SidePanel({
         onToggleCollapsed={onToggleCollapsed}
         onAddTrace={onAddTrace}
       />
-      <div className="flex-1 border-b border-gray-700 overflow-y-auto">
+      <div className="flex-1 border-b border-line-strong overflow-y-auto">
         <DetailsPanel
           selectedItem={selectedItem}
           traces={traces}

@@ -131,13 +131,13 @@ export default function AdminCasesPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Cases</h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <p className="mt-1 text-sm text-ink-muted">
             Create cases, assign owners, manage guest access.
           </p>
         </div>
         <button
           onClick={() => setShowForm((s) => !s)}
-          className="flex items-center gap-2 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-500"
+          className="flex items-center gap-2 rounded bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand/90"
         >
           <FaPlus className="h-3 w-3" /> Add case
         </button>
@@ -148,25 +148,25 @@ export default function AdminCasesPage() {
       )}
 
       {showForm && (
-        <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800 p-4">
+        <div className="mb-6 rounded-lg border border-line-strong bg-surface-panel p-4">
           <h2 className="mb-4 text-lg font-semibold text-white">New case</h2>
           <div className="mb-4 grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm text-gray-400">Name</label>
+              <label className="mb-1 block text-sm text-ink-muted">Name</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
-                className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
                 placeholder="Case name"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-gray-400">Owner</label>
+              <label className="mb-1 block text-sm text-ink-muted">Owner</label>
               <select
                 value={form.ownerUserId}
                 onChange={(e) => setForm((s) => ({ ...s, ownerUserId: e.target.value }))}
-                className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
               >
                 <option value="">Select owner...</option>
                 {users.map((u) => (
@@ -181,13 +181,13 @@ export default function AdminCasesPage() {
             <button
               onClick={handleCreateCase}
               disabled={saving}
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-500 disabled:opacity-50"
+              className="rounded bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand/90 disabled:opacity-50"
             >
               {saving ? 'Creating...' : 'Create'}
             </button>
             <button
               onClick={() => { setShowForm(false); setForm({ name: '', ownerUserId: '' }); }}
-              className="rounded bg-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600"
+              className="rounded bg-surface-raised px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-raised/80"
             >
               Cancel
             </button>
@@ -198,12 +198,12 @@ export default function AdminCasesPage() {
       {loading ? (
         <Loader inline />
       ) : cases.length === 0 ? (
-        <p className="py-12 text-center text-gray-400">No cases yet.</p>
+        <p className="py-12 text-center text-ink-muted">No cases yet.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-gray-700">
+        <div className="overflow-hidden rounded-lg border border-line-strong">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-800/50 text-left text-sm text-gray-400">
+              <tr className="bg-surface-panel/50 text-left text-sm text-ink-muted">
                 <th className="w-8 px-4 py-3"></th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Created</th>
@@ -220,20 +220,20 @@ export default function AdminCasesPage() {
                 return (
                   <Fragment key={c.id}>
                     <tr
-                      className="cursor-pointer border-b border-gray-700/50 hover:bg-gray-800/50"
+                      className="cursor-pointer border-b border-line-strong/50 hover:bg-surface-panel/50"
                       onClick={() => toggleExpand(c.id)}
                     >
-                      <td className="px-4 py-3 text-gray-500">
+                      <td className="px-4 py-3 text-ink-faint">
                         {expanded ? <FaChevronDown className="h-3 w-3" /> : <FaChevronRight className="h-3 w-3" />}
                       </td>
                       <td className="px-4 py-3 text-sm font-medium text-white">{c.name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-400">
+                      <td className="px-4 py-3 text-sm text-ink-muted">
                         {new Date(c.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteCase(c); }}
-                          className="p-1.5 text-gray-500 hover:text-red-400"
+                          className="p-1.5 text-ink-faint hover:text-red-400"
                           title="Delete case"
                         >
                           <FaTrash className="h-3.5 w-3.5" />
@@ -241,32 +241,32 @@ export default function AdminCasesPage() {
                       </td>
                     </tr>
                     {expanded && (
-                      <tr className="bg-gray-800/30">
+                      <tr className="bg-surface-panel/30">
                         <td colSpan={4} className="px-4 py-4">
                           <div className="space-y-4">
                             <div>
-                              <span className="text-xs uppercase tracking-wider text-gray-500">Members</span>
+                              <span className="text-xs uppercase tracking-wider text-ink-faint">Members</span>
                               {memberError[c.id] && (
                                 <p className="mt-2 text-sm text-red-400">{memberError[c.id]}</p>
                               )}
                               {caseMembers.length === 0 && !memberError[c.id] ? (
-                                <p className="mt-2 text-sm text-gray-500">No members.</p>
+                                <p className="mt-2 text-sm text-ink-faint">No members.</p>
                               ) : (
                                 <table className="mt-2 w-full">
                                   <tbody>
                                     {caseMembers.map((m) => (
-                                      <tr key={m.id} className="border-t border-gray-700/30">
+                                      <tr key={m.id} className="border-t border-line-strong/30">
                                         <td className="py-2 text-sm text-white">
                                           {m.user?.name ?? m.userId}
                                           {m.user?.email && (
-                                            <span className="ml-2 text-xs text-gray-500">{m.user.email}</span>
+                                            <span className="ml-2 text-xs text-ink-faint">{m.user.email}</span>
                                           )}
                                         </td>
                                         <td className="py-2">
                                           <select
                                             value={m.role}
                                             onChange={(e) => handleChangeRole(c.id, m.userId, e.target.value as CaseRole)}
-                                            className="rounded border border-gray-600 bg-gray-800 px-2 py-1 text-xs text-white"
+                                            className="rounded border border-line-strong bg-surface-panel px-2 py-1 text-xs text-white"
                                           >
                                             <option value="owner">owner</option>
                                             <option value="guest">guest</option>
@@ -275,7 +275,7 @@ export default function AdminCasesPage() {
                                         <td className="py-2 text-right">
                                           <button
                                             onClick={() => handleRemoveMember(c.id, m.userId, m.user?.email ?? m.userId)}
-                                            className="p-1 text-gray-500 hover:text-red-400"
+                                            className="p-1 text-ink-faint hover:text-red-400"
                                             title="Remove"
                                           >
                                             <FaTrash className="h-3 w-3" />
@@ -288,12 +288,12 @@ export default function AdminCasesPage() {
                               )}
                             </div>
 
-                            <div className="border-t border-gray-700/30 pt-3">
-                              <span className="mb-2 block text-xs uppercase tracking-wider text-gray-500">
+                            <div className="border-t border-line-strong/30 pt-3">
+                              <span className="mb-2 block text-xs uppercase tracking-wider text-ink-faint">
                                 Add member
                               </span>
                               {candidates.length === 0 ? (
-                                <p className="text-sm text-gray-500">
+                                <p className="text-sm text-ink-faint">
                                   All users are already members of this case.
                                 </p>
                               ) : (
@@ -301,7 +301,7 @@ export default function AdminCasesPage() {
                                   <select
                                     value={memForm.userId}
                                     onChange={(e) => setAddMemberForm((s) => ({ ...s, [c.id]: { ...memForm, userId: e.target.value } }))}
-                                    className="rounded border border-gray-600 bg-gray-800 px-2 py-1 text-xs text-white"
+                                    className="rounded border border-line-strong bg-surface-panel px-2 py-1 text-xs text-white"
                                   >
                                     <option value="">Select user...</option>
                                     {candidates.map((u) => (
@@ -313,7 +313,7 @@ export default function AdminCasesPage() {
                                   <select
                                     value={memForm.role}
                                     onChange={(e) => setAddMemberForm((s) => ({ ...s, [c.id]: { ...memForm, role: e.target.value as CaseRole } }))}
-                                    className="rounded border border-gray-600 bg-gray-800 px-2 py-1 text-xs text-white"
+                                    className="rounded border border-line-strong bg-surface-panel px-2 py-1 text-xs text-white"
                                   >
                                     <option value="guest">guest</option>
                                     <option value="owner">owner</option>
@@ -321,7 +321,7 @@ export default function AdminCasesPage() {
                                   <button
                                     onClick={() => handleAddMember(c.id)}
                                     disabled={!memForm.userId}
-                                    className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-500 disabled:opacity-50"
+                                    className="flex items-center gap-1 rounded bg-brand px-2 py-1 text-xs text-white hover:bg-brand/90 disabled:opacity-50"
                                   >
                                     <FaUserPlus className="h-3 w-3" /> Add
                                   </button>

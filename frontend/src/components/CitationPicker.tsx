@@ -19,34 +19,34 @@ export function CitationPicker({ onInsert, onClose }: CitationPickerProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-96 p-4">
+      <div className="bg-surface-panel border border-line-strong rounded-lg shadow-xl w-96 p-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-white">Insert Citation</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300">
+          <h3 className="text-sm font-semibold text-ink">Insert Citation</h3>
+          <button onClick={onClose} className="text-ink-faint hover:text-ink-muted">
             <FaXmark className="w-4 h-4" />
           </button>
         </div>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Label</label>
+            <label className="block text-xs text-ink-muted mb-1">Label</label>
             <input
               type="text"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g. Etherscan Transaction 0x1234..."
-              className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface border border-line-strong rounded px-3 py-1.5 text-sm text-ink focus:outline-none focus:border-brand"
               autoFocus
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">URL</label>
+            <label className="block text-xs text-ink-muted mb-1">URL</label>
             <input
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://etherscan.io/tx/0x..."
-              className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface border border-line-strong rounded px-3 py-1.5 text-sm text-ink font-mono focus:outline-none focus:border-brand"
               onKeyDown={(e) => { if (e.key === 'Enter') handleInsert(); }}
             />
           </div>
@@ -55,14 +55,14 @@ export function CitationPicker({ onInsert, onClose }: CitationPickerProps) {
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300"
+            className="px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted"
           >
             Cancel
           </button>
           <button
             onClick={handleInsert}
             disabled={!url.trim() || !label.trim()}
-            className="px-3 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50"
+            className="px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 text-white disabled:opacity-50"
           >
             Insert
           </button>

@@ -156,7 +156,7 @@ export default function AdminEntitiesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6">
+    <div className="min-h-screen bg-surface p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -167,12 +167,12 @@ export default function AdminEntitiesPage() {
               placeholder="Search entities..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500 w-56"
+              className="bg-surface-panel border border-line-strong rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500 w-56"
             />
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="bg-surface-panel border border-line-strong rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
             >
               <option value="">All Categories</option>
               {CATEGORIES.map((cat) => (
@@ -183,7 +183,7 @@ export default function AdminEntitiesPage() {
             </select>
             <button
               onClick={handleAdd}
-              className="px-3 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-500 text-white"
+              className="px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 text-white"
             >
               Add Entity
             </button>
@@ -199,27 +199,27 @@ export default function AdminEntitiesPage() {
 
         {/* Form (inline) */}
         {showForm && (
-          <div className="mb-6 p-4 rounded-lg bg-gray-800 border border-gray-700">
+          <div className="mb-6 p-4 rounded-lg bg-surface-panel border border-line-strong">
             <h2 className="text-lg font-semibold text-white mb-4">
               {editingId ? 'Edit Entity' : 'Add Entity'}
             </h2>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Name</label>
+                <label className="block text-sm text-ink-muted mb-1">Name</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                  className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-surface-panel border border-line-strong rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
                   placeholder="Entity name"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Category</label>
+                <label className="block text-sm text-ink-muted mb-1">Category</label>
                 <select
                   value={formData.category}
                   onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                  className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-surface-panel border border-line-strong rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
                 >
                   {CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
@@ -230,22 +230,22 @@ export default function AdminEntitiesPage() {
               </div>
             </div>
             <div className="mb-4">
-              <label className="block text-sm text-gray-400 mb-1">Description</label>
+              <label className="block text-sm text-ink-muted mb-1">Description</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500 resize-y"
+                className="w-full bg-surface-panel border border-line-strong rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500 resize-y"
                 rows={3}
                 placeholder="Optional description"
               />
             </div>
             <div className="mb-4">
               <div className="flex items-center justify-between mb-1">
-                <label className="text-sm text-gray-400">Wallets</label>
+                <label className="text-sm text-ink-muted">Wallets</label>
                 <button
                   type="button"
                   onClick={addWalletField}
-                  className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                  className="flex items-center gap-1 text-xs text-brand hover:text-brand"
                 >
                   <FaPlus className="w-3 h-3" /> Add wallet
                 </button>
@@ -257,14 +257,14 @@ export default function AdminEntitiesPage() {
                       type="text"
                       value={wallet}
                       onChange={(e) => updateWallet(i, e.target.value)}
-                      className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
+                      className="flex-1 bg-surface-panel border border-line-strong rounded px-3 py-1.5 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
                       placeholder="0x..."
                     />
                     {formData.wallets.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeWalletField(i)}
-                        className="p-1.5 text-gray-500 hover:text-red-400"
+                        className="p-1.5 text-ink-faint hover:text-red-400"
                       >
                         <FaMinus className="w-3 h-3" />
                       </button>
@@ -277,13 +277,13 @@ export default function AdminEntitiesPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-3 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50"
+                className="px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 text-white disabled:opacity-50"
               >
                 {saving ? 'Saving...' : editingId ? 'Update' : 'Create'}
               </button>
               <button
                 onClick={handleCancel}
-                className="px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600 text-gray-300"
+                className="px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted"
               >
                 Cancel
               </button>
@@ -296,13 +296,13 @@ export default function AdminEntitiesPage() {
           <Loader inline />
         ) : entities.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-400">No entities found.</p>
+            <p className="text-ink-muted">No entities found.</p>
           </div>
         ) : (
-          <div className="rounded-lg border border-gray-700 overflow-hidden">
+          <div className="rounded-lg border border-line-strong overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="bg-gray-800/50 text-left text-sm text-gray-400">
+                <tr className="bg-surface-panel/50 text-left text-sm text-ink-muted">
                   <th className="px-4 py-3 w-8"></th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Category</th>
@@ -320,10 +320,10 @@ export default function AdminEntitiesPage() {
                   return (
                     <Fragment key={entity.id}>
                       <tr
-                        className="border-b border-gray-700/50 hover:bg-gray-800/50 cursor-pointer"
+                        className="border-b border-line-strong/50 hover:bg-surface-panel/50 cursor-pointer"
                         onClick={() => toggleExpand(entity.id)}
                       >
-                        <td className="px-4 py-3 text-gray-500">
+                        <td className="px-4 py-3 text-ink-faint">
                           {isExpanded ? (
                             <FaChevronDown className="w-3 h-3" />
                           ) : (
@@ -340,10 +340,10 @@ export default function AdminEntitiesPage() {
                             {entity.category}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-400">
+                        <td className="px-4 py-3 text-sm text-ink-muted">
                           {entity.wallets.length}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-400">
+                        <td className="px-4 py-3 text-sm text-ink-muted">
                           {truncate(entity.description, 80)}
                         </td>
                         <td className="px-4 py-3">
@@ -353,7 +353,7 @@ export default function AdminEntitiesPage() {
                                 e.stopPropagation();
                                 handleEdit(entity);
                               }}
-                              className="p-1.5 text-gray-500 hover:text-blue-400"
+                              className="p-1.5 text-ink-faint hover:text-brand"
                               title="Edit"
                             >
                               <FaPenToSquare className="w-3.5 h-3.5" />
@@ -363,7 +363,7 @@ export default function AdminEntitiesPage() {
                                 e.stopPropagation();
                                 handleDelete(entity);
                               }}
-                              className="p-1.5 text-gray-500 hover:text-red-400"
+                              className="p-1.5 text-ink-faint hover:text-red-400"
                               title="Delete"
                             >
                               <FaTrash className="w-3.5 h-3.5" />
@@ -372,21 +372,21 @@ export default function AdminEntitiesPage() {
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr className="bg-gray-800/30">
+                        <tr className="bg-surface-panel/30">
                           <td colSpan={6} className="px-4 py-4">
                             <div className="space-y-3">
                               {entity.description && (
                                 <div>
-                                  <span className="text-xs text-gray-500 uppercase tracking-wider">
+                                  <span className="text-xs text-ink-faint uppercase tracking-wider">
                                     Description
                                   </span>
-                                  <p className="text-sm text-gray-300 mt-1">
+                                  <p className="text-sm text-ink-muted mt-1">
                                     {entity.description}
                                   </p>
                                 </div>
                               )}
                               <div>
-                                <span className="text-xs text-gray-500 uppercase tracking-wider">
+                                <span className="text-xs text-ink-faint uppercase tracking-wider">
                                   Wallets ({entity.wallets.length})
                                 </span>
                                 {entity.wallets.length > 0 ? (
@@ -394,14 +394,14 @@ export default function AdminEntitiesPage() {
                                     {entity.wallets.map((wallet, i) => (
                                       <li
                                         key={i}
-                                        className="text-sm text-gray-300 font-mono bg-gray-800 rounded px-2 py-1 inline-block mr-2 mb-1"
+                                        className="text-sm text-ink-muted font-mono bg-surface-panel rounded px-2 py-1 inline-block mr-2 mb-1"
                                       >
                                         {wallet}
                                       </li>
                                     ))}
                                   </ul>
                                 ) : (
-                                  <p className="text-sm text-gray-500 mt-1">
+                                  <p className="text-sm text-ink-faint mt-1">
                                     No wallets associated
                                   </p>
                                 )}
@@ -409,10 +409,10 @@ export default function AdminEntitiesPage() {
                               {entity.metadata &&
                                 Object.keys(entity.metadata).length > 0 && (
                                   <div>
-                                    <span className="text-xs text-gray-500 uppercase tracking-wider">
+                                    <span className="text-xs text-ink-faint uppercase tracking-wider">
                                       Metadata
                                     </span>
-                                    <pre className="text-xs text-gray-400 mt-1 bg-gray-800 rounded p-2 overflow-x-auto">
+                                    <pre className="text-xs text-ink-muted mt-1 bg-surface-panel rounded p-2 overflow-x-auto">
                                       {JSON.stringify(entity.metadata, null, 2)}
                                     </pre>
                                   </div>

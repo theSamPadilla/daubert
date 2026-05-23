@@ -8,6 +8,7 @@ import {
 } from 'chart.js';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
+import { applyBrandColors, BRAND_CHART_OPTIONS } from '@/lib/chartPalette';
 
 ChartJS.register(
   CategoryScale, LinearScale,
@@ -31,18 +32,20 @@ export function ChartViewer({ data }: ChartViewerProps) {
   if (!Array.isArray(data.datasets) || !Array.isArray(data.labels)) {
     return <div className="text-red-400 text-sm">Invalid chart data: datasets and labels must be arrays.</div>;
   }
-  const chartData = { labels: data.labels, datasets: data.datasets };
+  const chartData = {
+    labels: data.labels,
+    datasets: applyBrandColors(data.datasets),
+  };
   const options = {
     responsive: true,
     maintainAspectRatio: false,
     ...data.options,
     plugins: {
-      legend: { labels: { color: '#d1d5db' } },
+      ...BRAND_CHART_OPTIONS.plugins,
       ...(data.options?.plugins as any),
     },
     scales: {
-      x: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } },
-      y: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } },
+      ...BRAND_CHART_OPTIONS.scales,
       ...(data.options?.scales as any),
     },
   };
@@ -52,6 +55,6 @@ export function ChartViewer({ data }: ChartViewerProps) {
     case 'line': return <div className="h-96"><Line data={chartData} options={options} /></div>;
     case 'pie': return <div className="h-96"><Pie data={chartData} options={options} /></div>;
     case 'doughnut': return <div className="h-96"><Doughnut data={chartData} options={options} /></div>;
-    default: return <div className="text-gray-400">Unsupported chart type: {data.chartType}</div>;
+    default: return <div className="text-ink-faint">Unsupported chart type: {data.chartType}</div>;
   }
 }

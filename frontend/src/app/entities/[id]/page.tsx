@@ -40,10 +40,10 @@ export default function EntityDetailPage() {
 
   if (error || !entity) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-surface flex items-center justify-center">
         <div className="text-center space-y-3">
           <p className="text-red-400">{error || 'Entity not found'}</p>
-          <Link href="/" className="text-sm text-blue-400 hover:text-blue-300">
+          <Link href="/" className="text-sm text-brand hover:text-brand">
             Back to cases
           </Link>
         </div>
@@ -54,17 +54,17 @@ export default function EntityDetailPage() {
   const catColor = CATEGORY_COLORS[entity.category] || CATEGORY_COLORS.other;
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6">
+    <div className="min-h-screen bg-surface p-6">
       <div className="max-w-3xl mx-auto">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-300 mb-6"
+          className="inline-flex items-center gap-2 text-sm text-ink-muted hover:text-ink-muted mb-6"
         >
           <FaArrowLeft className="w-3 h-3" />
           Back
         </Link>
 
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div className="bg-surface-panel border border-line-strong rounded-lg p-6">
           {/* Header */}
           <div className="flex items-center gap-3 mb-6">
             <h1 className="text-2xl font-bold text-white">{entity.name}</h1>
@@ -76,14 +76,14 @@ export default function EntityDetailPage() {
           {/* Description */}
           {entity.description && (
             <div className="mb-6">
-              <h2 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Description</h2>
-              <p className="text-sm text-gray-300">{entity.description}</p>
+              <h2 className="text-xs text-ink-faint uppercase tracking-wider mb-2">Description</h2>
+              <p className="text-sm text-ink-muted">{entity.description}</p>
             </div>
           )}
 
           {/* Wallets */}
           <div className="mb-6">
-            <h2 className="text-xs text-gray-500 uppercase tracking-wider mb-2">
+            <h2 className="text-xs text-ink-faint uppercase tracking-wider mb-2">
               Wallets ({entity.wallets.length})
             </h2>
             {entity.wallets.length > 0 ? (
@@ -91,22 +91,22 @@ export default function EntityDetailPage() {
                 {entity.wallets.map((wallet, i) => (
                   <div
                     key={i}
-                    className="text-sm text-gray-300 font-mono bg-gray-900 rounded px-3 py-2 border border-gray-700"
+                    className="text-sm text-ink-muted font-mono bg-surface rounded px-3 py-2 border border-line-strong"
                   >
                     {wallet}
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-500">No wallets associated</p>
+              <p className="text-sm text-ink-faint">No wallets associated</p>
             )}
           </div>
 
           {/* Metadata */}
           {entity.metadata && Object.keys(entity.metadata).length > 0 && (
             <div>
-              <h2 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Metadata</h2>
-              <pre className="text-xs text-gray-400 bg-gray-900 rounded p-3 border border-gray-700 overflow-x-auto">
+              <h2 className="text-xs text-ink-faint uppercase tracking-wider mb-2">Metadata</h2>
+              <pre className="text-xs text-ink-muted bg-surface rounded p-3 border border-line-strong overflow-x-auto">
                 {JSON.stringify(entity.metadata, null, 2)}
               </pre>
             </div>

@@ -63,12 +63,12 @@ function AddressField({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-semibold text-gray-400 uppercase">{label}</span>
+        <span className="text-xs font-semibold text-ink-muted uppercase">{label}</span>
         {allWallets.length > 0 && (
           <button
             type="button"
             onClick={() => { setManualEntry(!manualEntry); if (!manualEntry) onChange(''); }}
-            className="text-[10px] text-blue-400 hover:text-blue-300"
+            className="text-[10px] text-brand hover:text-brand"
           >
             {manualEntry ? 'Select existing' : 'New address'}
           </button>
@@ -80,12 +80,12 @@ function AddressField({
             type="text"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs font-mono"
+            className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-xs font-mono"
             placeholder="Paste address"
             required
           />
           {value && !isKnownWallet(value) && (
-            <p className="text-[10px] text-gray-500 mt-0.5">
+            <p className="text-[10px] text-ink-faint mt-0.5">
               New node: <span className="font-mono">{truncateAddr(value)}</span>
             </p>
           )}
@@ -94,7 +94,7 @@ function AddressField({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
+          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-xs"
           required
         >
           <option value="">Select address</option>
@@ -215,7 +215,7 @@ export function TransactionForm({
       {/* Trace selector for new transactions */}
       {!transaction && (
         <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Trace</label>
+          <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Trace</label>
           {traces.length === 0 ? (
             <button
               type="button"
@@ -227,7 +227,7 @@ export function TransactionForm({
                 setCreatingTrace(false);
                 if (newId) setTraceId(newId);
               }}
-              className="w-full px-2 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded text-sm text-center"
+              className="w-full px-2 py-1.5 bg-brand hover:bg-brand/90 disabled:opacity-50 rounded text-sm text-center"
             >
               {creatingTrace ? 'Creating...' : '+ Create Trace'}
             </button>
@@ -236,7 +236,7 @@ export function TransactionForm({
               <select
                 value={traceId}
                 onChange={(e) => setTraceId(e.target.value)}
-                className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+                className="flex-1 bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
               >
                 {traces.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -252,7 +252,7 @@ export function TransactionForm({
                     setCreatingTrace(false);
                     if (newId) setTraceId(newId);
                   }}
-                  className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded text-sm shrink-0"
+                  className="px-2 py-1.5 bg-surface-raised hover:bg-surface-raised/80 disabled:opacity-50 rounded text-sm shrink-0"
                   title="New trace"
                 >
                   +
@@ -264,8 +264,8 @@ export function TransactionForm({
       )}
 
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">
-          Name <span className="text-gray-600 normal-case font-normal">(optional)</span>
+        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
+          Name <span className="text-ink-faint normal-case font-normal">(optional)</span>
         </label>
         <input
           ref={nameRef}
@@ -273,7 +273,7 @@ export function TransactionForm({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="e.g. Donation, NFT purchase…"
-          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
         />
       </div>
 
@@ -295,22 +295,22 @@ export function TransactionForm({
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">
-          Tx Hash <span className="text-gray-600 normal-case font-normal">(optional)</span>
+        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
+          Tx Hash <span className="text-ink-faint normal-case font-normal">(optional)</span>
         </label>
         <div className="flex items-center gap-2">
           <input
             type="text"
             value={txHash}
             onChange={(e) => setTxHash(e.target.value)}
-            className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm font-mono"
+            className="flex-1 min-w-0 bg-surface border border-line-strong rounded px-2 py-1.5 text-sm font-mono"
             placeholder="0x..."
           />
           {txHash && (
             <CopyButton
               text={txHash}
               title="Copy tx hash"
-              className="shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
+              className="shrink-0 text-ink-faint hover:text-ink transition-colors"
               size={13}
             />
           )}
@@ -318,11 +318,11 @@ export function TransactionForm({
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Chain</label>
+        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Chain</label>
         <select
           value={chain}
           onChange={(e) => setChain(e.target.value)}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
         >
           {Object.values(SUPPORTED_CHAINS).map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
@@ -332,33 +332,33 @@ export function TransactionForm({
 
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Amount</label>
+          <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Amount</label>
           <input
             type="text"
             inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(sanitizeNumeric(e.target.value))}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+            className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
             required
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Symbol</label>
+          <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Symbol</label>
           <input
             type="text"
             value={tokenSymbol}
             onChange={(e) => setTokenSymbol(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+            className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">USD</label>
+          <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">USD</label>
           <input
             type="text"
             inputMode="decimal"
             value={usdValue}
             onChange={(e) => setUsdValue(sanitizeNumeric(e.target.value))}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+            className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
             placeholder="0.00"
           />
         </div>
@@ -366,58 +366,58 @@ export function TransactionForm({
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Token Address</label>
+          <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Token Address</label>
           <input
             type="text"
             value={tokenAddress}
             onChange={(e) => setTokenAddress(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs font-mono"
+            className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-xs font-mono"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Decimals</label>
+          <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Decimals</label>
           <input
             type="number"
             value={tokenDecimals}
             onChange={(e) => setTokenDecimals(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+            className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
           />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Timestamp</label>
+          <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Timestamp</label>
           <input
             type="datetime-local"
             value={timestamp}
             onChange={(e) => setTimestamp(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
+            className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-xs"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Block #</label>
+          <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Block #</label>
           <input
             type="number"
             value={blockNumber}
             onChange={(e) => setBlockNumber(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm"
+            className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
           />
         </div>
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Color</label>
+        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Color</label>
         <ColorPicker value={color} onChange={setColor} />
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Tags</label>
+        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Tags</label>
         <TagInput tags={tags} onChange={setTags} />
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Links</label>
+        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Links</label>
         <div className="space-y-1">
           {links.map((link, i) => (
             <div key={i} className="flex items-center gap-1">
@@ -425,12 +425,12 @@ export function TransactionForm({
                 type="url"
                 value={link}
                 onChange={(e) => setLinks(links.map((l, j) => j === i ? e.target.value : l))}
-                className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono min-w-0"
+                className="flex-1 bg-surface border border-line-strong rounded px-2 py-1 text-xs font-mono min-w-0"
               />
               <button
                 type="button"
                 onClick={() => setLinks(links.filter((_, j) => j !== i))}
-                className="text-gray-500 hover:text-red-400 text-sm shrink-0"
+                className="text-ink-faint hover:text-red-400 text-sm shrink-0"
               >✕</button>
             </div>
           ))}
@@ -447,7 +447,7 @@ export function TransactionForm({
                 }
               }}
               placeholder="https://… (Enter to add)"
-              className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono min-w-0"
+              className="flex-1 bg-surface border border-line-strong rounded px-2 py-1 text-xs font-mono min-w-0"
             />
             <button
               type="button"
@@ -455,27 +455,27 @@ export function TransactionForm({
                 const v = linkInput.trim();
                 if (v) { setLinks([...links, v]); setLinkInput(''); }
               }}
-              className="text-gray-500 hover:text-white text-lg leading-none shrink-0"
+              className="text-ink-faint hover:text-ink text-lg leading-none shrink-0"
             >+</button>
           </div>
         </div>
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-400 uppercase block mb-1">Notes</label>
+        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Notes</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm resize-none"
+          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm resize-none"
         />
       </div>
 
       <div className="flex gap-2 pt-2">
-        <button type="submit" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded text-sm">
+        <button type="submit" className="px-3 py-1.5 bg-brand hover:bg-brand/90 rounded text-sm">
           Save
         </button>
-        <button type="button" onClick={onCancel} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+        <button type="button" onClick={onCancel} className="px-3 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm">
           Cancel
         </button>
         {onDelete && transaction && (

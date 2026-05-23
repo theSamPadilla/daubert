@@ -2,6 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    color-scheme: dark;
+
+    --ink: #E6EAF2;
+    --ink-muted: #9AA3B2;
+    --ink-faint: #5B6473;
+
+    --surface: #0B1220;
+    --surface-panel: #18213A;
+    --surface-raised: #232E4C;
+
+    --line: #2A364E;
+    --line-strong: #3A4866;
+
+    --brand: #4F6FD8;
+    --brand-soft: #1F2A4A;
+    --accent: #2DD4D2;
+  }
+
+  html, body {
+    background: var(--surface);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--brand);
+    color: white;
+  }
+}
+
 @keyframes breathing {
   0%, 100% { opacity: 0.55; transform: scale(0.98); }
   50%      { opacity: 1;    transform: scale(1.02); }

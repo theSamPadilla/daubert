@@ -31,17 +31,17 @@ export function TagInput({ tags, onChange, placeholder = 'Add tag...' }: TagInpu
   };
 
   return (
-    <div className="flex flex-wrap gap-1 p-1.5 bg-gray-900 border border-gray-700 rounded min-h-[34px]">
+    <div className="flex flex-wrap gap-1 p-1.5 bg-surface border border-line-strong rounded min-h-[34px]">
       {tags.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 rounded text-xs"
+          className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface-raised rounded text-xs"
         >
           {tag}
           <button
             type="button"
             onClick={() => removeTag(tag)}
-            className="text-gray-400 hover:text-white"
+            className="text-ink-muted hover:text-ink"
           >
             x
           </button>
@@ -54,7 +54,7 @@ export function TagInput({ tags, onChange, placeholder = 'Add tag...' }: TagInpu
         onKeyDown={handleKeyDown}
         onBlur={() => input.trim() && addTag(input)}
         placeholder={tags.length === 0 ? placeholder : ''}
-        className="flex-1 min-w-[60px] bg-transparent text-sm text-white outline-none placeholder-gray-500"
+        className="flex-1 min-w-[60px] bg-transparent text-sm text-ink outline-none placeholder-ink-faint"
       />
     </div>
   );

@@ -81,27 +81,32 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
   }, [router, caseId]);
 
   return (
-    <div className="w-full bg-gray-800 flex flex-col h-full overflow-hidden">
+    <div className="w-full bg-surface-panel border-r border-line-strong flex flex-col h-full overflow-hidden">
       {/* Case header with back button */}
-      <div className="p-3 border-b border-gray-700 flex items-center gap-2">
+      <div className="h-12 px-3 border-b border-[#E5E7EB] bg-[#F7F8FB] flex items-center gap-2 shrink-0">
         <button
           onClick={() => router.push('/')}
-          className="text-gray-400 hover:text-white transition-colors"
+          className="text-[#5B6473] hover:text-[#0B1220] transition-colors shrink-0"
           title="Back to cases"
         >
           <FaArrowLeft size={12} />
         </button>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate">{caseName || 'Loading...'}</p>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
+            Case
+          </span>
+          <p className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate">
+            {caseName || 'Loading...'}
+          </p>
         </div>
       </div>
 
       {/* Investigation header */}
-      <div className="px-3 py-2 flex items-center justify-between border-b border-gray-700">
-        <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Investigations</span>
+      <div className="px-3 py-2 flex items-center justify-between border-b border-line-strong">
+        <span className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.14em]">Investigations</span>
         <button
           onClick={() => ctx.openNewPrimary('investigation')}
-          className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
+          className="text-ink-faint hover:text-ink text-xs transition-colors"
           title="New investigation"
         >
           +
@@ -127,13 +132,13 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                 }}
                 className={`flex items-center group px-3 pr-2 py-1.5 cursor-pointer text-sm transition-colors ${
                   isActive
-                    ? 'bg-blue-600/20 text-blue-300'
-                    : 'hover:bg-gray-700/60 text-gray-300'
+                    ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand)]'
+                    : 'hover:bg-surface-raised text-ink-muted'
                 }`}
               >
                 <button
                   onClick={(e) => { e.stopPropagation(); if (isActive && traces) toggleInv(inv.id); }}
-                  className={`mr-1 shrink-0 transition-colors ${isActive && traces ? 'text-gray-500 hover:text-gray-300' : 'text-gray-600'}`}
+                  className={`mr-1 shrink-0 transition-colors ${isActive && traces ? 'text-ink-faint hover:text-ink-muted' : 'text-ink-faint/60'}`}
                 >
                   {isActive && traces && !isInvCollapsed
                     ? <FaChevronDown size={9} />
@@ -142,7 +147,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                 <span className="truncate flex-1 text-xs font-medium">{inv.name}</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); onEditInvestigation?.(inv); }}
-                  className="px-0.5 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="px-0.5 text-ink-faint hover:text-ink opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Edit investigation"
                 >
                   <FaPen size={10} />
@@ -151,15 +156,15 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
 
               {/* Traces under active investigation */}
               {isActive && !isInvCollapsed && traces && (
-                <div className="ml-3 border-l border-gray-700/70">
+                <div className="ml-3 border-l border-line">
                   {traces.map((trace) => (
                     <div
                       key={trace.id}
                       onClick={() => onSelectTrace?.(trace)}
                       className={`flex items-center gap-1.5 pl-3 pr-2 py-1 cursor-pointer transition-colors ${
                         selectedTraceId === trace.id
-                          ? 'bg-gray-700 text-white'
-                          : 'hover:bg-gray-700/50 text-gray-400 hover:text-gray-200'
+                          ? 'bg-surface-raised text-ink'
+                          : 'hover:bg-surface-raised text-ink-muted hover:text-ink'
                       }`}
                     >
                       <span
@@ -169,7 +174,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                       <span className="flex-1 truncate text-xs">{trace.name}</span>
                       <button
                         onClick={(e) => { e.stopPropagation(); onToggleVisibility?.(trace.id); }}
-                        className={`flex items-center ${trace.visible ? 'text-gray-500 hover:text-white' : 'text-gray-700 hover:text-gray-400'}`}
+                        className={`flex items-center ${trace.visible ? 'text-ink-faint hover:text-ink' : 'text-ink-faint/40 hover:text-ink-faint'}`}
                         title={trace.visible ? 'Hide' : 'Show'}
                       >
                         {trace.visible ? <Eye size={12} /> : <EyeSlash size={12} />}
@@ -179,7 +184,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                   {onAddTrace && (
                     <button
                       onClick={onAddTrace}
-                      className="flex items-center gap-1.5 pl-3 pr-2 py-1 w-full text-left text-gray-600 hover:text-gray-400 transition-colors"
+                      className="flex items-center gap-1.5 pl-3 pr-2 py-1 w-full text-left text-ink-faint/60 hover:text-ink-faint transition-colors"
                     >
                       <span className="text-xs">+</span>
                       <span className="text-xs">Add trace</span>
@@ -192,16 +197,16 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
         })}
 
         {investigations.length === 0 && (
-          <p className="text-gray-500 text-xs p-3">No investigations yet.</p>
+          <p className="text-ink-faint text-xs p-3">No investigations yet.</p>
         )}
 
         {/* Productions */}
-        <div className="mt-2 border-t border-gray-700">
+        <div className="mt-2 border-t border-line-strong">
           <div className="px-3 py-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Productions</span>
+            <span className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.14em]">Productions</span>
             <button
               onClick={() => ctx.openNewPrimary('production')}
-              className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
+              className="text-ink-faint hover:text-ink text-xs transition-colors"
               title="New production"
             >
               +
@@ -213,16 +218,16 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                 onClick={() => router.push(`/cases/${caseId}/productions?id=${prod.id}`)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors ${
                   selectedProductionId === prod.id
-                    ? 'bg-blue-600/20 text-blue-300'
-                    : 'hover:bg-gray-700/60 text-gray-400'
+                    ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand)]'
+                    : 'hover:bg-surface-raised text-ink-muted'
                 }`}
               >
                 <span className="truncate flex-1 font-medium">{prod.name}</span>
-                <span className="text-[10px] text-gray-600">{prod.type}</span>
+                <span className="font-mono text-[10px] text-ink-faint/70 uppercase tracking-wider">{prod.type}</span>
               </div>
           ))}
           {(!productions || productions.length === 0) && (
-            <p className="text-gray-600 text-xs px-3 py-1">No productions yet.</p>
+            <p className="text-ink-faint text-xs px-3 py-1">No productions yet.</p>
           )}
         </div>
 
@@ -232,12 +237,12 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           const dataRoomActive = pathname === dataRoomHref || pathname?.startsWith(dataRoomHref + '/');
 
           let statusText = 'Loading...';
-          let statusColor = 'text-gray-600';
+          let statusColor = 'text-ink-faint';
           let folderText: string | null = null;
 
           if (dataRoom === null) {
             statusText = 'Not connected';
-            statusColor = 'text-gray-500';
+            statusColor = 'text-ink-faint';
           } else if (dataRoom && dataRoom.status === 'broken') {
             statusText = 'Reconnect needed';
             statusColor = 'text-yellow-500';
@@ -248,9 +253,9 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           }
 
           return (
-            <div className="mt-2 border-t border-gray-700">
+            <div className="mt-2 border-t border-line-strong">
               <div className="px-3 py-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Data Room</span>
+                <span className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.14em]">Data Room</span>
               </div>
               <a
                 href={dataRoomHref}
@@ -260,8 +265,8 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                 }}
                 className={`block px-3 py-1.5 cursor-pointer text-xs transition-colors ${
                   dataRoomActive
-                    ? 'bg-blue-600/20 text-blue-300'
-                    : 'hover:bg-gray-700/60 text-gray-400'
+                    ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand)]'
+                    : 'hover:bg-surface-raised text-ink-muted'
                 }`}
               >
                 <span className={`text-[10px] ${statusColor}`}>{statusText}</span>

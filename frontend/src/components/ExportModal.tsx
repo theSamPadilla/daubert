@@ -31,19 +31,19 @@ export function ExportModal({ open, onClose, onExport }: ExportModalProps) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-gray-800 rounded-lg p-6 w-[400px]">
-        <h3 className="text-sm font-semibold text-gray-300 uppercase mb-5">
+      <div className="bg-surface-panel rounded-lg p-6 w-[400px]">
+        <h3 className="text-sm font-semibold text-ink-muted uppercase mb-5">
           Export Graph
         </h3>
         <div className="flex gap-3">
           {/* PNG */}
           <button
             onClick={() => handleExport('png')}
-            className="flex-1 flex flex-col items-center gap-2 px-4 py-5 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
+            className="flex-1 flex flex-col items-center gap-2 px-4 py-5 bg-brand hover:bg-brand/90 rounded-lg transition-colors"
           >
             <FaImage size={28} />
             <span className="text-sm font-semibold">PNG Image</span>
-            <span className="text-xs text-blue-200 text-center leading-snug">
+            <span className="text-xs text-ink text-center leading-snug">
               Best for sharing on the web
             </span>
           </button>
@@ -51,11 +51,11 @@ export function ExportModal({ open, onClose, onExport }: ExportModalProps) {
           {/* PDF */}
           <button
             onClick={() => handleExport('pdf')}
-            className="flex-1 flex flex-col items-center gap-2 px-4 py-5 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+            className="flex-1 flex flex-col items-center gap-2 px-4 py-5 bg-surface-raised hover:bg-surface-raised/80 rounded-lg transition-colors"
           >
             <FaFilePdf size={28} />
             <span className="text-sm font-semibold">PDF (Print)</span>
-            <span className="text-xs text-gray-400 text-center leading-snug">
+            <span className="text-xs text-ink-muted text-center leading-snug">
               Best for printing or reports
             </span>
           </button>

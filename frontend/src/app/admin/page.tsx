@@ -29,7 +29,7 @@ export default function AdminHomePage() {
   return (
     <div className="p-8">
       <h1 className="mb-2 text-2xl font-bold text-white">Admin</h1>
-      <p className="mb-8 text-sm text-gray-400">
+      <p className="mb-8 text-sm text-ink-muted">
         Internal admin management dashboard.
       </p>
 
@@ -40,13 +40,13 @@ export default function AdminHomePage() {
             <Link
               key={card.href}
               href={card.href}
-              className="group rounded-lg border border-gray-700 bg-gray-800/50 p-5 transition-colors hover:border-blue-500 hover:bg-gray-800"
+              className="group rounded-lg border border-line-strong bg-surface-panel/50 p-5 transition-colors hover:border-blue-500 hover:bg-surface-panel"
             >
               <div className="mb-3 flex items-center gap-3">
-                <Icon className="h-5 w-5 text-blue-400" />
+                <Icon className="h-5 w-5 text-brand" />
                 <h2 className="text-lg font-semibold text-white">{card.label}</h2>
               </div>
-              <p className="text-sm text-gray-400">{card.description}</p>
+              <p className="text-sm text-ink-muted">{card.description}</p>
             </Link>
           );
         })}

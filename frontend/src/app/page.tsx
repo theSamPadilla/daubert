@@ -24,7 +24,7 @@ function CaseSelector() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-gray-900 text-white overflow-hidden">
+    <div className="relative min-h-screen bg-surface text-white overflow-hidden">
       {/* Subtle decorative gradient + watermark */}
       <div
         className="pointer-events-none absolute inset-0 -z-10"
@@ -38,7 +38,7 @@ function CaseSelector() {
       </div>
 
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-line">
         <div className="flex items-center gap-2.5">
           <Image
             src="/logo-light.png"
@@ -61,8 +61,8 @@ function CaseSelector() {
           <Loader inline />
         ) : cases.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-400">No cases assigned to your account yet.</p>
-            <p className="text-gray-500 text-sm mt-2">Contact your administrator to get access to a case.</p>
+            <p className="text-ink-muted">No cases assigned to your account yet.</p>
+            <p className="text-ink-faint text-sm mt-2">Contact your administrator to get access to a case.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -70,18 +70,18 @@ function CaseSelector() {
               <button
                 key={c.id}
                 onClick={() => router.push(`/cases/${c.id}/investigations`)}
-                className="text-left p-4 bg-gray-800 border border-gray-700 rounded-lg hover:border-gray-500 hover:bg-gray-750 transition-colors group"
+                className="text-left p-4 bg-surface-panel border border-line-strong rounded-lg hover:border-gray-500 hover:bg-surface-raised/80 transition-colors group"
               >
-                <h3 className="font-medium text-white group-hover:text-blue-300 transition-colors">
+                <h3 className="font-medium text-white group-hover:text-brand transition-colors">
                   {c.name}
                 </h3>
                 {c.startDate && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-ink-faint mt-1">
                     Started {new Date(c.startDate).toLocaleDateString()}
                   </p>
                 )}
                 {c.role && (
-                  <span className="inline-block mt-2 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 uppercase tracking-wider">
+                  <span className="inline-block mt-2 text-[10px] px-1.5 py-0.5 rounded bg-surface-raised text-ink-muted uppercase tracking-wider">
                     {c.role}
                   </span>
                 )}

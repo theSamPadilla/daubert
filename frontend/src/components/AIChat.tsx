@@ -89,9 +89,9 @@ function formatToolStatus(tool: ToolStatus): string {
 
 function StatusMessage({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2 text-[11px] text-gray-500 py-1 px-1">
+    <div className="flex items-center gap-2 text-[11px] text-ink-faint py-1 px-1">
       <span
-        className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block shrink-0"
+        className="w-1.5 h-1.5 rounded-full bg-brand inline-block shrink-0"
         style={{ animation: 'toolPulse 1.5s ease-in-out infinite' }}
       />
       <span>{text}</span>
@@ -131,7 +131,7 @@ function InlineCode({ children, ...props }: React.HTMLAttributes<HTMLElement>) {
         href={link.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300/60 transition-colors"
+        className="text-brand hover:text-brand underline decoration-brand/30 hover:decoration-brand/60 transition-colors"
       >
         {text}
       </a>
@@ -146,7 +146,7 @@ function ThinkingDots() {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="w-2 h-2 rounded-full bg-gray-500 inline-block"
+          className="w-2 h-2 rounded-full bg-ink-faint inline-block"
           style={{
             animation: 'thinkingBounce 1.4s infinite ease-in-out both',
             animationDelay: i === 0 ? '-0.32s' : i === 1 ? '-0.16s' : '0s',
@@ -245,19 +245,19 @@ function AttachmentChip({
         <img
           src={attachment.previewUrl}
           alt={attachment.name}
-          className="w-14 h-14 rounded-lg object-cover border border-gray-600"
+          className="w-14 h-14 rounded-lg object-cover border border-line-strong"
         />
       ) : (
-        <div className="w-14 h-14 rounded-lg border border-gray-600 bg-gray-800 flex flex-col items-center justify-center gap-1 px-1">
+        <div className="w-14 h-14 rounded-lg border border-line-strong bg-surface-panel flex flex-col items-center justify-center gap-1 px-1">
           {iconForMediaType(attachment.mediaType, attachment.name)}
-          <span className="text-[9px] text-gray-400 truncate w-full text-center leading-tight">
+          <span className="text-[9px] text-ink-muted truncate w-full text-center leading-tight">
             {attachment.name}
           </span>
         </div>
       )}
       <button
         onClick={onRemove}
-        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-gray-600 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-[10px] leading-none"
+        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-surface-raised hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-[10px] leading-none"
         title="Remove"
       >
         ×
@@ -705,7 +705,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
 
   return (
     <div
-      className="w-full h-full bg-gray-800 border-l border-gray-700 flex flex-col relative"
+      className="w-full h-full bg-surface-panel border-l border-line-strong flex flex-col relative"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -713,8 +713,8 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
     >
       {/* Drag overlay */}
       {isDragging && (
-        <div className="absolute inset-0 z-50 pointer-events-none border-2 border-blue-500 rounded-none bg-blue-500/10 flex items-center justify-center">
-          <div className="bg-gray-800 border border-blue-500 rounded-xl px-6 py-4 text-blue-400 font-semibold text-sm shadow-xl">
+        <div className="absolute inset-0 z-50 pointer-events-none border-2 border-brand rounded-none bg-brand/10 flex items-center justify-center">
+          <div className="bg-surface-panel border border-brand rounded-xl px-6 py-4 text-brand font-semibold text-sm shadow-xl">
             Drop images or PDFs here
           </div>
         </div>
@@ -731,22 +731,22 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 shrink-0">
+      <div className="flex items-center justify-between px-3 h-12 border-b border-[#E5E7EB] bg-[#F7F8FB] shrink-0">
         {showHistory ? (
           <>
             <button
               onClick={() => setShowHistory(false)}
-              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              className="w-8 h-8 flex items-center justify-center text-[#5B6473] hover:text-[#0B1220] hover:bg-[#F1F4FA] rounded-lg transition-colors"
               aria-label="Back to chat"
             >
               ←
             </button>
-            <span className="text-sm font-bold text-white">Conversations</span>
+            <span className="text-sm font-semibold text-[#0B1220]">Conversations</span>
             <button
               onClick={handleNewConversation}
               disabled={!activeCaseId}
               title={activeCaseId ? 'New conversation' : 'Select a case to start a conversation'}
-              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
+              className="w-8 h-8 flex items-center justify-center text-[#5B6473] hover:text-[#0B1220] hover:bg-[#F1F4FA] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#5B6473]"
               aria-label="New conversation"
             >
               +
@@ -755,7 +755,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
         ) : (
           <>
             <div className="flex-1 min-w-0">
-              <span className="text-sm font-bold text-white truncate block">
+              <span className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate block">
                 {conversations.find((c) => c.id === activeConvId)?.title || 'Daubert'}
               </span>
             </div>
@@ -764,7 +764,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value as ModelId)}
                 disabled={streaming}
-                className="text-xs font-semibold bg-gray-700 border border-gray-600 text-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500 hover:border-gray-500 transition-colors disabled:opacity-50 cursor-pointer"
+                className="text-xs font-semibold bg-white border border-[#E5E7EB] text-[#5B6473] rounded-md px-2 py-1 focus:outline-none focus:border-brand hover:border-[#CFD4DD] transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {MODELS.map((m) => (
                   <option key={m.id} value={m.id}>{m.label}</option>
@@ -772,7 +772,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
               </select>
               <button
                 onClick={() => setShowHistory(true)}
-                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                className="w-8 h-8 flex items-center justify-center text-[#5B6473] hover:text-[#0B1220] hover:bg-[#F1F4FA] rounded-lg transition-colors"
                 title="Conversation history"
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -784,7 +784,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                 onClick={handleNewConversation}
                 disabled={!activeCaseId}
                 title={activeCaseId ? 'New conversation' : 'Select a case to start a conversation'}
-                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors text-lg leading-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                className="w-8 h-8 flex items-center justify-center text-[#5B6473] hover:text-[#0B1220] hover:bg-[#F1F4FA] rounded-lg transition-colors text-lg leading-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#5B6473]"
               >
                 +
               </button>
@@ -797,29 +797,29 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
       {showHistory && (
         <div className="flex-1 overflow-y-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {conversations.length === 0 ? (
-            <p className="text-gray-500 text-xs text-center py-6 font-medium">No conversations yet</p>
+            <p className="text-ink-faint text-xs text-center py-6 font-medium">No conversations yet</p>
           ) : (
             conversations.map((conv) => (
               <div
                 key={conv.id}
                 className={`group flex items-center gap-1 px-3 py-2.5 rounded-lg mx-1 transition-colors ${
-                  activeConvId === conv.id ? 'bg-gray-700' : 'hover:bg-gray-700/60'
+                  activeConvId === conv.id ? 'bg-surface-raised' : 'hover:bg-surface-raised/60'
                 }`}
               >
                 <button
                   onClick={() => handleLoadConversation(conv.id)}
                   className="flex-1 text-left flex flex-col gap-0.5 min-w-0"
                 >
-                  <span className="text-sm font-semibold text-white truncate">
+                  <span className="text-sm font-semibold text-ink truncate">
                     {conv.title || 'New conversation'}
                   </span>
-                  <span className="text-xs text-gray-500 font-medium">
+                  <span className="text-xs text-ink-faint font-medium">
                     {formatRelativeDate(conv.updatedAt)}
                   </span>
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv.id); }}
-                  className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center text-gray-500 hover:text-red-400 rounded transition-all shrink-0"
+                  className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center text-ink-faint hover:text-red-400 rounded transition-all shrink-0"
                   title="Delete conversation"
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -835,9 +835,9 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
       {/* Messages */}
       {!showHistory && (
         <>
-          <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 bg-gray-850 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ backgroundColor: 'rgb(17 24 39 / 0.5)' }}>
+          <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 bg-surface/60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {messages.length === 0 && (
-              <p className="text-gray-500 text-sm text-center mt-8 leading-relaxed font-medium">
+              <p className="text-ink-faint text-sm text-center mt-8 leading-relaxed font-medium">
                 Ask me about addresses, transactions,<br />or patterns in this case.
               </p>
             )}
@@ -855,8 +855,8 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                   <div
                     className={`max-w-[85%] px-3.5 py-2.5 text-sm leading-relaxed font-medium break-words overflow-hidden ${
                       isUser
-                        ? 'bg-blue-600 text-white rounded-2xl rounded-br-md'
-                        : 'bg-gray-700 text-gray-100 rounded-2xl rounded-bl-md border border-gray-600'
+                        ? 'bg-brand text-ink rounded-2xl rounded-br-md'
+                        : 'bg-surface-raised text-ink rounded-2xl rounded-bl-md border border-line-strong'
                     }`}
                   >
                     {m.attachments && m.attachments.length > 0 && (
@@ -866,7 +866,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                       isUser ? (
                         <span className="whitespace-pre-wrap">{m.text}</span>
                       ) : (
-                        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-pre:my-2 prose-pre:bg-gray-800 prose-pre:text-gray-200 prose-code:text-gray-300 prose-code:before:content-none prose-code:after:content-none prose-a:text-blue-400 prose-strong:text-white prose-td:p-1.5 prose-th:p-1.5">
+                        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-pre:my-2 prose-pre:bg-surface-raised prose-pre:text-ink-muted prose-code:text-ink-muted prose-code:before:content-none prose-code:after:content-none prose-a:text-brand prose-strong:text-ink prose-td:p-1.5 prose-th:p-1.5">
                           <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: InlineCode }}>{m.text}</ReactMarkdown>
                         </div>
                       )
@@ -881,7 +881,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
           </div>
 
           {/* Input area */}
-          <div className="px-4 pt-2 pb-3 border-t border-gray-700 shrink-0">
+          <div className="px-4 pt-2 pb-3 border-t border-line-strong shrink-0">
             {/* Attachment previews */}
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
@@ -906,7 +906,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={streaming}
-                className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-40 rounded-xl transition-colors shrink-0 border border-gray-700"
+                className="w-9 h-9 flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-raised disabled:opacity-40 rounded-xl transition-colors shrink-0 border border-line-strong"
                 title="Attach image or PDF"
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -923,13 +923,13 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                   placeholder="Ask me anything…"
                   rows={1}
                   disabled={streaming}
-                  className="w-full bg-gray-900 border-2 border-gray-700 focus:border-blue-500 focus:outline-none rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 resize-none disabled:opacity-50 transition-colors font-medium leading-relaxed"
+                  className="w-full bg-surface border-2 border-line-strong focus:border-brand focus:outline-none rounded-xl px-3.5 py-2.5 text-sm text-ink placeholder-ink-faint resize-none disabled:opacity-50 transition-colors font-medium leading-relaxed"
                   style={{ maxHeight: expanded ? '320px' : '140px', minHeight: '44px', overflowY: 'auto' }}
                 />
                 <button
                   type="button"
                   onClick={() => setExpanded((v) => !v)}
-                  className="absolute bottom-2 right-2 w-5 h-5 flex items-center justify-center text-gray-600 hover:text-gray-300 transition-colors"
+                  className="absolute bottom-2 right-2 w-5 h-5 flex items-center justify-center text-ink-faint hover:text-ink-muted transition-colors"
                   title={expanded ? 'Collapse' : 'Expand'}
                 >
                   {expanded ? (
@@ -954,7 +954,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                 <button
                   onClick={handleSend}
                   disabled={!canSend}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-bold text-white transition-all hover:-translate-y-px disabled:transform-none shrink-0"
+                  className="px-4 py-2.5 bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-bold text-ink transition-all hover:-translate-y-px disabled:transform-none shrink-0"
                 >
                   Send
                 </button>

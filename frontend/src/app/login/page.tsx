@@ -36,11 +36,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900">
+    <div className="min-h-screen flex items-center justify-center bg-surface">
       <div className="max-w-sm w-full space-y-8 p-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-white">Daubert</h1>
-          <p className="mt-2 text-gray-400 text-sm">
+          <p className="mt-2 text-ink-muted text-sm">
             The ai platform for tech experts
           </p>
         </div>
@@ -54,7 +54,7 @@ export default function LoginPage() {
             </p>
             <button
               onClick={signOut}
-              className="mt-4 text-sm text-gray-400 hover:text-white underline"
+              className="mt-4 text-sm text-ink-muted hover:text-white underline"
             >
               Sign in with a different account
             </button>

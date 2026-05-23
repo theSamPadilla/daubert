@@ -63,8 +63,8 @@ export default function ProductionsPage() {
         <h1 className="text-2xl font-bold text-white mb-6">Productions</h1>
 
         {productions.length === 0 ? (
-          <div className="rounded-lg bg-gray-800 border border-gray-700 p-8 text-center">
-            <p className="text-gray-400 text-sm">
+          <div className="rounded-lg bg-surface-panel border border-line-strong p-8 text-center">
+            <p className="text-ink-muted text-sm">
               No productions yet. Use the AI assistant to create reports, charts, or chronologies.
             </p>
           </div>
@@ -74,14 +74,14 @@ export default function ProductionsPage() {
               <div
                 key={prod.id}
                 onClick={() => handleSelect(prod)}
-                className="flex items-center gap-4 px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 hover:border-gray-600 cursor-pointer transition-colors"
+                className="flex items-center gap-4 px-4 py-3 rounded-lg bg-surface-panel border border-line-strong hover:border-line cursor-pointer transition-colors"
               >
                 <div className={`p-2 rounded ${TYPE_COLORS[prod.type] || 'bg-gray-700 text-gray-300'}`}>
                   {TYPE_ICONS[prod.type] || <FaFileLines className="w-3.5 h-3.5" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">{prod.name}</p>
-                  <p className="text-xs text-gray-500">{prod.type} &middot; {formatDate(prod.updatedAt)}</p>
+                  <p className="text-xs text-ink-faint">{prod.type} &middot; {formatDate(prod.updatedAt)}</p>
                 </div>
               </div>
             ))}

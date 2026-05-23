@@ -19,12 +19,12 @@ export function TraceList({
   onAddTrace,
 }: TraceListProps) {
   return (
-    <div className="border-b border-gray-700">
+    <div className="border-b border-line-strong">
       <div className="flex items-center justify-between px-4 py-2">
-        <h3 className="text-xs font-semibold text-gray-400 uppercase">Traces</h3>
+        <h3 className="text-xs font-semibold text-ink-muted uppercase">Traces</h3>
         <button
           onClick={onAddTrace}
-          className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded text-sm"
+          className="w-5 h-5 flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-raised rounded text-sm"
           title="Add Trace"
         >
           +
@@ -35,8 +35,8 @@ export function TraceList({
           <div
             key={trace.id}
             onClick={() => onSelectTrace(trace)}
-            className={`flex items-center gap-2 px-4 py-1.5 cursor-pointer hover:bg-gray-700 text-sm ${
-              selectedTraceId === trace.id ? 'bg-gray-700' : ''
+            className={`flex items-center gap-2 px-4 py-1.5 cursor-pointer hover:bg-surface-raised text-sm ${
+              selectedTraceId === trace.id ? 'bg-surface-raised' : ''
             }`}
           >
             <span
@@ -49,7 +49,7 @@ export function TraceList({
                 e.stopPropagation();
                 onToggleVisibility(trace.id);
               }}
-              className={`flex items-center px-1 ${trace.visible ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-400'}`}
+              className={`flex items-center px-1 ${trace.visible ? 'text-ink-muted hover:text-ink' : 'text-ink-faint hover:text-ink-muted'}`}
               title={trace.visible ? 'Hide' : 'Show'}
             >
               {trace.visible ? <Eye size={14} /> : <EyeSlash size={14} />}
@@ -59,7 +59,7 @@ export function TraceList({
                 e.stopPropagation();
                 onToggleCollapsed(trace.id);
               }}
-              className="text-xs text-gray-400 hover:text-white px-1"
+              className="text-xs text-ink-muted hover:text-ink px-1"
               title={trace.collapsed ? 'Expand' : 'Collapse'}
             >
               {trace.collapsed ? '>' : 'v'}

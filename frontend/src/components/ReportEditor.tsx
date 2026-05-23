@@ -41,8 +41,8 @@ function ToolbarButton({
       title={title}
       className={`p-1.5 rounded transition-colors ${
         isActive
-          ? 'bg-blue-900/50 text-blue-300'
-          : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+          ? 'bg-brand/20 text-brand'
+          : 'text-ink-muted hover:bg-surface-raised hover:text-ink'
       }`}
     >
       {children}
@@ -54,7 +54,7 @@ function Toolbar({ editor, onInsertCitation }: { editor: ReturnType<typeof useEd
   if (!editor) return null;
 
   return (
-    <div className="flex items-center gap-0.5 px-2 py-1 bg-gray-700/50 border-b border-gray-600 rounded-t-lg flex-wrap">
+    <div className="flex items-center gap-0.5 px-2 py-1 bg-surface-raised/50 border-b border-line-strong rounded-t-lg flex-wrap">
       {/* Bold / Italic / Underline */}
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBold().run()}
@@ -78,7 +78,7 @@ function Toolbar({ editor, onInsertCitation }: { editor: ReturnType<typeof useEd
         <FaUnderline className="h-3.5 w-3.5" />
       </ToolbarButton>
 
-      <div className="w-px h-4 bg-gray-600 mx-1" />
+      <div className="w-px h-4 bg-surface-raised mx-1" />
 
       {/* Headings */}
       <ToolbarButton
@@ -102,7 +102,7 @@ function Toolbar({ editor, onInsertCitation }: { editor: ReturnType<typeof useEd
         </span>
       </ToolbarButton>
 
-      <div className="w-px h-4 bg-gray-600 mx-1" />
+      <div className="w-px h-4 bg-surface-raised mx-1" />
 
       {/* Lists */}
       <ToolbarButton
@@ -120,7 +120,7 @@ function Toolbar({ editor, onInsertCitation }: { editor: ReturnType<typeof useEd
         <FaListOl className="h-3.5 w-3.5" />
       </ToolbarButton>
 
-      <div className="w-px h-4 bg-gray-600 mx-1" />
+      <div className="w-px h-4 bg-surface-raised mx-1" />
 
       {/* Undo / Redo */}
       <ToolbarButton
@@ -136,7 +136,7 @@ function Toolbar({ editor, onInsertCitation }: { editor: ReturnType<typeof useEd
         <FaRotateRight className="h-3.5 w-3.5" />
       </ToolbarButton>
 
-      <div className="w-px h-4 bg-gray-600 mx-1" />
+      <div className="w-px h-4 bg-surface-raised mx-1" />
       <ToolbarButton
         onClick={() => onInsertCitation?.()}
         title="Insert Citation"
@@ -176,15 +176,15 @@ export function ReportEditor({
       attributes: {
         class: [
           'prose prose-sm prose-invert max-w-none outline-none min-h-[200px] p-4',
-          'prose-headings:text-white',
-          'prose-p:text-gray-300',
-          'prose-strong:text-white',
-          'prose-ul:text-gray-300',
-          'prose-ol:text-gray-300',
-          'prose-li:text-gray-300',
-          'prose-a:text-blue-400',
-          'prose-blockquote:border-blue-500',
-          'prose-blockquote:text-gray-400',
+          'prose-headings:text-ink',
+          'prose-p:text-ink-muted',
+          'prose-strong:text-ink',
+          'prose-ul:text-ink-muted',
+          'prose-ol:text-ink-muted',
+          'prose-li:text-ink-muted',
+          'prose-a:text-brand',
+          'prose-blockquote:border-brand',
+          'prose-blockquote:text-ink-muted',
         ].join(' '),
       },
     },
@@ -229,7 +229,7 @@ export function ReportEditor({
       <div
         className={`report-editor ${
           editable
-            ? 'ring-2 ring-blue-500/50 rounded-lg border border-gray-600 overflow-hidden'
+            ? 'ring-2 ring-brand/50 rounded-lg border border-line-strong overflow-hidden'
             : ''
         }`}
       >

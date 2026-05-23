@@ -4,7 +4,35 @@ module.exports = {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        ink: {
+          DEFAULT: 'var(--ink)',
+          muted: 'var(--ink-muted)',
+          faint: 'var(--ink-faint)',
+        },
+        surface: {
+          DEFAULT: 'var(--surface)',
+          panel: 'var(--surface-panel)',
+          raised: 'var(--surface-raised)',
+        },
+        line: {
+          DEFAULT: 'var(--line)',
+          strong: 'var(--line-strong)',
+        },
+        brand: {
+          DEFAULT: 'var(--brand)',
+          soft: 'var(--brand-soft)',
+        },
+        accent: {
+          DEFAULT: 'var(--accent)',
+        },
+      },
+      fontFamily: {
+        sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-jetbrains)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
+    },
   },
   plugins: [require('@tailwindcss/typography')],
 }

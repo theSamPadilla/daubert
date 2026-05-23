@@ -41,13 +41,13 @@ export default function EntitiesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6">
+    <div className="min-h-screen bg-surface p-6">
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">Labeled Entities</h1>
-            <p className="mt-1 text-sm text-gray-400">
-              Daubert&apos;s registry of known wallet operators. Read-only view — admins can manage entries from <code className="text-blue-400">/admin/entities</code>.
+            <p className="mt-1 text-sm text-ink-muted">
+              Daubert&apos;s registry of known wallet operators. Read-only view — admins can manage entries from <code className="text-brand">/admin/entities</code>.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -56,12 +56,12 @@ export default function EntitiesPage() {
               placeholder="Search entities..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-56 rounded border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+              className="w-56 rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
             />
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="rounded border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+              className="rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
             >
               <option value="">All Categories</option>
               {CATEGORIES.map((cat) => (
@@ -80,12 +80,12 @@ export default function EntitiesPage() {
         {loading ? (
           <Loader inline />
         ) : entities.length === 0 ? (
-          <p className="py-12 text-center text-gray-400">No entities found.</p>
+          <p className="py-12 text-center text-ink-muted">No entities found.</p>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-gray-700">
+          <div className="overflow-hidden rounded-lg border border-line-strong">
             <table className="w-full">
               <thead>
-                <tr className="bg-gray-800/50 text-left text-sm text-gray-400">
+                <tr className="bg-surface-panel/50 text-left text-sm text-ink-muted">
                   <th className="w-8 px-4 py-3"></th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Category</th>
@@ -100,10 +100,10 @@ export default function EntitiesPage() {
                   return (
                     <Fragment key={entity.id}>
                       <tr
-                        className="cursor-pointer border-b border-gray-700/50 hover:bg-gray-800/50"
+                        className="cursor-pointer border-b border-line-strong/50 hover:bg-surface-panel/50"
                         onClick={() => setExpandedId((p) => (p === entity.id ? null : entity.id))}
                       >
-                        <td className="px-4 py-3 text-gray-500">
+                        <td className="px-4 py-3 text-ink-faint">
                           {expanded ? <FaChevronDown className="h-3 w-3" /> : <FaChevronRight className="h-3 w-3" />}
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-white">{entity.name}</td>
@@ -112,21 +112,21 @@ export default function EntitiesPage() {
                             {entity.category}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-400">{entity.wallets.length}</td>
-                        <td className="px-4 py-3 text-sm text-gray-400">{truncate(entity.description, 80)}</td>
+                        <td className="px-4 py-3 text-sm text-ink-muted">{entity.wallets.length}</td>
+                        <td className="px-4 py-3 text-sm text-ink-muted">{truncate(entity.description, 80)}</td>
                       </tr>
                       {expanded && (
-                        <tr className="bg-gray-800/30">
+                        <tr className="bg-surface-panel/30">
                           <td colSpan={5} className="px-4 py-4">
                             <div className="space-y-3">
                               {entity.description && (
                                 <div>
-                                  <span className="text-xs uppercase tracking-wider text-gray-500">Description</span>
-                                  <p className="mt-1 text-sm text-gray-300">{entity.description}</p>
+                                  <span className="text-xs uppercase tracking-wider text-ink-faint">Description</span>
+                                  <p className="mt-1 text-sm text-ink-muted">{entity.description}</p>
                                 </div>
                               )}
                               <div>
-                                <span className="text-xs uppercase tracking-wider text-gray-500">
+                                <span className="text-xs uppercase tracking-wider text-ink-faint">
                                   Wallets ({entity.wallets.length})
                                 </span>
                                 {entity.wallets.length > 0 ? (
@@ -134,14 +134,14 @@ export default function EntitiesPage() {
                                     {entity.wallets.map((wallet, i) => (
                                       <li
                                         key={i}
-                                        className="mb-1 mr-2 inline-block rounded bg-gray-800 px-2 py-1 font-mono text-sm text-gray-300"
+                                        className="mb-1 mr-2 inline-block rounded bg-surface-panel px-2 py-1 font-mono text-sm text-ink-muted"
                                       >
                                         {wallet}
                                       </li>
                                     ))}
                                   </ul>
                                 ) : (
-                                  <p className="mt-1 text-sm text-gray-500">No wallets associated</p>
+                                  <p className="mt-1 text-sm text-ink-faint">No wallets associated</p>
                                 )}
                               </div>
                             </div>

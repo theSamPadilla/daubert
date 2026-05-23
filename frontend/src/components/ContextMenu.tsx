@@ -42,7 +42,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   };
 
   return (
-    <div ref={menuRef} style={style} className="bg-gray-800 border border-gray-600 rounded shadow-lg py-1 min-w-[160px]">
+    <div ref={menuRef} style={style} className="bg-surface-panel border border-line-strong rounded shadow-lg py-1 min-w-[160px]">
       {items.map((item, i) => (
         <button
           key={i}
@@ -50,8 +50,8 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
             item.onClick();
             onClose();
           }}
-          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-700 ${
-            item.danger ? 'text-red-400 hover:text-red-300' : 'text-gray-200'
+          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-surface-raised ${
+            item.danger ? 'text-red-400 hover:text-red-300' : 'text-ink'
           }`}
         >
           {item.label}

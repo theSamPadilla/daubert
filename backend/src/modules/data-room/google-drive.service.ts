@@ -73,15 +73,16 @@ export class GoogleDriveService {
   }
 
   /**
-   * Build the consent URL. `prompt: 'consent'` forces a refresh-token return
-   * even on re-consent — without it, Google returns no refresh token if the
-   * user has previously granted the scope.
+   * Build the consent URL. `select_account` forces Google's account chooser so
+   * users with multiple signed-in accounts can pick which one to connect (and
+   * pick an allowlisted one while the OAuth app is still in Testing mode).
+   * `consent` forces a refresh-token return on re-consent.
    */
   getAuthUrl(state: string): string {
     const client = this.newOAuthClient();
     return client.generateAuthUrl({
       access_type: 'offline',
-      prompt: 'consent',
+      prompt: 'select_account consent',
       scope: [DRIVE_SCOPE],
       state,
       include_granted_scopes: true,

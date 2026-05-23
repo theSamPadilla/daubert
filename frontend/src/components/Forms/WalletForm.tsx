@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { WalletNode, Trace } from '../types/investigation';
+import { WalletNode, Trace } from '@/types/investigation';
 import { TagInput } from './TagInput';
-import { SUPPORTED_CHAINS } from '../services/types';
-import { parseAddressInput } from '../utils/addressParser';
+import { SUPPORTED_CHAINS } from '@/services/types';
+import { parseAddressInput } from '@/utils/addressParser';
 
 interface WalletFormProps {
   wallet?: WalletNode;

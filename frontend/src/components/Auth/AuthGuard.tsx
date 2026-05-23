@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
-import { Loader } from './Loader';
+import { Loader } from '@/components/Common/Loader';
 
 /**
  * Wraps authenticated pages. Redirects to /login if not signed in OR if the

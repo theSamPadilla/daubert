@@ -2,7 +2,7 @@
 import { useCallback, useRef } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { createElement } from 'react';
-import { GraphCanvas, type GraphCanvasHandle } from '@/components/GraphCanvas';
+import { GraphCanvas, type GraphCanvasHandle } from '@/components/Graph/GraphCanvas';
 import type { Investigation } from '@/types/investigation';
 
 /**

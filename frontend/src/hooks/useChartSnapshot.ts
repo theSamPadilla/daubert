@@ -2,7 +2,7 @@
 import { useCallback, useRef } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { createElement } from 'react';
-import { ChartViewer } from '@/components/ChartViewer';
+import { ChartViewer } from '@/components/Productions/ChartViewer';
 
 export function useChartSnapshot() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -23,8 +23,26 @@ export function useChartSnapshot() {
     document.body.appendChild(el);
     containerRef.current = el;
     rootRef.current = createRoot(el);
+
+    // Chart.js renders its canvas synchronously on mount, but the actual draw
+    // happens over ~1 second of animation. Capturing on the first RAF after
+    // canvas-appears returns a blank PNG. Disable animation so Chart.js draws
+    // synchronously during its init effect; we then wait one extra RAF after
+    // detecting the canvas so the synchronous draw has been painted.
+    const snapshotData = {
+      ...chartData,
+      options: {
+        ...(chartData?.options ?? {}),
+        animation: false as const,
+        // Skip transitions for the same reason — any animated state change
+        // during capture would race the toDataURL read.
+        transitions: { active: { animation: { duration: 0 } } },
+      },
+    };
+
     return new Promise<string>((resolve, reject) => {
       let raf = 0;
+      let postCanvasWait = false;
       const timeoutAt = performance.now() + 4_000;
       const tryCapture = () => {
         const canvas = containerRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
@@ -36,13 +54,20 @@ export function useChartSnapshot() {
           raf = requestAnimationFrame(tryCapture);
           return;
         }
+        if (!postCanvasWait) {
+          // Canvas exists but Chart.js may have just committed; let its init
+          // effect run and one paint complete before we read pixels.
+          postCanvasWait = true;
+          raf = requestAnimationFrame(tryCapture);
+          return;
+        }
         try {
           resolve(canvas.toDataURL('image/png'));
         } catch (err) {
           reject(err);
         }
       };
-      rootRef.current!.render(createElement(ChartViewer, { data: chartData }));
+      rootRef.current!.render(createElement(ChartViewer, { data: snapshotData }));
       raf = requestAnimationFrame(tryCapture);
       void raf;
     });

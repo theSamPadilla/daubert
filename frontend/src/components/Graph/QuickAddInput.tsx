@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { FaSpinner } from 'react-icons/fa6';
 import { ChainSelect } from './ChainSelect';
-import { inspectInput } from '../utils/addressParser';
-import { apiClient } from '../lib/api-client';
-import type { WalletNode, TransactionEdge } from '../types/investigation';
+import { inspectInput } from '@/utils/addressParser';
+import { apiClient } from '@/lib/api-client';
+import type { WalletNode, TransactionEdge } from '@/types/investigation';
 
 interface QuickAddInputProps {
   onResolveAddress: (prefill: Partial<WalletNode>) => void;

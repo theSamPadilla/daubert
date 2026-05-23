@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { AuthGuard } from '@/components/AuthGuard';
-import UserMenu from '@/components/UserMenu';
+import { AuthGuard } from '@/components/Auth/AuthGuard';
+import UserMenu from '@/components/Auth/UserMenu';
 import { apiClient, type Case } from '@/lib/api-client';
-import { Loader } from '@/components/Loader';
+import { Loader } from '@/components/Common/Loader';
 
 function CaseSelector() {
   const router = useRouter();

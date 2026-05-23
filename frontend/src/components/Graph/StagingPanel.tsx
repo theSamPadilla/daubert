@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TransactionEdge, Trace } from '../types/investigation';
+import { TransactionEdge, Trace } from '@/types/investigation';
 
 interface StagingPanelProps {
   items: TransactionEdge[];

@@ -3,11 +3,11 @@
 import { useRef, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa6';
-import { AuthGuard } from '@/components/AuthGuard';
+import { AuthGuard } from '@/components/Auth/AuthGuard';
 import { CaseProvider, useCaseContext } from '@/contexts/CaseContext';
-import { InvestigationsSidebar } from '@/components/InvestigationsSidebar';
-import { AIChat } from '@/components/AIChat';
-import { NewPrimaryModal } from '@/components/NewPrimaryModal';
+import { InvestigationsSidebar } from '@/components/Workspace/InvestigationsSidebar';
+import { AIChat } from '@/components/Workspace/AIChat';
+import { NewPrimaryModal } from '@/components/Workspace/NewPrimaryModal';
 
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 400;

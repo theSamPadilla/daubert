@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { AdminGuard } from '@/components/AdminGuard';
+import { AdminGuard } from '@/components/Auth/AdminGuard';
 import { FaUsers, FaFolderOpen, FaTags, FaHouse, FaArrowLeft } from 'react-icons/fa6';
 
 const NAV = [

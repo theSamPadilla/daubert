@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { apiClient, type AdminUser, type Case, type CaseMember, type CaseRole } from '@/lib/api-client';
 import { FaTrash, FaPlus, FaChevronDown, FaChevronRight, FaUserPlus } from 'react-icons/fa6';
-import { Loader } from '@/components/Loader';
+import { Loader } from '@/components/Common/Loader';
 
 export default function AdminCasesPage() {
   const [cases, setCases] = useState<Case[]>([]);

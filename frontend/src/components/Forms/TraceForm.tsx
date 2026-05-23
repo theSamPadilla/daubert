@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Trace } from '../types/investigation';
-import { ColorPicker } from './ColorPicker';
+import { Trace } from '@/types/investigation';
+import { ColorPicker } from '@/components/Common/ColorPicker';
 
 interface TraceFormProps {
   trace?: Trace;

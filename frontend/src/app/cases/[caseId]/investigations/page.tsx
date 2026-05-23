@@ -2,25 +2,25 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
-import { GraphCanvas, type GraphCanvasHandle } from '@/components/GraphCanvas';
+import { GraphCanvas, type GraphCanvasHandle } from '@/components/Graph/GraphCanvas';
 import { useCaseContext } from '@/contexts/CaseContext';
-import { PageHeader } from '@/components/PageHeader';
-import { DetailsPanel, type DetailsPanelHandle } from '@/components/DetailsPanel';
-import { FloatingPanel } from '@/components/FloatingPanel';
-import { InvestigationForm } from '@/components/InvestigationForm';
-import { ConfirmDeleteModal } from '@/components/ConfirmDeleteModal';
-import { FetchModal } from '@/components/FetchModal';
-import { BatchEditPanel } from '@/components/BatchEditPanel';
-import { EdgeBatchPanel } from '@/components/EdgeBatchPanel';
-import { StagingPanel } from '@/components/StagingPanel';
-import { ContextMenu, ContextMenuItem } from '@/components/ContextMenu';
-import { WalletForm } from '@/components/WalletForm';
-import { TransactionForm } from '@/components/TransactionForm';
-import { CanvasToolPill } from '@/components/CanvasToolPill';
-import { ExportModal } from '@/components/ExportModal';
+import { PageHeader } from '@/components/Common/PageHeader';
+import { DetailsPanel, type DetailsPanelHandle } from '@/components/Graph/DetailsPanel';
+import { FloatingPanel } from '@/components/Common/FloatingPanel';
+import { InvestigationForm } from '@/components/Forms/InvestigationForm';
+import { ConfirmDeleteModal } from '@/components/Common/ConfirmDeleteModal';
+import { FetchModal } from '@/components/Workspace/FetchModal';
+import { BatchEditPanel } from '@/components/Graph/BatchEditPanel';
+import { EdgeBatchPanel } from '@/components/Graph/EdgeBatchPanel';
+import { StagingPanel } from '@/components/Graph/StagingPanel';
+import { ContextMenu, ContextMenuItem } from '@/components/Graph/ContextMenu';
+import { WalletForm } from '@/components/Forms/WalletForm';
+import { TransactionForm } from '@/components/Forms/TransactionForm';
+import { CanvasToolPill } from '@/components/Graph/CanvasToolPill';
+import { ExportModal } from '@/components/Common/ExportModal';
 import { SearchPanel } from '@/components/AdvancedSearch/SearchPanel';
 import { FaMagnifyingGlass, FaDownload } from 'react-icons/fa6';
-import { QuickAddInput } from '@/components/QuickAddInput';
+import { QuickAddInput } from '@/components/Graph/QuickAddInput';
 import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
 import { CytoscapeCallbacks, FocusItem } from '@/hooks/useCytoscape';
@@ -28,8 +28,8 @@ import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } fro
 import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
 import { normalizeInvestigation } from '@/utils/normalizeInvestigation';
 import { normalizeToken } from '@/utils/formatAmount';
-import UserMenu from '@/components/UserMenu';
-import { Loader } from '@/components/Loader';
+import UserMenu from '@/components/Auth/UserMenu';
+import { Loader } from '@/components/Common/Loader';
 
 type PanelMode =
   | { type: 'none' }

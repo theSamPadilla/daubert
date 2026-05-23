@@ -1,9 +1,9 @@
 import { useState, useRef, ReactNode } from 'react';
 import { FaArrowUpRightFromSquare } from 'react-icons/fa6';
-import { TransactionEdge } from '../types/investigation';
-import { normalizeToken, parseTimestamp } from '../utils/formatAmount';
-import { buildTxExplorerUrl } from '../utils/addressParser';
-import { GroupColorPicker } from './GroupColorPicker';
+import { TransactionEdge } from '@/types/investigation';
+import { normalizeToken, parseTimestamp } from '@/utils/formatAmount';
+import { buildTxExplorerUrl } from '@/utils/addressParser';
+import { GroupColorPicker } from '@/components/Common/GroupColorPicker';
 
 export interface MultiTxDetailsProps {
   edges: TransactionEdge[];

@@ -7,7 +7,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { apiClient, type Investigation, type DataRoomConnection } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
 import { ScriptsPanel } from './ScriptsPanel';
-import { ExhibitBuilder } from './ExhibitBuilder';
+import { ExhibitBuilder } from '../Productions/ExhibitBuilder';
 import { useCaseContext } from '@/contexts/CaseContext';
 
 interface InvestigationsSidebarProps {

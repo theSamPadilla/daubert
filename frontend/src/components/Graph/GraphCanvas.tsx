@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle } from 'react';
-import { Investigation } from '../types/investigation';
-import { useCytoscape, CytoscapeCallbacks } from '../hooks/useCytoscape';
+import { Investigation } from '../../types/investigation';
+import { useCytoscape, CytoscapeCallbacks } from '../../hooks/useCytoscape';
 
 export interface GraphCanvasHandle {
   unselectAll: () => void;

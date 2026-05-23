@@ -2,9 +2,9 @@
 
 import { useState, useMemo } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { SUPPORTED_CHAINS } from '../services/types';
-import { Trace, TransactionEdge } from '../types/investigation';
-import { formatTokenAmount, normalizeToken, parseTimestamp } from '../utils/formatAmount';
+import { SUPPORTED_CHAINS } from '@/services/types';
+import { Trace, TransactionEdge } from '@/types/investigation';
+import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
 
 interface FetchModalProps {
   initialAddress?: string;

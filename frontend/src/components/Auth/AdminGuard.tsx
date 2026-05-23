@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
-import { Loader } from './Loader';
+import { Loader } from '@/components/Common/Loader';
 import { ADMIN_EMAIL_DOMAIN } from '@/lib/admin';
 
 /**

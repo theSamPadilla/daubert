@@ -4,9 +4,9 @@ import { useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { FaFileLines, FaChartLine, FaTableList } from 'react-icons/fa6';
 import { useCaseContext } from '@/contexts/CaseContext';
-import { ProductionViewer } from '@/components/ProductionViewer';
-import { PageHeader } from '@/components/PageHeader';
-import UserMenu from '@/components/UserMenu';
+import { ProductionViewer } from '@/components/Productions/ProductionViewer';
+import { PageHeader } from '@/components/Common/PageHeader';
+import UserMenu from '@/components/Auth/UserMenu';
 import type { Production } from '@/lib/api-client';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {

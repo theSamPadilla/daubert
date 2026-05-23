@@ -13,9 +13,9 @@ import {
   FaPenToSquare,
 } from 'react-icons/fa6';
 import { apiClient, type DataRoomConnection, type DataRoomFile } from '@/lib/api-client';
-import { Loader } from '@/components/Loader';
-import { PageHeader } from '@/components/PageHeader';
-import UserMenu from '@/components/UserMenu';
+import { Loader } from '@/components/Common/Loader';
+import { PageHeader } from '@/components/Common/PageHeader';
+import UserMenu from '@/components/Auth/UserMenu';
 import { openDriveFolderPicker } from '@/lib/google-picker';
 
 function formatBytes(raw: string | undefined): string {

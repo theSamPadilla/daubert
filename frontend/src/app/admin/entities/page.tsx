@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import { apiClient, LabeledEntity } from '@/lib/api-client';
 import { CATEGORIES, CATEGORY_COLORS, type Category } from '@/lib/labeled-entities';
 import { FaPenToSquare, FaTrash, FaPlus, FaMinus, FaChevronDown, FaChevronRight } from 'react-icons/fa6';
-import { Loader } from '@/components/Loader';
+import { Loader } from '@/components/Common/Loader';
 
 interface EntityFormData {
   name: string;

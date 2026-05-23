@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { TransactionEdge, WalletNode, Trace } from '../types/investigation';
-import { ColorPicker } from './ColorPicker';
+import { TransactionEdge, WalletNode, Trace } from '@/types/investigation';
+import { ColorPicker } from '@/components/Common/ColorPicker';
 import { TagInput } from './TagInput';
-import { CopyButton } from './CopyButton';
-import { SUPPORTED_CHAINS } from '../services/types';
-import { parseTimestamp } from '../utils/formatAmount';
+import { CopyButton } from '@/components/Common/CopyButton';
+import { SUPPORTED_CHAINS } from '@/services/types';
+import { parseTimestamp } from '@/utils/formatAmount';
 
 function toDatetimeLocal(ts: string | undefined): string {
   if (!ts) return '';

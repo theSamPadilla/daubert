@@ -7,7 +7,7 @@ import {
   NetworkBase,
   NetworkTron,
 } from '@web3icons/react';
-import { SUPPORTED_CHAINS } from '../services/types';
+import { SUPPORTED_CHAINS } from '@/services/types';
 import type { IconComponent } from '@web3icons/react';
 
 interface ChainSelectProps {

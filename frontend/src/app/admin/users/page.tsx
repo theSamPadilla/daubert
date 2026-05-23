@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient, type AdminUser, type Case, type CaseRole } from '@/lib/api-client';
 import { FaTrash, FaPlus, FaCircleCheck, FaCircleExclamation } from 'react-icons/fa6';
-import { Loader } from '@/components/Loader';
+import { Loader } from '@/components/Common/Loader';
 
 interface FormState {
   email: string;

@@ -1,16 +1,16 @@
 import { useState, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { FaXmark, FaChevronDown, FaChevronRight, FaArrowUpRightFromSquare, FaArrowRightToBracket, FaArrowRightFromBracket } from 'react-icons/fa6';
-import { CopyButton } from './CopyButton';
-import { WalletNode, TransactionEdge, Trace, Group, EdgeBundle } from '../types/investigation';
+import { CopyButton } from '@/components/Common/CopyButton';
+import { WalletNode, TransactionEdge, Trace, Group, EdgeBundle } from '@/types/investigation';
 import { type ScriptRun } from '@/lib/api-client';
-import { WalletForm } from './WalletForm';
-import { TransactionForm } from './TransactionForm';
-import { TraceForm } from './TraceForm';
-import { formatTokenAmount, normalizeToken, parseTimestamp } from '../utils/formatAmount';
-import { buildTxExplorerUrl } from '../utils/addressParser';
+import { WalletForm } from '@/components/Forms/WalletForm';
+import { TransactionForm } from '@/components/Forms/TransactionForm';
+import { TraceForm } from '@/components/Forms/TraceForm';
+import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
+import { buildTxExplorerUrl } from '@/utils/addressParser';
 import { useLabeledEntities } from '@/hooks/useLabeledEntities';
 import { MultiTxDetails } from './MultiTxDetails';
-import { GroupColorPicker } from './GroupColorPicker';
+import { GroupColorPicker } from '@/components/Common/GroupColorPicker';
 
 interface EdgeBundleDetailsProps {
   bundle: EdgeBundle;

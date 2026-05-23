@@ -7,8 +7,8 @@ import type { components } from '../../generated/api-types';
 import { Investigation } from '../../types/investigation';
 import { WalletGroupPicker } from './WalletGroupPicker';
 import { SearchResults } from './SearchResults';
-import { ChainSelect } from '../ChainSelect';
-import { Loader } from '../Loader';
+import { ChainSelect } from '@/components/Graph/ChainSelect';
+import { Loader } from '@/components/Common/Loader';
 
 type ImportTransactionItem = components['schemas']['ImportTransactionItem'];
 type PickerValue = { traceId?: string; groupId?: string; wallets?: string[] };

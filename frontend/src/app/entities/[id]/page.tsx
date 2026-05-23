@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { apiClient, LabeledEntity } from '@/lib/api-client';
 import { FaArrowLeft } from 'react-icons/fa6';
 import Link from 'next/link';
-import { Loader } from '@/components/Loader';
+import { Loader } from '@/components/Common/Loader';
 
 const CATEGORY_COLORS: Record<string, string> = {
   exchange: 'bg-blue-900/50 text-blue-300',

@@ -10,7 +10,7 @@ import { apiClient, type Production } from '@/lib/api-client';
 import { ReportEditor } from './ReportEditor';
 import { ChartViewer } from './ChartViewer';
 import { ChronologyTable } from './ChronologyTable';
-import { ExportModal, type ExportFormat } from './ExportModal';
+import { ExportModal, type ExportFormat } from '../Common/ExportModal';
 
 const TYPE_COLORS: Record<string, string> = {
   report: 'bg-brand/10 text-brand',

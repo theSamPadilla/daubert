@@ -4,7 +4,7 @@ import { FaPlus, FaXmark, FaGripVertical } from 'react-icons/fa6';
 import { apiClient, type Investigation, type Production } from '@/lib/api-client';
 import { normalizeInvestigation } from '@/utils/normalizeInvestigation';
 import { useCaseContext } from '@/contexts/CaseContext';
-import { ExportModal } from './ExportModal';
+import { ExportModal } from '../Common/ExportModal';
 import { useGraphSnapshot } from '@/hooks/useGraphSnapshot';
 import { useChartSnapshot } from '@/hooks/useChartSnapshot';
 

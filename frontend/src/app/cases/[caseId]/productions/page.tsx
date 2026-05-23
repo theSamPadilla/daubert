@@ -7,7 +7,7 @@ import { useCaseContext } from '@/contexts/CaseContext';
 import { ProductionViewer } from '@/components/Productions/ProductionViewer';
 import { PageHeader } from '@/components/Common/PageHeader';
 import UserMenu from '@/components/Auth/UserMenu';
-import type { Production } from '@/lib/api-client';
+import { apiClient, type Production } from '@/lib/api-client';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   report: <FaFileLines className="w-3.5 h-3.5" />,
@@ -54,6 +54,11 @@ export default function ProductionsPage() {
         production={selected}
         onUpdate={(updated) => {
           setProductions((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+        }}
+        onDelete={async () => {
+          await apiClient.deleteProduction(selected.id);
+          setProductions((prev) => prev.filter((p) => p.id !== selected.id));
+          router.replace(`/cases/${caseId}/productions`, { scroll: false });
         }}
       />
     );

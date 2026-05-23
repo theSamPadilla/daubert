@@ -5,7 +5,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 const CHART_HEIGHT_MIN = 200;
 const CHART_HEIGHT_MAX = 1200;
 const CHART_HEIGHT_DEFAULT = 384;
-import { FaPenToSquare, FaEye, FaDownload, FaArrowsRotate } from 'react-icons/fa6';
+import { FaPenToSquare, FaEye, FaDownload, FaArrowsRotate, FaTrash } from 'react-icons/fa6';
 import { apiClient, type Production } from '@/lib/api-client';
 import { ReportEditor } from './ReportEditor';
 import { ChartViewer } from './ChartViewer';
@@ -21,12 +21,14 @@ const TYPE_COLORS: Record<string, string> = {
 interface ProductionViewerProps {
   production: Production;
   onUpdate?: (updated: Production) => void;
+  onDelete?: () => void;
 }
 
-export function ProductionViewer({ production, onUpdate }: ProductionViewerProps) {
+export function ProductionViewer({ production, onUpdate, onDelete }: ProductionViewerProps) {
   const [editing, setEditing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -210,6 +212,32 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
               {editing ? <FaEye className="w-3.5 h-3.5" /> : <FaPenToSquare className="w-3.5 h-3.5" />}
               {editing ? 'View' : 'Edit'}
             </button>
+          )}
+          {onDelete && (
+            confirmDelete ? (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => { setConfirmDelete(false); onDelete(); }}
+                  className="px-3 h-8 bg-red-600 hover:bg-red-500 text-white rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"
+                >
+                  <FaTrash className="w-3 h-3" /> Confirm delete
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                title="Delete production"
+                className="px-3 h-8 bg-white hover:bg-red-50 border border-[#E5E7EB] hover:border-red-300 text-[#5B6473] hover:text-red-600 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"
+              >
+                <FaTrash className="w-3 h-3" /> Delete
+              </button>
+            )
           )}
         </div>
       </div>

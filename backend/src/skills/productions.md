@@ -207,6 +207,42 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
 - Use consistent date formatting across entries.
 - The `title` field is optional but helpful for multi-chronology cases.
 
+### Large chronologies (>50 entries)
+
+A single `create_production` call carries the entire `data` blob in the tool input, which counts against the model's per-turn output cap. On long timelines (hundreds of edges, transactions, or events) it routinely hits max_tokens mid-emission and the chronology never lands.
+
+**Pattern: seed empty, then append in batches.**
+
+1. `create_production` with `data: { title, entries: [] }` — tiny call, returns the new production's id.
+2. Loop `update_production` with the `chronology_append` op, ~50 entries per call, until done.
+
+Each `chronology_append` call only emits the rows being added, so the per-turn cost is bounded by the batch size, not the chronology length. The batch size is a guideline — go smaller if individual entries are heavy (long `details`, many fields), larger if they're terse.
+
+```json
+// Step 1 — seed
+{
+  "name": "Transaction Chronology",
+  "type": "chronology",
+  "data": { "title": "Wallet 0xABC… — full timeline", "entries": [] }
+}
+
+// Step 2..N — append batches
+{
+  "productionId": "<id from step 1>",
+  "ops": [
+    {
+      "op": "chronology_append",
+      "entries": [
+        { "sourceUrl": "...", "date": "...", "description": "..." },
+        // ... up to ~50 entries ...
+      ]
+    }
+  ]
+}
+```
+
+If you are composing entries from a script (e.g. iterating over graph edges), prefer building the entries inside `execute_script`, POSTing them to the local API directly via the script, and only using the tool calls to seed and confirm. That keeps the entry data out of the conversation entirely.
+
 ## Updating productions
 
 `update_production` has three modes — pick the cheapest one:

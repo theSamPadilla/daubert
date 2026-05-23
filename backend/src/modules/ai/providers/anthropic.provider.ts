@@ -9,8 +9,12 @@ const DEFAULT_MODEL = 'claude-opus-4-6';
 // model routinely burns 2-4k tokens on reasoning before emitting anything,
 // so a 4k cap left almost no room for tool_use blocks and caused silent
 // `stop_reason: max_tokens` terminations mid-task. Opus 4.x supports up to
-// 32k output by default; 16k is a comfortable headroom for agentic loops.
-const MAX_TOKENS = 16384;
+// 32k output by default; we run at the ceiling so large tool_use payloads
+// (e.g. multi-row chronology appends) have room without the agent having to
+// micro-batch. Large-chronology *creation* should still use the seed-empty +
+// chronology_append loop — this cap raises the per-turn ceiling, it does not
+// remove it.
+const MAX_TOKENS = 32000;
 
 @Injectable()
 export class AnthropicProvider implements LlmProvider {

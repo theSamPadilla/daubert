@@ -125,7 +125,7 @@ export const QUERY_LABELED_ENTITIES_TOOL: Anthropic.Tool = {
 export const CREATE_PRODUCTION_TOOL: Anthropic.Tool = {
   name: 'create_production',
   description:
-    'Create a production (report, chart, or chronology) for the current investigation. Reports store HTML content. Charts store Chart.js-compatible data. Chronologies store ordered entries with dates, descriptions, and source links.',
+    'Create a production (report, chart, or chronology) for the current investigation. Reports store HTML content. Charts store Chart.js-compatible data. Chronologies store ordered entries with dates, descriptions, and source links. For large chronologies (expected to exceed ~50 entries), do NOT pass all entries here — the whole `data` blob counts against the per-turn output cap and routinely hits max_tokens. Instead seed an empty chronology (`data: { title, entries: [] }`), then loop `update_production` with `chronology_append` ops, ~50 entries per call. Same applies if you cannot bound the entry count up front.',
   input_schema: {
     type: 'object' as const,
     properties: {

@@ -462,6 +462,14 @@ function InvestigationsWorkspace() {
         if (found) { setSelectedItem({ type: 'edgeBundle', data: found }); return; }
       }
       setSelectedItem(null);
+    } else if (type === 'aggregatedEdge' && data) {
+      const trace = investigation.traces.find((t) => t.id === data.traceId);
+      if (!trace) { setSelectedItem(null); return; }
+      const remaining = data.edges.filter((e: TransactionEdge) =>
+        trace.edges.some((te) => te.id === e.id)
+      );
+      if (remaining.length === 0) { setSelectedItem(null); return; }
+      setSelectedItem({ type: 'aggregatedEdge', data: { ...data, edges: remaining } });
     }
   }, [investigation]); // eslint-disable-line react-hooks/exhaustive-deps
 

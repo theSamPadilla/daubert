@@ -1,5 +1,5 @@
 import { useState, useRef, ReactNode } from 'react';
-import { FaArrowUpRightFromSquare } from 'react-icons/fa6';
+import { FaArrowUpRightFromSquare, FaTrash, FaCheck, FaXmark } from 'react-icons/fa6';
 import { TransactionEdge } from '@/types/investigation';
 import { normalizeToken, parseTimestamp } from '@/utils/formatAmount';
 import { buildTxExplorerUrl } from '@/utils/addressParser';
@@ -23,6 +23,9 @@ export interface MultiTxDetailsProps {
 
   // Optional arc controls.
   onArcEdge?: (delta: number | null) => void;
+
+  // Optional per-row delete (aggregated edges only — bundles have their own deletion model).
+  onDeleteTransaction?: (txId: string) => void;
 
   // Footer actions row (collapse/expand + unbundle for bundles; nothing for aggregated).
   actions?: ReactNode;
@@ -50,10 +53,12 @@ export function MultiTxDetails({
   onColorChange,
   color,
   onArcEdge,
+  onDeleteTransaction,
   actions,
 }: MultiTxDetailsProps) {
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelValue, setLabelValue] = useState(editableLabel?.value ?? '');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Reset local label state when the editable value identity changes (different bundle selected)
   const prevEditableValue = useRef(editableLabel?.value);
@@ -178,25 +183,58 @@ export function MultiTxDetails({
                   ? parseFloat(String(e.amount)) / Math.pow(10, tok.decimals)
                   : parseFloat(String(e.amount));
               const explorerUrl = buildTxExplorerUrl(e.chain, e.txHash || '');
-              const Row = explorerUrl ? 'a' : 'div';
+              const HashTag = explorerUrl ? 'a' : 'span';
+              const confirming = confirmDeleteId === e.id;
               return (
-                <Row
+                <div
                   key={e.id}
-                  {...(explorerUrl
-                    ? { href: explorerUrl, target: '_blank', rel: 'noopener noreferrer' }
-                    : {})}
                   className="flex items-center justify-between text-[11px] text-ink-muted px-2 py-1.5 hover:bg-surface-raised/70 hover:text-ink transition-colors group"
                 >
-                  <span className="font-mono truncate max-w-[120px] group-hover:text-amber-300 flex items-center gap-1">
+                  <HashTag
+                    {...(explorerUrl
+                      ? { href: explorerUrl, target: '_blank', rel: 'noopener noreferrer' }
+                      : {})}
+                    className="font-mono truncate max-w-[120px] hover:text-amber-300 flex items-center gap-1"
+                  >
                     {e.txHash?.slice(0, 10)}…
                     {explorerUrl && (
                       <FaArrowUpRightFromSquare size={8} className="opacity-0 group-hover:opacity-60 shrink-0" />
                     )}
-                  </span>
-                  <span className="text-ink shrink-0">
-                    {abbr(human)} {tok.symbol}
-                  </span>
-                </Row>
+                  </HashTag>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-ink">
+                      {abbr(human)} {tok.symbol}
+                    </span>
+                    {onDeleteTransaction && (
+                      confirming ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => { onDeleteTransaction(e.id); setConfirmDeleteId(null); }}
+                            className="p-1 rounded text-red-400 hover:bg-red-600/30 transition-colors"
+                            title="Confirm delete"
+                          >
+                            <FaCheck size={9} />
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="p-1 rounded text-ink-faint hover:bg-surface-raised hover:text-ink transition-colors"
+                            title="Cancel"
+                          >
+                            <FaXmark size={9} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(e.id)}
+                          className="p-1 rounded text-ink-faint opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
+                          title="Delete transaction"
+                        >
+                          <FaTrash size={9} />
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>

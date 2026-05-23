@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+
+const CHART_HEIGHT_MIN = 200;
+const CHART_HEIGHT_MAX = 1200;
+const CHART_HEIGHT_DEFAULT = 384;
 import { FaPenToSquare, FaEye, FaDownload, FaSpinner, FaArrowsRotate } from 'react-icons/fa6';
 import { apiClient, type Production } from '@/lib/api-client';
 import { ReportEditor } from './ReportEditor';
@@ -8,9 +12,9 @@ import { ChartViewer } from './ChartViewer';
 import { ChronologyTable } from './ChronologyTable';
 
 const TYPE_COLORS: Record<string, string> = {
-  report: 'bg-brand/20 text-brand',
-  chart: 'bg-green-900/50 text-green-300',
-  chronology: 'bg-purple-900/50 text-purple-300',
+  report: 'bg-brand/10 text-brand',
+  chart: 'bg-green-100 text-green-700',
+  chronology: 'bg-purple-100 text-purple-700',
 };
 
 interface ProductionViewerProps {
@@ -26,11 +30,64 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Chart height: persisted on production.data.height, drag-resizable.
+  const storedChartHeight =
+    typeof (production.data as any)?.height === 'number'
+      ? (production.data as any).height as number
+      : CHART_HEIGHT_DEFAULT;
+  const [liveChartHeight, setLiveChartHeight] = useState<number | null>(null);
+  const chartDragRef = useRef<{ startY: number; startH: number; currentH: number } | null>(null);
+
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!chartDragRef.current) return;
+      const next = Math.max(
+        CHART_HEIGHT_MIN,
+        Math.min(CHART_HEIGHT_MAX, chartDragRef.current.startH + (e.clientY - chartDragRef.current.startY)),
+      );
+      chartDragRef.current.currentH = next;
+      setLiveChartHeight(next);
+    };
+    const onUp = async () => {
+      if (!chartDragRef.current) return;
+      const final = chartDragRef.current.currentH;
+      const baseline = storedChartHeight;
+      chartDragRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setLiveChartHeight(null);
+      if (final !== baseline) {
+        try {
+          const updated = await apiClient.updateProduction(production.id, {
+            ops: [{ op: 'chart_set_height', height: final }],
+          });
+          onUpdate?.(updated);
+        } catch (err) {
+          console.error('Failed to persist chart height:', err);
+        }
+      }
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [storedChartHeight, production.id, onUpdate]);
+
+  const startChartResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startH = liveChartHeight ?? storedChartHeight;
+    chartDragRef.current = { startY: e.clientY, startH, currentH: startH };
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  }, [liveChartHeight, storedChartHeight]);
 
   const handleReportChange = useCallback(
     (html: string) => {
@@ -119,19 +176,24 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-line-strong bg-surface-panel/50">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-ink">{production.name}</h2>
-          <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[production.type] || 'bg-surface-raised text-ink-muted'}`}>
+      <div className="h-12 px-4 border-b border-[#E5E7EB] bg-[#F7F8FB] flex items-center justify-between gap-4 shrink-0">
+        <div className="flex items-baseline gap-3 shrink-0 min-w-0">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
+            Production
+          </span>
+          <h2 className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate">
+            {production.name}
+          </h2>
+          <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider shrink-0 ${TYPE_COLORS[production.type] || 'bg-[#F1F4FA] text-[#5B6473]'}`}>
             {production.type}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleRefresh}
             disabled={refreshing || exportingFormat !== null}
             title="Reload from server"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-surface-raised"
+            className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#5B6473]"
           >
             <FaArrowsRotate className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing…' : 'Refresh'}
@@ -139,7 +201,7 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
           <button
             onClick={() => handleExport('pdf')}
             disabled={exportingFormat !== null || refreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-surface-raised"
+            className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#5B6473]"
           >
             {exportingFormat === 'pdf' ? (
               <FaSpinner className="w-3 h-3 animate-spin" />
@@ -151,7 +213,7 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
           <button
             onClick={() => handleExport('html')}
             disabled={exportingFormat !== null || refreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-surface-raised"
+            className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#5B6473]"
           >
             {exportingFormat === 'html' ? (
               <FaSpinner className="w-3 h-3 animate-spin" />
@@ -163,7 +225,7 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
           {production.type === 'report' && (
             <button
               onClick={() => setEditing(!editing)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted"
+              className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"
             >
               {editing ? <FaEye className="w-3.5 h-3.5" /> : <FaPenToSquare className="w-3.5 h-3.5" />}
               {editing ? 'View' : 'Edit'}
@@ -189,7 +251,20 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
             onChange={handleReportChange}
           />
         )}
-        {production.type === 'chart' && <ChartViewer data={data} />}
+        {production.type === 'chart' && (
+          <div>
+            <div style={{ height: liveChartHeight ?? storedChartHeight }}>
+              <ChartViewer data={data} />
+            </div>
+            <div
+              className="h-2 cursor-row-resize group relative select-none"
+              onMouseDown={startChartResize}
+              title="Drag to resize chart"
+            >
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-transparent group-hover:bg-brand/60 transition-colors" />
+            </div>
+          </div>
+        )}
         {production.type === 'chronology' && (
           <ChronologyTable
             data={data}

@@ -7,4 +7,5 @@
 - [ ] Case role enforcement — `owner` vs `guest` is only enforced in the data-room module today; everywhere else any member has full write access (including AI chat → script tokens). See [`2026-04-27-case-role-enforcement.md`](./2026-04-27-case-role-enforcement.md). Blocks real multi-user collaboration.
 
 ## DONZO
+- [x] Bringing back chooser
 - [x] Figure out a safe code exec environment on production

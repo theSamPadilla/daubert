@@ -22,7 +22,11 @@ type Op =
   | { op: 'chronology_replace'; index: number; entry: ChronologyEntry }
   | { op: 'chronology_delete'; indexes: number[] }
   | { op: 'chronology_set_title'; title: string }
-  | { op: 'chronology_set_column_widths'; widths: ColumnWidths };
+  | { op: 'chronology_set_column_widths'; widths: ColumnWidths }
+  | { op: 'chart_set_height'; height: number };
+
+const CHART_HEIGHT_MIN = 200;
+const CHART_HEIGHT_MAX = 1200;
 
 @Injectable()
 export class ProductionsService {
@@ -145,6 +149,19 @@ function parseOp(raw: Record<string, unknown>, i: number): Op {
       }
       return { op: 'chronology_set_column_widths', widths };
     }
+    case 'chart_set_height': {
+      if (
+        typeof raw.height !== 'number' ||
+        !Number.isFinite(raw.height) ||
+        raw.height < CHART_HEIGHT_MIN ||
+        raw.height > CHART_HEIGHT_MAX
+      ) {
+        throw new BadRequestException(
+          `ops[${i}] (chart_set_height): \`height\` must be a number between ${CHART_HEIGHT_MIN} and ${CHART_HEIGHT_MAX}`,
+        );
+      }
+      return { op: 'chart_set_height', height: Math.round(raw.height) };
+    }
     default:
       throw new BadRequestException(`ops[${i}]: unknown op "${opName}"`);
   }
@@ -158,6 +175,9 @@ function applyOp(
 ): Record<string, unknown> {
   if (op.op.startsWith('chronology_') && type !== ProductionType.CHRONOLOGY) {
     throw new BadRequestException(`ops[${i}] (${op.op}): production is type "${type}", not "chronology"`);
+  }
+  if (op.op.startsWith('chart_') && type !== ProductionType.CHART) {
+    throw new BadRequestException(`ops[${i}] (${op.op}): production is type "${type}", not "chart"`);
   }
   const entries = Array.isArray(data.entries) ? [...(data.entries as ChronologyEntry[])] : [];
 
@@ -187,5 +207,7 @@ function applyOp(
       const existing = (data.columnWidths ?? {}) as ColumnWidths;
       return { ...data, columnWidths: { ...existing, ...op.widths } };
     }
+    case 'chart_set_height':
+      return { ...data, height: op.height };
   }
 }

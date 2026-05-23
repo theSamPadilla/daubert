@@ -84,6 +84,10 @@ Charts store Chart.js-compatible data. The frontend renders them with react-char
 | `data` | yes | Array of numeric values (one per label) |
 | `borderWidth` | no | Line/border width in pixels |
 
+### Chart height
+
+Charts render at 384px tall by default. Set `data.height` (200–1200) on the production to give the chart more vertical room when it needs it — many series, dense annotations, or crowded axis labels. The user can also drag a handle below the chart to override this; either way, the value persists on the production. Use the `chart_set_height` op rather than rewriting the full `data` block.
+
 ### Annotations (reference lines, highlights, markers)
 
 The frontend registers `chartjs-plugin-annotation`, so you can attach annotations to any cartesian chart (`bar` or `line`) via `options.plugins.annotation.annotations`. Each entry is keyed by an arbitrary id.

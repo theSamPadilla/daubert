@@ -185,6 +185,7 @@ Supported operations (extend over time):
 - \`{ op: "chronology_delete", indexes: [<int>, ...] }\` — delete entries at the given zero-based indexes (applied in descending order so earlier indexes stay valid).
 - \`{ op: "chronology_set_title", title: "..." }\` — replace just the chronology title.
 - \`{ op: "chronology_set_column_widths", widths: { source?: <pct>, date?: <pct>, description?: <pct>, details?: <pct> } }\` — set the table column widths used in both the in-app view and the PDF/HTML export. Each value is a number between 5 and 80 (percent of total table width). Partial updates are merged; missing columns keep their current width. The user normally sets these by dragging in the UI.
+- \`{ op: "chart_set_height", height: <px> }\` — set the rendered height of a chart production. Pixels between 200 and 1200; default if unset is 384. The user normally sets this by dragging the handle below the chart, but you can adjust it when a chart needs more vertical room (e.g. many series, dense annotations, or wide axis labels causing crowding).
 
 Use atomic ops aggressively — they are the difference between a 200-token call and a 10,000-token call on a long chronology.`,
   input_schema: {

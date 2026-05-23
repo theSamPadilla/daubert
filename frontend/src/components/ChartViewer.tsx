@@ -51,10 +51,10 @@ export function ChartViewer({ data }: ChartViewerProps) {
   };
 
   switch (data.chartType) {
-    case 'bar': return <div className="h-96"><Bar data={chartData} options={options} /></div>;
-    case 'line': return <div className="h-96"><Line data={chartData} options={options} /></div>;
-    case 'pie': return <div className="h-96"><Pie data={chartData} options={options} /></div>;
-    case 'doughnut': return <div className="h-96"><Doughnut data={chartData} options={options} /></div>;
+    case 'bar': return <div className="h-full"><Bar data={chartData} options={options} /></div>;
+    case 'line': return <div className="h-full"><Line data={chartData} options={options} /></div>;
+    case 'pie': return <div className="h-full"><Pie data={chartData} options={options} /></div>;
+    case 'doughnut': return <div className="h-full"><Doughnut data={chartData} options={options} /></div>;
     default: return <div className="text-ink-faint">Unsupported chart type: {data.chartType}</div>;
   }
 }

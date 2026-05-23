@@ -58,10 +58,12 @@ export default function ProductionsPage() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-white mb-6">Productions</h1>
-
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="h-12 px-4 border-b border-[#E5E7EB] bg-[#F7F8FB] flex items-center shrink-0">
+        <h1 className="text-[15px] font-semibold tracking-tight text-[#0B1220]">Productions</h1>
+      </div>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-4xl mx-auto">
         {productions.length === 0 ? (
           <div className="rounded-lg bg-surface-panel border border-line-strong p-8 text-center">
             <p className="text-ink-muted text-sm">
@@ -80,13 +82,14 @@ export default function ProductionsPage() {
                   {TYPE_ICONS[prod.type] || <FaFileLines className="w-3.5 h-3.5" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{prod.name}</p>
+                  <p className="text-sm font-medium text-ink truncate">{prod.name}</p>
                   <p className="text-xs text-ink-faint">{prod.type} &middot; {formatDate(prod.updatedAt)}</p>
                 </div>
               </div>
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

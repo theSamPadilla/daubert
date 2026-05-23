@@ -32,12 +32,17 @@ export const BRAND_SERIES_COLORS = [
 /**
  * Assign brand palette colors to Chart.js datasets, overriding any
  * caller-supplied backgroundColor/borderColor.
+ *
+ * Exception: if a dataset has a `colorOverride` string (set by the human
+ * via the chart edit panel), that color wins. This keeps AI-supplied
+ * colors ignored while letting users pin a custom color per series.
  */
-export function applyBrandColors<T extends { backgroundColor?: unknown; borderColor?: unknown }>(
-  datasets: T[],
-): T[] {
+export function applyBrandColors<
+  T extends { backgroundColor?: unknown; borderColor?: unknown; colorOverride?: unknown },
+>(datasets: T[]): T[] {
   return datasets.map((ds, i) => {
-    const color = BRAND_SERIES_COLORS[i % BRAND_SERIES_COLORS.length];
+    const override = typeof ds.colorOverride === 'string' ? ds.colorOverride : null;
+    const color = override ?? BRAND_SERIES_COLORS[i % BRAND_SERIES_COLORS.length];
     return {
       ...ds,
       backgroundColor: color,

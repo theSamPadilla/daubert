@@ -23,7 +23,7 @@ No behavior change, no public API change, no logic change. Every task verifies w
 | 5 | `frontend/src/components/Graph/details/TransactionDetails.tsx` | Create | Houses `TransactionDetails` (lines 540–723), `TransactionHeader` (481–532), `LINE_STYLES` (534–538), and `resolveWalletDisplay` (469–479). |
 | 6 | `frontend/src/components/Graph/details/GroupDetails.tsx` | Create | Houses `GroupDetails` (lines 733–908) and `fmtFlow` (725–731). |
 | 7 | `frontend/src/components/Graph/details/WalletDetails.tsx` | Create | Houses `WalletDetails` (lines 176–467), `ADDRESS_TYPE_LABELS`, `ADDRESS_TYPE_COLORS`, `NODE_SHAPES`, `getCategoryStyle`, `BUNDLE_COLORS` (132–174). |
-| 8 | `frontend/src/components/Graph/DetailsPanel.tsx` | Modify | Collapses to the wrapping shell + `DetailsPanelProps` interface + `TYPE_DISPLAY` + the `switch` dispatching to each child component (~120 lines). |
+| 8 | `frontend/src/components/Graph/DetailsPanel.tsx` | Modify | Collapses to: `DetailsPanelProps` interface, exported `DetailsPanelHandle` interface, `forwardRef` + `useImperativeHandle` wiring (consumed by `page.tsx` via `detailsPanelRef.current.startEdit()`), and the `switch` dispatching to each child component (~120 lines). `TYPE_DISPLAY` is investigated separately (see Task 8 Step 2 — it appears unused inside the file). |
 
 **Developer-visible outcome:** Each detail view becomes independently navigable, editable, and reviewable. Future changes to (say) `WalletDetails` no longer require scrolling past 700 lines of unrelated code. `DetailsPanel.tsx` becomes a glanceable dispatcher.
 
@@ -56,11 +56,12 @@ The shared `mkClass` of imports (icons, types, hooks) goes per-file; we don't in
 
 **Step 1: Create the new file**
 
-Copy the entire `EdgeBundleDetailsProps` interface (lines 15–22) and `EdgeBundleDetails` function (lines 24–71) from `DetailsPanel.tsx` into the new file. At the top of the new file, add the imports it needs — at minimum:
-- `import type { EdgeBundle, Trace } from '@/types/investigation';`
+Copy the entire `EdgeBundleDetailsProps` interface (lines 15–22) and `EdgeBundleDetails` function (lines 24–71) from `DetailsPanel.tsx` into the new file. At the top of the new file, add these imports:
+- `import { EdgeBundle, Trace, TransactionEdge } from '@/types/investigation';`
+- `import { normalizeToken } from '@/utils/formatAmount';`
 - `import { MultiTxDetails } from '../MultiTxDetails';`
 
-(Use grep on the body of the function to confirm exact symbol usage and add any missing imports.)
+(Re-grep the function body to confirm completeness and add anything missing.)
 
 Export the function: `export function EdgeBundleDetails(...) {...}`.
 
@@ -164,7 +165,10 @@ Select a trace in the graph (click on the trace background or via the sidebar). 
 
 Move both `STATUS_BADGE` (currently lines 943–947) and `ScriptRunDetails` (949–1036) — `STATUS_BADGE` is used only by `ScriptRunDetails` (verified by grep — only call site at line 958), so it travels with the consumer.
 
-Confirm which types/icons the function actually uses (grep its body) and add corresponding imports.
+Expected imports (re-grep to confirm):
+- `import { useState } from 'react';` (if not already needed elsewhere in this file)
+- `import type { ScriptRun } from '@/lib/api-client';`
+- Any icons from `react-icons/fa6` referenced in the body.
 
 **Step 2: Update `DetailsPanel.tsx`**
 
@@ -196,11 +200,15 @@ This is the first medium-sized extraction. Move:
 
 Order inside the new file: imports → `resolveWalletDisplay` → `LINE_STYLES` → `TransactionHeader` (not exported) → `TransactionDetails` (exported).
 
-Required imports — grep the function body to confirm; expect at minimum:
-- `import type { TransactionEdge, WalletNode } from '@/types/investigation';`
-- React (`useState`, etc.)
-- Any icons from `react-icons/fa6`
-- Any utility imports (`buildTxExplorerUrl`, `normalizeToken`, etc.) — keep paths identical to the original.
+Required imports (all confirmed via grep against the original file):
+- `import { useState, useRef } from 'react';`
+- `import { TransactionEdge, WalletNode } from '@/types/investigation';`
+- `import { CopyButton } from '@/components/Common/CopyButton';`
+- `import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';`
+- `import { buildTxExplorerUrl } from '@/utils/addressParser';`
+- Any `react-icons/fa6` icons referenced in `TransactionHeader` or `TransactionDetails` bodies — grep to enumerate.
+
+Note: `TransactionHeader` uses a render-time `setState` + `useRef` pattern to reset local state when the selected transaction changes. This is preserved verbatim — do not "clean it up."
 
 **Step 2: Update `DetailsPanel.tsx`**
 
@@ -214,6 +222,8 @@ import { TransactionDetails } from './details/TransactionDetails';
 **Step 4: Smoke test**
 
 Click a single (non-bundled, non-aggregated) transaction edge in the graph. Confirm: header (token chip, color picker, edit/delete actions), from/to wallets, amount, line-style picker, all controls. Edit one field (e.g., notes) and verify it persists. Delete confirm flow works.
+
+**Then click a *second*, different transaction** to confirm `TransactionHeader`'s render-time-reset pattern (label-edit state, etc.) clears correctly across selection changes. This is the specific behavior most at risk from the file move.
 
 **Step 5: Stop and report.**
 
@@ -266,7 +276,14 @@ Move in this order:
 
 All five are used only by `WalletDetails` (verified earlier — call sites at lines 219–220, 248, 277, 350, 376 are all inside `WalletDetails`'s body).
 
-Required imports: grep the body. Expect wallet/trace types, several react-icons, and `LabeledEntity` from `@/lib/api-client`.
+Required imports (grep to enumerate the full icon set, but at minimum):
+- `import { useState, useRef } from 'react';`
+- `import { WalletNode, Trace } from '@/types/investigation';`
+- `import { CopyButton } from '@/components/Common/CopyButton';`
+- `import type { LabeledEntity } from '@/lib/api-client';`
+- Icons from `react-icons/fa6` (e.g., `FaXmark`, `FaArrowRightToBracket`, `FaArrowRightFromBracket`, plus anything else referenced).
+
+**Cleanup during move:** the original code uses an inline type form `lookupAddress: (address: string) => import('@/lib/api-client').LabeledEntity | undefined`. Convert this to a normal top-of-file `import type { LabeledEntity } from '@/lib/api-client';` and write the prop type as `LabeledEntity | undefined`. This is the *only* non-mechanical change permitted in the refactor — it's an equivalent rewrite of an awkward inline type, not a behavior change.
 
 **Step 2: Update `DetailsPanel.tsx`**
 
@@ -277,6 +294,7 @@ Delete all five blocks. Add `import { WalletDetails } from './details/WalletDeta
 **Step 4: Smoke test** — exercise the full `WalletDetails` surface:
 
 - Select a wallet → confirm address, type chip, category badge (uses `getCategoryStyle`), label/notes editing.
+- **Then select a *second*, different wallet** without closing the panel → confirm local state (notes draft, confirm-delete flags, bundle-color pickers) resets correctly. This is the specific behavior most at risk from the file move.
 - Try changing node shape (uses `NODE_SHAPES`).
 - Open the bundle-all-outbound flow → color swatches render (uses `BUNDLE_COLORS`) → confirm delete works.
 - Repeat for bundle-all-inbound.
@@ -292,41 +310,59 @@ Delete all five blocks. Add `import { WalletDetails } from './details/WalletDeta
 - Modify: `frontend/src/components/Graph/DetailsPanel.tsx`
 
 By this point, `DetailsPanel.tsx` should contain only:
-- Imports (including the seven `import { XDetails } from './details/XDetails';` lines)
+- Imports (including the seven `import { XDetails } from './details/XDetails';` lines, plus `forwardRef`, `useImperativeHandle`, `useState` from React)
 - `DetailsPanelProps` interface
-- `TYPE_DISPLAY` map (used by the dispatcher's panel-title)
-- The main `DetailsPanel` component with the `switch` on `selectedItem.type`
+- Exported `DetailsPanelHandle` interface (consumed by `page.tsx`)
+- The main `DetailsPanel` component, declared via `forwardRef<DetailsPanelHandle, DetailsPanelProps>(function DetailsPanel(...) {...})`
+- The `useImperativeHandle` wiring that exposes `startEdit`
+- The `switch` on `selectedItem.type` dispatching to each child component
+
+`DetailsPanelHandle`, `forwardRef`, and `useImperativeHandle` are load-bearing — `page.tsx` imports `DetailsPanelHandle` and calls `detailsPanelRef.current?.startEdit()`. Do **not** drop them, do **not** convert to a plain function component.
 
 **Step 1: Audit and clean imports**
 
 Open `DetailsPanel.tsx`. Remove any imports that are no longer used (icons, types, helpers that were only referenced by the now-extracted components). VS Code / `tsc` will flag these as unused if you have `noUnusedLocals` enabled; if not, eyeball the import list against the remaining body.
 
-**Step 2: Confirm size and shape**
+**Step 2: Investigate `TYPE_DISPLAY`**
 
-Run `wc -l frontend/src/components/Graph/DetailsPanel.tsx`. Expected: roughly 110–140 lines.
+Grep the whole frontend for `TYPE_DISPLAY` references:
+```bash
+grep -rn "TYPE_DISPLAY" frontend/src
+```
+
+If the only hit is its definition inside `DetailsPanel.tsx`, it is **dead code**. **Do not silently delete it.** Flag it to the user in the final report as a separate finding: "Found unused symbol `TYPE_DISPLAY` at line N during refactor — recommend removing in a follow-up commit." Leave the symbol in place during this refactor. Pure file-split means no semantic deletions.
+
+If grep finds external consumers (unlikely — it's not exported), leave it where it is and note the consumer in the report.
+
+**Step 3: Confirm size and shape**
+
+Run `wc -l frontend/src/components/Graph/DetailsPanel.tsx`. Expected: roughly 110–140 lines (slightly higher if `TYPE_DISPLAY` is left in place pending the dead-code decision).
 
 Eyeball the file:
-- Should be: imports → `DetailsPanelProps` → `TYPE_DISPLAY` → `DetailsPanel` (the dispatcher, possibly `React.memo`-wrapped).
-- Should NOT contain any `*Details` function definitions, any constants other than `TYPE_DISPLAY`, or any helpers.
+- Should be: imports → `DetailsPanelProps` → `DetailsPanelHandle` → (possibly `TYPE_DISPLAY`) → `DetailsPanel` forwardRef component.
+- Should NOT contain any `*Details` function definitions, any of the moved constants (`ADDRESS_TYPE_*`, `NODE_SHAPES`, `LINE_STYLES`, `BUNDLE_COLORS`, `STATUS_BADGE`), or any of the moved helpers (`getCategoryStyle`, `resolveWalletDisplay`, `fmtFlow`).
 
-**Step 3: Type-check the whole frontend**
+**Step 4: Type-check the whole frontend**
 
 ```bash
 cd frontend && npx tsc --noEmit; echo "exit=$?"
 ```
 Expected: `exit=0`.
 
-**Step 4: Full smoke test**
+**Step 5: Full smoke test**
 
 Click through every entity type one last time in the dev server: wallet, transaction, group, trace, edge bundle, aggregated edge, script run. The panel must look and behave identically to before the refactor.
 
-**Step 5: Final report**
+For each entity type that supports it (wallet, transaction): also click a **second** of that type to verify local-state reset across selection changes.
+
+**Step 6: Final report**
 
 Report:
 - Final `DetailsPanel.tsx` line count.
 - New files created and their line counts.
 - Type-check result.
 - Smoke-test summary (per entity type: pass/fail).
+- `TYPE_DISPLAY` finding from Step 2 (dead code? external consumer?).
 - `git status` output.
 
 Do NOT commit. The user will review the working tree and commit themselves.
@@ -346,3 +382,5 @@ Do NOT commit. The user will review the working tree and commit themselves.
 - **Risk:** A constant or helper turns out to be used by more than one consumer (grep missed something). **Mitigation:** Each task includes a re-grep step before moving. If a second consumer is discovered mid-task, halt that task and re-decide whether the symbol should live in `DetailsPanel.tsx` (stays put) or a new `details/shared.ts` (introduced lazily, only if 2+ consumers).
 - **Risk:** Import-path typos break the dev build. **Mitigation:** `npx tsc --noEmit` after every task — it will catch missing/wrong imports immediately.
 - **Risk:** A subcomponent silently regresses because the props it accepts changed during the move. **Mitigation:** Copy/paste discipline — move the function body verbatim, do not edit. The smoke test per task is the second line of defense.
+- **Risk:** Apparent dead code (`TYPE_DISPLAY`) is silently deleted during the move, but turns out to be referenced somewhere the local grep missed (e.g., dynamic key lookup, JSX prop). **Mitigation:** Pure file-split means **no semantic deletions**. Anything that looks dead is *flagged* in the final report and left in place; the user decides whether to remove it in a follow-up. The only non-mechanical change allowed in this refactor is the `LabeledEntity` inline-type-import cleanup in Task 7 (called out explicitly).
+- **Risk:** `forwardRef` / `useImperativeHandle` / `DetailsPanelHandle` gets dropped during the cleanup in Task 8, breaking `page.tsx`'s `detailsPanelRef.current?.startEdit()` call. **Mitigation:** Task 8's preamble explicitly enumerates these as load-bearing; final type-check will catch a regression (`page.tsx` will error on a missing exported type or missing imperative method).

@@ -4,6 +4,8 @@
 In Session
 ------------
 
+- [ ] Remove the thick transaction responsiveness
+- [ ] Improve optics of the final output
 - [ ] Try fixing Drive picker again
 
 

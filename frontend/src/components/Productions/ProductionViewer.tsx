@@ -9,6 +9,7 @@ import { FaPenToSquare, FaEye, FaDownload, FaArrowsRotate, FaTrash } from 'react
 import { apiClient, type Production } from '@/lib/api-client';
 import { ReportEditor } from './ReportEditor';
 import { ChartViewer } from './ChartViewer';
+import { ChartDatasetEditor } from './ChartDatasetEditor';
 import { ChronologyTable } from './ChronologyTable';
 import { ExportModal, type ExportFormat } from '../Common/ExportModal';
 
@@ -30,7 +31,22 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
   const [exportOpen, setExportOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chartDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Chart edit panel keeps an in-progress patch; merged over production.data
+  // at render time and on save (so it doesn't race with the height drag op).
+  type ChartPatch = {
+    datasets?: unknown[];
+    labels?: string[];
+    options?: Record<string, unknown>;
+  };
+  const [chartDraft, setChartDraft] = useState<ChartPatch | null>(null);
+  const chartDraftRef = useRef<ChartPatch | null>(null);
+  useEffect(() => {
+    setChartDraft(null);
+    chartDraftRef.current = null;
+  }, [production.id]);
 
   // Chart height: persisted on production.data.height, drag-resizable.
   const storedChartHeight =
@@ -43,6 +59,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (chartDebounceRef.current) clearTimeout(chartDebounceRef.current);
     };
   }, []);
 
@@ -90,6 +107,30 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
     document.body.style.cursor = 'row-resize';
     document.body.style.userSelect = 'none';
   }, [liveChartHeight, storedChartHeight]);
+
+  const handleChartEdit = useCallback(
+    (patch: ChartPatch) => {
+      const next = { ...(chartDraftRef.current ?? {}), ...patch };
+      chartDraftRef.current = next;
+      setChartDraft(next);
+      if (chartDebounceRef.current) clearTimeout(chartDebounceRef.current);
+      chartDebounceRef.current = setTimeout(async () => {
+        const draft = chartDraftRef.current;
+        if (!draft) return;
+        try {
+          const merged = {
+            ...((production.data as Record<string, unknown>) ?? {}),
+            ...draft,
+          };
+          const updated = await apiClient.updateProduction(production.id, { data: merged });
+          onUpdate?.(updated);
+        } catch (err) {
+          console.error('Failed to save chart edit:', err);
+        }
+      }, 600);
+    },
+    [production.id, production.data, onUpdate],
+  );
 
   const handleReportChange = useCallback(
     (html: string) => {
@@ -251,20 +292,24 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
             onChange={handleReportChange}
           />
         )}
-        {production.type === 'chart' && (
-          <div>
-            <div style={{ height: liveChartHeight ?? storedChartHeight }}>
-              <ChartViewer data={data} />
+        {production.type === 'chart' && (() => {
+          const mergedChartData = { ...data, ...(chartDraft ?? {}) };
+          return (
+            <div>
+              <div style={{ height: liveChartHeight ?? storedChartHeight }}>
+                <ChartViewer data={mergedChartData} />
+              </div>
+              <div
+                className="h-4 cursor-row-resize group relative select-none flex items-center justify-center mt-1"
+                onMouseDown={startChartResize}
+                title="Drag to resize chart"
+              >
+                <div className="h-1 w-16 rounded-full bg-line-strong group-hover:bg-brand group-active:bg-brand transition-colors" />
+              </div>
+              <ChartDatasetEditor data={mergedChartData} onChange={handleChartEdit} />
             </div>
-            <div
-              className="h-4 cursor-row-resize group relative select-none flex items-center justify-center mt-1"
-              onMouseDown={startChartResize}
-              title="Drag to resize chart"
-            >
-              <div className="h-1 w-16 rounded-full bg-line-strong group-hover:bg-brand group-active:bg-brand transition-colors" />
-            </div>
-          </div>
-        )}
+          );
+        })()}
         {production.type === 'chronology' && (
           <ChronologyTable
             data={data}

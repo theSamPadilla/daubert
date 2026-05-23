@@ -5,9 +5,10 @@ interface ExportModalProps {
   open: boolean;
   onClose: () => void;
   onExport: (format: 'png' | 'pdf') => void;
+  title?: string;
 }
 
-export function ExportModal({ open, onClose, onExport }: ExportModalProps) {
+export function ExportModal({ open, onClose, onExport, title = 'Export Graph' }: ExportModalProps) {
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -33,7 +34,7 @@ export function ExportModal({ open, onClose, onExport }: ExportModalProps) {
     >
       <div className="bg-surface-panel rounded-lg p-6 w-[400px]">
         <h3 className="text-sm font-semibold text-ink-muted uppercase mb-5">
-          Export Graph
+          {title}
         </h3>
         <div className="flex gap-3">
           {/* PNG */}

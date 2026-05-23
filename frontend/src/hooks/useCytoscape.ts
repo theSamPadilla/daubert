@@ -150,7 +150,46 @@ export function useCytoscape(
   const exportImage = useCallback(async (format: 'png' | 'pdf', filename = 'graph') => {
     const cy = cyRef.current;
     if (!cy) return;
-    const dataUrl = cy.png({ full: true, scale: 2, bg: '#ffffff' });
+
+    // Cytoscape's PNG capture only sees the canvas, not the HTML overlays
+    // layered on top of it (edge date pills, node truncated-address sublabels —
+    // see useCytoscapeOverlays.ts). Temporarily merge that overlay text into
+    // the cytoscape labels (which natively support multi-line via \n) so the
+    // exported image is WYSIWYG. Restore originals after the snapshot.
+    const savedEdgeLabels = new Map<string, string>();
+    const savedNodeLabels = new Map<string, string>();
+    cy.batch(() => {
+      cy.edges().forEach((e) => {
+        const date = e.data('date');
+        if (!date) return;
+        const orig = (e.data('label') as string | undefined) ?? '';
+        savedEdgeLabels.set(e.id(), orig);
+        e.data('label', orig ? `${orig}\n${date}` : date);
+      });
+      cy.nodes().forEach((n) => {
+        if (n.isParent() || !n.data('hasCustomLabel')) return;
+        const addr = n.data('truncAddr');
+        if (!addr) return;
+        const orig = (n.data('label') as string | undefined) ?? '';
+        savedNodeLabels.set(n.id(), orig);
+        n.data('label', orig ? `${orig}\n${addr}` : addr);
+      });
+    });
+
+    let dataUrl: string;
+    try {
+      dataUrl = cy.png({ full: true, scale: 2, bg: '#ffffff' });
+    } finally {
+      cy.batch(() => {
+        savedEdgeLabels.forEach((orig, id) => {
+          cy.getElementById(id).data('label', orig);
+        });
+        savedNodeLabels.forEach((orig, id) => {
+          cy.getElementById(id).data('label', orig);
+        });
+      });
+    }
+
     if (format === 'png') {
       const a = document.createElement('a');
       a.href = dataUrl;

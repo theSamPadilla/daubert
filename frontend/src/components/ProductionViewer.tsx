@@ -10,6 +10,7 @@ import { apiClient, type Production } from '@/lib/api-client';
 import { ReportEditor } from './ReportEditor';
 import { ChartViewer } from './ChartViewer';
 import { ChronologyTable } from './ChronologyTable';
+import { ExportModal } from './ExportModal';
 
 const TYPE_COLORS: Record<string, string> = {
   report: 'bg-brand/10 text-brand',
@@ -27,6 +28,7 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportingFormat, setExportingFormat] = useState<'pdf' | 'html' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -129,6 +131,40 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
     [production.id, production.type, production.name],
   );
 
+  const handleChartModalExport = useCallback(
+    async (format: 'png' | 'pdf') => {
+      setExportError(null);
+      const canvas = contentRef.current?.querySelector('[data-chart-export] canvas, canvas') as HTMLCanvasElement | null;
+      if (!canvas) {
+        setExportError('Chart canvas not found');
+        return;
+      }
+      const imageDataUrl = canvas.toDataURL('image/png');
+      const safeName = (production.name || 'chart').replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'chart';
+
+      if (format === 'png') {
+        const a = document.createElement('a');
+        a.href = imageDataUrl;
+        a.download = `${safeName}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+
+      setExportingFormat('pdf');
+      try {
+        await apiClient.exportProduction(production.id, 'pdf', production.name, imageDataUrl);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Export failed';
+        setExportError(msg);
+      } finally {
+        setExportingFormat(null);
+      }
+    },
+    [production.id, production.name],
+  );
+
   const handleEntryEdit = useCallback(
     async (index: number, entry: object) => {
       try {
@@ -198,30 +234,47 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
             <FaArrowsRotate className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
-          <button
-            onClick={() => handleExport('pdf')}
-            disabled={exportingFormat !== null || refreshing}
-            className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#5B6473]"
-          >
-            {exportingFormat === 'pdf' ? (
-              <FaSpinner className="w-3 h-3 animate-spin" />
-            ) : (
-              <FaDownload className="w-3 h-3" />
-            )}
-            {exportingFormat === 'pdf' ? 'Generating…' : 'PDF'}
-          </button>
-          <button
-            onClick={() => handleExport('html')}
-            disabled={exportingFormat !== null || refreshing}
-            className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#5B6473]"
-          >
-            {exportingFormat === 'html' ? (
-              <FaSpinner className="w-3 h-3 animate-spin" />
-            ) : (
-              <FaDownload className="w-3 h-3" />
-            )}
-            {exportingFormat === 'html' ? 'Generating…' : 'HTML'}
-          </button>
+          {production.type === 'chart' ? (
+            <button
+              onClick={() => setExportModalOpen(true)}
+              disabled={exportingFormat !== null || refreshing}
+              className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#5B6473]"
+            >
+              {exportingFormat === 'pdf' ? (
+                <FaSpinner className="w-3 h-3 animate-spin" />
+              ) : (
+                <FaDownload className="w-3 h-3" />
+              )}
+              {exportingFormat === 'pdf' ? 'Generating…' : 'Export'}
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => handleExport('pdf')}
+                disabled={exportingFormat !== null || refreshing}
+                className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#5B6473]"
+              >
+                {exportingFormat === 'pdf' ? (
+                  <FaSpinner className="w-3 h-3 animate-spin" />
+                ) : (
+                  <FaDownload className="w-3 h-3" />
+                )}
+                {exportingFormat === 'pdf' ? 'Generating…' : 'PDF'}
+              </button>
+              <button
+                onClick={() => handleExport('html')}
+                disabled={exportingFormat !== null || refreshing}
+                className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#5B6473]"
+              >
+                {exportingFormat === 'html' ? (
+                  <FaSpinner className="w-3 h-3 animate-spin" />
+                ) : (
+                  <FaDownload className="w-3 h-3" />
+                )}
+                {exportingFormat === 'html' ? 'Generating…' : 'HTML'}
+              </button>
+            </>
+          )}
           {production.type === 'report' && (
             <button
               onClick={() => setEditing(!editing)}
@@ -257,11 +310,11 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
               <ChartViewer data={data} />
             </div>
             <div
-              className="h-2 cursor-row-resize group relative select-none"
+              className="h-4 cursor-row-resize group relative select-none flex items-center justify-center mt-1"
               onMouseDown={startChartResize}
               title="Drag to resize chart"
             >
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-transparent group-hover:bg-brand/60 transition-colors" />
+              <div className="h-1 w-16 rounded-full bg-line-strong group-hover:bg-brand group-active:bg-brand transition-colors" />
             </div>
           </div>
         )}
@@ -273,6 +326,15 @@ export function ProductionViewer({ production, onUpdate }: ProductionViewerProps
           />
         )}
       </div>
+
+      {production.type === 'chart' && (
+        <ExportModal
+          open={exportModalOpen}
+          onClose={() => setExportModalOpen(false)}
+          onExport={handleChartModalExport}
+          title="Export Chart"
+        />
+      )}
     </div>
   );
 }

@@ -132,6 +132,23 @@ export interface paths {
         patch: operations["updateTrace"];
         trace?: never;
     };
+    "/investigations/{id}/search-between": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Search for transactions between two wallet sets across an investigation */
+        post: operations["searchBetween"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/blockchain/fetch-history": {
         parameters: {
             query?: never;
@@ -471,7 +488,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export a production as PDF or HTML */
+        /** Export a production as PDF, PNG, or DOCX */
         post: operations["exportProduction"];
         delete?: never;
         options?: never;
@@ -490,6 +507,23 @@ export interface paths {
         put?: never;
         /** Export a graph snapshot as PDF */
         post: operations["exportGraph"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exports/exhibit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compose multiple investigations and productions into a single exhibit PDF */
+        post: operations["exportExhibit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -735,6 +769,47 @@ export interface components {
             data?: {
                 [key: string]: unknown;
             };
+        };
+        ImportTransactionItem: {
+            from: string;
+            to: string;
+            txHash: string;
+            chain: string;
+            /** Format: date-time */
+            timestamp: string;
+            amount: string;
+            token: string;
+            blockNumber?: number;
+            fromLabel?: string;
+            toLabel?: string;
+        };
+        /** @description One side of an advanced search. Exactly one of traceId, groupId, or wallets must be provided. */
+        WalletSet: {
+            /** Format: uuid */
+            traceId?: string;
+            /** Format: uuid */
+            groupId?: string;
+            wallets?: string[];
+        } & (unknown | unknown | unknown);
+        SearchBetweenRequest: {
+            sideA: components["schemas"]["WalletSet"];
+            sideB: components["schemas"]["WalletSet"];
+            /** @description Chain key (e.g. 'ethereum', 'polygon', 'arbitrum', 'base', 'tron'). */
+            chain: string;
+            timeRange?: {
+                startTimestamp?: number;
+                endTimestamp?: number;
+            };
+        };
+        SearchBetweenResponse: {
+            /** @description Candidate transactions in ImportTransactionItem shape — forward verbatim to /import-transactions. */
+            results: components["schemas"]["ImportTransactionItem"][];
+            /** @enum {string} */
+            fetchedSide: "A" | "B";
+            /** @description Addresses for which provider history fetch failed (rate limit, network, etc.). UI should warn the user. */
+            failedAddresses: string[];
+            /** @description Total raw transactions returned by the provider across all fetched wallets, before the cross-set filter. Reflects how much history was actually inspected. */
+            analyzedCount: number;
         };
         FetchHistoryRequest: {
             /** @description Wallet address to fetch history for */
@@ -1472,6 +1547,59 @@ export interface operations {
             };
         };
     };
+    searchBetween: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchBetweenRequest"];
+            };
+        };
+        responses: {
+            /** @description Matching transactions between the two wallet sets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchBetweenResponse"];
+                };
+            };
+            /** @description Invalid request (cap exceeded, unknown group/trace, invalid wallet set) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden — caller is not a member of the investigation's case */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Investigation not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     fetchHistory: {
         parameters: {
             query?: never;
@@ -2109,8 +2237,10 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    format: "pdf" | "html";
-                    /** @description PNG data URL (required for chart export) */
+                    format: "pdf" | "png" | "docx";
+                    /** @description User-supplied filename stem (no extension) */
+                    filename?: string;
+                    /** @description PNG data URL (required for chart PDF export) */
                     imageDataUrl?: string;
                 };
             };
@@ -2123,7 +2253,8 @@ export interface operations {
                 };
                 content: {
                     "application/pdf": string;
-                    "text/html": string;
+                    "image/png": string;
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": string;
                 };
             };
         };
@@ -2139,8 +2270,43 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    /** @description PNG data URL from Cytoscape (must start with data:image/png;base64, max 10MB) */
+                    filename?: string;
                     imageDataUrl: string;
+                };
+            };
+        };
+        responses: {
+            /** @description PDF file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+        };
+    };
+    exportExhibit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    filename: string;
+                    items: {
+                        /** @enum {string} */
+                        refType: "production" | "investigation";
+                        /** Format: uuid */
+                        refId: string;
+                        title: string;
+                        subtitle?: string;
+                        imageDataUrl?: string;
+                    }[];
                 };
             };
         };

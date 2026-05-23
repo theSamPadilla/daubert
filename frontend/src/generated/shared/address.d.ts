@@ -1,0 +1,11 @@
+export declare const EVM_ADDRESS_RE: RegExp;
+export declare const TRON_ADDRESS_RE: RegExp;
+export declare const ADDRESS_RE: RegExp;
+export declare const EVM_CHAINS: readonly ["ethereum", "polygon", "arbitrum", "base"];
+export type EvmChain = typeof EVM_CHAINS[number];
+export declare function isEvmChain(chain: string): chain is EvmChain;
+export declare function isEvmAddress(addr: string): boolean;
+export declare function isTronAddress(addr: string): boolean;
+export declare function isValidAddress(addr: string): boolean;
+export declare function validateAddressForChain(addr: string, chain: string): string | null;
+export declare function normalizeAddressForChain(addr: string, chain: string): string;

@@ -1,6 +1,8 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { accessSync } from 'fs';
 import puppeteer, { Browser } from 'puppeteer-core';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const HTMLtoDOCX: (html: string, header?: string | null, options?: Record<string, unknown>) => Promise<Buffer | ArrayBuffer> = require('html-to-docx');
 
 const DEV_CHROME_CANDIDATES = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -101,5 +103,38 @@ export class ExportService implements OnModuleDestroy {
     } finally {
       await page.close();
     }
+  }
+
+  async htmlToPng(html: string, opts?: { width?: number; timeout?: number }): Promise<Buffer> {
+    const browser = await this.getBrowser();
+    const page = await browser.newPage();
+    const timeout = opts?.timeout ?? 30_000;
+    try {
+      await page.setJavaScriptEnabled(false);
+      await page.setRequestInterception(true);
+      page.on('request', (req) => {
+        if (req.url().startsWith('data:')) req.continue();
+        else req.abort();
+      });
+      await page.setViewport({ width: opts?.width ?? 1200, height: 800 });
+      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout });
+      // Wait for web fonts to finish loading; otherwise the screenshot can
+      // race the font swap and capture fallback metrics. (PDF tolerates this
+      // better than a raster screenshot does.)
+      await page.evaluate(() => (document as any).fonts?.ready ?? Promise.resolve());
+      const png = await page.screenshot({ fullPage: true, type: 'png' });
+      return Buffer.from(png);
+    } finally {
+      await page.close();
+    }
+  }
+
+  async htmlToDocx(html: string): Promise<Buffer> {
+    const result = await HTMLtoDOCX(html, undefined, {
+      table: { row: { cantSplit: true } },
+      footer: false,
+      pageNumber: false,
+    });
+    return Buffer.isBuffer(result) ? result : Buffer.from(result as ArrayBuffer);
   }
 }

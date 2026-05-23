@@ -1,4 +1,5 @@
 import { SUPPORTED_CHAINS } from '../services/types';
+import { EVM_ADDRESS_RE, TRON_ADDRESS_RE } from '../generated/shared/address';
 
 interface ParsedAddress {
   address: string;
@@ -14,9 +15,6 @@ const EXPLORER_PATTERNS: { host: string; chain: string }[] = [
   { host: 'tronscan.org', chain: 'tron' },
   { host: 'tronscan.io', chain: 'tron' },
 ];
-
-const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
-const TRON_ADDRESS_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 
 export function parseAddressInput(input: string): ParsedAddress {
   const trimmed = input.trim();

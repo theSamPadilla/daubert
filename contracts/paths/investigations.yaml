@@ -139,3 +139,46 @@
           application/json:
             schema:
               $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/investigations/{id}/search-between:
+  post:
+    summary: Search for transactions between two wallet sets across an investigation
+    operationId: searchBetween
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/traces.yaml#/SearchBetweenRequest'
+    responses:
+      '200':
+        description: Matching transactions between the two wallet sets
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/traces.yaml#/SearchBetweenResponse'
+      '400':
+        description: Invalid request (cap exceeded, unknown group/trace, invalid wallet set)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Forbidden — caller is not a member of the investigation's case
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Investigation not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

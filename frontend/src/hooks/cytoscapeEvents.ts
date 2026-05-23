@@ -83,11 +83,16 @@ export function bindCytoscapeEvents(cy: Core, getters: CytoscapeEventGetters): (
     const isShift = !!event.originalEvent?.shiftKey;
     const traceId: string = edge.data('traceId') || '';
     const isBundle = !!edge.data('isBundleEdge');
+    const isAggregated = !!edge.data('isAggregatedEdge');
 
-    const buildFocusItem = (): FocusItem =>
-      isBundle
-        ? { type: 'edgeBundle', id: edgeId, traceId }
-        : { type: 'transaction', id: edgeId, traceId };
+    const buildFocusItem = (): FocusItem => {
+      if (isBundle) return { type: 'edgeBundle', id: edgeId, traceId };
+      if (isAggregated) {
+        const edgeIds: string[] = edge.data('edgeIds') || [];
+        return { type: 'aggregatedEdge', id: edgeId, traceId, edgeIds };
+      }
+      return { type: 'transaction', id: edgeId, traceId };
+    };
 
     const selection = getters.getSelection();
 

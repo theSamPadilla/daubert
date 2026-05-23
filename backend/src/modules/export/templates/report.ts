@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { BASE_STYLES, CSP_META } from './styles';
+import { BASE_STYLES, CSP_META, REPORT_STYLES } from './styles';
 import { escapeHtml, sanitizeHtml, sanitizeUrl } from './util';
 
 interface ReportData {
@@ -13,18 +13,24 @@ interface Citation {
   url?: string;
 }
 
-export function renderReport(name: string, data: ReportData): string {
+/**
+ * Returns just the inner body HTML for this report — no <html>/<head>/<style> wrapper.
+ * Used by the exhibit composer to embed reports into a multi-item document.
+ */
+export function renderReportBody(name: string, data: ReportData): string {
   const cleanContent = sanitizeHtml(data.content);
   const { html: numberedContent, citations } = extractAndNumberCitations(cleanContent);
   const worksCited = citations.length > 0 ? renderWorksCited(citations) : '';
+  return `${numberedContent}\n${worksCited}`;
+}
 
+export function renderReport(name: string, data: ReportData): string {
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">${CSP_META}<title>${escapeHtml(name)}</title>
-<style>${BASE_STYLES}</style>
+<style>${BASE_STYLES}${REPORT_STYLES}</style>
 </head><body>
 <h1>${escapeHtml(name)}</h1>
-${numberedContent}
-${worksCited}
+${renderReportBody(name, data)}
 </body></html>`;
 }
 

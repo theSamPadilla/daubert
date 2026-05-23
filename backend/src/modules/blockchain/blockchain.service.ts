@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ProviderRegistry } from './provider-registry';
 import { TokenResolver } from './token-resolver';
 import { CHAIN_CONFIGS, FetchOptions } from './types';
@@ -56,6 +56,7 @@ export interface TransactionDetailResult {
 
 @Injectable()
 export class BlockchainService {
+  private readonly logger = new Logger(BlockchainService.name);
   private tokenResolver = new TokenResolver();
 
   constructor(private providerRegistry: ProviderRegistry) {}
@@ -70,10 +71,58 @@ export class BlockchainService {
 
     const normalized = this.normalizeOptions(options);
 
-    const [rawTxs, rawTokenTxs] = await Promise.all([
-      provider.getTransactions(address, normalized),
-      provider.getTokenTransfers(address, normalized),
-    ]);
+    let rawTxs: import('./types').RawTransaction[];
+    let rawTokenTxs: import('./types').RawTokenTransfer[];
+
+    if (normalized?.maxTotal != null) {
+      // Paginate each source independently until a partial page, the cap,
+      // or a transient provider error. A failure mid-loop returns the
+      // pages we've already gathered instead of rejecting the whole
+      // address — historical data is more useful partial than missing.
+      const pageSize = normalized.offset ?? (chain === 'tron' ? 50 : 100);
+      const maxTotal = normalized.maxTotal;
+      const MAX_PAGES = Math.ceil(maxTotal / pageSize) + 5; // hard iteration cap (safety)
+
+      // Native transactions
+      const accTxs: import('./types').RawTransaction[] = [];
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        let batch: import('./types').RawTransaction[];
+        try {
+          batch = await provider.getTransactions(address, { ...normalized, page, offset: pageSize });
+        } catch (err) {
+          this.logger.warn(
+            `Paginated getTransactions failed at page=${page} for ${address} on ${chain}: ${(err as Error).message}. Returning ${accTxs.length} rows accumulated so far.`,
+          );
+          break;
+        }
+        accTxs.push(...batch);
+        if (batch.length < pageSize || accTxs.length >= maxTotal) break;
+      }
+      rawTxs = accTxs;
+
+      // Token transfers
+      const accTokenTxs: import('./types').RawTokenTransfer[] = [];
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        let batch: import('./types').RawTokenTransfer[];
+        try {
+          batch = await provider.getTokenTransfers(address, { ...normalized, page, offset: pageSize });
+        } catch (err) {
+          this.logger.warn(
+            `Paginated getTokenTransfers failed at page=${page} for ${address} on ${chain}: ${(err as Error).message}. Returning ${accTokenTxs.length} rows accumulated so far.`,
+          );
+          break;
+        }
+        accTokenTxs.push(...batch);
+        if (batch.length < pageSize || accTokenTxs.length >= maxTotal) break;
+      }
+      rawTokenTxs = accTokenTxs;
+    } else {
+      // Single-page path — unchanged behavior for all existing callers.
+      [rawTxs, rawTokenTxs] = await Promise.all([
+        provider.getTransactions(address, normalized),
+        provider.getTokenTransfers(address, normalized),
+      ]);
+    }
 
     const transactions: TransactionResult[] = [];
     const seenHashes = new Set<string>();
@@ -148,7 +197,13 @@ export class BlockchainService {
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     );
 
-    return { transactions, chain, address };
+    // Cap to maxTotal after merge+dedup+sort (when pagination was used).
+    const capped =
+      normalized?.maxTotal != null
+        ? transactions.slice(0, normalized.maxTotal)
+        : transactions;
+
+    return { transactions: capped, chain, address };
   }
 
   async getTransaction(

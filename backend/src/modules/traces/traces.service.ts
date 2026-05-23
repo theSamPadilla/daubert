@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -6,23 +6,29 @@ import { TraceEntity } from '../../database/entities/trace.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { CaseAccessService } from '../auth/case-access.service';
 import { AccessPrincipal } from '../auth/access-principal';
-import { CHAIN_CONFIGS } from '../blockchain/types';
+import { CHAIN_CONFIGS, FetchOptions } from '../blockchain/types';
+import { BlockchainService, TransactionResult } from '../blockchain/blockchain.service';
 import { CreateTraceDto } from './dto/create-trace.dto';
 import { UpdateTraceDto } from './dto/update-trace.dto';
 import { UpdateNodeDto } from './dto/update-node.dto';
 import { UpdateEdgeDto } from './dto/update-edge.dto';
 import { CreateGroupDto, UpdateGroupDto } from './dto/group.dto';
 import { CreateEdgeBundleDto, UpdateEdgeBundleDto } from './dto/bundle.dto';
-import { ImportTransactionsDto } from './dto/import-transactions.dto';
+import { ImportTransactionItem, ImportTransactionsDto } from './dto/import-transactions.dto';
+import { SearchBetweenDto, WalletSetDto } from './dto/search-between.dto';
+import { normalizeAddressForChain } from '../../generated/shared/address';
 
 @Injectable()
 export class TracesService {
+  private static readonly WALLET_CAP_PER_SIDE = 25;
+
   constructor(
     @InjectRepository(TraceEntity)
     private readonly repo: Repository<TraceEntity>,
     @InjectRepository(InvestigationEntity)
     private readonly invRepo: Repository<InvestigationEntity>,
     private readonly caseAccess: CaseAccessService,
+    private readonly blockchainService: BlockchainService,
   ) {}
 
   async findAllForInvestigation(investigationId: string, principal: AccessPrincipal) {
@@ -350,6 +356,58 @@ export class TracesService {
     await this.repo.save(trace);
   }
 
+  /**
+   * Resolves a WalletSetDto to a set of lowercase addresses, searching across all
+   * traces in the investigation. Exactly one of traceId, groupId, or wallets must
+   * be provided. The 25-wallet cap is enforced after resolution by the caller.
+   */
+  public resolveWalletSet(traces: TraceEntity[], set: WalletSetDto, chain: string): Set<string> {
+    const hasTrace = !!set.traceId;
+    const hasGroup = !!set.groupId;
+    const hasWallets = !!set.wallets && set.wallets.length > 0;
+    const setCount = (hasTrace ? 1 : 0) + (hasGroup ? 1 : 0) + (hasWallets ? 1 : 0);
+
+    if (setCount !== 1) {
+      throw new BadRequestException('Exactly one of traceId, groupId, or wallets must be provided.');
+    }
+
+    if (hasTrace) {
+      const trace = traces.find((t) => t.id === set.traceId);
+      if (!trace) {
+        throw new BadRequestException(`Trace ${set.traceId} not found in this investigation.`);
+      }
+      const data = (trace.data || {}) as { nodes?: any[] };
+      // Filter to nodes on the search chain so we don't pollute the set with
+      // (e.g.) EVM nodes when chain='tron'. Use chain-aware normalization —
+      // Tron base58 is case-sensitive; lowercasing would corrupt addresses.
+      return new Set(
+        (data.nodes ?? [])
+          .filter((n: any) => !n.chain || n.chain === chain)
+          .map((n: any) => normalizeAddressForChain(n.address as string, chain)),
+      );
+    }
+
+    if (hasGroup) {
+      // Search across all traces for the group
+      for (const trace of traces) {
+        const data = (trace.data || {}) as { groups?: any[]; nodes?: any[] };
+        const groupExists = (data.groups ?? []).some((g: any) => g.id === set.groupId);
+        if (groupExists) {
+          return new Set(
+            (data.nodes ?? [])
+              .filter((n: any) => n.groupId === set.groupId)
+              .filter((n: any) => !n.chain || n.chain === chain)
+              .map((n: any) => normalizeAddressForChain(n.address as string, chain)),
+          );
+        }
+      }
+      throw new BadRequestException('Group not found in this investigation.');
+    }
+
+    // hasWallets branch
+    return new Set(set.wallets!.map((w) => normalizeAddressForChain(w, chain)));
+  }
+
   async importTransactions(id: string, dto: ImportTransactionsDto, principal: AccessPrincipal) {
     const trace = await this.findOne(id, principal);
 
@@ -480,5 +538,138 @@ export class TracesService {
     await this.repo.save(trace);
 
     return { added: { nodes: addedNodes, edges: addedEdges } };
+  }
+
+  /**
+   * Searches for all direct transactions between two wallet sets within an optional time window.
+   * Accepts an array of traces (the full investigation) so that wallet sets can reference any trace
+   * or group across the investigation. Fetches only the smaller side.
+   * Deduplicates using the same key as importTransactions: `${txHash}-${from}-${to}`.
+   * When the same (txHash, from, to) appears with different tokens (e.g. native + ERC-20 in one tx),
+   * the token symbols are joined into a comma-separated string on the kept row.
+   */
+  async searchBetween(
+    traces: TraceEntity[],
+    dto: SearchBetweenDto,
+  ): Promise<{ results: ImportTransactionItem[]; fetchedSide: 'A' | 'B'; failedAddresses: string[]; analyzedCount: number }> {
+    const setA = this.resolveWalletSet(traces, dto.sideA, dto.chain);
+    const setB = this.resolveWalletSet(traces, dto.sideB, dto.chain);
+
+    // Build a display name for the wallet set source for use in the cap error message.
+    const sideLabel = (set: WalletSetDto, resolved: Set<string>): string => {
+      if (set.traceId) {
+        const t = traces.find((tr) => tr.id === set.traceId);
+        return t ? `"${t.name}"` : `trace ${set.traceId}`;
+      }
+      if (set.groupId) return `group ${set.groupId}`;
+      return `the wallet list (${resolved.size} wallets)`;
+    };
+
+    if (setA.size > TracesService.WALLET_CAP_PER_SIDE) {
+      throw new BadRequestException(
+        `${sideLabel(dto.sideA, setA)} has ${setA.size} wallets, exceeding the ${TracesService.WALLET_CAP_PER_SIDE}-per-side cap. Narrow your selection.`,
+      );
+    }
+    if (setB.size > TracesService.WALLET_CAP_PER_SIDE) {
+      throw new BadRequestException(
+        `${sideLabel(dto.sideB, setB)} has ${setB.size} wallets, exceeding the ${TracesService.WALLET_CAP_PER_SIDE}-per-side cap. Narrow your selection.`,
+      );
+    }
+
+    const fetchedSide: 'A' | 'B' = setA.size <= setB.size ? 'A' : 'B';
+    const toFetch = fetchedSide === 'A' ? setA : setB;
+    const otherSet = fetchedSide === 'A' ? setB : setA;
+
+    const fetchOptions: FetchOptions = {
+      startTimestamp: dto.timeRange?.startTimestamp,
+      endTimestamp: dto.timeRange?.endTimestamp,
+      // Per-page: Etherscan accepts up to 10 000 (cap at 1 000 for safety);
+      // Tron's API caps at ~50 per page in this codebase.
+      offset: dto.chain === 'tron' ? 50 : 1000,
+      // maxTotal worst-case = ceil(maxTotal / pageSize) provider calls per wallet
+      // for *each* of native + token. Keep Tron conservative — 50/page × 40 pages
+      // × 2 sources = 80 sequential Tronscan calls/wallet; any more and active
+      // wallets hit the rate limiter mid-pagination. EVM is faster per page,
+      // so 10× the headroom is fine.
+      maxTotal: dto.chain === 'tron' ? 2000 : 10000,
+    };
+
+    const addrs = [...toFetch];
+    const settled = await Promise.allSettled(
+      addrs.map((addr) =>
+        this.blockchainService.fetchHistory(addr, dto.chain, fetchOptions),
+      ),
+    );
+
+    const failedAddresses: string[] = [];
+    const responses: { transactions: TransactionResult[] }[] = [];
+    let analyzedCount = 0;
+    for (let i = 0; i < settled.length; i++) {
+      const outcome = settled[i];
+      if (outcome.status === 'fulfilled') {
+        // analyzedCount is the raw transaction count before the cross-set filter —
+        // the "how much we looked at" metric. Use the pre-cap length from the result.
+        analyzedCount += outcome.value.transactions.length;
+        responses.push(outcome.value);
+      } else {
+        failedAddresses.push(addrs[i]);
+      }
+    }
+
+    // Collect cross-set txs. Key matches importTransactions dedup: `${txHash}-${from}-${to}`.
+    // Collapse duplicates; merge token symbols if multiple tokens move in the same tx.
+    const collapsed = new Map<string, ImportTransactionItem>();
+
+    for (const { transactions } of responses) {
+      for (const tx of transactions) {
+        // BlockchainService.normalizeAddr already returns chain-correct casing
+        // (Tron preserved, EVM lowercased). Re-normalize defensively in case
+        // the provider hands us something off-spec.
+        const from = normalizeAddressForChain(tx.from, dto.chain);
+        const to = normalizeAddressForChain(tx.to, dto.chain);
+        const crosses =
+          (toFetch.has(from) && otherSet.has(to)) ||
+          (toFetch.has(to) && otherSet.has(from));
+        if (!crosses) continue;
+
+        const key = `${tx.txHash}-${from}-${to}`;
+        const existing = collapsed.get(key);
+        if (!existing) {
+          collapsed.set(key, this.toImportItem(tx, dto.chain));
+        } else {
+          // Same (txHash, from, to) with a different token — append symbol if not already present.
+          // Use exact-match against the comma-separated set to avoid substring collisions
+          // (e.g. "ETH-LP, USDC".includes("ETH") would wrongly suppress a real "ETH" symbol).
+          const newSymbol = tx.token.symbol;
+          if (newSymbol) {
+            const existingTokens = new Set(existing.token.split(/,\s*/));
+            if (!existingTokens.has(newSymbol)) {
+              existing.token = `${existing.token}, ${newSymbol}`;
+            }
+          }
+        }
+      }
+    }
+
+    return { results: [...collapsed.values()], fetchedSide, failedAddresses, analyzedCount };
+  }
+
+  /**
+   * Maps a TransactionResult from BlockchainService to the ImportTransactionItem DTO shape.
+   * token is a string (symbol) in ImportTransactionItem; TransactionResult.token is an object.
+   * For native transfers the symbol is the chain's native currency (e.g. "ETH").
+   * For ERC-20/TRC-20 transfers the symbol is the token symbol (e.g. "USDC").
+   */
+  private toImportItem(tx: TransactionResult, chain: string): ImportTransactionItem {
+    const item = new ImportTransactionItem();
+    item.txHash = tx.txHash;
+    item.from = tx.from;
+    item.to = tx.to;
+    item.chain = chain;
+    item.amount = tx.amount;
+    item.token = tx.token.symbol;   // string symbol, not the object
+    item.timestamp = tx.timestamp;  // already ISO string from BlockchainService
+    item.blockNumber = tx.blockNumber;
+    return item;
   }
 }

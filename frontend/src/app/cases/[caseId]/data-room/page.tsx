@@ -14,6 +14,8 @@ import {
 } from 'react-icons/fa6';
 import { apiClient, type DataRoomConnection, type DataRoomFile } from '@/lib/api-client';
 import { Loader } from '@/components/Loader';
+import { PageHeader } from '@/components/PageHeader';
+import UserMenu from '@/components/UserMenu';
 import { openDriveFolderPicker } from '@/lib/google-picker';
 
 function formatBytes(raw: string | undefined): string {
@@ -239,29 +241,25 @@ export default function DataRoomPage() {
           : 'noFolder';
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                <FaFolderOpen className="text-brand" /> Data Room
-              </h1>
-              {connection?.folderName && (
-                <span className="text-sm text-ink-muted ml-2">/ {connection.folderName}</span>
-              )}
-            </div>
-            {state === 'connected' && (
-              <button
-                onClick={() => setShowDisconnectModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-surface-panel hover:bg-surface-raised text-ink-muted border border-line-strong"
-                title="Disconnect Google Drive"
-              >
-                <FaPlugCircleXmark className="w-3.5 h-3.5" /> Disconnect
-              </button>
-            )}
-          </div>
-
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <PageHeader
+        title="Data Room"
+        subtitle={connection?.folderName ? `/ ${connection.folderName}` : undefined}
+        actions={
+          state === 'connected' ? (
+            <button
+              onClick={() => setShowDisconnectModal(true)}
+              className="flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium bg-white hover:bg-[#F1F4FA] text-[#5B6473] hover:text-[#0B1220] border border-[#E5E7EB] hover:border-[#CFD4DD] transition-colors"
+              title="Disconnect Google Drive"
+            >
+              <FaPlugCircleXmark className="w-3.5 h-3.5" /> Disconnect
+            </button>
+          ) : undefined
+        }
+        rightContent={<UserMenu variant="light" />}
+      />
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-6xl mx-auto">
           {/* Error banner */}
           {error && (
             <div className="mb-4 p-3 rounded bg-red-900/40 border border-red-800/60 text-red-200 text-sm flex items-center justify-between">
@@ -559,6 +557,7 @@ export default function DataRoomPage() {
           )}
         </div>
       </div>
+    </div>
   );
 }
 

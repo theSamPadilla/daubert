@@ -4,7 +4,8 @@ import { useCytoscape, CytoscapeCallbacks } from '../hooks/useCytoscape';
 
 export interface GraphCanvasHandle {
   unselectAll: () => void;
-  exportImage: (format: 'png' | 'pdf', filename?: string) => void;
+  exportImage: (format: 'png' | 'pdf', filename?: string) => Promise<void>;
+  exportPngDataUrl: () => Promise<string>;
   setEdgeArc: (edgeId: string, delta: number | null) => void;
 }
 
@@ -17,14 +18,14 @@ interface GraphCanvasProps {
 
 export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
   ({ investigation, selectedNodeIds, selectedEdgeIds, callbacks }, ref) => {
-    const { containerRef, unselectAll, exportImage, setEdgeArc } = useCytoscape(
+    const { containerRef, unselectAll, exportImage, exportPngDataUrl, setEdgeArc } = useCytoscape(
       investigation,
       selectedNodeIds,
       selectedEdgeIds,
       callbacks
     );
 
-    useImperativeHandle(ref, () => ({ unselectAll, exportImage, setEdgeArc }), [unselectAll, exportImage, setEdgeArc]);
+    useImperativeHandle(ref, () => ({ unselectAll, exportImage, exportPngDataUrl, setEdgeArc }), [unselectAll, exportImage, exportPngDataUrl, setEdgeArc]);
 
     return (
       <div className="relative w-full h-full">

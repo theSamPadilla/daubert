@@ -5,6 +5,8 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { FaFileLines, FaChartLine, FaTableList } from 'react-icons/fa6';
 import { useCaseContext } from '@/contexts/CaseContext';
 import { ProductionViewer } from '@/components/ProductionViewer';
+import { PageHeader } from '@/components/PageHeader';
+import UserMenu from '@/components/UserMenu';
 import type { Production } from '@/lib/api-client';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -59,9 +61,7 @@ export default function ProductionsPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="h-12 px-4 border-b border-[#E5E7EB] bg-[#F7F8FB] flex items-center shrink-0">
-        <h1 className="text-[15px] font-semibold tracking-tight text-[#0B1220]">Productions</h1>
-      </div>
+      <PageHeader title="Productions" rightContent={<UserMenu variant="light" />} />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto">
         {productions.length === 0 ? (

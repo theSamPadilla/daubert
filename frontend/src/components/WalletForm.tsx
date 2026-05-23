@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { WalletNode, Trace } from '../types/investigation';
-import { ColorPicker } from './ColorPicker';
 import { TagInput } from './TagInput';
 import { SUPPORTED_CHAINS } from '../services/types';
 import { parseAddressInput } from '../utils/addressParser';
@@ -21,7 +20,6 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
   const [label, setLabel] = useState(source?.label || '');
   const [address, setAddress] = useState(source?.address || '');
   const [chain, setChain] = useState(source?.chain || 'ethereum');
-  const [color, setColor] = useState(wallet?.color || '#60a5fa');
   const [size, setSize] = useState(wallet?.size || 60);
   const [notes, setNotes] = useState(wallet?.notes || '');
   const [tags, setTags] = useState<string[]>(wallet?.tags || []);
@@ -62,7 +60,7 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(traceId, { label, address, chain, color, size, notes, tags });
+    onSave(traceId, { label, address, chain, size, notes, tags });
   };
 
   return (
@@ -151,11 +149,6 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
-      </div>
-
-      <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Color</label>
-        <ColorPicker value={color} onChange={setColor} />
       </div>
 
       <div>

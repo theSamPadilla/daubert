@@ -57,3 +57,90 @@ UpdateTraceRequest:
     data:
       type: object
       additionalProperties: true
+
+ImportTransactionItem:
+  type: object
+  required: [from, to, txHash, chain, timestamp, amount, token]
+  properties:
+    from:
+      type: string
+    to:
+      type: string
+    txHash:
+      type: string
+    chain:
+      type: string
+    timestamp:
+      type: string
+      format: date-time
+    amount:
+      type: string
+    token:
+      type: string
+    blockNumber:
+      type: integer
+    fromLabel:
+      type: string
+    toLabel:
+      type: string
+
+WalletSet:
+  type: object
+  description: "One side of an advanced search. Exactly one of traceId, groupId, or wallets must be provided."
+  properties:
+    traceId:
+      type: string
+      format: uuid
+    groupId:
+      type: string
+      format: uuid
+    wallets:
+      type: array
+      minItems: 1
+      maxItems: 25
+      items:
+        type: string
+  oneOf:
+    - required: [traceId]
+    - required: [groupId]
+    - required: [wallets]
+
+SearchBetweenRequest:
+  type: object
+  required: [sideA, sideB, chain]
+  properties:
+    sideA:
+      $ref: '#/WalletSet'
+    sideB:
+      $ref: '#/WalletSet'
+    chain:
+      type: string
+      description: "Chain key (e.g. 'ethereum', 'polygon', 'arbitrum', 'base', 'tron')."
+    timeRange:
+      type: object
+      properties:
+        startTimestamp:
+          type: integer
+        endTimestamp:
+          type: integer
+
+SearchBetweenResponse:
+  type: object
+  required: [results, fetchedSide, failedAddresses, analyzedCount]
+  properties:
+    results:
+      type: array
+      description: "Candidate transactions in ImportTransactionItem shape — forward verbatim to /import-transactions."
+      items:
+        $ref: '#/ImportTransactionItem'
+    fetchedSide:
+      type: string
+      enum: [A, B]
+    failedAddresses:
+      type: array
+      items:
+        type: string
+      description: "Addresses for which provider history fetch failed (rate limit, network, etc.). UI should warn the user."
+    analyzedCount:
+      type: integer
+      description: "Total raw transactions returned by the provider across all fetched wallets, before the cross-set filter. Reflects how much history was actually inspected."

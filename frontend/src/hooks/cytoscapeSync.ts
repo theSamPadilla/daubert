@@ -1,7 +1,7 @@
 import type { Core } from 'cytoscape';
 import type { Investigation } from '../types/investigation';
 import { contrastTextColor, formatShortDate } from './cytoscapeStyle';
-import { formatTokenAmount, normalizeToken, parseTimestamp } from '../utils/formatAmount';
+import { formatTokenAmount, normalizeToken, parseTimestamp, tokenKey } from '../utils/formatAmount';
 
 export function syncCytoscape(cy: Core, investigation: Investigation | null): void {
   const inv = investigation;
@@ -116,7 +116,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
         : h >= 1e3 ? `${(h/1e3).toFixed(1).replace(/\.?0+$/, '')}K`
         : h.toLocaleString(undefined, { maximumFractionDigits: 1 });
 
-      const aggEdges = new Map<string, { src: string; tgt: string; human: number; sym: string; color: string; date: string; n: number }>();
+      const aggEdges = new Map<string, { src: string; tgt: string; human: number; sym: string; color: string; edgeIds: string[]; oldestTs: number; newestTs: number; n: number }>();
 
       trace.edges.forEach((edge) => {
         if (globalBundledEdgeIds.has(edge.id)) return; // rendered as bundle edge
@@ -131,10 +131,20 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
         const raw = parseFloat(String(edge.amount)) || 0;
         const human = tok.decimals > 0 ? raw / Math.pow(10, tok.decimals) : raw;
         if (effFrom !== edge.from || effTo !== edge.to) {
-          const key = `${effFrom}::${effTo}::${tok.symbol}`;
+          const key = `${effFrom}::${effTo}::${tokenKey(edge.token)}`;
+          const edgeTs = parseTimestamp(edge.timestamp).getTime();
           const ex = aggEdges.get(key);
-          if (ex) { ex.human += human; ex.n++; }
-          else aggEdges.set(key, { src: effFrom, tgt: effTo, human, sym: tok.symbol, color: edge.color || '#10b981', date: formatShortDate(edge.timestamp), n: 1 });
+          if (ex) {
+            ex.human += human;
+            ex.n++;
+            ex.edgeIds.push(edge.id);
+            if (!isNaN(edgeTs)) {
+              if (isNaN(ex.oldestTs) || edgeTs < ex.oldestTs) ex.oldestTs = edgeTs;
+              if (isNaN(ex.newestTs) || edgeTs > ex.newestTs) ex.newestTs = edgeTs;
+            }
+          } else {
+            aggEdges.set(key, { src: effFrom, tgt: effTo, human, sym: tok.symbol, color: edge.color || '#10b981', edgeIds: [edge.id], oldestTs: edgeTs, newestTs: edgeTs, n: 1 });
+          }
         } else {
           const amountLabel = `${formatTokenAmount(edge.amount, tok.decimals)} ${tok.symbol}`;
           const label = edge.label || amountLabel;
@@ -145,7 +155,15 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
 
       aggEdges.forEach((a, key) => {
         const label = `${abbr(a.human)} ${a.sym}${a.n > 1 ? ` (${a.n})` : ''}`;
-        targetEdges.set(key, { data: { id: key, source: a.src, target: a.tgt, traceId: trace.id, label, date: a.date, color: a.color, lineStyle: 'solid', weight: edgeW(a.human) } });
+        let dateRangeLabel = '';
+        const oldestValid = !isNaN(a.oldestTs);
+        const newestValid = !isNaN(a.newestTs);
+        if (oldestValid && newestValid) {
+          dateRangeLabel = a.oldestTs === a.newestTs
+            ? formatShortDate(a.oldestTs / 1000)
+            : `${formatShortDate(a.oldestTs / 1000)} — ${formatShortDate(a.newestTs / 1000)}`;
+        }
+        targetEdges.set(key, { data: { id: key, source: a.src, target: a.tgt, traceId: trace.id, label, date: dateRangeLabel, color: a.color, lineStyle: 'solid', weight: edgeW(a.human), edgeIds: a.edgeIds, isAggregatedEdge: true } });
       });
 
       // Render collapsed bundles as single aggregated edges

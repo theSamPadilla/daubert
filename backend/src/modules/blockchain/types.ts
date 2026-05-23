@@ -81,6 +81,12 @@ export interface FetchOptions {
   page?: number;
   offset?: number;
   sort?: 'asc' | 'desc';
+  /**
+   * When set, fetchHistory iterates pages internally until each underlying
+   * source (native + token transfers) returns a partial page OR accumulates
+   * this many rows. Without it, behavior is unchanged (single page only).
+   */
+  maxTotal?: number;
 }
 
 export const CHAIN_CONFIGS: Record<string, ChainConfig> = {

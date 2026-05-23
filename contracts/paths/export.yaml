@@ -1,14 +1,12 @@
 /exports/productions/{id}:
   post:
-    summary: Export a production as PDF or HTML
+    summary: Export a production as PDF, PNG, or DOCX
     operationId: exportProduction
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: string
-          format: uuid
+        schema: { type: string, format: uuid }
     requestBody:
       required: true
       content:
@@ -19,21 +17,21 @@
             properties:
               format:
                 type: string
-                enum: [pdf, html]
+                enum: [pdf, png, docx]
+              filename:
+                type: string
+                description: User-supplied filename stem (no extension)
               imageDataUrl:
                 type: string
-                description: PNG data URL (required for chart export)
+                description: PNG data URL (required for chart PDF export)
     responses:
       '200':
         description: Exported file
         content:
-          application/pdf:
-            schema:
-              type: string
-              format: binary
-          text/html:
-            schema:
-              type: string
+          application/pdf: { schema: { type: string, format: binary } }
+          image/png: { schema: { type: string, format: binary } }
+          application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+            schema: { type: string, format: binary }
 
 /exports/graph:
   post:
@@ -47,16 +45,41 @@
             type: object
             required: [name, imageDataUrl]
             properties:
-              name:
-                type: string
-              imageDataUrl:
-                type: string
-                description: PNG data URL from Cytoscape (must start with data:image/png;base64, max 10MB)
+              name: { type: string }
+              filename: { type: string }
+              imageDataUrl: { type: string }
     responses:
       '200':
         description: PDF file
         content:
-          application/pdf:
-            schema:
-              type: string
-              format: binary
+          application/pdf: { schema: { type: string, format: binary } }
+
+/exports/exhibit:
+  post:
+    summary: Compose multiple investigations and productions into a single exhibit PDF
+    operationId: exportExhibit
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [filename, items]
+            properties:
+              filename: { type: string }
+              items:
+                type: array
+                items:
+                  type: object
+                  required: [refType, refId, title]
+                  properties:
+                    refType: { type: string, enum: [production, investigation] }
+                    refId:   { type: string, format: uuid }
+                    title:   { type: string }
+                    subtitle: { type: string }
+                    imageDataUrl: { type: string }
+    responses:
+      '200':
+        description: PDF file
+        content:
+          application/pdf: { schema: { type: string, format: binary } }

@@ -13,6 +13,7 @@ export type FocusItem =
   | { type: 'trace'; id: string }
   | { type: 'transaction'; id: string; traceId: string }
   | { type: 'edgeBundle'; id: string; traceId: string }
+  | { type: 'aggregatedEdge'; id: string; traceId: string; edgeIds: string[] }
   | null;
 
 export type SelectionPayload = {
@@ -147,9 +148,9 @@ export function useCytoscape(
     callbacksRef.current.onSelectionChange?.({ nodeIds: [], edgeIds: [], focusItem: null });
   }, []);
 
-  const exportImage = useCallback(async (format: 'png' | 'pdf', filename = 'graph') => {
+  const exportPngDataUrl = useCallback(async (): Promise<string> => {
     const cy = cyRef.current;
-    if (!cy) return;
+    if (!cy) throw new Error('Cytoscape not initialized');
 
     // Cytoscape's PNG capture only sees the canvas, not the HTML overlays
     // layered on top of it (edge date pills, node truncated-address sublabels —
@@ -165,6 +166,17 @@ export function useCytoscape(
         const orig = (e.data('label') as string | undefined) ?? '';
         savedEdgeLabels.set(e.id(), orig);
         e.data('label', orig ? `${orig}\n${date}` : date);
+        // Bump font + add line spacing for export only; restored after cy.png().
+        // 10px → 14px so labels survive scale-down when the PNG is viewed.
+        // line-height 1.5 keeps the amount and date from visually colliding
+        // along the rotated edge frame. text-background-padding widens the
+        // pill so both lines sit clearly inside it.
+        e.style({
+          'font-size': '14px',
+          'line-height': 1.5,
+          'text-background-padding': '5px',
+          'text-margin-y': -14,
+        });
       });
       cy.nodes().forEach((n) => {
         if (n.isParent() || !n.data('hasCustomLabel')) return;
@@ -173,6 +185,10 @@ export function useCytoscape(
         const orig = (n.data('label') as string | undefined) ?? '';
         savedNodeLabels.set(n.id(), orig);
         n.data('label', orig ? `${orig}\n${addr}` : addr);
+        n.style({
+          'font-size': '14px',
+          'line-height': 1.5,
+        });
       });
     });
 
@@ -182,13 +198,23 @@ export function useCytoscape(
     } finally {
       cy.batch(() => {
         savedEdgeLabels.forEach((orig, id) => {
-          cy.getElementById(id).data('label', orig);
+          const e = cy.getElementById(id);
+          e.data('label', orig);
+          e.removeStyle('font-size line-height text-background-padding text-margin-y');
         });
         savedNodeLabels.forEach((orig, id) => {
-          cy.getElementById(id).data('label', orig);
+          const n = cy.getElementById(id);
+          n.data('label', orig);
+          n.removeStyle('font-size line-height');
         });
       });
     }
+
+    return dataUrl;
+  }, []);
+
+  const exportImage = useCallback(async (format: 'png' | 'pdf', filename = 'graph') => {
+    const dataUrl = await exportPngDataUrl();
 
     if (format === 'png') {
       const a = document.createElement('a');
@@ -197,12 +223,12 @@ export function useCytoscape(
       a.click();
     } else {
       try {
-        await apiClient.exportGraph(filename, dataUrl);
+        await apiClient.exportGraph(filename, filename, dataUrl);
       } catch (err) {
         alert(`PDF export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     }
-  }, []);
+  }, [exportPngDataUrl]);
 
   const setEdgeArc = useCallback((edgeId: string, delta: number | null) => {
     const cy = cyRef.current;
@@ -220,5 +246,5 @@ export function useCytoscape(
     }
   }, []);
 
-  return { containerRef, unselectAll, exportImage, setEdgeArc };
+  return { containerRef, unselectAll, exportImage, exportPngDataUrl, setEdgeArc };
 }

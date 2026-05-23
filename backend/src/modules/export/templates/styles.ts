@@ -21,3 +21,22 @@ export const BASE_STYLES = `
   @page { margin: 20mm 15mm; }
   @media print { .no-print { display: none; } }
 `;
+
+/** Per-type styles for the chronology template. Must be included when rendering chronology body. */
+export const CHRONOLOGY_STYLES = `
+  .chronology { table-layout: fixed; }
+`;
+
+/** Per-type styles for the chart template. Must be included when rendering chart body. */
+export const CHART_STYLES = `
+  img.chart-img { max-width: 100%; height: auto; }
+`;
+
+/** Per-type styles for the report template. Supplements BASE_STYLES. */
+export const REPORT_STYLES = ``;
+
+/** Per-type styles for the graph template. Must be included when rendering graph body. */
+export const GRAPH_STYLES = `
+  .graph-full-doc body { display: flex; flex-direction: column; align-items: center; }
+  .graph-full-doc img { max-width: 100%; height: auto; margin-top: 16pt; }
+`;

@@ -7,6 +7,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { apiClient, type Investigation, type DataRoomConnection } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
 import { ScriptsPanel } from './ScriptsPanel';
+import { ExhibitBuilder } from './ExhibitBuilder';
 import { useCaseContext } from '@/contexts/CaseContext';
 
 interface InvestigationsSidebarProps {
@@ -39,6 +40,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
   const selectedProductionId = onProductionsRoute ? searchParams?.get('id') ?? null : null;
 
   const [caseName, setCaseName] = useState('');
+  const [exhibitOpen, setExhibitOpen] = useState(false);
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
   const [collapsedInvs, setCollapsedInvs] = useState<Set<string>>(new Set());
   const [dataRoom, setDataRoom] = useState<DataRoomConnection | null | undefined>(undefined);
@@ -91,13 +93,22 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
         >
           <FaArrowLeft size={12} />
         </button>
-        <div className="flex items-baseline gap-2 min-w-0">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
-            Case
-          </span>
-          <p className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate">
-            {caseName || 'Loading...'}
-          </p>
+        <div className="flex items-center justify-between gap-2 min-w-0 flex-1">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
+              Case
+            </span>
+            <p className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate">
+              {caseName || 'Loading...'}
+            </p>
+          </div>
+          <button
+            onClick={() => setExhibitOpen(true)}
+            className="shrink-0 text-[10px] font-mono uppercase tracking-[0.12em] px-2 py-0.5 rounded border border-[#D1D5DB] text-[#5B6473] hover:text-[#0B1220] hover:border-[#9CA3AF] transition-colors"
+            title="Create exhibit from investigations and productions"
+          >
+            + Exhibit
+          </button>
         </div>
       </div>
 
@@ -286,6 +297,13 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           onSelectScriptRun={onSelectScriptRun}
         />
       )}
+
+      <ExhibitBuilder
+        open={exhibitOpen}
+        onClose={() => setExhibitOpen(false)}
+        caseId={caseId}
+        caseName={caseName}
+      />
     </div>
   );
 }

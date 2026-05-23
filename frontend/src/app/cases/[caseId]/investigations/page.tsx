@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'rea
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import { GraphCanvas, type GraphCanvasHandle } from '@/components/GraphCanvas';
 import { useCaseContext } from '@/contexts/CaseContext';
-import { Header } from '@/components/Header';
+import { PageHeader } from '@/components/PageHeader';
 import { DetailsPanel, type DetailsPanelHandle } from '@/components/DetailsPanel';
 import { FloatingPanel } from '@/components/FloatingPanel';
 import { InvestigationForm } from '@/components/InvestigationForm';
@@ -18,12 +18,15 @@ import { WalletForm } from '@/components/WalletForm';
 import { TransactionForm } from '@/components/TransactionForm';
 import { CanvasToolPill } from '@/components/CanvasToolPill';
 import { ExportModal } from '@/components/ExportModal';
+import { SearchPanel } from '@/components/AdvancedSearch/SearchPanel';
+import { FaMagnifyingGlass, FaDownload } from 'react-icons/fa6';
 import { QuickAddInput } from '@/components/QuickAddInput';
 import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
 import { CytoscapeCallbacks, FocusItem } from '@/hooks/useCytoscape';
 import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } from '@/lib/api-client';
 import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
+import { normalizeInvestigation } from '@/utils/normalizeInvestigation';
 import { normalizeToken } from '@/utils/formatAmount';
 import UserMenu from '@/components/UserMenu';
 import { Loader } from '@/components/Loader';
@@ -171,6 +174,52 @@ function WalletHeaderActions({
   );
 }
 
+// Resolve an endpoint id (wallet id, group id, or trace id) to the display label
+// that matches the on-graph label. Precedence mirrors cytoscapeSync.ts label logic:
+//   1. Trace id with collapsed=true  → "TraceName (N)"
+//   2. Trace id (any)                → "TraceName"
+//   3. Group id with collapsed=true  → "GroupName (N)"
+//   4. Group id (expanded)           → "GroupName"
+//   5. Wallet id                     → wallet.label || truncAddr || ""
+//   6. Fallback                      → first 8 chars + "…"
+function resolveEndpointLabel(id: string, investigation: Investigation): string {
+  // 1 & 2: trace id match
+  for (const trace of investigation.traces) {
+    if (trace.id === id) {
+      return trace.collapsed ? `${trace.name} (${trace.nodes.length})` : trace.name;
+    }
+  }
+
+  // 3 & 4: group id match
+  for (const trace of investigation.traces) {
+    for (const group of trace.groups || []) {
+      if (group.id === id) {
+        if (group.collapsed) {
+          const memberCount = trace.nodes.filter((n) => n.groupId === group.id).length;
+          return `${group.name} (${memberCount})`;
+        }
+        return group.name;
+      }
+    }
+  }
+
+  // 5: wallet id match
+  for (const trace of investigation.traces) {
+    const wallet = trace.nodes.find((n) => n.id === id);
+    if (wallet) {
+      if (wallet.label) return wallet.label;
+      const addr = wallet.address;
+      if (addr) {
+        return addr.length > 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
+      }
+      return '';
+    }
+  }
+
+  // 6: fallback
+  return id.length > 8 ? `${id.slice(0, 8)}…` : id;
+}
+
 // Resolve a FocusItem (id-only, emitted by useCytoscape) into the legacy
 // `{ type, data }` shape consumed by the right details panel. Walks the
 // investigation traces to find the wallet/group/trace/transaction/edgeBundle
@@ -211,6 +260,35 @@ function resolveFocusItem(
       if (bundle) return { type: 'edgeBundle', data: bundle };
     }
     return null;
+  }
+  if (focusItem.type === 'aggregatedEdge') {
+    const trace = investigation.traces.find((t) => t.id === focusItem.traceId);
+    if (!trace) return null;
+
+    const edges = focusItem.edgeIds
+      .map((id) => trace.edges.find((e) => e.id === id))
+      .filter(Boolean) as TransactionEdge[];
+    // Race after delete: underlying txs may be gone. Return null so the panel
+    // simply collapses — preferred over a "no transactions" placeholder for a
+    // synthetic edge that itself will disappear on the next syncCytoscape pass.
+    if (edges.length === 0) return null;
+
+    // The synthetic edge id encodes both endpoints: "${effFrom}::${effTo}::${tokenKey}".
+    // Parse them out — they may be wallet ids, group ids, or trace ids.
+    const [srcId, tgtId] = focusItem.id.split('::');
+
+    return {
+      type: 'aggregatedEdge',
+      data: {
+        edges,
+        traceId: trace.id,
+        fromNodeId: srcId,
+        toNodeId: tgtId,
+        fromLabel: resolveEndpointLabel(srcId, investigation),
+        toLabel: resolveEndpointLabel(tgtId, investigation),
+        syntheticEdgeId: focusItem.id,
+      },
+    };
   }
   return null;
 }
@@ -266,6 +344,7 @@ function InvestigationsWorkspace() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   const [panelMode, setPanelMode] = useState<PanelMode>({ type: 'none' });
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
@@ -278,38 +357,7 @@ function InvestigationsWorkspace() {
     setStagedItems([]);
     try {
       const inv = await apiClient.getInvestigation(id);
-      const clientInv: Investigation = {
-        id: inv.id,
-        name: inv.name,
-        description: inv.notes || '',
-        createdAt: inv.createdAt,
-        traces: (inv.traces || []).map((t) => ({
-          id: t.id,
-          name: t.name,
-          criteria: (t.data as any)?.criteria || { type: 'custom' as const },
-          visible: t.visible,
-          collapsed: t.collapsed,
-          color: t.color || undefined,
-          nodes: ((t.data as any)?.nodes || []).map((n: any) => {
-            const parsed = parseAddressInput(n.address);
-            const address = parsed.chain ? parsed.address : n.address;
-            const chain = parsed.chain || n.chain;
-            return {
-              ...n,
-              address,
-              chain,
-              explorerUrl: n.explorerUrl || parsed.explorerUrl || buildExplorerUrl(chain, address),
-              addressType: n.addressType || 'unknown',
-            };
-          }),
-          edges: (t.data as any)?.edges || [],
-          groups: (t.data as any)?.groups || [],
-          edgeBundles: (t.data as any)?.edgeBundles || [],
-          position: (t.data as any)?.position || { x: 0, y: 0 },
-        })),
-        metadata: {},
-      };
-      setInvestigation(clientInv);
+      setInvestigation(normalizeInvestigation(inv));
     } catch (err) {
       console.error('Failed to load investigation:', err);
     } finally {
@@ -1109,9 +1157,17 @@ function InvestigationsWorkspace() {
     <>
       {investigation ? (
         <>
-          <Header
-            investigation={investigation}
-            onExportClick={() => setExportModalOpen(true)}
+          <PageHeader
+            eyebrow="Investigation"
+            title={investigation.name || 'Daubert'}
+            actions={
+              <button
+                onClick={() => setExportModalOpen(true)}
+                className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"
+              >
+                <FaDownload size={11} /> Export
+              </button>
+            }
             rightContent={<UserMenu variant="light" />}
           />
           <div className="flex-1 bg-surface relative overflow-hidden">
@@ -1125,7 +1181,17 @@ function InvestigationsWorkspace() {
               />
             )}
             {investigation && (
-              <div className="absolute top-3 right-3 z-20">
+              <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+                {investigation.traces.length > 0 && (
+                  <button
+                    onClick={() => setSearchOpen(true)}
+                    title="Find transactions between wallets"
+                    className="bg-surface-panel/90 border border-line-strong rounded-full shadow-lg flex items-center gap-1.5 px-3 py-1.5 text-ink-muted hover:text-ink hover:bg-surface-raised transition-colors text-xs"
+                  >
+                    <FaMagnifyingGlass size={11} />
+                    Search
+                  </button>
+                )}
                 <QuickAddInput
                   investigationId={investigation.id}
                   onResolveAddress={(prefill) => setPanelMode({ type: 'createWallet', prefill })}
@@ -1183,7 +1249,7 @@ function InvestigationsWorkspace() {
 
             {selectedItem && selectedNodeIds.length < 2 && selectedEdgeIds.length < 2 && (
               <FloatingPanel
-                title={`${selectedItem.type === 'wallet' ? 'Address' : selectedItem.type === 'scriptRun' ? 'Script' : selectedItem.type} Details`}
+                title={`${selectedItem.type === 'wallet' ? 'Address' : selectedItem.type === 'scriptRun' ? 'Script' : selectedItem.type === 'aggregatedEdge' ? 'Aggregated Transactions' : selectedItem.type} Details`}
                 onClose={() => { setSelectedItem(null); graphRef.current?.unselectAll(); }}
                 className="absolute bottom-4 left-4"
                 width="w-[420px]"
@@ -1317,6 +1383,15 @@ function InvestigationsWorkspace() {
               />
             )}
 
+            {investigation && investigation.traces.length > 0 && (
+              <SearchPanel
+                investigation={investigation}
+                selectedTraceId={selectedTraceId}
+                open={searchOpen}
+                onClose={() => setSearchOpen(false)}
+              />
+            )}
+
             {fetchModalWallet && investigation && (
               <FetchModal
                 initialAddress={fetchModalWallet.address}
@@ -1345,12 +1420,22 @@ function InvestigationsWorkspace() {
           </div>
         </>
       ) : (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2">Daubert</h2>
-            <p className="text-ink-faint">Select or create an investigation to begin</p>
+        <>
+          <PageHeader title="Investigations" rightContent={<UserMenu variant="light" />} />
+          <div className="flex-1 flex items-center justify-center bg-surface">
+            <div className="flex flex-col items-center text-center">
+              <img
+                src="/logo-light.png"
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                className="h-20 w-20 select-none mb-4 opacity-90"
+              />
+              <h2 className="text-2xl font-bold mb-2">Daubert</h2>
+              <p className="text-ink-faint">Select or create an investigation to begin</p>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {contextMenu && (
@@ -1367,7 +1452,13 @@ function InvestigationsWorkspace() {
       <ExportModal
         open={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
-        onExport={(format) => graphRef.current?.exportImage(format, investigation?.name || 'graph')}
+        kind="graph"
+        defaultFilename={investigation?.name ?? 'graph'}
+        onExport={async (format, filename) => {
+          if (format === 'png' || format === 'pdf') {
+            await graphRef.current?.exportImage(format, filename);
+          }
+        }}
       />
     </>
   );

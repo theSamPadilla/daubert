@@ -9,6 +9,8 @@ import { TraceForm } from './TraceForm';
 import { formatTokenAmount, normalizeToken, parseTimestamp } from '../utils/formatAmount';
 import { buildTxExplorerUrl } from '../utils/addressParser';
 import { useLabeledEntities } from '@/hooks/useLabeledEntities';
+import { MultiTxDetails } from './MultiTxDetails';
+import { GroupColorPicker } from './GroupColorPicker';
 
 interface EdgeBundleDetailsProps {
   bundle: EdgeBundle;
@@ -27,184 +29,64 @@ function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onUpdate, onArc
     .map((id) => trace?.edges.find((e) => e.id === id))
     .filter(Boolean) as TransactionEdge[];
 
-  const [editingLabel, setEditingLabel] = useState(false);
-  const [labelValue, setLabelValue] = useState(bundle.label || '');
-  const prevBundleId = useRef(bundle.id);
-  if (prevBundleId.current !== bundle.id) {
-    prevBundleId.current = bundle.id;
-    setLabelValue(bundle.label || '');
-    setEditingLabel(false);
-  }
-  const commitLabel = () => {
-    setEditingLabel(false);
-    const next = labelValue.trim();
-    const prev = bundle.label || '';
-    if (next !== prev) onUpdate?.({ label: next || undefined });
-  };
-
-  const abbr = (h: number) =>
-    h >= 1e12 ? `${(h/1e12).toFixed(2).replace(/\.?0+$/, '')}T`
-    : h >= 1e9 ? `${(h/1e9).toFixed(2).replace(/\.?0+$/, '')}B`
-    : h >= 1e6 ? `${(h/1e6).toFixed(2).replace(/\.?0+$/, '')}M`
-    : h >= 1e3 ? `${(h/1e3).toFixed(1).replace(/\.?0+$/, '')}K`
-    : h.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const fromLabel = fromNode?.label || bundle.fromNodeId.slice(0, 8) + '…';
+  const toLabel = toNode?.label || bundle.toNodeId.slice(0, 8) + '…';
+  const staticTitle = `${fromLabel} → ${toLabel}`;
 
   // Derive the display token from actual edges (bundle.token may be stale/wrong)
   const displayToken = bundleEdges.length > 0 ? normalizeToken(bundleEdges[0].token).symbol : bundle.token;
 
-  // Sum per-token so mixed bundles show correctly
-  const tokenTotals = bundleEdges.reduce((map, e) => {
-    const tok = normalizeToken(e.token);
-    const raw = parseFloat(String(e.amount)) || 0;
-    const human = tok.decimals > 0 ? raw / Math.pow(10, tok.decimals) : raw;
-    map.set(tok.symbol, (map.get(tok.symbol) || 0) + human);
-    return map;
-  }, new Map<string, number>());
-  const totalSummary = Array.from(tokenTotals.entries())
-    .map(([sym, amt]) => `${abbr(amt)} ${sym}`)
-    .join(' + ');
-
-  const fromLabel = fromNode?.label || bundle.fromNodeId.slice(0, 8) + '…';
-  const toLabel = toNode?.label || bundle.toNodeId.slice(0, 8) + '…';
-
-  // Compute date span from bundled transactions
-  const timestamps = bundleEdges
-    .map((e) => parseTimestamp(e.timestamp))
-    .filter((d) => !isNaN(d.getTime()))
-    .sort((a, b) => a.getTime() - b.getTime());
-  const oldest = timestamps[0];
-  const newest = timestamps[timestamps.length - 1];
-  const fmtDate = (d: Date) => d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <h4 className="text-xs font-semibold text-ink-muted uppercase">Edge Bundle</h4>
-        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/20 text-amber-300">
-          {displayToken}
-        </span>
-      </div>
-
-      {editingLabel ? (
-        <input
-          autoFocus
-          type="text"
-          value={labelValue}
-          onChange={(e) => setLabelValue(e.target.value)}
-          onBlur={commitLabel}
-          onKeyDown={(e) => { if (e.key === 'Enter') commitLabel(); if (e.key === 'Escape') setEditingLabel(false); }}
-          placeholder={`${fromLabel} → ${toLabel}`}
-          className="w-full bg-surface-raised/50 border border-brand rounded px-2 py-0.5 text-sm font-semibold text-ink placeholder-ink-faint focus:outline-none"
-        />
-      ) : (
-        <p
-          className={`text-sm font-semibold text-ink ${onUpdate ? 'cursor-pointer hover:text-brand transition-colors' : ''}`}
-          onClick={() => onUpdate && setEditingLabel(true)}
-          title={onUpdate ? 'Click to rename' : undefined}
-        >
-          {bundle.label || `${fromLabel} → ${toLabel}`}
-        </p>
-      )}
-
-      <div className="bg-surface/60 rounded p-3 space-y-1">
-        <div className="flex justify-between text-xs">
-          <span className="text-ink-muted">Total amount</span>
-          <span className="text-ink font-semibold">{totalSummary}</span>
+    <MultiTxDetails
+      key={bundle.id}
+      edges={bundleEdges}
+      staticTitle={staticTitle}
+      editableLabel={onUpdate ? {
+        value: bundle.label || '',
+        onChange: (next) => onUpdate({ label: next || undefined }),
+      } : undefined}
+      headerKind="bundle"
+      tokenChip={displayToken}
+      onColorChange={onUpdate ? (c) => onUpdate({ color: c }) : undefined}
+      color={bundle.color}
+      onArcEdge={onArcEdge && bundle.collapsed ? onArcEdge : undefined}
+      actions={
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onToggle}
+            className="flex-1 px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 rounded text-xs font-medium transition-colors"
+          >
+            {bundle.collapsed ? 'Expand bundle' : 'Collapse bundle'}
+          </button>
+          <button
+            onClick={onDelete}
+            className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-xs transition-colors"
+          >
+            Unbundle
+          </button>
         </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-ink-muted">Transactions</span>
-          <span className="text-ink">{bundleEdges.length}</span>
-        </div>
-        {oldest && newest && (
-          <div className="flex justify-between text-xs">
-            <span className="text-ink-muted">Date span</span>
-            <span className="text-ink">
-              {fmtDate(oldest)}{oldest.getTime() !== newest.getTime() ? ` — ${fmtDate(newest)}` : ''}
-            </span>
-          </div>
-        )}
-      </div>
+      }
+    />
+  );
+}
 
-      {onUpdate && (
-        <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Color</h4>
-          <GroupColorPicker color={bundle.color} onChange={(c) => onUpdate({ color: c })} />
-        </div>
-      )}
+interface AggregatedEdgeDetailsProps {
+  edges: TransactionEdge[];
+  fromLabel: string;
+  toLabel: string;
+  traceId: string;
+  onArcEdge?: (delta: number | null) => void;
+}
 
-      {/* Individual transactions */}
-      {bundleEdges.length > 0 && (
-        <div className="space-y-1">
-          <h5 className="text-[10px] font-semibold text-ink-faint uppercase">Transactions</h5>
-          <div className="max-h-40 overflow-y-auto space-y-1 [scrollbar-width:thin]">
-            {bundleEdges.map((e) => {
-              const tok = normalizeToken(e.token);
-              const human = tok.decimals > 0
-                ? parseFloat(String(e.amount)) / Math.pow(10, tok.decimals)
-                : parseFloat(String(e.amount));
-              const explorerUrl = buildTxExplorerUrl(e.chain, e.txHash || '');
-              const Row = explorerUrl ? 'a' : 'div';
-              return (
-                <Row
-                  key={e.id}
-                  {...(explorerUrl ? { href: explorerUrl, target: '_blank', rel: 'noopener noreferrer' } : {})}
-                  className="flex items-center justify-between text-[11px] text-ink-muted bg-surface/40 rounded px-2 py-1 hover:bg-surface-raised/60 hover:text-ink transition-colors group"
-                >
-                  <span className="font-mono truncate max-w-[120px] group-hover:text-amber-300 flex items-center gap-1">
-                    {e.txHash?.slice(0, 10)}…
-                    {explorerUrl && <FaArrowUpRightFromSquare size={8} className="opacity-0 group-hover:opacity-60 shrink-0" />}
-                  </span>
-                  <span className="text-ink shrink-0">{abbr(human)} {tok.symbol}</span>
-                </Row>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {onArcEdge && bundle.collapsed && (
-        <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Arc</h4>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onArcEdge(-40)}
-              className="flex-1 py-1 rounded text-sm border border-line-strong text-ink-muted hover:border-line-strong hover:text-ink transition-colors"
-              title="Arc left"
-            >
-              ◁
-            </button>
-            <button
-              onClick={() => onArcEdge(null)}
-              className="px-2 py-1 rounded text-xs border border-line-strong text-ink-faint hover:border-line-strong hover:text-ink-muted transition-colors"
-              title="Reset arc"
-            >
-              Reset
-            </button>
-            <button
-              onClick={() => onArcEdge(40)}
-              className="flex-1 py-1 rounded text-sm border border-line-strong text-ink-muted hover:border-line-strong hover:text-ink transition-colors"
-              title="Arc right"
-            >
-              ▷
-            </button>
-          </div>
-        </div>
-      )}
-      <div className="flex gap-2 pt-1">
-        <button
-          onClick={onToggle}
-          className="flex-1 px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 rounded text-xs font-medium transition-colors"
-        >
-          {bundle.collapsed ? 'Expand bundle' : 'Collapse bundle'}
-        </button>
-        <button
-          onClick={onDelete}
-          className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-xs transition-colors"
-        >
-          Unbundle
-        </button>
-      </div>
-    </div>
+function AggregatedEdgeDetails({ edges, fromLabel, toLabel, onArcEdge }: AggregatedEdgeDetailsProps) {
+  return (
+    <MultiTxDetails
+      edges={edges}
+      staticTitle={`${fromLabel} → ${toLabel}`}
+      headerKind="aggregated"
+      tokenChip={null}
+      onArcEdge={onArcEdge}
+    />
   );
 }
 
@@ -826,58 +708,12 @@ function TransactionDetails({
   );
 }
 
-const GROUP_COLORS = [
-  // Vivid
-  '#3b82f6','#10b981','#f97316','#8b5cf6','#ec4899','#06b6d4','#eab308','#ef4444',
-  // Neutrals
-  '#6b7280','#9ca3af','#d1d5db','#475569','#78716c','#a8a29e',
-];
-
 function fmtFlow(amount: number): string {
   if (amount >= 1e12) return `${(amount / 1e12).toFixed(2).replace(/\.?0+$/, '')}T`;
   if (amount >= 1e9) return `${(amount / 1e9).toFixed(2).replace(/\.?0+$/, '')}B`;
   if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}M`;
   if (amount >= 1_000) return `${(amount / 1_000).toFixed(2).replace(/\.?0+$/, '')}K`;
   return amount.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
-
-function GroupColorPicker({ color, onChange }: { color?: string; onChange: (c: string | undefined) => void }) {
-  const customRef = useRef<HTMLInputElement>(null);
-  return (
-    <div className="flex gap-2 flex-wrap items-center">
-      {/* None swatch */}
-      <button
-        onClick={() => onChange(undefined)}
-        title="No color"
-        className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 relative overflow-hidden ${!color ? 'border-white' : 'border-line-strong hover:border-line-strong'}`}
-        style={{ backgroundColor: '#1f2937' }}
-      >
-        <span className="absolute inset-0 flex items-center justify-center text-ink-faint text-[10px] font-bold">∅</span>
-      </button>
-      {GROUP_COLORS.map((c) => (
-        <button
-          key={c}
-          onClick={() => onChange(c)}
-          className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 ${color === c ? 'border-white' : 'border-transparent'}`}
-          style={{ backgroundColor: c }}
-        />
-      ))}
-      <button
-        onClick={() => customRef.current?.click()}
-        className="w-5 h-5 rounded-full border-2 border-dashed border-line-strong hover:border-line-strong flex items-center justify-center text-ink-muted hover:text-ink text-xs transition-colors"
-        title="Custom color"
-      >
-        +
-      </button>
-      <input
-        ref={customRef}
-        type="color"
-        value={color || '#3b82f6'}
-        onChange={(e) => onChange(e.target.value)}
-        className="sr-only"
-      />
-    </div>
-  );
 }
 
 function GroupDetails({
@@ -1192,6 +1028,7 @@ const TYPE_DISPLAY: Record<string, string> = {
   group: 'Subgroup',
   scriptRun: 'Script',
   edgeBundle: 'Edge Bundle',
+  aggregatedEdge: 'Aggregated Transactions',
 };
 
 export interface DetailsPanelHandle {
@@ -1368,6 +1205,15 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
           onUpdate={onUpdateEdgeBundle ? (updates) => onUpdateEdgeBundle(selectedItem.data.traceId, selectedItem.data.id, updates) : undefined}
           onDelete={() => onDeleteEdgeBundle?.(selectedItem.data.traceId, selectedItem.data.id)}
           onArcEdge={onArcEdge ? (delta) => onArcEdge((selectedItem.data as EdgeBundle).id, delta) : undefined}
+        />
+      )}
+      {selectedItem.type === 'aggregatedEdge' && (
+        <AggregatedEdgeDetails
+          edges={selectedItem.data.edges}
+          fromLabel={selectedItem.data.fromLabel}
+          toLabel={selectedItem.data.toLabel}
+          traceId={selectedItem.data.traceId}
+          onArcEdge={onArcEdge ? (delta) => onArcEdge(selectedItem.data.syntheticEdgeId, delta) : undefined}
         />
       )}
     </div>

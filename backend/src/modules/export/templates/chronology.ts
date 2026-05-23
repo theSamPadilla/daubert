@@ -1,4 +1,4 @@
-import { BASE_STYLES, CSP_META } from './styles';
+import { BASE_STYLES, CHRONOLOGY_STYLES, CSP_META } from './styles';
 import { escapeHtml, sanitizeUrl } from './util';
 
 interface ChronologyEntry {
@@ -49,7 +49,12 @@ function deriveSourceLabel(url: string): string {
   }
 }
 
-export function renderChronology(name: string, data: ChronologyData): string {
+/**
+ * Returns just the inner body HTML for this chronology — no <html>/<head>/<style> wrapper.
+ * Used by the exhibit composer to embed chronologies into a multi-item document.
+ * The caller must ensure CHRONOLOGY_STYLES is included in the document's <style> block.
+ */
+export function renderChronologyBody(name: string, data: ChronologyData): string {
   const title = data.title || name;
   const w = { ...DEFAULT_COLUMN_WIDTHS, ...(data.columnWidths ?? {}) };
   const rows = (data.entries || []).map((e) => {
@@ -68,14 +73,7 @@ export function renderChronology(name: string, data: ChronologyData): string {
   `;
   }).join('');
 
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8">${CSP_META}<title>${escapeHtml(title)}</title>
-<style>${BASE_STYLES}
-  .chronology { table-layout: fixed; }
-</style>
-</head><body>
-<h1>${escapeHtml(title)}</h1>
-<table class="chronology">
+  return `<table class="chronology">
   <colgroup>
     <col style="width:${w.source}%">
     <col style="width:${w.date}%">
@@ -84,6 +82,16 @@ export function renderChronology(name: string, data: ChronologyData): string {
   </colgroup>
   <thead><tr><th>Source</th><th>Date</th><th>Description</th><th>Details</th></tr></thead>
   <tbody>${rows}</tbody>
-</table>
+</table>`;
+}
+
+export function renderChronology(name: string, data: ChronologyData): string {
+  const title = data.title || name;
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8">${CSP_META}<title>${escapeHtml(title)}</title>
+<style>${BASE_STYLES}${CHRONOLOGY_STYLES}</style>
+</head><body>
+<h1>${escapeHtml(title)}</h1>
+${renderChronologyBody(name, data)}
 </body></html>`;
 }

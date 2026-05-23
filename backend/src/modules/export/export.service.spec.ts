@@ -71,4 +71,20 @@ describe('ExportService (Puppeteer integration)', () => {
     // The PDF should still be generated without errors even with the script tag
     expect(result.length).toBeGreaterThan(0);
   });
+
+  it('htmlToPng returns a PNG Buffer', async () => {
+    if (!chromeAvailable) return;
+    const result = await service.htmlToPng('<html><body><h1>Hi</h1></body></html>');
+    expect(Buffer.isBuffer(result)).toBe(true);
+    // PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
+    expect(result[0]).toBe(0x89);
+    expect(result.subarray(1, 4).toString('ascii')).toBe('PNG');
+  });
+
+  it('htmlToDocx returns a DOCX Buffer', async () => {
+    const result = await service.htmlToDocx('<p>Hello <strong>world</strong></p>');
+    expect(Buffer.isBuffer(result)).toBe(true);
+    // DOCX is a ZIP archive: first two bytes are "PK"
+    expect(result.subarray(0, 2).toString('ascii')).toBe('PK');
+  });
 });

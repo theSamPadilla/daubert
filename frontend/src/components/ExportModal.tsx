@@ -1,64 +1,130 @@
-import { useEffect } from 'react';
-import { FaImage, FaFilePdf } from 'react-icons/fa6';
+'use client';
+import { useEffect, useState } from 'react';
+import { FaImage, FaFilePdf, FaFileWord, FaSpinner } from 'react-icons/fa6';
 
-interface ExportModalProps {
-  open: boolean;
-  onClose: () => void;
-  onExport: (format: 'png' | 'pdf') => void;
-  title?: string;
+export type ExportKind = 'graph' | 'chart' | 'chronology' | 'report' | 'exhibit';
+export type ExportFormat = 'pdf' | 'png' | 'docx';
+
+const FORMATS_BY_KIND: Record<ExportKind, ExportFormat[]> = {
+  graph:      ['pdf', 'png'],
+  chart:      ['pdf', 'png'],
+  chronology: ['pdf', 'png'],
+  report:     ['pdf', 'docx'],
+  exhibit:    ['pdf'],
+};
+
+const FORMAT_LABELS: Record<ExportFormat, { label: string; desc: string; icon: React.ReactNode }> = {
+  pdf:  { label: 'PDF',   desc: 'Best for printing',          icon: <FaFilePdf size={22} /> },
+  png:  { label: 'PNG',   desc: 'Best for embedding/sharing', icon: <FaImage   size={22} /> },
+  docx: { label: 'Word',  desc: 'Editable in Microsoft Word', icon: <FaFileWord size={22} /> },
+};
+
+function sanitize(stem: string): string {
+  return (stem || '').replace(/[^a-z0-9_-]/gi, '_').toLowerCase().slice(0, 80) || 'export';
 }
 
-export function ExportModal({ open, onClose, onExport, title = 'Export Graph' }: ExportModalProps) {
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  kind: ExportKind;
+  defaultFilename: string;
+  onExport: (format: ExportFormat, filename: string) => Promise<void>;
+}
+
+export function ExportModal({ open, onClose, kind, defaultFilename, onExport }: Props) {
+  const formats = FORMATS_BY_KIND[kind];
+  const [format, setFormat] = useState<ExportFormat>(formats[0]);
+  const [stem, setStem]     = useState(sanitize(defaultFilename));
+  const [busy, setBusy]     = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setFormat(formats[0]);
+      setStem(sanitize(defaultFilename));
+      setError(null);
+      setBusy(false);
+    }
+  }, [open, kind, defaultFilename]);
+
   useEffect(() => {
     if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose]);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose, busy]);
 
   if (!open) return null;
 
-  const handleExport = (format: 'png' | 'pdf') => {
-    onExport(format);
-    onClose();
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await onExport(format, sanitize(stem));
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-40"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="bg-surface-panel rounded-lg p-6 w-[400px]">
-        <h3 className="text-sm font-semibold text-ink-muted uppercase mb-5">
-          {title}
-        </h3>
-        <div className="flex gap-3">
-          {/* PNG */}
-          <button
-            onClick={() => handleExport('png')}
-            className="flex-1 flex flex-col items-center gap-2 px-4 py-5 bg-brand hover:bg-brand/90 rounded-lg transition-colors"
-          >
-            <FaImage size={28} />
-            <span className="text-sm font-semibold">PNG Image</span>
-            <span className="text-xs text-ink text-center leading-snug">
-              Best for sharing on the web
-            </span>
-          </button>
+  const title = `Export ${kind === 'exhibit' ? 'Exhibit' : kind.charAt(0).toUpperCase() + kind.slice(1)}`;
 
-          {/* PDF */}
-          <button
-            onClick={() => handleExport('pdf')}
-            className="flex-1 flex flex-col items-center gap-2 px-4 py-5 bg-surface-raised hover:bg-surface-raised/80 rounded-lg transition-colors"
-          >
-            <FaFilePdf size={28} />
-            <span className="text-sm font-semibold">PDF (Print)</span>
-            <span className="text-xs text-ink-muted text-center leading-snug">
-              Best for printing or reports
-            </span>
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+         onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+      <div className="bg-surface-panel rounded-lg p-6 w-[460px]">
+        <h3 className="text-sm font-semibold text-ink-muted uppercase mb-5">{title}</h3>
+
+        <label className="block text-xs text-ink-muted mb-1">Filename</label>
+        <div className="flex items-stretch mb-5 border border-line-strong rounded overflow-hidden">
+          <input
+            value={stem}
+            onChange={(e) => setStem(e.target.value)}
+            className="flex-1 px-3 py-2 bg-surface text-ink text-sm outline-none"
+            disabled={busy}
+            spellCheck={false}
+          />
+          <span className="px-3 py-2 bg-surface-raised text-ink-muted text-sm border-l border-line-strong">
+            .{format}
+          </span>
+        </div>
+
+        <label className="block text-xs text-ink-muted mb-2">Format</label>
+        <div className="flex gap-3 mb-4">
+          {formats.map((f) => (
+            <button
+              key={f}
+              onClick={() => setFormat(f)}
+              disabled={busy}
+              className={`flex-1 flex flex-col items-center gap-1.5 px-3 py-4 rounded-lg transition-colors ${
+                format === f ? 'bg-brand text-white' : 'bg-surface-raised hover:bg-surface-raised/80 text-ink-muted'
+              }`}
+            >
+              {FORMAT_LABELS[f].icon}
+              <span className="text-sm font-semibold">{FORMAT_LABELS[f].label}</span>
+              <span className={`text-[10px] ${format === f ? 'text-white/80' : 'text-ink-faint'} text-center leading-snug`}>
+                {FORMAT_LABELS[f].desc}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <div className="mb-3 px-3 py-2 rounded bg-red-900/40 border border-red-800/60 text-red-200 text-xs">
+            {error}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} disabled={busy}
+                  className="px-3 h-8 text-sm text-ink-muted hover:text-ink disabled:opacity-50">
+            Cancel
+          </button>
+          <button onClick={submit} disabled={busy || !stem.trim()}
+                  className="px-4 h-8 rounded bg-brand hover:bg-brand/90 text-white text-sm font-medium flex items-center gap-2 disabled:opacity-60">
+            {busy ? <><FaSpinner className="animate-spin" /> Exporting…</> : 'Export'}
           </button>
         </div>
       </div>

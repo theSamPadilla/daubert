@@ -5,6 +5,8 @@ import { TracesService } from './traces.service';
 import { TraceEntity } from '../../database/entities/trace.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { CaseAccessService } from '../auth/case-access.service';
+import { BlockchainService, TransactionResult } from '../blockchain/blockchain.service';
+import { WalletSetDto } from './dto/search-between.dto';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +24,10 @@ const mockInvRepo = {
 
 const mockCaseAccess = {
   assertAccess: jest.fn(),
+};
+
+const mockBlockchainService = {
+  fetchHistory: jest.fn(),
 };
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -78,6 +84,7 @@ describe('TracesService', () => {
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvRepo },
         { provide: CaseAccessService, useValue: mockCaseAccess },
+        { provide: BlockchainService, useValue: mockBlockchainService },
       ],
     }).compile();
 
@@ -396,6 +403,394 @@ describe('TracesService', () => {
       await expect(
         service.deleteEdge('trace-1', 'nonexistent', PRINCIPAL),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── resolveWalletSet ─────────────────────────────────────────────────────
+
+  describe('resolveWalletSet', () => {
+    /**
+     * Minimal TraceEntity factory for resolveWalletSet tests.
+     * Groups live on trace.data.groups; membership lives on node.groupId.
+     */
+    function makeFakeTrace(overrides: {
+      id?: string;
+      name?: string;
+      groups?: Array<{ id: string; name: string; color: string; traceId: string; collapsed?: boolean }>;
+      nodes?: Array<{ id: string; address: string; chain: string; groupId?: string }>;
+    }): TraceEntity {
+      return {
+        id: overrides.id ?? 'fake-trace',
+        name: overrides.name ?? 'Fake',
+        color: null,
+        visible: true,
+        collapsed: false,
+        investigationId: 'fake-inv',
+        data: {
+          groups: overrides.groups ?? [],
+          nodes: overrides.nodes ?? [],
+          edges: [],
+        },
+      } as unknown as TraceEntity;
+    }
+
+    it('returns addresses for wallets in the group (group membership lives on node.groupId)', () => {
+      const trace = makeFakeTrace({
+        groups: [{ id: 'g1', name: 'A', color: '#000', traceId: 'fake-trace' }],
+        nodes: [
+          { id: 'n1', address: '0xAAA', chain: 'ethereum', groupId: 'g1' },
+          { id: 'n2', address: '0xBBB', chain: 'ethereum', groupId: 'g1' },
+          { id: 'n3', address: '0xCCC', chain: 'ethereum' }, // no groupId
+        ],
+      });
+      const set = service.resolveWalletSet([trace], { groupId: 'g1' } as WalletSetDto, 'ethereum');
+      expect([...set].sort()).toEqual(['0xaaa', '0xbbb']);
+    });
+
+    it('resolves groupId across multiple traces (group is in the second trace)', () => {
+      const trace1 = makeFakeTrace({
+        id: 'trace-1',
+        groups: [],
+        nodes: [{ id: 'n1', address: '0xAAA', chain: 'ethereum' }],
+      });
+      const trace2 = makeFakeTrace({
+        id: 'trace-2',
+        groups: [{ id: 'g2', name: 'B', color: '#000', traceId: 'trace-2' }],
+        nodes: [
+          { id: 'n2', address: '0xBBB', chain: 'ethereum', groupId: 'g2' },
+          { id: 'n3', address: '0xCCC', chain: 'ethereum', groupId: 'g2' },
+        ],
+      });
+      const set = service.resolveWalletSet([trace1, trace2], { groupId: 'g2' } as WalletSetDto, 'ethereum');
+      expect([...set].sort()).toEqual(['0xbbb', '0xccc']);
+    });
+
+    it('returns all node addresses when resolving by traceId', () => {
+      const trace = makeFakeTrace({
+        id: 'trace-abc',
+        nodes: [
+          { id: 'n1', address: '0xAAA', chain: 'ethereum' },
+          { id: 'n2', address: '0xBBB', chain: 'ethereum' },
+        ],
+      });
+      const set = service.resolveWalletSet([trace], { traceId: 'trace-abc' } as WalletSetDto, 'ethereum');
+      expect([...set].sort()).toEqual(['0xaaa', '0xbbb']);
+    });
+
+    it('lowercases EVM addresses from an explicit wallet list', () => {
+      const set = service.resolveWalletSet(
+        [makeFakeTrace({})],
+        { wallets: ['0xAaA', '0xBbB'] } as WalletSetDto,
+        'ethereum',
+      );
+      expect([...set]).toEqual(['0xaaa', '0xbbb']);
+    });
+
+    it('preserves Tron base58 case from an explicit wallet list', () => {
+      const tronA = 'TEsCiXabcdefghijklmnopqrstuvwxyz12';
+      const tronB = 'TKr41tABCDEFGHJKLMNPQRSTUVWXYZabcd';
+      const set = service.resolveWalletSet(
+        [makeFakeTrace({})],
+        { wallets: [tronA, tronB] } as WalletSetDto,
+        'tron',
+      );
+      expect([...set].sort()).toEqual([tronA, tronB].sort());
+    });
+
+    it('throws when groupId is not in any trace', () => {
+      expect(() =>
+        service.resolveWalletSet(
+          [makeFakeTrace({ groups: [] })],
+          { groupId: 'missing' } as WalletSetDto,
+          'ethereum',
+        ),
+      ).toThrow(/group not found/i);
+    });
+
+    it('throws when traceId is not in the investigation', () => {
+      expect(() =>
+        service.resolveWalletSet(
+          [makeFakeTrace({ id: 'other-trace' })],
+          { traceId: 'nonexistent' } as WalletSetDto,
+          'ethereum',
+        ),
+      ).toThrow(/trace .* not found/i);
+    });
+
+    it('throws when both groupId and wallets are provided', () => {
+      expect(() =>
+        service.resolveWalletSet(
+          [makeFakeTrace({})],
+          { groupId: 'g1', wallets: ['0xa'] } as WalletSetDto,
+          'ethereum',
+        ),
+      ).toThrow(/exactly one/i);
+    });
+
+    it('throws when neither is provided', () => {
+      expect(() =>
+        service.resolveWalletSet([makeFakeTrace({})], {} as WalletSetDto, 'ethereum'),
+      ).toThrow(/exactly one/i);
+    });
+  });
+
+  // ── searchBetween ────────────────────────────────────────────────────────
+
+  describe('searchBetween', () => {
+    /**
+     * Minimal TraceEntity factory shared with searchBetween tests.
+     */
+    function makeFakeTrace(overrides: {
+      id?: string;
+      name?: string;
+      groups?: Array<{ id: string; name: string; color: string; traceId: string; collapsed?: boolean }>;
+      nodes?: Array<{ id: string; address: string; chain: string; groupId?: string }>;
+    }): TraceEntity {
+      return {
+        id: overrides.id ?? 'fake-trace',
+        name: overrides.name ?? 'Fake',
+        color: null,
+        visible: true,
+        collapsed: false,
+        investigationId: 'fake-inv',
+        data: {
+          groups: overrides.groups ?? [],
+          nodes: overrides.nodes ?? [],
+          edges: [],
+        },
+      } as unknown as TraceEntity;
+    }
+
+    const baseTrace = () => makeFakeTrace({ nodes: [], groups: [] });
+    const baseTraces = () => [baseTrace()];
+
+    /**
+     * Factory for TransactionResult mocks.
+     * Real shape (from blockchain.service.ts):
+     *   token: { address: string; symbol: string; decimals: number }
+     *   timestamp: string (ISO)
+     *   amount: string
+     *   txHash: string
+     */
+    const mockTxResult = (overrides: Partial<TransactionResult>): TransactionResult => ({
+      id: 'fake-id',
+      txHash: '0x0',
+      from: '0x0',
+      to: '0x0',
+      chain: 'ethereum',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      amount: '0',
+      token: { address: '0x', symbol: 'ETH', decimals: 18 },
+      blockNumber: 1,
+      notes: '',
+      tags: [],
+      crossTrace: false,
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      mockBlockchainService.fetchHistory.mockReset();
+    });
+
+    it('returns txs where from ∈ A and to ∈ B (direct, A-side fetched)', async () => {
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [
+          mockTxResult({ txHash: '0x1', from: '0xa1', to: '0xb1' }),
+          mockTxResult({ txHash: '0x2', from: '0xa1', to: '0xother' }),
+        ],
+        chain: 'ethereum',
+        address: '0xa1',
+      });
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1'] },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+      });
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0].txHash).toBe('0x1');
+      expect(result.fetchedSide).toBe('A');
+      // analyzedCount = raw txs returned by provider before cross-set filter
+      expect(result.analyzedCount).toBe(2);
+    });
+
+    it('returns txs where from ∈ B and to ∈ A (reverse direction, A-side fetched captures incoming)', async () => {
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [mockTxResult({ txHash: '0x3', from: '0xb1', to: '0xa1' })],
+        chain: 'ethereum',
+        address: '0xa1',
+      });
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1'] },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+      });
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0].from.toLowerCase()).toBe('0xb1');
+    });
+
+    it('excludes intra-set txs (A↔A)', async () => {
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [mockTxResult({ txHash: '0x4', from: '0xa1', to: '0xa2' })],
+        chain: 'ethereum',
+        address: '0xa1',
+      });
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1', '0xa2'] },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+      });
+      expect(result.results).toHaveLength(0);
+    });
+
+    it('collapses rows with same (txHash, from, to) — matches importTransactions dedup', async () => {
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [
+          mockTxResult({ txHash: '0x5', from: '0xa1', to: '0xb1', token: { address: '0x', symbol: 'ETH', decimals: 18 }, amount: '1' }),
+          mockTxResult({ txHash: '0x5', from: '0xa1', to: '0xb1', token: { address: '0xusdc', symbol: 'USDC', decimals: 6 }, amount: '500' }),
+        ],
+        chain: 'ethereum',
+        address: '0xa1',
+      });
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1'] },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+      });
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0].token).toMatch(/ETH/);
+      expect(result.results[0].token).toMatch(/USDC/);
+    });
+
+    it('token dedup uses exact-match — ETH-LP prefix does not suppress ETH', async () => {
+      // Three rows share the same (txHash, from, to) but carry different token symbols:
+      //   row 1: "ETH-LP"  → kept as the first-seen token
+      //   row 2: "USDC"    → appended (not a substring of "ETH-LP")
+      //   row 3: "ETH"     → must also be appended; old .includes("ETH") would wrongly
+      //                       match "ETH" inside "ETH-LP" and drop this symbol.
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [
+          mockTxResult({ txHash: '0x7', from: '0xa1', to: '0xb1', token: { address: '0xlp',   symbol: 'ETH-LP', decimals: 18 }, amount: '10' }),
+          mockTxResult({ txHash: '0x7', from: '0xa1', to: '0xb1', token: { address: '0xusdc', symbol: 'USDC',   decimals: 6  }, amount: '500' }),
+          mockTxResult({ txHash: '0x7', from: '0xa1', to: '0xb1', token: { address: '0x',     symbol: 'ETH',    decimals: 18 }, amount: '1' }),
+        ],
+        chain: 'ethereum',
+        address: '0xa1',
+      });
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1'] },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+      });
+      expect(result.results).toHaveLength(1);
+      const tokenField = result.results[0].token;
+      expect(tokenField).toMatch(/ETH-LP/);
+      expect(tokenField).toMatch(/USDC/);
+      expect(tokenField).toMatch(/\bETH\b/);
+    });
+
+    it('rejects when a side exceeds 25 wallets', async () => {
+      const tooMany = Array.from({ length: 26 }, (_, i) => `0xa${i}`);
+      await expect(service.searchBetween(baseTraces(), {
+        sideA: { wallets: tooMany },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+      })).rejects.toThrow(/cap|limit|exceeding/i);
+    });
+
+    it('cap error message names the trace when resolved by traceId', async () => {
+      const bigTrace = makeFakeTrace({
+        id: 'big-trace',
+        name: 'Exchange Wallets',
+        nodes: Array.from({ length: 26 }, (_, i) => ({
+          id: `n${i}`,
+          address: `0x${'a'.repeat(38)}${String(i).padStart(2, '0')}`,
+          chain: 'ethereum',
+        })),
+      });
+      await expect(service.searchBetween([bigTrace], {
+        sideA: { traceId: 'big-trace' },
+        sideB: { wallets: ['0xb1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1'] },
+        chain: 'ethereum',
+      })).rejects.toThrow(/Exchange Wallets/);
+    });
+
+    it('forwards timeRange to BlockchainService', async () => {
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [],
+        chain: 'ethereum',
+        address: '0xa1',
+      });
+      await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1'] },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+        timeRange: { startTimestamp: 1, endTimestamp: 2 },
+      });
+      expect(mockBlockchainService.fetchHistory).toHaveBeenCalledWith(
+        '0xa1',
+        'ethereum',
+        expect.objectContaining({ startTimestamp: 1, endTimestamp: 2 }),
+      );
+    });
+
+    it('fetches only the smaller side', async () => {
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [],
+        chain: 'ethereum',
+        address: '0xb1',
+      });
+      await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1', '0xa2', '0xa3'] },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+      });
+      expect(mockBlockchainService.fetchHistory).toHaveBeenCalledTimes(1);
+      expect(mockBlockchainService.fetchHistory).toHaveBeenCalledWith(
+        '0xb1',
+        'ethereum',
+        expect.anything(),
+      );
+    });
+
+    it('includes contract-creation rows (to is contractAddress, already populated by BlockchainService)', async () => {
+      // BlockchainService substitutes contractAddress for empty to — by the time we see the tx,
+      // to is populated. Just confirm the search treats it like any other tx.
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [
+          mockTxResult({ txHash: '0x6', from: '0xa1', to: '0xb1' }),
+        ],
+        chain: 'ethereum',
+        address: '0xa1',
+      });
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1'] },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+      });
+      expect(result.results).toHaveLength(1);
+    });
+
+    it('sums analyzedCount across all fulfilled wallet fetches regardless of cross-set matches', async () => {
+      // Two fulfilled wallets: first returns 100 txs, second returns 50 txs.
+      // analyzedCount must be 150 even if 0 of those txs cross the two sides.
+      const makeTxs = (count: number, from: string) =>
+        Array.from({ length: count }, (_, i) =>
+          mockTxResult({ txHash: `0x${from}${i}`, from, to: '0xunrelated' }),
+        );
+
+      mockBlockchainService.fetchHistory
+        .mockResolvedValueOnce({ transactions: makeTxs(100, '0xa1'), chain: 'ethereum', address: '0xa1' })
+        .mockResolvedValueOnce({ transactions: makeTxs(50, '0xa2'), chain: 'ethereum', address: '0xa2' });
+
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1', '0xa2'] },
+        sideB: { wallets: ['0xb1', '0xb2', '0xb3'] }, // B is larger, so A is fetched
+        chain: 'ethereum',
+      });
+
+      expect(result.analyzedCount).toBe(150);
+      // Cross-set filter: none of the txs flow between A and B sets, so 0 results
+      expect(result.results).toHaveLength(0);
     });
   });
 });

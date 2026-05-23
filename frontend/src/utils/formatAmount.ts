@@ -14,6 +14,19 @@ export function normalizeToken(
 }
 
 /**
+ * Canonical token identity for dedup. Prefers the on-chain address (case-insensitive)
+ * because two edges can legitimately differ in symbol formatting ("USDC" vs "usdc")
+ * or symbol field ("USD Coin" vs "USDC"). Address is the only stable identifier.
+ * Falls back to uppercase symbol when no address is available (e.g., native ETH/TRX).
+ */
+export function tokenKey(token: TransactionEdge['token'] | string): string {
+  const t = normalizeToken(token);
+  const addr = (t.address || '').toLowerCase();
+  if (addr) return addr;
+  return (t.symbol || '').toUpperCase();
+}
+
+/**
  * Parse a timestamp that may be:
  *  - an ISO string  "2022-01-24T19:08:00.000Z"
  *  - a Unix-seconds string  "1637684960"

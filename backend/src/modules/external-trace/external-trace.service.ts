@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { BlockchainService, TransactionResult } from '../blockchain/blockchain.service';
 import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.service';
 import { buildGraph, GraphResult } from './graph-builder';
+import { normalizeAddressForChain, validateAddressForChain } from '../../generated/shared/address';
 
 // Per-direction cap: 5 incoming + 5 outgoing per address (root and hop-2 alike).
 // The previous flat 10-tx cap let one direction dominate when an address skewed
@@ -20,8 +21,6 @@ const CACHE_TTL_MS = 60_000;
 const CACHE_MAX_ENTRIES = 200;
 
 const HOP_2_CONCURRENCY = 2;
-
-const EVM_CHAINS = ['ethereum', 'polygon', 'arbitrum', 'base'];
 
 export interface TraceResponse extends GraphResult {
   root: string;
@@ -200,21 +199,11 @@ export class ExternalTraceService {
   }
 
   private normalizeAddress(addr: string, chain: string): string {
-    const t = addr.trim();
-    return EVM_CHAINS.includes(chain) ? t.toLowerCase() : t;
+    return normalizeAddressForChain(addr, chain);
   }
 
   private validateAddressChain(addr: string, chain: string): void {
-    if (EVM_CHAINS.includes(chain)) {
-      if (!/^0x[a-f0-9]{40}$/.test(addr)) {
-        throw new BadRequestException(`${chain} requires an EVM address (0x + 40 hex)`);
-      }
-    } else if (chain === 'tron') {
-      if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(addr)) {
-        throw new BadRequestException('tron requires a base58 address starting with T');
-      }
-    } else {
-      throw new BadRequestException(`unsupported chain: ${chain}`);
-    }
+    const err = validateAddressForChain(addr, chain);
+    if (err) throw new BadRequestException(err);
   }
 }

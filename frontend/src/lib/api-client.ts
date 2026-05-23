@@ -1,4 +1,5 @@
 import { getFirebaseAuth } from './firebase';
+import type { components } from '../generated/api-types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
@@ -259,6 +260,19 @@ export const apiClient = {
   updateTrace: (id: string, body: Partial<{ name: string; color: string | null; visible: boolean; collapsed: boolean; data: Record<string, unknown> }>) =>
     request<Trace>(`/traces/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteTrace: (id: string) => request<void>(`/traces/${id}`, { method: 'DELETE' }),
+  searchBetween: (investigationId: string, payload: components['schemas']['SearchBetweenRequest']) =>
+    request<components['schemas']['SearchBetweenResponse']>(`/investigations/${investigationId}/search-between`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  importTransactions: (
+    traceId: string,
+    transactions: components['schemas']['ImportTransactionItem'][],
+  ) =>
+    request<{ added: { nodes: number; edges: number } }>(`/traces/${traceId}/import-transactions`, {
+      method: 'POST',
+      body: JSON.stringify({ transactions }),
+    }),
 
   // Blockchain
   fetchHistory: (address: string, chain: string, options?: { startBlock?: number; endBlock?: number; startDate?: string; endDate?: string; page?: number; offset?: number; sort?: 'asc' | 'desc' }) =>
@@ -382,18 +396,36 @@ export const apiClient = {
     request<void>(`/productions/${id}`, { method: 'DELETE' }),
 
   // Export
-  exportProduction: (id: string, format: 'pdf' | 'html', filename: string, imageDataUrl?: string) =>
-    downloadFile(`/exports/productions/${id}`, `${filename.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()}.${format}`, {
+  exportProduction: (id: string, format: 'pdf' | 'png' | 'docx', filename: string, imageDataUrl?: string) => {
+    const safeStem = filename.replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'export';
+    return downloadFile(`/exports/productions/${id}`, `${safeStem}.${format}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ format, imageDataUrl }),
-    }),
-  exportGraph: (name: string, imageDataUrl: string) =>
-    downloadFile('/exports/graph', `${name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()}.pdf`, {
+      body: JSON.stringify({ format, filename: safeStem, imageDataUrl }),
+    });
+  },
+  exportGraph: (name: string, filename: string, imageDataUrl: string) => {
+    const safeStem = filename.replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'graph';
+    return downloadFile('/exports/graph', `${safeStem}.pdf`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, imageDataUrl }),
-    }),
+      body: JSON.stringify({ name, filename: safeStem, imageDataUrl }),
+    });
+  },
+  exportExhibit: (filename: string, items: Array<{
+    refType: 'production' | 'investigation';
+    refId: string;
+    title: string;
+    subtitle?: string;
+    imageDataUrl?: string;
+  }>) => {
+    const safeStem = filename.replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'exhibit';
+    return downloadFile('/exports/exhibit', `${safeStem}.pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: safeStem, items }),
+    });
+  },
 
   // Data Room — Google Drive integration
   dataRoomConnect: (caseId: string) =>

@@ -114,3 +114,4 @@
           application/json:
             schema:
               $ref: '../schemas/common.yaml#/ErrorResponse'
+

@@ -1,5 +1,17 @@
 # To Do
 
+------------
+In Session
+------------
+- [x] Remove the in-edit mode color selection from the wallet as it does not do anything anymore.
+- [ ] Improve the UI indicator on chart v. chron v. report.
+- [ ] Add "Create Exhibit" Feature
+- [x] Make the header of the data room same style and color as the rest
+- [ ] Try fixing Drive picker again
+- [ ] Component celanup
+
+
+------------------------
 - [ ] Agent optimizations before prod
 - [ ] Blockchain API key hardening — backend proxy and/or per-case key issuance. See [`2026-04-27-blockchain-api-key-hardening.md`](./2026-04-27-blockchain-api-key-hardening.md). Not blocking; revisit when moving to paid keys, multi-user, or observed abuse.
 - [ ] Give agent drive tool access. See [`2026-04-27-agent-drive-tools.md`](./2026-04-27-agent-drive-tools.md).

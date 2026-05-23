@@ -1,13 +1,18 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Req, UseGuards } from '@nestjs/common';
 import { InvestigationsService } from './investigations.service';
+import { TracesService } from '../traces/traces.service';
 import { CreateInvestigationDto } from './dto/create-investigation.dto';
 import { UpdateInvestigationDto } from './dto/update-investigation.dto';
+import { SearchBetweenDto } from '../traces/dto/search-between.dto';
 import { CaseMemberGuard } from '../auth/case-member.guard';
 import { getPrincipal } from '../auth/access-principal';
 
 @Controller()
 export class InvestigationsController {
-  constructor(private readonly service: InvestigationsService) {}
+  constructor(
+    private readonly service: InvestigationsService,
+    private readonly tracesService: TracesService,
+  ) {}
 
   @UseGuards(CaseMemberGuard)
   @Get('cases/:caseId/investigations')
@@ -47,5 +52,18 @@ export class InvestigationsController {
   @Get('investigations/:id/script-runs')
   listScriptRuns(@Param('id') id: string, @Req() req: any) {
     return this.service.listScriptRuns(id, getPrincipal(req));
+  }
+
+  @Post('investigations/:id/search-between')
+  async searchBetween(
+    @Param('id') id: string,
+    @Body() dto: SearchBetweenDto,
+    @Req() req: any,
+  ) {
+    const principal = getPrincipal(req);
+    // findOne loads the investigation with its traces relation and asserts access.
+    const investigation = await this.service.findOne(id, principal);
+    const traces = investigation.traces || [];
+    return this.tracesService.searchBetween(traces, dto);
   }
 }

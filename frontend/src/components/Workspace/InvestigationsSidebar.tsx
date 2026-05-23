@@ -2,7 +2,22 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
-import { FaPen, FaChevronRight, FaChevronDown, FaArrowLeft } from 'react-icons/fa6';
+import {
+  FaPen, FaChevronRight, FaChevronDown, FaArrowLeft,
+  FaFileLines, FaChartLine, FaTableList,
+} from 'react-icons/fa6';
+
+const PRODUCTION_TYPE_ORDER = ['report', 'chart', 'chronology'] as const;
+const PRODUCTION_TYPE_LABEL: Record<string, string> = {
+  report: 'Reports',
+  chart: 'Charts',
+  chronology: 'Chronologies',
+};
+const PRODUCTION_TYPE_ICONS: Record<string, React.ReactNode> = {
+  report: <FaFileLines className="w-3 h-3" />,
+  chart: <FaChartLine className="w-3 h-3" />,
+  chronology: <FaTableList className="w-3 h-3" />,
+};
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { apiClient, type Investigation, type DataRoomConnection } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
@@ -213,7 +228,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
 
         {/* Productions */}
         <div className="mt-2 border-t border-line-strong">
-          <div className="px-3 py-2 flex items-center justify-between">
+          <div className="px-3 py-2 flex items-center justify-between border-b border-line-strong">
             <span className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.14em]">Productions</span>
             <button
               onClick={() => ctx.openNewPrimary('production')}
@@ -223,23 +238,53 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
               +
             </button>
           </div>
-          {(productions || []).map((prod) => (
-              <div
-                key={prod.id}
-                onClick={() => router.push(`/cases/${caseId}/productions?id=${prod.id}`)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors ${
-                  selectedProductionId === prod.id
-                    ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand)]'
-                    : 'hover:bg-surface-raised text-ink-muted'
-                }`}
-              >
-                <span className="truncate flex-1 font-medium">{prod.name}</span>
-                <span className="font-mono text-[10px] text-ink-faint/70 uppercase tracking-wider">{prod.type}</span>
+          {(() => {
+            const list = productions || [];
+            if (list.length === 0) {
+              return <p className="text-ink-faint text-xs px-3 py-1">No productions yet.</p>;
+            }
+            // Preserve creation order within each type; only render non-empty groups.
+            const byType: Record<string, typeof list> = {};
+            for (const p of list) {
+              (byType[p.type] ||= []).push(p);
+            }
+            // Known types first (in canonical order), then any unknown types alphabetically.
+            const knownTypes = PRODUCTION_TYPE_ORDER.filter((t) => byType[t]?.length);
+            const otherTypes = Object.keys(byType).filter((t) => !PRODUCTION_TYPE_ORDER.includes(t as any)).sort();
+            const orderedTypes = [...knownTypes, ...otherTypes];
+
+            return orderedTypes.map((type) => (
+              <div key={type}>
+                <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 text-ink-muted">
+                  <span className="shrink-0 text-ink-faint">
+                    {PRODUCTION_TYPE_ICONS[type] ?? <FaFileLines className="w-3 h-3" />}
+                  </span>
+                  <span className="text-[11px] font-medium tracking-tight">
+                    {PRODUCTION_TYPE_LABEL[type] ?? type}
+                  </span>
+                </div>
+                <div className="ml-3 border-l border-line">
+                  {byType[type].map((prod) => {
+                    const active = selectedProductionId === prod.id;
+                    return (
+                      <div
+                        key={prod.id}
+                        onClick={() => router.push(`/cases/${caseId}/productions?id=${prod.id}`)}
+                        title={prod.name}
+                        className={`flex items-center px-3 py-1 cursor-pointer text-xs transition-colors ${
+                          active
+                            ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand)]'
+                            : 'hover:bg-surface-raised text-ink-muted hover:text-ink'
+                        }`}
+                      >
+                        <span className="truncate flex-1 font-medium">{prod.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-          ))}
-          {(!productions || productions.length === 0) && (
-            <p className="text-ink-faint text-xs px-3 py-1">No productions yet.</p>
-          )}
+            ));
+          })()}
         </div>
 
         {/* Data Room */}
@@ -265,7 +310,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
 
           return (
             <div className="mt-2 border-t border-line-strong">
-              <div className="px-3 py-2 flex items-center justify-between">
+              <div className="px-3 py-2 flex items-center justify-between border-b border-line-strong">
                 <span className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.14em]">Data Room</span>
               </div>
               <a

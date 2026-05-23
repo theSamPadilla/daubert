@@ -260,10 +260,15 @@ export const apiClient = {
   updateTrace: (id: string, body: Partial<{ name: string; color: string | null; visible: boolean; collapsed: boolean; data: Record<string, unknown> }>) =>
     request<Trace>(`/traces/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteTrace: (id: string) => request<void>(`/traces/${id}`, { method: 'DELETE' }),
-  searchBetween: (investigationId: string, payload: components['schemas']['SearchBetweenRequest']) =>
+  searchBetween: (
+    investigationId: string,
+    payload: components['schemas']['SearchBetweenRequest'],
+    signal?: AbortSignal,
+  ) =>
     request<components['schemas']['SearchBetweenResponse']>(`/investigations/${investigationId}/search-between`, {
       method: 'POST',
       body: JSON.stringify(payload),
+      signal,
     }),
   importTransactions: (
     traceId: string,

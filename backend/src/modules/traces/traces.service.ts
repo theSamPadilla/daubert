@@ -357,9 +357,10 @@ export class TracesService {
   }
 
   /**
-   * Resolves a WalletSetDto to a set of lowercase addresses, searching across all
-   * traces in the investigation. Exactly one of traceId, groupId, or wallets must
-   * be provided. The 25-wallet cap is enforced after resolution by the caller.
+   * Resolves a WalletSetDto to a set of chain-normalized addresses
+   * (EVM lowercased, Tron base58 preserved), searching across all traces in the
+   * investigation. Exactly one of traceId, groupId, or wallets must be provided.
+   * The 25-wallet cap is enforced after resolution by the caller.
    */
   public resolveWalletSet(traces: TraceEntity[], set: WalletSetDto, chain: string): Set<string> {
     const hasTrace = !!set.traceId;

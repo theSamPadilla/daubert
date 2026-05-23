@@ -28,11 +28,10 @@ function truncateTx(hash: string): string {
   return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
 }
 
-/** Format an ISO timestamp or unix-seconds string to a readable short form. */
+/** Format an ISO timestamp string to a readable short form. */
 function formatTimestamp(ts: string): string {
   if (!ts) return '—';
-  const n = Number(ts);
-  const d = isNaN(n) ? new Date(ts) : new Date(n < 1e12 ? n * 1000 : n);
+  const d = new Date(ts);
   if (isNaN(d.getTime())) return ts;
   return d.toLocaleString('en-US', {
     month: 'short',

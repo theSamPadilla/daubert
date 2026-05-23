@@ -161,7 +161,7 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
           : {}),
       };
 
-      const res = await apiClient.searchBetween(investigation.id, payload);
+      const res = await apiClient.searchBetween(investigation.id, payload, controller.signal);
       if (!controller.signal.aborted) {
         setResults(res.results);
         setAnalyzedCount(res.analyzedCount ?? null);

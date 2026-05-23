@@ -1,12 +1,23 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
-import { FaPlus, FaXmark, FaGripVertical } from 'react-icons/fa6';
+import { useEffect, useState } from 'react';
+import {
+  FaPlus, FaXmark, FaGripVertical,
+  FaFileLines, FaChartLine, FaTableList, FaDiagramProject,
+  FaLayerGroup,
+} from 'react-icons/fa6';
 import { apiClient, type Investigation, type Production } from '@/lib/api-client';
 import { normalizeInvestigation } from '@/utils/normalizeInvestigation';
 import { useCaseContext } from '@/contexts/CaseContext';
 import { ExportModal } from '../Common/ExportModal';
 import { useGraphSnapshot } from '@/hooks/useGraphSnapshot';
 import { useChartSnapshot } from '@/hooks/useChartSnapshot';
+
+const TYPE_ICONS: Record<string, React.ReactNode> = {
+  investigation: <FaDiagramProject className="w-3.5 h-3.5" />,
+  report: <FaFileLines className="w-3.5 h-3.5" />,
+  chart: <FaChartLine className="w-3.5 h-3.5" />,
+  chronology: <FaTableList className="w-3.5 h-3.5" />,
+};
 
 type ItemRef = {
   refType: 'production' | 'investigation';
@@ -108,96 +119,175 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
 
   if (!open) return null;
 
+  const itemCount = composition.length;
+
   return (
     <div className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4">
-      <div className="bg-surface-panel border border-line-strong rounded-lg shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col">
-        <header className="px-5 py-3 border-b border-line-strong flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-ink">Create Exhibit</h2>
-          <button onClick={onClose} className="text-ink-muted hover:text-ink"><FaXmark /></button>
+      <div className="bg-surface-panel border border-line-strong rounded-lg shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col">
+        <header className="px-6 py-4 border-b border-line-strong flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-md bg-brand/10 text-brand flex items-center justify-center">
+              <FaLayerGroup className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-ink">Create Exhibit</h2>
+              <p className="text-xs text-ink-muted">
+                {itemCount === 0 ? 'No items yet — add from the left.' :
+                  `${itemCount} item${itemCount === 1 ? '' : 's'} · drag to reorder`}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-md text-ink-muted hover:text-ink hover:bg-surface-raised flex items-center justify-center transition-colors"
+            title="Close"
+          >
+            <FaXmark className="w-3.5 h-3.5" />
+          </button>
         </header>
 
-        <div className="flex-1 grid grid-cols-2 gap-4 p-4 overflow-hidden">
+        <div className="flex-1 grid grid-cols-2 gap-5 p-5 overflow-hidden">
           {/* Picker */}
-          <div className="border border-line-strong rounded p-3 overflow-y-auto">
-            <h3 className="text-xs uppercase tracking-wider text-ink-muted mb-2">Investigations</h3>
-            {investigations.map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between py-1 text-sm">
-                <span className="text-ink">{inv.name}</span>
-                <button
-                  onClick={() => add({ refType: 'investigation', refId: inv.id, title: inv.name, _displayType: 'Investigation' })}
-                  disabled={isAdded('investigation', inv.id)}
-                  className="text-xs px-2 py-0.5 rounded bg-brand/20 text-brand hover:bg-brand/30 disabled:opacity-40"
-                >
-                  <FaPlus className="inline w-2.5 h-2.5" /> Add
-                </button>
-              </div>
-            ))}
+          <div className="border border-line-strong rounded-md bg-surface flex flex-col overflow-hidden">
+            <div className="px-3 py-2 border-b border-line-strong/60 text-[11px] uppercase tracking-wider text-ink-muted font-medium">
+              Available
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-4">
+              <PickerSection
+                title="Investigations"
+                count={investigations.length}
+                empty="No investigations yet."
+              >
+                {investigations.map((inv) => (
+                  <PickerRow
+                    key={inv.id}
+                    icon={TYPE_ICONS.investigation}
+                    typeLabel="Investigation"
+                    name={inv.name}
+                    added={isAdded('investigation', inv.id)}
+                    onAdd={() => add({
+                      refType: 'investigation',
+                      refId: inv.id,
+                      title: inv.name,
+                      _displayType: 'Investigation',
+                    })}
+                  />
+                ))}
+              </PickerSection>
 
-            <h3 className="text-xs uppercase tracking-wider text-ink-muted mt-4 mb-2">Productions</h3>
-            {productions.map((p) => (
-              <div key={p.id} className="flex items-center justify-between py-1 text-sm">
-                <span className="text-ink">{p.name} <span className="text-ink-faint text-[10px] uppercase">{p.type}</span></span>
-                <button
-                  onClick={() => add({ refType: 'production', refId: p.id, title: p.name, _displayType: p.type })}
-                  disabled={isAdded('production', p.id)}
-                  className="text-xs px-2 py-0.5 rounded bg-brand/20 text-brand hover:bg-brand/30 disabled:opacity-40"
-                >
-                  <FaPlus className="inline w-2.5 h-2.5" /> Add
-                </button>
-              </div>
-            ))}
+              <PickerSection
+                title="Productions"
+                count={productions.length}
+                empty="No productions yet."
+              >
+                {productions.map((p) => (
+                  <PickerRow
+                    key={p.id}
+                    icon={TYPE_ICONS[p.type] ?? TYPE_ICONS.report}
+                    typeLabel={p.type}
+                    name={p.name}
+                    added={isAdded('production', p.id)}
+                    onAdd={() => add({
+                      refType: 'production',
+                      refId: p.id,
+                      title: p.name,
+                      _displayType: p.type,
+                    })}
+                  />
+                ))}
+              </PickerSection>
+            </div>
           </div>
 
           {/* Composition */}
-          <div className="border border-line-strong rounded p-3 overflow-y-auto">
-            {composition.length === 0 && (
-              <p className="text-ink-faint text-sm text-center mt-8">Add items from the left to build the exhibit.</p>
-            )}
-            {composition.map((it, i) => (
-              <div
-                key={`${it.refType}-${it.refId}`}
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('text/plain', String(i))}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                  if (!Number.isNaN(from) && from !== i) move(from, i);
-                }}
-                className="border border-line-strong rounded mb-2 p-2 bg-surface text-sm"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <FaGripVertical className="text-ink-faint cursor-grab" />
-                  <span className="text-ink-faint text-xs">#{i + 1}</span>
-                  <span className="text-ink-muted text-[10px] uppercase ml-auto">{it._displayType}</span>
-                  <button onClick={() => remove(i)} className="text-ink-faint hover:text-red-400"><FaXmark /></button>
+          <div className="border border-line-strong rounded-md bg-surface flex flex-col overflow-hidden">
+            <div className="px-3 py-2 border-b border-line-strong/60 text-[11px] uppercase tracking-wider text-ink-muted font-medium flex items-center justify-between">
+              <span>Composition</span>
+              {itemCount > 0 && <span className="text-ink-faint normal-case tracking-normal">{itemCount} page{itemCount === 1 ? '' : 's'}</span>}
+            </div>
+            <div className="flex-1 overflow-y-auto p-3">
+              {composition.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                  <FaLayerGroup className="w-7 h-7 text-ink-faint/60 mb-3" />
+                  <p className="text-ink-muted text-sm font-medium">Build your exhibit</p>
+                  <p className="text-ink-faint text-xs mt-1 max-w-[220px]">
+                    Add investigations and productions from the left. They'll each become a page in the final PDF.
+                  </p>
                 </div>
-                <input
-                  value={it.title}
-                  onChange={(e) => setComposition((p) => p.map((x, idx) => idx === i ? { ...x, title: e.target.value } : x))}
-                  placeholder="Title"
-                  className="w-full bg-transparent text-ink text-sm outline-none border-b border-line-strong/40 mb-1 py-0.5"
-                />
-                <input
-                  value={it.subtitle ?? ''}
-                  onChange={(e) => setComposition((p) => p.map((x, idx) => idx === i ? { ...x, subtitle: e.target.value } : x))}
-                  placeholder="Subtitle (optional)"
-                  className="w-full bg-transparent text-ink-muted text-xs outline-none py-0.5"
-                />
-              </div>
-            ))}
+              ) : (
+                composition.map((it, i) => {
+                  const typeKey = it.refType === 'investigation' ? 'investigation' : it._displayType;
+                  return (
+                    <div
+                      key={`${it.refType}-${it.refId}`}
+                      draggable
+                      onDragStart={(e) => e.dataTransfer.setData('text/plain', String(i))}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                        if (!Number.isNaN(from) && from !== i) move(from, i);
+                      }}
+                      className="group border border-line-strong rounded-md mb-2 last:mb-0 bg-surface-raised hover:border-line transition-colors overflow-hidden"
+                    >
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 bg-surface-panel/40 border-b border-line-strong/40 cursor-grab active:cursor-grabbing">
+                        <FaGripVertical className="w-3 h-3 text-ink-faint group-hover:text-ink-muted transition-colors" />
+                        <span className="text-ink-faint text-[11px] font-mono w-6">#{i + 1}</span>
+                        <span className="flex items-center gap-1.5 text-ink-muted text-[11px]">
+                          <span className="text-ink-faint">{TYPE_ICONS[typeKey] ?? TYPE_ICONS.report}</span>
+                          <span className="uppercase tracking-wider font-mono text-[10px]">{it._displayType}</span>
+                        </span>
+                        <button
+                          onClick={() => remove(i)}
+                          className="ml-auto w-6 h-6 rounded text-ink-faint hover:text-red-400 hover:bg-red-400/10 flex items-center justify-center transition-colors"
+                          title="Remove"
+                        >
+                          <FaXmark className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="px-3 py-2 space-y-1">
+                        <input
+                          value={it.title}
+                          onChange={(e) => setComposition((p) => p.map((x, idx) => idx === i ? { ...x, title: e.target.value } : x))}
+                          placeholder="Title"
+                          className="w-full bg-transparent text-ink text-sm font-medium outline-none focus:bg-surface px-1 py-0.5 rounded"
+                        />
+                        <input
+                          value={it.subtitle ?? ''}
+                          onChange={(e) => setComposition((p) => p.map((x, idx) => idx === i ? { ...x, subtitle: e.target.value } : x))}
+                          placeholder="Subtitle (optional)"
+                          className="w-full bg-transparent text-ink-muted text-xs outline-none focus:bg-surface px-1 py-0.5 rounded"
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
 
-        <footer className="px-5 py-3 border-t border-line-strong flex items-center justify-end gap-2">
-          <button onClick={onClose} className="text-sm text-ink-muted hover:text-ink">Cancel</button>
-          <button
-            onClick={() => setExportOpen(true)}
-            disabled={composition.length === 0}
-            className="px-3 h-8 rounded bg-brand hover:bg-brand/90 text-white text-sm font-medium disabled:opacity-50"
-          >
-            Export PDF
-          </button>
+        <footer className="px-6 py-3 border-t border-line-strong flex items-center justify-between gap-2">
+          <p className="text-xs text-ink-faint">
+            {itemCount > 0
+              ? 'Each item becomes one page in the PDF.'
+              : 'Add at least one item to continue.'}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-3 h-8 rounded text-sm text-ink-muted hover:text-ink hover:bg-surface-raised transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => setExportOpen(true)}
+              disabled={composition.length === 0}
+              className="px-4 h-8 rounded bg-brand hover:bg-brand/90 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Continue to Export
+            </button>
+          </div>
         </footer>
       </div>
 
@@ -208,6 +298,55 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
         defaultFilename={`${caseName}_exhibit`}
         onExport={handleExport}
       />
+    </div>
+  );
+}
+
+function PickerSection({
+  title, count, empty, children,
+}: {
+  title: string; count: number; empty: string; children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5 px-1">
+        <span className="text-[11px] uppercase tracking-wider text-ink-muted font-medium">{title}</span>
+        {count > 0 && <span className="text-[10px] text-ink-faint font-mono">{count}</span>}
+      </div>
+      {count === 0
+        ? <p className="text-ink-faint text-xs italic px-1 py-1">{empty}</p>
+        : <div className="space-y-0.5">{children}</div>}
+    </div>
+  );
+}
+
+function PickerRow({
+  icon, typeLabel, name, added, onAdd,
+}: {
+  icon: React.ReactNode;
+  typeLabel: string;
+  name: string;
+  added: boolean;
+  onAdd: () => void;
+}) {
+  return (
+    <div className={`group flex items-center gap-2.5 px-2 py-1.5 rounded text-sm transition-colors ${added ? 'opacity-50' : 'hover:bg-surface-raised'}`}>
+      <span className="shrink-0 text-ink-faint">{icon}</span>
+      <div className="flex-1 min-w-0">
+        <span className="text-ink truncate block">{name}</span>
+        <span className="text-ink-faint text-[10px] uppercase tracking-wider font-mono">{typeLabel}</span>
+      </div>
+      <button
+        onClick={onAdd}
+        disabled={added}
+        className={`shrink-0 text-xs px-2 py-1 rounded font-medium transition-colors ${
+          added
+            ? 'text-ink-faint cursor-default'
+            : 'bg-brand/15 text-brand hover:bg-brand/25'
+        }`}
+      >
+        {added ? 'Added' : <><FaPlus className="inline w-2.5 h-2.5 mr-1" />Add</>}
+      </button>
     </div>
   );
 }

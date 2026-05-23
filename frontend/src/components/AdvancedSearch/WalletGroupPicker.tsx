@@ -43,14 +43,6 @@ export function WalletGroupPicker({ label, investigation, chain, value, onChange
     // If value is completely empty ({}) or wallets-only, leave mode as-is.
   }, [value.traceId, value.groupId]);
 
-  // Clear selection when chain changes
-  useEffect(() => {
-    if (value.traceId != null || value.groupId != null || (value.wallets != null && value.wallets.length > 0)) {
-      onChange({});
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chain]);
-
   // Traces that have at least one node on the selected chain
   const filteredTraces: Trace[] = useMemo(
     () => investigation.traces.filter((t) => t.nodes.some((n) => n.chain === chain)),
@@ -99,6 +91,10 @@ export function WalletGroupPicker({ label, investigation, chain, value, onChange
     onChange({});
     setWalletSearch('');
   };
+
+  // The "By trace/group" mode has nothing to show when this chain has no traces
+  // *and* no groups — disable the toggle so users aren't dropped into an empty picker.
+  const selectorDisabled = filteredTraces.length === 0 && filteredGroups.length === 0;
 
   // Combined trace+group selector. Each option's value is `"trace:<id>"` or
   // `"group:<id>"` so a single dropdown can emit either side of the union.
@@ -160,7 +156,9 @@ export function WalletGroupPicker({ label, investigation, chain, value, onChange
           <button
             type="button"
             onClick={() => handleModeSwitch('selector')}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+            disabled={selectorDisabled}
+            title={selectorDisabled ? 'No traces or groups with wallets on this chain.' : undefined}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
               mode === 'selector' ? 'bg-brand text-white' : 'text-ink-muted hover:text-ink'
             }`}
           >

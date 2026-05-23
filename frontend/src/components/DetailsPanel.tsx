@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
-import { FaXmark, FaChevronDown, FaChevronRight, FaArrowUpRightFromSquare } from 'react-icons/fa6';
+import { FaXmark, FaChevronDown, FaChevronRight, FaArrowUpRightFromSquare, FaArrowRightToBracket, FaArrowRightFromBracket } from 'react-icons/fa6';
 import { CopyButton } from './CopyButton';
 import { WalletNode, TransactionEdge, Trace, Group, EdgeBundle } from '../types/investigation';
 import { type ScriptRun } from '@/lib/api-client';
@@ -224,6 +224,8 @@ interface DetailsPanelProps {
   onFetchHistory: (address: string, chain: string) => void;
   onBundleAllOutbound?: (walletId: string, color: string) => void;
   onDeleteAllOutbound?: (walletId: string) => void;
+  onBundleAllInbound?: (walletId: string, color: string) => void;
+  onDeleteAllInbound?: (walletId: string) => void;
   onRerunScript?: (scriptRunId: string) => Promise<void>;
   onToggleEdgeBundle?: (traceId: string, bundleId: string) => void;
   onUpdateEdgeBundle?: (traceId: string, bundleId: string, updates: Partial<EdgeBundle>) => void;
@@ -280,6 +282,8 @@ function WalletDetails({
   onFetchHistory,
   onBundleAllOutbound,
   onDeleteAllOutbound,
+  onBundleAllInbound,
+  onDeleteAllInbound,
   onUpdate,
   lookupAddress,
 }: {
@@ -287,6 +291,8 @@ function WalletDetails({
   onFetchHistory: (address: string, chain: string) => void;
   onBundleAllOutbound?: (walletId: string, color: string) => void;
   onDeleteAllOutbound?: (walletId: string) => void;
+  onBundleAllInbound?: (walletId: string, color: string) => void;
+  onDeleteAllInbound?: (walletId: string) => void;
   onUpdate?: (updates: Partial<WalletNode>) => void;
   lookupAddress: (address: string) => import('@/lib/api-client').LabeledEntity | undefined;
 }) {
@@ -295,6 +301,8 @@ function WalletDetails({
   const [notes, setNotes] = useState(wallet.notes || '');
   const [pickingBundleColor, setPickingBundleColor] = useState(false);
   const [confirmDeleteOutbound, setConfirmDeleteOutbound] = useState(false);
+  const [pickingInboundBundleColor, setPickingInboundBundleColor] = useState(false);
+  const [confirmDeleteInbound, setConfirmDeleteInbound] = useState(false);
 
   const walletId = wallet.id;
   const prevWalletId = useRef(walletId);
@@ -303,6 +311,8 @@ function WalletDetails({
     setNotes(wallet.notes || '');
     setPickingBundleColor(false);
     setConfirmDeleteOutbound(false);
+    setPickingInboundBundleColor(false);
+    setConfirmDeleteInbound(false);
   }
 
   return (
@@ -413,17 +423,59 @@ function WalletDetails({
           >
             Fetch Transactions
           </button>
-          {onBundleAllOutbound && !pickingBundleColor && (
-            <button
-              onClick={() => setPickingBundleColor(true)}
-              className="w-full px-3 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm transition-colors text-left"
-            >
-              Bundle all outbound
-            </button>
+          {/* Bundle row */}
+          {(onBundleAllInbound || onBundleAllOutbound) && !pickingInboundBundleColor && !pickingBundleColor && (
+            <div className="grid grid-cols-2 gap-1.5">
+              {onBundleAllInbound && (
+                <button
+                  onClick={() => setPickingInboundBundleColor(true)}
+                  className="px-3 py-1.5 bg-surface-raised hover:bg-emerald-900/40 hover:text-emerald-300 rounded text-sm transition-colors flex items-center justify-center gap-1.5 border border-emerald-500/30"
+                >
+                  <FaArrowRightToBracket className="text-emerald-400" />
+                  <span>Bundle IN</span>
+                </button>
+              )}
+              {onBundleAllOutbound && (
+                <button
+                  onClick={() => setPickingBundleColor(true)}
+                  className="px-3 py-1.5 bg-surface-raised hover:bg-amber-900/40 hover:text-amber-300 rounded text-sm transition-colors flex items-center justify-center gap-1.5 border border-amber-500/30"
+                >
+                  <FaArrowRightFromBracket className="text-amber-400" />
+                  <span>Bundle OUT</span>
+                </button>
+              )}
+            </div>
+          )}
+          {onBundleAllInbound && pickingInboundBundleColor && (
+            <div className="w-full px-3 py-1.5 bg-surface-raised rounded text-sm flex items-center gap-2 border border-emerald-500/30">
+              <FaArrowRightToBracket className="text-emerald-400" />
+              <span className="text-emerald-300 text-xs font-medium">IN color:</span>
+              <div className="flex items-center gap-1.5 flex-1">
+                {BUNDLE_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => {
+                      onBundleAllInbound(wallet.id, c);
+                      setPickingInboundBundleColor(false);
+                    }}
+                    className="w-5 h-5 rounded-full border-2 border-transparent hover:border-white transition-transform hover:scale-110"
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => setPickingInboundBundleColor(false)}
+                className="text-ink-muted hover:text-ink text-xs"
+                title="Cancel"
+              >
+                <FaXmark />
+              </button>
+            </div>
           )}
           {onBundleAllOutbound && pickingBundleColor && (
-            <div className="w-full px-3 py-1.5 bg-surface-raised rounded text-sm flex items-center gap-2">
-              <span className="text-ink-muted text-xs">Color:</span>
+            <div className="w-full px-3 py-1.5 bg-surface-raised rounded text-sm flex items-center gap-2 border border-amber-500/30">
+              <FaArrowRightFromBracket className="text-amber-400" />
+              <span className="text-amber-300 text-xs font-medium">OUT color:</span>
               <div className="flex items-center gap-1.5 flex-1">
                 {BUNDLE_COLORS.map((c) => (
                   <button
@@ -442,21 +494,59 @@ function WalletDetails({
                 className="text-ink-muted hover:text-ink text-xs"
                 title="Cancel"
               >
-                ✕
+                <FaXmark />
               </button>
             </div>
           )}
-          {onDeleteAllOutbound && !confirmDeleteOutbound && (
-            <button
-              onClick={() => setConfirmDeleteOutbound(true)}
-              className="w-full px-3 py-1.5 bg-surface-raised hover:bg-red-900/40 hover:text-red-300 rounded text-sm transition-colors text-left"
-            >
-              Delete all outbound
-            </button>
+
+          {/* Delete row */}
+          {(onDeleteAllInbound || onDeleteAllOutbound) && !confirmDeleteInbound && !confirmDeleteOutbound && (
+            <div className="grid grid-cols-2 gap-1.5">
+              {onDeleteAllInbound && (
+                <button
+                  onClick={() => setConfirmDeleteInbound(true)}
+                  className="px-3 py-1.5 bg-surface-raised hover:bg-red-900/40 hover:text-red-300 rounded text-sm transition-colors flex items-center justify-center gap-1.5 border border-emerald-500/30"
+                >
+                  <FaArrowRightToBracket className="text-emerald-400" />
+                  <span>Delete IN</span>
+                </button>
+              )}
+              {onDeleteAllOutbound && (
+                <button
+                  onClick={() => setConfirmDeleteOutbound(true)}
+                  className="px-3 py-1.5 bg-surface-raised hover:bg-red-900/40 hover:text-red-300 rounded text-sm transition-colors flex items-center justify-center gap-1.5 border border-amber-500/30"
+                >
+                  <FaArrowRightFromBracket className="text-amber-400" />
+                  <span>Delete OUT</span>
+                </button>
+              )}
+            </div>
+          )}
+          {onDeleteAllInbound && confirmDeleteInbound && (
+            <div className="w-full px-3 py-1.5 bg-surface-raised rounded text-sm flex items-center gap-2 border border-emerald-500/30">
+              <FaArrowRightToBracket className="text-emerald-400 shrink-0" />
+              <span className="text-ink-muted text-xs flex-1">Delete all <span className="text-emerald-300 font-medium">INBOUND</span> transactions?</span>
+              <button
+                onClick={() => {
+                  onDeleteAllInbound(wallet.id);
+                  setConfirmDeleteInbound(false);
+                }}
+                className="text-[11px] px-2 py-0.5 bg-red-600 hover:bg-red-500 rounded text-white"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setConfirmDeleteInbound(false)}
+                className="text-[11px] text-ink-muted hover:text-ink"
+              >
+                Cancel
+              </button>
+            </div>
           )}
           {onDeleteAllOutbound && confirmDeleteOutbound && (
-            <div className="w-full px-3 py-1.5 bg-surface-raised rounded text-sm flex items-center gap-2">
-              <span className="text-ink-muted text-xs flex-1">Delete all outbound transactions?</span>
+            <div className="w-full px-3 py-1.5 bg-surface-raised rounded text-sm flex items-center gap-2 border border-amber-500/30">
+              <FaArrowRightFromBracket className="text-amber-400 shrink-0" />
+              <span className="text-ink-muted text-xs flex-1">Delete all <span className="text-amber-300 font-medium">OUTBOUND</span> transactions?</span>
               <button
                 onClick={() => {
                   onDeleteAllOutbound(wallet.id);
@@ -1124,6 +1214,8 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
   onFetchHistory,
   onBundleAllOutbound,
   onDeleteAllOutbound,
+  onBundleAllInbound,
+  onDeleteAllInbound,
   onRerunScript,
   onToggleEdgeBundle,
   onUpdateEdgeBundle,
@@ -1229,6 +1321,8 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
           onFetchHistory={onFetchHistory}
           onBundleAllOutbound={onBundleAllOutbound}
           onDeleteAllOutbound={onDeleteAllOutbound}
+          onBundleAllInbound={onBundleAllInbound}
+          onDeleteAllInbound={onDeleteAllInbound}
           onUpdate={(updates) => {
             const w = selectedItem.data as WalletNode;
             onUpdateWallet(w.parentTrace, w.id, updates);

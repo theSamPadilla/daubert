@@ -239,6 +239,7 @@ function InvestigationsWorkspace() {
     updateWallet,
     deleteWallet,
     deleteOutboundEdges,
+    deleteInboundEdges,
     addTransaction,
     updateTransaction,
     deleteTransaction,
@@ -862,6 +863,80 @@ function InvestigationsWorkspace() {
     deleteOutboundEdges(walletId);
   }, [deleteOutboundEdges]);
 
+  const handleBundleAllInbound = useCallback((walletId: string, color: string) => {
+    if (!investigation) return;
+
+    let walletTraceId = '';
+    for (const t of investigation.traces) {
+      if (t.nodes.some((n) => n.id === walletId)) { walletTraceId = t.id; break; }
+    }
+    if (!walletTraceId) return;
+
+    const nodeAddr = new Map<string, string>();
+    for (const trace of investigation.traces) {
+      for (const node of trace.nodes) nodeAddr.set(node.id, node.address);
+    }
+
+    const inboundEdgeIds = new Set<string>();
+    const consumedBundleIds: { traceId: string; bundleId: string }[] = [];
+    for (const trace of investigation.traces) {
+      for (const edge of trace.edges) {
+        if (edge.to === walletId) inboundEdgeIds.add(edge.id);
+      }
+      for (const bundle of trace.edgeBundles || []) {
+        if (bundle.toNodeId === walletId) {
+          bundle.edgeIds.forEach((eid) => inboundEdgeIds.add(eid));
+          consumedBundleIds.push({ traceId: trace.id, bundleId: bundle.id });
+        }
+      }
+    }
+    if (inboundEdgeIds.size === 0) return;
+
+    // Color all inbound edges so the bundle's color is consistent if later un-bundled.
+    for (const trace of investigation.traces) {
+      for (const edge of trace.edges) {
+        if (inboundEdgeIds.has(edge.id)) {
+          updateTransaction(trace.id, edge.id, { color });
+        }
+      }
+    }
+
+    const groups = new Map<string, { fromNodeId: string; toNodeId: string; token: string; edgeIds: string[] }>();
+    for (const trace of investigation.traces) {
+      for (const edge of trace.edges) {
+        if (!inboundEdgeIds.has(edge.id)) continue;
+        const token = normalizeToken(edge.token).symbol;
+        const fromAddr = nodeAddr.get(edge.from) || edge.from;
+        const key = `${fromAddr}::${token}`;
+        if (!groups.has(key)) groups.set(key, { fromNodeId: edge.from, toNodeId: edge.to, token, edgeIds: [] });
+        groups.get(key)!.edgeIds.push(edge.id);
+      }
+    }
+
+    for (const { traceId, bundleId } of consumedBundleIds) {
+      deleteEdgeBundle(traceId, bundleId);
+    }
+
+    for (const { fromNodeId, toNodeId, token, edgeIds } of groups.values()) {
+      if (edgeIds.length < 2) continue;
+      const bundle: EdgeBundle = {
+        id: crypto.randomUUID(),
+        traceId: walletTraceId,
+        fromNodeId,
+        toNodeId,
+        token,
+        collapsed: true,
+        edgeIds,
+        color,
+      };
+      addEdgeBundle(walletTraceId, bundle);
+    }
+  }, [investigation, addEdgeBundle, deleteEdgeBundle, updateTransaction]);
+
+  const handleDeleteAllInbound = useCallback((walletId: string) => {
+    deleteInboundEdges(walletId);
+  }, [deleteInboundEdges]);
+
   const handleAddToGroup = useCallback(() => {
     if (!selectedGroupEntry) return;
     const { group, traceId } = selectedGroupEntry;
@@ -1179,6 +1254,8 @@ function InvestigationsWorkspace() {
                   onFetchHistory={handleFetchHistory}
                   onBundleAllOutbound={handleBundleAllOutbound}
                   onDeleteAllOutbound={handleDeleteAllOutbound}
+                  onBundleAllInbound={handleBundleAllInbound}
+                  onDeleteAllInbound={handleDeleteAllInbound}
                   onRerunScript={async (scriptRunId) => {
                     await apiClient.rerunScript(scriptRunId);
                     if (activeInvestigationId) {

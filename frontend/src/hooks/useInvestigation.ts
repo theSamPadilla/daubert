@@ -13,6 +13,7 @@ type Action =
   | { type: 'UPDATE_WALLET'; payload: { traceId: string; walletId: string; updates: Partial<WalletNode> } }
   | { type: 'DELETE_WALLET'; payload: { traceId: string; walletId: string } }
   | { type: 'DELETE_OUTBOUND_EDGES'; payload: { walletId: string } }
+  | { type: 'DELETE_INBOUND_EDGES'; payload: { walletId: string } }
   | { type: 'ADD_TRANSACTION'; payload: { traceId: string; transaction: TransactionEdge } }
   | { type: 'UPDATE_TRANSACTION'; payload: { traceId: string; transactionId: string; updates: Partial<TransactionEdge> } }
   | { type: 'DELETE_TRANSACTION'; payload: { traceId: string; transactionId: string } }
@@ -172,6 +173,19 @@ function applyAction(state: Investigation | null, action: Action): Investigation
           ...t,
           edges: t.edges.filter((e) => e.from !== walletId),
           edgeBundles: (t.edgeBundles || []).filter((b) => b.fromNodeId !== walletId),
+        })),
+      };
+    }
+
+    case 'DELETE_INBOUND_EDGES': {
+      if (!state) return state;
+      const { walletId } = action.payload;
+      return {
+        ...state,
+        traces: state.traces.map((t) => ({
+          ...t,
+          edges: t.edges.filter((e) => e.to !== walletId),
+          edgeBundles: (t.edgeBundles || []).filter((b) => b.toNodeId !== walletId),
         })),
       };
     }
@@ -461,6 +475,12 @@ export function useInvestigation(initial: Investigation | null) {
     []
   );
 
+  const deleteInboundEdges = useCallback(
+    (walletId: string) =>
+      dispatch({ type: 'DELETE_INBOUND_EDGES', payload: { walletId } }),
+    []
+  );
+
   const addTransaction = useCallback(
     (traceId: string, transaction: TransactionEdge) =>
       dispatch({ type: 'ADD_TRANSACTION', payload: { traceId, transaction } }),
@@ -556,6 +576,7 @@ export function useInvestigation(initial: Investigation | null) {
     updateWallet,
     deleteWallet,
     deleteOutboundEdges,
+    deleteInboundEdges,
     addTransaction,
     updateTransaction,
     deleteTransaction,

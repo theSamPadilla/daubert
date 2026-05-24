@@ -201,6 +201,10 @@ export function useCytoscape(
         styledNodeIds.push(n.id());
       });
       cy.nodes(':parent').forEach((p) => {
+        // Respect traces with no color set — the stylesheet renders these
+        // transparent (`:parent[?noColor]` → opacity 0). Skipping them here
+        // preserves that intent in exports.
+        if (p.data('noColor')) return;
         p.style({
           'background-opacity': palette.parentBackgroundOpacity,
           'border-opacity': palette.parentBorderOpacity,

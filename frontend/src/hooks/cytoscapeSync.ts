@@ -108,7 +108,6 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
       });
 
       // Edges — re-route & aggregate for collapsed groups, skip bundled edges
-      const edgeW = (h: number) => h > 0 ? Math.min(Math.max(1.5 + Math.pow(h, 0.2) * 0.28, 1.5), 14) : 1.5;
       const abbr = (h: number) =>
         h >= 1e12 ? `${(h/1e12).toFixed(2).replace(/\.?0+$/, '')}T`
         : h >= 1e9 ? `${(h/1e9).toFixed(2).replace(/\.?0+$/, '')}B`
@@ -149,7 +148,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
           const amountLabel = `${formatTokenAmount(edge.amount, tok.decimals)} ${tok.symbol}`;
           const label = edge.label || amountLabel;
           const date = formatShortDate(edge.timestamp);
-          targetEdges.set(edge.id, { data: { id: edge.id, source: edge.from, target: edge.to, traceId: trace.id, label, date, color: edge.color || '#10b981', lineStyle: edge.lineStyle || 'solid', weight: edgeW(human) } });
+          targetEdges.set(edge.id, { data: { id: edge.id, source: edge.from, target: edge.to, traceId: trace.id, label, date, color: edge.color || '#10b981', lineStyle: edge.lineStyle || 'solid' } });
         }
       });
 
@@ -163,7 +162,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
             ? formatShortDate(a.oldestTs / 1000)
             : `${formatShortDate(a.oldestTs / 1000)} — ${formatShortDate(a.newestTs / 1000)}`;
         }
-        targetEdges.set(key, { data: { id: key, source: a.src, target: a.tgt, traceId: trace.id, label, date: dateRangeLabel, color: a.color, lineStyle: 'solid', weight: edgeW(a.human), edgeIds: a.edgeIds, isAggregatedEdge: true } });
+        targetEdges.set(key, { data: { id: key, source: a.src, target: a.tgt, traceId: trace.id, label, date: dateRangeLabel, color: a.color, lineStyle: 'solid', edgeIds: a.edgeIds, isAggregatedEdge: true } });
       });
 
       // Render collapsed bundles as single aggregated edges
@@ -196,7 +195,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
             ? formatShortDate(oldest.getTime() / 1000)
             : `${formatShortDate(oldest.getTime() / 1000)} — ${formatShortDate(newest.getTime() / 1000)}`;
         }
-        targetEdges.set(bundle.id, { data: { id: bundle.id, source: bundle.fromNodeId, target: bundle.toNodeId, traceId: trace.id, label, date: dateLabel, color, weight: edgeW(totalHuman), isBundleEdge: true } });
+        targetEdges.set(bundle.id, { data: { id: bundle.id, source: bundle.fromNodeId, target: bundle.toNodeId, traceId: trace.id, label, date: dateLabel, color, isBundleEdge: true } });
       });
     }
   });

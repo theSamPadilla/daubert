@@ -156,56 +156,63 @@ export function useCytoscape(
     // layered on top of it (edge date pills, node truncated-address sublabels —
     // see useCytoscapeOverlays.ts). Temporarily merge that overlay text into
     // the cytoscape labels (which natively support multi-line via \n) so the
-    // exported image is WYSIWYG. Restore originals after the snapshot.
+    // exported image is WYSIWYG. Also bump font size uniformly on every edge
+    // and every non-parent node so the exported PNG has consistent typography
+    // and survives scale-down. Restore originals after the snapshot.
     const savedEdgeLabels = new Map<string, string>();
     const savedNodeLabels = new Map<string, string>();
+    const styledEdgeIds: string[] = [];
+    const styledNodeIds: string[] = [];
     cy.batch(() => {
       cy.edges().forEach((e) => {
         const date = e.data('date');
-        if (!date) return;
-        const orig = (e.data('label') as string | undefined) ?? '';
-        savedEdgeLabels.set(e.id(), orig);
-        e.data('label', orig ? `${orig}\n${date}` : date);
-        // Bump font + add line spacing for export only; restored after cy.png().
-        // 10px → 14px so labels survive scale-down when the PNG is viewed.
-        // line-height 1.5 keeps the amount and date from visually colliding
-        // along the rotated edge frame. text-background-padding widens the
-        // pill so both lines sit clearly inside it.
+        if (date) {
+          const orig = (e.data('label') as string | undefined) ?? '';
+          savedEdgeLabels.set(e.id(), orig);
+          e.data('label', orig ? `${orig}\n${date}` : date);
+        }
         e.style({
           'font-size': '14px',
+          'font-weight': 'normal',
           'line-height': 1.5,
           'text-background-padding': '5px',
           'text-margin-y': -14,
         });
+        styledEdgeIds.push(e.id());
       });
       cy.nodes().forEach((n) => {
-        if (n.isParent() || !n.data('hasCustomLabel')) return;
+        if (n.isParent()) return;
         const addr = n.data('truncAddr');
-        if (!addr) return;
-        const orig = (n.data('label') as string | undefined) ?? '';
-        savedNodeLabels.set(n.id(), orig);
-        n.data('label', orig ? `${orig}\n${addr}` : addr);
+        const hasCustomLabel = n.data('hasCustomLabel');
+        if (addr && hasCustomLabel) {
+          const orig = (n.data('label') as string | undefined) ?? '';
+          savedNodeLabels.set(n.id(), orig);
+          n.data('label', orig ? `${orig}\n${addr}` : addr);
+        }
         n.style({
           'font-size': '14px',
           'line-height': 1.5,
         });
+        styledNodeIds.push(n.id());
       });
     });
 
     let dataUrl: string;
     try {
-      dataUrl = cy.png({ full: true, scale: 2, bg: '#ffffff' });
+      dataUrl = cy.png({ full: true, scale: 2, bg: '#0B1220' });
     } finally {
       cy.batch(() => {
         savedEdgeLabels.forEach((orig, id) => {
-          const e = cy.getElementById(id);
-          e.data('label', orig);
-          e.removeStyle('font-size line-height text-background-padding text-margin-y');
+          cy.getElementById(id).data('label', orig);
         });
         savedNodeLabels.forEach((orig, id) => {
-          const n = cy.getElementById(id);
-          n.data('label', orig);
-          n.removeStyle('font-size line-height');
+          cy.getElementById(id).data('label', orig);
+        });
+        styledEdgeIds.forEach((id) => {
+          cy.getElementById(id).removeStyle('font-size font-weight line-height text-background-padding text-margin-y');
+        });
+        styledNodeIds.forEach((id) => {
+          cy.getElementById(id).removeStyle('font-size line-height');
         });
       });
     }

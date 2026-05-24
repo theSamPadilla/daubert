@@ -171,7 +171,7 @@ export const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
   {
     selector: 'edge',
     style: {
-      'width': 'data(weight)',
+      'width': 2,
       'line-color': 'data(color)',
       'line-style': 'data(lineStyle)' as any,
       'target-arrow-color': 'data(color)',
@@ -214,15 +214,12 @@ export const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
   },
 
   // ── Bundle edge ────────────────────────────────────────────────────────
+  // Bundles are distinguishable by their label format ("X (N)") — no extra
+  // typographic emphasis so all edges render identically.
   {
     selector: 'edge[?isBundleEdge]',
     style: {
       'line-style': 'solid',
-      'width': 5,
-      'opacity': 0.9,
-      'font-size': '11px',
-      'font-weight': '600' as any,
-      'color': '#fde68a',
     },
   },
 

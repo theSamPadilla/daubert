@@ -38,17 +38,52 @@ export function ChartViewer({ data, theme = 'dark' }: ChartViewerProps) {
     labels: data.labels,
     datasets: applyBrandColors(data.datasets),
   };
+  // Merge order matters. User options (annotations, axis titles, min/max,
+  // display, etc.) are base. Theme tokens (legend/tick/grid color and font)
+  // overlay AT THE LEAF level so the user's saved scale config doesn't wipe
+  // out the theme by replacing whole sub-objects.
+  const themeOpts = getBrandChartOptions(theme);
+  const userPlugins = (data.options?.plugins ?? {}) as any;
+  const userScales  = (data.options?.scales  ?? {}) as any;
   const options = {
     responsive: true,
     maintainAspectRatio: false,
     ...data.options,
     plugins: {
-      ...getBrandChartOptions(theme).plugins,
-      ...(data.options?.plugins as any),
+      ...userPlugins,
+      legend: {
+        ...(userPlugins.legend ?? {}),
+        ...themeOpts.plugins.legend,
+        labels: {
+          ...(userPlugins.legend?.labels ?? {}),
+          ...themeOpts.plugins.legend.labels,
+        },
+      },
     },
     scales: {
-      ...getBrandChartOptions(theme).scales,
-      ...(data.options?.scales as any),
+      ...userScales,
+      x: {
+        ...(userScales.x ?? {}),
+        ticks: {
+          ...(userScales.x?.ticks ?? {}),
+          ...themeOpts.scales.x.ticks,
+        },
+        grid: {
+          ...(userScales.x?.grid ?? {}),
+          ...themeOpts.scales.x.grid,
+        },
+      },
+      y: {
+        ...(userScales.y ?? {}),
+        ticks: {
+          ...(userScales.y?.ticks ?? {}),
+          ...themeOpts.scales.y.ticks,
+        },
+        grid: {
+          ...(userScales.y?.grid ?? {}),
+          ...themeOpts.scales.y.grid,
+        },
+      },
     },
   };
 

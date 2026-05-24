@@ -77,9 +77,7 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
 
   const kindLabel = kind === 'exhibit' ? 'Exhibit' : kind.charAt(0).toUpperCase() + kind.slice(1);
   const showPreview = !!previewGenerate && (kind === 'graph' || kind === 'chart');
-  // Theme toggle is only meaningful for investigation graphs — charts have
-  // their own baked-in dark styling that doesn't usefully invert.
-  const showThemeToggle = showPreview && kind === 'graph';
+  const showThemeToggle = showPreview && (kind === 'graph' || kind === 'chart');
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"

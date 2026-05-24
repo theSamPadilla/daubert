@@ -49,6 +49,7 @@ export interface Trace {
   edgeBundles?: EdgeBundle[];
   position?: { x: number; y: number };
   collapsed: boolean;
+  hideTitle?: boolean;
 }
 
 export interface WalletNode {

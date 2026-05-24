@@ -196,7 +196,11 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
         />
       )}
       {selectedItem.type === 'trace' && (
-        <TraceDetails trace={selectedItem.data} onEdit={() => setEditing(true)} />
+        <TraceDetails
+          trace={selectedItem.data}
+          onEdit={() => setEditing(true)}
+          onUpdate={(updates) => onUpdateTrace((selectedItem.data as Trace).id, updates)}
+        />
       )}
       {selectedItem.type === 'group' && (
         <GroupDetails

@@ -4,7 +4,8 @@
 In Session
 ------------
 
-- [ ] Try fixing Drive picker again
+- [ ] Try fixing Drive picker again or move to service account
+- [ ] BYOA
 
 
 ------------------------

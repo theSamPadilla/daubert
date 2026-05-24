@@ -40,6 +40,7 @@ export function normalizeInvestigation(inv: ApiInvestigation): Investigation {
       groups: (t.data as any)?.groups || [],
       edgeBundles: (t.data as any)?.edgeBundles || [],
       position: (t.data as any)?.position || { x: 0, y: 0 },
+      hideTitle: (t.data as any)?.hideTitle ?? false,
     })),
     metadata: {},
   };

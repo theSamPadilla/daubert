@@ -47,7 +47,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
       targetNodes.set(trace.id, {
         data: {
           id: trace.id,
-          label: `${trace.name} (${trace.nodes.length})`,
+          label: trace.hideTitle ? '' : `${trace.name} (${trace.nodes.length})`,
           color: traceColor || '#3b82f6',
           textColor: contrastTextColor(traceColor || '#3b82f6'),
           noColor: !traceColor,
@@ -61,7 +61,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
       targetNodes.set(trace.id, {
         data: {
           id: trace.id,
-          label: trace.name,
+          label: trace.hideTitle ? '' : trace.name,
           color: traceColor || '#3b82f6',
           noColor: !traceColor,
           collapsed: false,

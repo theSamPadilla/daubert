@@ -414,6 +414,7 @@ function InvestigationsWorkspace() {
             groups: trace.groups || [],
             edgeBundles: trace.edgeBundles || [],
             position: trace.position,
+            hideTitle: trace.hideTitle ?? false,
           };
           await apiClient.updateTrace(trace.id, {
             name: trace.name,

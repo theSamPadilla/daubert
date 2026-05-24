@@ -29,7 +29,6 @@ export function renderReport(name: string, data: ReportData): string {
 <html><head><meta charset="utf-8">${CSP_META}<title>${escapeHtml(name)}</title>
 <style>${BASE_STYLES}${REPORT_STYLES}</style>
 </head><body>
-<h1>${escapeHtml(name)}</h1>
 ${renderReportBody(name, data)}
 </body></html>`;
 }

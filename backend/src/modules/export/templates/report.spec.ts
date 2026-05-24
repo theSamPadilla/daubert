@@ -8,7 +8,9 @@ describe('renderReport', () => {
     const html = renderReport('Test Report', { content: '<p>Hello world</p>' });
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('<title>Test Report</title>');
-    expect(html).toContain('<h1>Test Report</h1>');
+    // Body no longer injects an <h1> from the report name — the report content
+    // already contains its own heading.
+    expect(html).not.toContain('<h1>Test Report</h1>');
     expect(html).toContain('<p>Hello world</p>');
     expect(html).toContain('</html>');
   });

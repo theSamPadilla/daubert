@@ -82,6 +82,16 @@ function Toolbar({ editor, onInsertCitation }: { editor: ReturnType<typeof useEd
 
       {/* Headings */}
       <ToolbarButton
+        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+        isActive={editor.isActive('heading', { level: 1 })}
+        title="Heading 1"
+      >
+        <span className="flex items-center gap-0.5">
+          <FaHeading className="h-4 w-4" />
+          <span className="text-[10px] font-bold">1</span>
+        </span>
+      </ToolbarButton>
+      <ToolbarButton
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
         isActive={editor.isActive('heading', { level: 2 })}
         title="Heading 2"
@@ -165,7 +175,7 @@ export function ReportEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
-        heading: { levels: [2, 3] },
+        heading: { levels: [1, 2, 3] },
       }),
       Underline,
     ],

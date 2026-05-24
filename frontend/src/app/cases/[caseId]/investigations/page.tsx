@@ -1344,7 +1344,38 @@ function InvestigationsWorkspace() {
                       setScriptRuns(runs);
                     }
                   }}
-                  onArcEdge={(edgeId, delta) => graphRef.current?.setEdgeArc(edgeId, delta)}
+                  onArcEdge={(edgeId, delta) => {
+                    // Persist arc state on the underlying model so it survives
+                    // reloads and flows into exhibit snapshots. Single edges →
+                    // TransactionEdge, collapsed bundles → EdgeBundle. Synthetic
+                    // aggregated edges (no backing entity) fall back to the
+                    // ephemeral cy override.
+                    if (!investigation) return;
+                    for (const trace of investigation.traces) {
+                      const edge = trace.edges.find((e) => e.id === edgeId);
+                      if (edge) {
+                        if (delta === null) {
+                          updateTransaction(trace.id, edgeId, { hasArc: undefined, arcOffset: undefined });
+                        } else {
+                          const next = (edge.arcOffset ?? 0) + delta;
+                          updateTransaction(trace.id, edgeId, { hasArc: true, arcOffset: next });
+                        }
+                        return;
+                      }
+                      const bundle = (trace.edgeBundles || []).find((b) => b.id === edgeId);
+                      if (bundle) {
+                        if (delta === null) {
+                          updateEdgeBundle(trace.id, edgeId, { hasArc: undefined, arcOffset: undefined });
+                        } else {
+                          const next = (bundle.arcOffset ?? 0) + delta;
+                          updateEdgeBundle(trace.id, edgeId, { hasArc: true, arcOffset: next });
+                        }
+                        return;
+                      }
+                    }
+                    // Synthetic aggregated edge — no entity to persist on.
+                    graphRef.current?.setEdgeArc(edgeId, delta);
+                  }}
                 />
               </FloatingPanel>
             )}

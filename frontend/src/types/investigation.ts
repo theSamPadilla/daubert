@@ -17,6 +17,10 @@ export interface EdgeBundle {
   edgeIds: string[];     // IDs of the bundled TransactionEdges
   color?: string;
   label?: string;        // optional display label; falls back to "<total> <token> (<n>)"
+  // User-set curve offset (signed pixels along the perpendicular). Persisted so
+  // arcs survive reloads and appear in exhibit-rendered snapshots.
+  hasArc?: boolean;
+  arcOffset?: number;
 }
 
 export interface Investigation {
@@ -86,4 +90,8 @@ export interface TransactionEdge {
   links?: string[];
   blockNumber: number;
   crossTrace: boolean;
+  // User-set curve offset (signed pixels along the perpendicular). Persisted so
+  // arcs survive reloads and appear in exhibit-rendered snapshots.
+  hasArc?: boolean;
+  arcOffset?: number;
 }

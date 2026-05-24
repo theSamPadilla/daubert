@@ -148,7 +148,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
           const amountLabel = `${formatTokenAmount(edge.amount, tok.decimals)} ${tok.symbol}`;
           const label = edge.label || amountLabel;
           const date = formatShortDate(edge.timestamp);
-          targetEdges.set(edge.id, { data: { id: edge.id, source: edge.from, target: edge.to, traceId: trace.id, label, date, color: edge.color || '#10b981', lineStyle: edge.lineStyle || 'solid' } });
+          targetEdges.set(edge.id, { data: { id: edge.id, source: edge.from, target: edge.to, traceId: trace.id, label, date, color: edge.color || '#10b981', lineStyle: edge.lineStyle || 'solid', ...(edge.hasArc ? { hasArc: true, arcOffset: edge.arcOffset ?? 0 } : {}) } });
         }
       });
 
@@ -195,7 +195,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
             ? formatShortDate(oldest.getTime() / 1000)
             : `${formatShortDate(oldest.getTime() / 1000)} — ${formatShortDate(newest.getTime() / 1000)}`;
         }
-        targetEdges.set(bundle.id, { data: { id: bundle.id, source: bundle.fromNodeId, target: bundle.toNodeId, traceId: trace.id, label, date: dateLabel, color, isBundleEdge: true } });
+        targetEdges.set(bundle.id, { data: { id: bundle.id, source: bundle.fromNodeId, target: bundle.toNodeId, traceId: trace.id, label, date: dateLabel, color, isBundleEdge: true, ...(bundle.hasArc ? { hasArc: true, arcOffset: bundle.arcOffset ?? 0 } : {}) } });
       });
     }
   });

@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import {
   FaPlus, FaXmark, FaGripVertical,
   FaFileLines, FaChartLine, FaTableList, FaDiagramProject,
-  FaLayerGroup,
+  FaLayerGroup, FaMoon, FaSun,
 } from 'react-icons/fa6';
 import { apiClient, type Investigation, type Production } from '@/lib/api-client';
 import { normalizeInvestigation } from '@/utils/normalizeInvestigation';
@@ -42,6 +43,19 @@ interface Props {
 
 export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
   const { productions } = useCaseContext(); // already populated case-wide
+
+  // Group the picker list by production type so reports/charts/chronologies
+  // cluster together. Order chosen for narrative-first reading: reports
+  // (written analysis) → chronologies (sequence of facts) → charts (visuals).
+  const PRODUCTION_TYPE_ORDER: Record<string, number> = { report: 0, chronology: 1, chart: 2 };
+  const sortedProductions = useMemo(() => {
+    return productions.slice().sort((a, b) => {
+      const ta = PRODUCTION_TYPE_ORDER[a.type] ?? 99;
+      const tb = PRODUCTION_TYPE_ORDER[b.type] ?? 99;
+      if (ta !== tb) return ta - tb;
+      return a.name.localeCompare(b.name);
+    });
+  }, [productions]);
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
   const [composition, setComposition] = useState<ItemRef[]>([]);
   const [exportOpen, setExportOpen] = useState(false);
@@ -136,8 +150,8 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
       <div className="bg-surface-panel border border-line-strong rounded-lg shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col">
         <header className="px-6 py-4 border-b border-line-strong flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-md bg-brand/10 text-brand flex items-center justify-center">
-              <FaLayerGroup className="w-4 h-4" />
+            <div className="relative w-7 h-7 shrink-0">
+              <Image src="/logo-light.png" alt="" fill sizes="28px" className="object-contain opacity-90" />
             </div>
             <div>
               <h2 className="text-sm font-semibold text-ink">Create Exhibit</h2>
@@ -187,10 +201,10 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
 
               <PickerSection
                 title="Productions"
-                count={productions.length}
+                count={sortedProductions.length}
                 empty="No productions yet."
               >
-                {productions.map((p) => (
+                {sortedProductions.map((p) => (
                   <PickerRow
                     key={p.id}
                     icon={TYPE_ICONS[p.type] ?? TYPE_ICONS.report}
@@ -269,21 +283,25 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
                           className="w-full bg-transparent text-ink-muted text-xs outline-none focus:bg-surface px-1 py-0.5 rounded"
                         />
                         {(it._displayType === 'Investigation' || it._displayType === 'chart') && (
-                          <div className="flex items-center gap-1.5 text-xs pt-0.5">
-                            <span className="text-ink-faint">Theme:</span>
-                            {(['dark', 'light'] as const).map((t) => (
-                              <button
-                                key={t}
-                                onClick={() => updateItem(i, { theme: t, imageDataUrl: undefined })}
-                                className={`px-2 py-1 rounded text-[11px] ${
-                                  (it.theme ?? 'dark') === t
-                                    ? 'bg-brand text-white'
-                                    : 'bg-surface-raised hover:bg-surface-raised/80 text-ink-muted'
-                                }`}
-                              >
-                                {t === 'dark' ? 'Dark' : 'Light'}
-                              </button>
-                            ))}
+                          <div className="flex items-center gap-2 pt-1">
+                            <span className="text-[10px] uppercase tracking-wider text-ink-faint font-medium">Theme</span>
+                            <div className="inline-flex p-0.5 bg-surface rounded-md border border-line-strong">
+                              {(['dark', 'light'] as const).map((t) => (
+                                <button
+                                  key={t}
+                                  onClick={() => updateItem(i, { theme: t, imageDataUrl: undefined })}
+                                  title={t === 'dark' ? 'Dark theme' : 'Light theme'}
+                                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
+                                    (it.theme ?? 'dark') === t
+                                      ? 'bg-surface-raised text-ink shadow-sm'
+                                      : 'text-ink-muted hover:text-ink'
+                                  }`}
+                                >
+                                  {t === 'dark' ? <FaMoon className="w-2.5 h-2.5" /> : <FaSun className="w-2.5 h-2.5" />}
+                                  {t === 'dark' ? 'Dark' : 'Light'}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>

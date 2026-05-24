@@ -3,7 +3,7 @@ import { useCallback, useRef } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { createElement } from 'react';
 import { ChartViewer } from '@/components/Productions/ChartViewer';
-import type { ExportTheme } from '@/lib/exportTheme';
+import { EXPORT_THEMES, type ExportTheme } from '@/lib/exportTheme';
 
 export function useChartSnapshot() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -67,7 +67,22 @@ export function useChartSnapshot() {
           return;
         }
         try {
-          resolve(canvas.toDataURL('image/png'));
+          // Chart.js renders onto a transparent canvas. Composite onto the
+          // theme's PNG background so exports match the in-app canvas color
+          // instead of producing a transparent PNG.
+          const bg = EXPORT_THEMES[theme].pngBackground;
+          const out = document.createElement('canvas');
+          out.width = canvas.width;
+          out.height = canvas.height;
+          const ctx = out.getContext('2d');
+          if (!ctx) {
+            resolve(canvas.toDataURL('image/png'));
+            return;
+          }
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, out.width, out.height);
+          ctx.drawImage(canvas, 0, 0);
+          resolve(out.toDataURL('image/png'));
         } catch (err) {
           reject(err);
         }

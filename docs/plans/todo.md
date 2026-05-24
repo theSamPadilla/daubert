@@ -4,7 +4,6 @@
 In Session
 ------------
 
-- [ ] Improve optics of the final output
 - [ ] Try fixing Drive picker again
 
 

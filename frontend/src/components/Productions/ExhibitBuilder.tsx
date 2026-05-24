@@ -282,7 +282,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
                           placeholder="Subtitle (optional)"
                           className="w-full bg-transparent text-ink-muted text-xs outline-none focus:bg-surface px-1 py-0.5 rounded"
                         />
-                        {(it._displayType === 'Investigation' || it._displayType === 'chart') && (
+                        {it._displayType === 'Investigation' && (
                           <div className="flex items-center gap-2 pt-1">
                             <span className="text-[10px] uppercase tracking-wider text-ink-faint font-medium">Theme</span>
                             <div className="inline-flex p-0.5 bg-surface rounded-md border border-line-strong">

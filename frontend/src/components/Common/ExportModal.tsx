@@ -77,6 +77,9 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
 
   const kindLabel = kind === 'exhibit' ? 'Exhibit' : kind.charAt(0).toUpperCase() + kind.slice(1);
   const showPreview = !!previewGenerate && (kind === 'graph' || kind === 'chart');
+  // Theme toggle is only meaningful for investigation graphs — charts have
+  // their own baked-in dark styling that doesn't usefully invert.
+  const showThemeToggle = showPreview && kind === 'graph';
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
@@ -90,7 +93,11 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-ink leading-tight">Export {kindLabel}</h3>
             <p className="text-[11px] text-ink-muted leading-tight mt-0.5">
-              {showPreview ? 'Choose format, theme, and preview the output' : 'Choose format and download'}
+              {showThemeToggle
+                ? 'Choose format, theme, and preview the output'
+                : showPreview
+                  ? 'Choose format and preview the output'
+                  : 'Choose format and download'}
             </p>
           </div>
         </header>
@@ -135,7 +142,7 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
               ))}
             </div>
 
-            {showPreview && (
+            {showThemeToggle && (
               <>
                 <label className="block text-xs font-medium text-ink-muted mb-2">Theme</label>
                 <div className="flex p-1 mb-5 bg-surface rounded-lg border border-line-strong">

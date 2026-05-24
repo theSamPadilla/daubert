@@ -45,6 +45,7 @@ describe('ExportController', () => {
       htmlToPdf: jest.fn().mockResolvedValue(FAKE_PDF),
       htmlToDocx: jest.fn().mockResolvedValue(FAKE_DOCX),
       htmlToPng: jest.fn().mockResolvedValue(FAKE_PNG),
+      pngToPdf: jest.fn().mockResolvedValue(FAKE_PDF),
     };
 
     const mockProductionsService: Partial<jest.Mocked<ProductionsService>> = {
@@ -221,7 +222,8 @@ describe('ExportController', () => {
       res,
     );
 
-    expect(exportService.htmlToPdf).toHaveBeenCalledTimes(1);
+    expect(exportService.pngToPdf).toHaveBeenCalledTimes(1);
+    expect(exportService.htmlToPdf).not.toHaveBeenCalled();
     expect(res._headers['Content-Disposition']).toContain('custom_graph_name.pdf');
   });
 

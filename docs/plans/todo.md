@@ -4,7 +4,6 @@
 In Session
 ------------
 
-- [ ] Remove the thick transaction responsiveness
 - [ ] Improve optics of the final output
 - [ ] Try fixing Drive picker again
 
@@ -27,3 +26,4 @@ In Session
 - [x] Component celanup
 - [x] Bringing back chooser
 - [x] Figure out a safe code exec environment on production
+- [x] Remove the thick transaction responsiveness

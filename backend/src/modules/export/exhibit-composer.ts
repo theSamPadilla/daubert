@@ -1,4 +1,4 @@
-import { BASE_STYLES, CHART_STYLES, CHRONOLOGY_STYLES, CSP_META, GRAPH_STYLES, REPORT_STYLES } from './templates/styles';
+import { BASE_STYLES, CHART_STYLES, CHRONOLOGY_STYLES, CSP_META, REPORT_STYLES } from './templates/styles';
 import { escapeHtml } from './templates/util';
 
 interface ComposedItem {
@@ -46,6 +46,6 @@ export function composeExhibitHtml(items: ComposedItem[]): string {
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">${CSP_META}<title>Exhibit</title>
-<style>${BASE_STYLES}${REPORT_STYLES}${CHRONOLOGY_STYLES}${CHART_STYLES}${GRAPH_STYLES}${EXHIBIT_STYLES}</style>
+<style>${BASE_STYLES}${REPORT_STYLES}${CHRONOLOGY_STYLES}${CHART_STYLES}${EXHIBIT_STYLES}</style>
 </head><body>${sections}</body></html>`;
 }

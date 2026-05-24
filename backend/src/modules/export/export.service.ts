@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { accessSync } from 'fs';
+import { PDFDocument } from 'pdf-lib';
 import puppeteer, { Browser } from 'puppeteer-core';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const HTMLtoDOCX: (html: string, header?: string | null, options?: Record<string, unknown>) => Promise<Buffer | ArrayBuffer> = require('html-to-docx');
@@ -127,6 +128,37 @@ export class ExportService implements OnModuleDestroy {
     } finally {
       await page.close();
     }
+  }
+
+  /**
+   * Embed a PNG data URL into a single-page A4-landscape PDF, image centered
+   * and scaled to fit (object-fit: contain). Pure pdf-lib, no Chrome — bounded
+   * memory regardless of PNG size, and the image can't break across pages.
+   */
+  async pngToPdf(imageDataUrl: string): Promise<Buffer> {
+    const base64 = imageDataUrl.replace(/^data:image\/png;base64,/, '');
+    const pngBytes = Buffer.from(base64, 'base64');
+
+    const pdfDoc = await PDFDocument.create();
+    const png = await pdfDoc.embedPng(pngBytes);
+
+    // A4 landscape in PDF points (1 pt = 1/72 inch). 28 pt ≈ 10mm margin.
+    const PAGE_W = 842;
+    const PAGE_H = 595;
+    const MARGIN = 28;
+    const maxW = PAGE_W - MARGIN * 2;
+    const maxH = PAGE_H - MARGIN * 2;
+
+    const scale = Math.min(maxW / png.width, maxH / png.height);
+    const drawW = png.width * scale;
+    const drawH = png.height * scale;
+    const x = (PAGE_W - drawW) / 2;
+    const y = (PAGE_H - drawH) / 2;
+
+    const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+    page.drawImage(png, { x, y, width: drawW, height: drawH });
+
+    return Buffer.from(await pdfDoc.save());
   }
 
   async htmlToDocx(html: string): Promise<Buffer> {

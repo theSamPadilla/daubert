@@ -9,7 +9,6 @@ import { InvestigationsService } from '../investigations/investigations.service'
 import { renderReport } from './templates/report';
 import { renderChronology } from './templates/chronology';
 import { renderChart } from './templates/chart';
-import { renderGraph } from './templates/graph';
 import { renderReportBody } from './templates/report';
 import { renderChronologyBody } from './templates/chronology';
 import { renderChartBody } from './templates/chart';
@@ -122,8 +121,7 @@ export class ExportController {
     }
     validateDataUrl(body.imageDataUrl);
     const name = (body.name || 'graph').slice(0, 200);
-    const html = renderGraph(name, body.imageDataUrl);
-    const pdf = await this.exportService.htmlToPdf(html, { landscape: true });
+    const pdf = await this.exportService.pngToPdf(body.imageDataUrl);
     const filename = (body.filename || name || 'graph').replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'graph';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import { apiClient, type AdminUser, type Case, type CaseMember, type CaseRole } from '@/lib/api-client';
 import { FaTrash, FaPlus, FaChevronDown, FaChevronRight, FaUserPlus } from 'react-icons/fa6';
 import { Loader } from '@/components/Common/Loader';
+import { ErrorModal } from '@/components/Common/ErrorModal';
 
 export default function AdminCasesPage() {
   const [cases, setCases] = useState<Case[]>([]);
@@ -21,6 +22,8 @@ export default function AdminCasesPage() {
   const [members, setMembers] = useState<Record<string, CaseMember[]>>({});
   const [memberError, setMemberError] = useState<Record<string, string>>({});
   const [addMemberForm, setAddMemberForm] = useState<Record<string, { userId: string; role: CaseRole }>>({});
+
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -63,7 +66,7 @@ export default function AdminCasesPage() {
 
   const handleCreateCase = async () => {
     if (!form.name.trim() || !form.ownerUserId) {
-      alert('Name and owner are required');
+      setErrorMessage('Name and owner are required');
       return;
     }
     setSaving(true);
@@ -73,7 +76,7 @@ export default function AdminCasesPage() {
       setShowForm(false);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to create case');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to create case');
     } finally {
       setSaving(false);
     }
@@ -85,7 +88,7 @@ export default function AdminCasesPage() {
       await apiClient.adminDeleteCase(c.id);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete case');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to delete case');
     }
   };
 
@@ -97,7 +100,7 @@ export default function AdminCasesPage() {
       setAddMemberForm((s) => ({ ...s, [caseId]: { userId: '', role: 'guest' } }));
       await loadMembers(caseId);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to add member');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to add member');
     }
   };
 
@@ -106,7 +109,7 @@ export default function AdminCasesPage() {
       await apiClient.adminUpdateCaseMemberRole(caseId, userId, role);
       await loadMembers(caseId);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update role');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to update role');
     }
   };
 
@@ -116,7 +119,7 @@ export default function AdminCasesPage() {
       await apiClient.adminRemoveCaseMember(caseId, userId);
       await loadMembers(caseId);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to remove member');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to remove member');
     }
   };
 
@@ -339,6 +342,12 @@ export default function AdminCasesPage() {
           </table>
         </div>
       )}
+
+      <ErrorModal
+        open={!!errorMessage}
+        message={errorMessage ?? ''}
+        onClose={() => setErrorMessage(null)}
+      />
     </div>
   );
 }

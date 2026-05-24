@@ -8,6 +8,8 @@
  * (backend/src/prompts/investigator.ts) no longer dictates colors.
  */
 
+import type { ExportTheme } from './exportTheme';
+
 export const BRAND_PALETTE = {
   ink: '#E6EAF2',
   inkMuted: '#9AA3B2',
@@ -54,33 +56,48 @@ export function applyBrandColors<
 const FONT_SANS = "'Inter', ui-sans-serif, system-ui, sans-serif";
 const FONT_MONO = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
 
+const CHART_CHROME_BY_THEME: Record<ExportTheme, {
+  legend: string;
+  tick: string;
+  grid: string;
+}> = {
+  dark: {
+    legend: BRAND_PALETTE.inkMuted,
+    tick: BRAND_PALETTE.inkFaint,
+    grid: BRAND_PALETTE.line,
+  },
+  light: {
+    legend: '#374151',
+    tick: '#6b7280',
+    grid: '#e5e7eb',
+  },
+};
+
 /**
- * Base Chart.js options block with brand-aligned axes, gridlines, and
- * legend text. Spread this into per-chart options to inherit the look.
+ * Returns Chart.js options block with brand-aligned axes, gridlines, and
+ * legend text for the given theme. Spread this into per-chart options to
+ * inherit the look.
  */
-export const BRAND_CHART_OPTIONS = {
-  plugins: {
-    legend: {
-      labels: {
-        color: BRAND_PALETTE.inkMuted,
-        font: { family: FONT_SANS, size: 11 },
+export function getBrandChartOptions(theme: ExportTheme = 'dark') {
+  const c = CHART_CHROME_BY_THEME[theme];
+  return {
+    plugins: {
+      legend: {
+        labels: {
+          color: c.legend,
+          font: { family: FONT_SANS, size: 11 },
+        },
       },
     },
-  },
-  scales: {
-    x: {
-      ticks: {
-        color: BRAND_PALETTE.inkFaint,
-        font: { family: FONT_MONO, size: 10 },
+    scales: {
+      x: {
+        ticks: { color: c.tick, font: { family: FONT_MONO, size: 10 } },
+        grid: { color: c.grid },
       },
-      grid: { color: BRAND_PALETTE.line },
-    },
-    y: {
-      ticks: {
-        color: BRAND_PALETTE.inkFaint,
-        font: { family: FONT_MONO, size: 10 },
+      y: {
+        ticks: { color: c.tick, font: { family: FONT_MONO, size: 10 } },
+        grid: { color: c.grid },
       },
-      grid: { color: BRAND_PALETTE.line },
     },
-  },
-} as const;
+  };
+}

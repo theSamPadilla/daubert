@@ -12,6 +12,8 @@ import { ChartViewer } from './ChartViewer';
 import { ChartDatasetEditor } from './ChartDatasetEditor';
 import { ChronologyTable } from './ChronologyTable';
 import { ExportModal, type ExportFormat } from '../Common/ExportModal';
+import { useChartSnapshot } from '@/hooks/useChartSnapshot';
+import type { ExportTheme } from '@/lib/exportTheme';
 
 const TYPE_COLORS: Record<string, string> = {
   report: 'bg-brand/10 text-brand',
@@ -47,6 +49,9 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
     setChartDraft(null);
     chartDraftRef.current = null;
   }, [production.id]);
+
+  const { snapshot: snapshotChart, dispose: disposeChart } = useChartSnapshot();
+  useEffect(() => () => disposeChart(), [disposeChart]);
 
   // Chart height: persisted on production.data.height, drag-resizable.
   const storedChartHeight =
@@ -149,26 +154,25 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
     [production.id, onUpdate],
   );
 
+  const currentChartHeight = liveChartHeight ?? storedChartHeight;
+
   const handleExport = useCallback(
-    async (format: ExportFormat, filename: string) => {
+    async (format: ExportFormat, filename: string, theme: ExportTheme) => {
       if (production.type === 'chart' && format === 'png') {
-        const canvas = contentRef.current?.querySelector<HTMLCanvasElement>('canvas');
-        if (!canvas) throw new Error('Chart canvas not found');
+        const url = await snapshotChart(production.data, theme, currentChartHeight);
         const a = document.createElement('a');
-        a.href = canvas.toDataURL('image/png');
+        a.href = url;
         a.download = `${filename}.png`;
         a.click();
         return;
       }
       let imageDataUrl: string | undefined;
       if (production.type === 'chart' && format === 'pdf') {
-        const canvas = contentRef.current?.querySelector<HTMLCanvasElement>('canvas');
-        if (!canvas) throw new Error('Chart canvas not found');
-        imageDataUrl = canvas.toDataURL('image/png');
+        imageDataUrl = await snapshotChart(production.data, theme, currentChartHeight);
       }
       await apiClient.exportProduction(production.id, format, filename, imageDataUrl);
     },
-    [production.id, production.type],
+    [production.id, production.type, production.data, snapshotChart, currentChartHeight],
   );
 
   const handleEntryEdit = useCallback(
@@ -210,6 +214,11 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
       setRefreshing(false);
     }
   }, [production.id, onUpdate]);
+
+  const previewGenerate = useCallback(
+    (theme: ExportTheme) => snapshotChart(production.data, theme, currentChartHeight),
+    [snapshotChart, production.data, currentChartHeight],
+  );
 
   const data = production.data as any;
 
@@ -325,6 +334,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
         kind={production.type as 'chart' | 'report' | 'chronology'}
         defaultFilename={production.name}
         onExport={handleExport}
+        previewGenerate={production.type === 'chart' ? previewGenerate : undefined}
       />
     </div>
   );

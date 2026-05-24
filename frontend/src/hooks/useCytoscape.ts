@@ -6,6 +6,7 @@ import { CYTOSCAPE_STYLE } from './cytoscapeStyle';
 import { useCytoscapeOverlays } from './useCytoscapeOverlays';
 import { bindCytoscapeEvents } from './cytoscapeEvents';
 import { syncCytoscape } from './cytoscapeSync';
+import { EXPORT_THEMES, type ExportTheme } from '@/lib/exportTheme';
 
 export type FocusItem =
   | { type: 'wallet'; id: string; traceId: string }
@@ -148,9 +149,10 @@ export function useCytoscape(
     callbacksRef.current.onSelectionChange?.({ nodeIds: [], edgeIds: [], focusItem: null });
   }, []);
 
-  const exportPngDataUrl = useCallback(async (): Promise<string> => {
+  const exportPngDataUrl = useCallback(async (theme: ExportTheme = 'dark'): Promise<string> => {
     const cy = cyRef.current;
     if (!cy) throw new Error('Cytoscape not initialized');
+    const palette = EXPORT_THEMES[theme];
 
     // Cytoscape's PNG capture only sees the canvas, not the HTML overlays
     // layered on top of it (edge date pills, node truncated-address sublabels —
@@ -163,6 +165,7 @@ export function useCytoscape(
     const savedNodeLabels = new Map<string, string>();
     const styledEdgeIds: string[] = [];
     const styledNodeIds: string[] = [];
+    const styledParentIds: string[] = [];
     cy.batch(() => {
       cy.edges().forEach((e) => {
         const date = e.data('date');
@@ -177,6 +180,8 @@ export function useCytoscape(
           'line-height': 1.5,
           'text-background-padding': '5px',
           'text-margin-y': -14,
+          'color': palette.edgeLabelColor,
+          'text-background-color': palette.edgeLabelBgColor,
         });
         styledEdgeIds.push(e.id());
       });
@@ -195,11 +200,18 @@ export function useCytoscape(
         });
         styledNodeIds.push(n.id());
       });
+      cy.nodes(':parent').forEach((p) => {
+        p.style({
+          'background-opacity': palette.parentBackgroundOpacity,
+          'border-opacity': palette.parentBorderOpacity,
+        });
+        styledParentIds.push(p.id());
+      });
     });
 
     let dataUrl: string;
     try {
-      dataUrl = cy.png({ full: true, scale: 2, bg: '#0B1220' });
+      dataUrl = cy.png({ full: true, scale: 2, bg: palette.pngBackground });
     } finally {
       cy.batch(() => {
         savedEdgeLabels.forEach((orig, id) => {
@@ -209,10 +221,15 @@ export function useCytoscape(
           cy.getElementById(id).data('label', orig);
         });
         styledEdgeIds.forEach((id) => {
-          cy.getElementById(id).removeStyle('font-size font-weight line-height text-background-padding text-margin-y');
+          cy.getElementById(id).removeStyle(
+            'font-size font-weight line-height text-background-padding text-margin-y color text-background-color'
+          );
         });
         styledNodeIds.forEach((id) => {
           cy.getElementById(id).removeStyle('font-size line-height');
+        });
+        styledParentIds.forEach((id) => {
+          cy.getElementById(id).removeStyle('background-opacity border-opacity');
         });
       });
     }
@@ -220,22 +237,21 @@ export function useCytoscape(
     return dataUrl;
   }, []);
 
-  const exportImage = useCallback(async (format: 'png' | 'pdf', filename = 'graph') => {
-    const dataUrl = await exportPngDataUrl();
+  const exportImage = useCallback(
+    async (format: 'png' | 'pdf', filename = 'graph', theme: ExportTheme = 'dark') => {
+      const dataUrl = await exportPngDataUrl(theme);
 
-    if (format === 'png') {
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `${filename}.png`;
-      a.click();
-    } else {
-      try {
+      if (format === 'png') {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `${filename}.png`;
+        a.click();
+      } else {
         await apiClient.exportGraph(filename, filename, dataUrl);
-      } catch (err) {
-        alert(`PDF export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
-    }
-  }, [exportPngDataUrl]);
+    },
+    [exportPngDataUrl],
+  );
 
   const setEdgeArc = useCallback((edgeId: string, delta: number | null) => {
     const cy = cyRef.current;

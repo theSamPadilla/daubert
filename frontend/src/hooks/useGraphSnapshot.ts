@@ -4,6 +4,7 @@ import { createRoot, Root } from 'react-dom/client';
 import { createElement } from 'react';
 import { GraphCanvas, type GraphCanvasHandle } from '@/components/Graph/GraphCanvas';
 import type { Investigation } from '@/types/investigation';
+import type { ExportTheme } from '@/lib/exportTheme';
 
 /**
  * Capture a PNG snapshot of a Cytoscape graph by mounting <GraphCanvas> into
@@ -16,7 +17,7 @@ export function useGraphSnapshot() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<Root | null>(null);
 
-  const snapshot = useCallback(async (investigation: Investigation): Promise<string> => {
+  const snapshot = useCallback(async (investigation: Investigation, theme: ExportTheme = 'dark'): Promise<string> => {
     // Tear down any prior root/host so each snapshot starts from a clean mount.
     if (rootRef.current) {
       rootRef.current.unmount();
@@ -56,7 +57,7 @@ export function useGraphSnapshot() {
           return;
         }
         try {
-          const dataUrl = await handleRef.current.exportPngDataUrl();
+          const dataUrl = await handleRef.current.exportPngDataUrl(theme);
           if (!dataUrl) reject(new Error('Snapshot failed: empty data URL'));
           else resolve(dataUrl);
         } catch (err) {

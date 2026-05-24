@@ -11,6 +11,7 @@ import { useCaseContext } from '@/contexts/CaseContext';
 import { ExportModal } from '../Common/ExportModal';
 import { useGraphSnapshot } from '@/hooks/useGraphSnapshot';
 import { useChartSnapshot } from '@/hooks/useChartSnapshot';
+import type { ExportTheme } from '@/lib/exportTheme';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   investigation: <FaDiagramProject className="w-3.5 h-3.5" />,
@@ -28,6 +29,8 @@ type ItemRef = {
   imageDataUrl?: string;
   // Cached for the picker
   _displayType: string;
+  // Per-item export theme (investigations + charts only); defaults to 'dark'
+  theme?: ExportTheme;
 };
 
 interface Props {
@@ -66,6 +69,10 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
 
   const remove = (idx: number) => setComposition((p) => p.filter((_, i) => i !== idx));
 
+  const updateItem = (idx: number, patch: Partial<ItemRef>) => {
+    setComposition((p) => p.map((item, i) => (i === idx ? { ...item, ...patch } : item)));
+  };
+
   const move = (from: number, to: number) => {
     setComposition((p) => {
       const next = p.slice();
@@ -75,7 +82,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
     });
   };
 
-  const handleExport = async (_format: 'pdf' | 'png' | 'docx', filename: string) => {
+  const handleExport = async (_format: 'pdf' | 'png' | 'docx', filename: string, _theme: ExportTheme) => {
     // Capture snapshots for investigation items in order.
     //
     // NOTE: apiClient.getCase() loads the case with `relations: ['investigations']`
@@ -91,14 +98,17 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
       if (it.refType === 'investigation') {
         const inv = await apiClient.getInvestigation(it.refId); // full traces relation
         if (!inv) throw new Error(`Investigation ${it.refId} not found`);
-        const dataUrl = await graphSnapshot(normalizeInvestigation(inv));
+        const dataUrl = await graphSnapshot(normalizeInvestigation(inv), it.theme ?? 'dark');
         finalItems.push({ ...it, imageDataUrl: dataUrl });
       } else {
         // Production item — only charts need a captured image. Reports and
         // chronologies render server-side from stored data, no snapshot.
         const prod = productions.find((p) => p.id === it.refId);
         if (prod?.type === 'chart') {
-          const dataUrl = await chartSnapshot(prod.data);
+          const chartHeight = typeof (prod.data as any)?.height === 'number'
+            ? (prod.data as any).height as number
+            : 600;
+          const dataUrl = await chartSnapshot(prod.data, it.theme ?? 'dark', chartHeight);
           finalItems.push({ ...it, imageDataUrl: dataUrl });
         } else {
           finalItems.push(it);
@@ -258,6 +268,24 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
                           placeholder="Subtitle (optional)"
                           className="w-full bg-transparent text-ink-muted text-xs outline-none focus:bg-surface px-1 py-0.5 rounded"
                         />
+                        {(it._displayType === 'Investigation' || it._displayType === 'chart') && (
+                          <div className="flex items-center gap-1.5 text-xs pt-0.5">
+                            <span className="text-ink-faint">Theme:</span>
+                            {(['dark', 'light'] as const).map((t) => (
+                              <button
+                                key={t}
+                                onClick={() => updateItem(i, { theme: t, imageDataUrl: undefined })}
+                                className={`px-2 py-1 rounded text-[11px] ${
+                                  (it.theme ?? 'dark') === t
+                                    ? 'bg-brand text-white'
+                                    : 'bg-surface-raised hover:bg-surface-raised/80 text-ink-muted'
+                                }`}
+                              >
+                                {t === 'dark' ? 'Dark' : 'Light'}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

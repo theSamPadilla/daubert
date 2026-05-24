@@ -8,7 +8,8 @@ import {
 } from 'chart.js';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
-import { applyBrandColors, BRAND_CHART_OPTIONS } from '@/lib/chartPalette';
+import { applyBrandColors, getBrandChartOptions } from '@/lib/chartPalette';
+import type { ExportTheme } from '@/lib/exportTheme';
 
 ChartJS.register(
   CategoryScale, LinearScale,
@@ -26,9 +27,10 @@ interface ChartData {
 
 interface ChartViewerProps {
   data: ChartData;
+  theme?: ExportTheme;
 }
 
-export function ChartViewer({ data }: ChartViewerProps) {
+export function ChartViewer({ data, theme = 'dark' }: ChartViewerProps) {
   if (!Array.isArray(data.datasets) || !Array.isArray(data.labels)) {
     return <div className="text-red-400 text-sm">Invalid chart data: datasets and labels must be arrays.</div>;
   }
@@ -41,11 +43,11 @@ export function ChartViewer({ data }: ChartViewerProps) {
     maintainAspectRatio: false,
     ...data.options,
     plugins: {
-      ...BRAND_CHART_OPTIONS.plugins,
+      ...getBrandChartOptions(theme).plugins,
       ...(data.options?.plugins as any),
     },
     scales: {
-      ...BRAND_CHART_OPTIONS.scales,
+      ...getBrandChartOptions(theme).scales,
       ...(data.options?.scales as any),
     },
   };

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiClient, type AdminUser, type Case, type CaseRole } from '@/lib/api-client';
 import { FaTrash, FaPlus, FaCircleCheck, FaCircleExclamation } from 'react-icons/fa6';
 import { Loader } from '@/components/Common/Loader';
+import { ErrorModal } from '@/components/Common/ErrorModal';
 
 interface FormState {
   email: string;
@@ -23,6 +24,7 @@ export default function AdminUsersPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -43,7 +45,7 @@ export default function AdminUsersPage() {
 
   const handleCreate = async () => {
     if (!form.email.trim() || !form.name.trim()) {
-      alert('Email and name are required');
+      setErrorMessage('Email and name are required');
       return;
     }
     setSaving(true);
@@ -61,7 +63,7 @@ export default function AdminUsersPage() {
       setShowForm(false);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to create user');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to create user');
     } finally {
       setSaving(false);
     }
@@ -73,7 +75,7 @@ export default function AdminUsersPage() {
       await apiClient.adminDeleteUser(user.id);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete user');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to delete user');
     }
   };
 
@@ -222,6 +224,12 @@ export default function AdminUsersPage() {
           </table>
         </div>
       )}
+
+      <ErrorModal
+        open={!!errorMessage}
+        message={errorMessage ?? ''}
+        onClose={() => setErrorMessage(null)}
+      />
     </div>
   );
 }

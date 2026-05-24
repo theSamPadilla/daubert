@@ -5,6 +5,7 @@ import { apiClient, LabeledEntity } from '@/lib/api-client';
 import { CATEGORIES, CATEGORY_COLORS, type Category } from '@/lib/labeled-entities';
 import { FaPenToSquare, FaTrash, FaPlus, FaMinus, FaChevronDown, FaChevronRight } from 'react-icons/fa6';
 import { Loader } from '@/components/Common/Loader';
+import { ErrorModal } from '@/components/Common/ErrorModal';
 
 interface EntityFormData {
   name: string;
@@ -37,6 +38,7 @@ export default function AdminEntitiesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<EntityFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchEntities = useCallback(async () => {
     try {
@@ -85,13 +87,13 @@ export default function AdminEntitiesPage() {
       await fetchEntities();
       if (expandedId === entity.id) setExpandedId(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete entity');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to delete entity');
     }
   };
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      alert('Name is required');
+      setErrorMessage('Name is required');
       return;
     }
 
@@ -116,7 +118,7 @@ export default function AdminEntitiesPage() {
       setFormData(emptyForm);
       await fetchEntities();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save entity');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to save entity');
     } finally {
       setSaving(false);
     }
@@ -429,6 +431,12 @@ export default function AdminEntitiesPage() {
           </div>
         )}
       </div>
+
+      <ErrorModal
+        open={!!errorMessage}
+        message={errorMessage ?? ''}
+        onClose={() => setErrorMessage(null)}
+      />
     </div>
   );
 }

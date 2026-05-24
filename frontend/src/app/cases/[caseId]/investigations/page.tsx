@@ -18,6 +18,7 @@ import { WalletForm } from '@/components/Forms/WalletForm';
 import { TransactionForm } from '@/components/Forms/TransactionForm';
 import { CanvasToolPill } from '@/components/Graph/CanvasToolPill';
 import { ExportModal } from '@/components/Common/ExportModal';
+import { ErrorModal } from '@/components/Common/ErrorModal';
 import { SearchPanel } from '@/components/AdvancedSearch/SearchPanel';
 import { FaMagnifyingGlass, FaDownload } from 'react-icons/fa6';
 import { QuickAddInput } from '@/components/Graph/QuickAddInput';
@@ -25,6 +26,7 @@ import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle } 
 import { useInvestigation } from '@/hooks/useInvestigation';
 import { CytoscapeCallbacks, FocusItem } from '@/hooks/useCytoscape';
 import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } from '@/lib/api-client';
+import type { ExportTheme } from '@/lib/exportTheme';
 import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
 import { normalizeInvestigation } from '@/utils/normalizeInvestigation';
 import { normalizeToken } from '@/utils/formatAmount';
@@ -336,6 +338,10 @@ function InvestigationsWorkspace() {
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
   const graphRef = useRef<GraphCanvasHandle>(null);
+  const previewGenerate = useCallback(async (theme: ExportTheme) => {
+    if (!graphRef.current) throw new Error('Graph not ready');
+    return graphRef.current.exportPngDataUrl(theme);
+  }, []); // graphRef.current is a ref, not a dep
   const detailsPanelRef = useRef<DetailsPanelHandle>(null);
   const [editingInvestigation, setEditingInvestigation] = useState<ApiInvestigation | null>(null);
   const [deletingInvestigation, setDeletingInvestigation] = useState<ApiInvestigation | null>(null);
@@ -344,6 +350,7 @@ function InvestigationsWorkspace() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   const [panelMode, setPanelMode] = useState<PanelMode>({ type: 'none' });
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1462,11 +1469,22 @@ function InvestigationsWorkspace() {
         onClose={() => setExportModalOpen(false)}
         kind="graph"
         defaultFilename={investigation?.name ?? 'graph'}
-        onExport={async (format, filename) => {
-          if (format === 'png' || format === 'pdf') {
-            await graphRef.current?.exportImage(format, filename);
+        previewGenerate={previewGenerate}
+        onExport={async (format, filename, theme) => {
+          if (format !== 'png' && format !== 'pdf') return;
+          try {
+            await graphRef.current?.exportImage(format, filename, theme);
+          } catch (err) {
+            setExportError(err instanceof Error ? err.message : 'Export failed');
           }
         }}
+      />
+
+      <ErrorModal
+        open={!!exportError}
+        title="Export Failed"
+        message={exportError ?? ''}
+        onClose={() => setExportError(null)}
       />
     </>
   );

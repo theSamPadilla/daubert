@@ -1,11 +1,12 @@
 import { forwardRef, useImperativeHandle } from 'react';
 import { Investigation } from '../../types/investigation';
 import { useCytoscape, CytoscapeCallbacks } from '../../hooks/useCytoscape';
+import type { ExportTheme } from '@/lib/exportTheme';
 
 export interface GraphCanvasHandle {
   unselectAll: () => void;
-  exportImage: (format: 'png' | 'pdf', filename?: string) => Promise<void>;
-  exportPngDataUrl: () => Promise<string>;
+  exportImage: (format: 'png' | 'pdf', filename?: string, theme?: ExportTheme) => Promise<void>;
+  exportPngDataUrl: (theme?: ExportTheme) => Promise<string>;
   setEdgeArc: (edgeId: string, delta: number | null) => void;
 }
 

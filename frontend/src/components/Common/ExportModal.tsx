@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { FaImage, FaFilePdf, FaFileWord, FaSpinner, FaMoon, FaSun } from 'react-icons/fa6';
+import { FaImage, FaFilePdf, FaFileWord, FaFileCsv, FaSpinner, FaMoon, FaSun } from 'react-icons/fa6';
 import type { ExportTheme } from '@/lib/exportTheme';
 import { ExportPreview } from './ExportPreview';
 import {
@@ -11,12 +11,12 @@ import {
 } from '@/lib/exportRenderOptions';
 
 export type ExportKind = 'graph' | 'chart' | 'chronology' | 'report' | 'exhibit';
-export type ExportFormat = 'pdf' | 'png' | 'docx';
+export type ExportFormat = 'pdf' | 'png' | 'docx' | 'csv';
 
 const FORMATS_BY_KIND: Record<ExportKind, ExportFormat[]> = {
   graph:      ['pdf', 'png'],
   chart:      ['pdf', 'png'],
-  chronology: ['pdf', 'png'],
+  chronology: ['pdf', 'png', 'csv'],
   report:     ['pdf', 'docx'],
   exhibit:    ['pdf'],
 };
@@ -25,6 +25,7 @@ const FORMAT_LABELS: Record<ExportFormat, { label: string; desc: string; icon: R
   pdf:  { label: 'PDF',   desc: 'Best for printing',          icon: <FaFilePdf size={22} /> },
   png:  { label: 'PNG',   desc: 'Best for embedding/sharing', icon: <FaImage   size={22} /> },
   docx: { label: 'Word',  desc: 'Editable in Microsoft Word', icon: <FaFileWord size={22} /> },
+  csv:  { label: 'CSV',   desc: 'Spreadsheet-friendly data',  icon: <FaFileCsv size={22} /> },
 };
 
 function sanitize(stem: string): string {
@@ -73,10 +74,10 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
 
   if (!open) return null;
 
-  // Typography (font family + size) applies to text-based exports — reports,
-  // chronologies, and exhibits. Charts and graphs render as rasters so font
-  // CSS would be inert.
-  const showTypography = kind === 'report' || kind === 'chronology' || kind === 'exhibit';
+  // Typography (font family + size) applies to rendered text exports — reports,
+  // chronologies, and exhibits. Charts and graphs render as rasters so font CSS
+  // would be inert; CSV is plain data with no rendering layer.
+  const showTypography = (kind === 'report' || kind === 'chronology' || kind === 'exhibit') && format !== 'csv';
   // Orientation only matters for chronology PDF — reports stay portrait;
   // charts/graphs handle orientation server-side; exhibit per-item orientation
   // is deferred (see CLAUDE.md).

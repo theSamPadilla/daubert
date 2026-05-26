@@ -403,7 +403,7 @@ export const apiClient = {
   // Export
   exportProduction: (
     id: string,
-    format: 'pdf' | 'png' | 'docx',
+    format: 'pdf' | 'png' | 'docx' | 'csv',
     filename: string,
     opts?: {
       imageDataUrl?: string;

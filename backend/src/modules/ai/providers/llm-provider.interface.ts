@@ -11,6 +11,7 @@ export interface LlmProvider {
     messages: Anthropic.Beta.BetaMessageParam[];
     tools: Anthropic.Beta.BetaTool[];
     model?: string;
+    containerId?: string;
   }): AsyncIterable<StreamEvent>;
 
   generateText(params: {

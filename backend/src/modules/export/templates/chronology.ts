@@ -98,3 +98,33 @@ export function renderChronology(name: string, data: ChronologyData, opts?: Rend
 ${renderChronologyBody(name, data)}
 </body></html>`;
 }
+
+// RFC 4180: quote fields containing comma, quote, CR, or LF; escape quotes by doubling.
+function csvCell(value: string | null | undefined): string {
+  if (value == null) return '';
+  const s = String(value);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Returns CSV text for the chronology, prefixed with a UTF-8 BOM so Excel
+ * detects the encoding correctly. Highlight is included as raw metadata
+ * (color key), not the cell background that PDF/PNG renders.
+ */
+export function renderChronologyCsv(data: ChronologyData): string {
+  const header = ['Date', 'Source URL', 'Source Label', 'Description', 'Details', 'Highlight'];
+  const lines = [header.join(',')];
+  for (const e of data.entries || []) {
+    const url = e.sourceUrl ?? e.source ?? null;
+    const label = e.sourceLabel ?? (url ? deriveSourceLabel(url) : null);
+    lines.push([
+      csvCell(e.date),
+      csvCell(url),
+      csvCell(label),
+      csvCell(e.description),
+      csvCell(e.details ?? ''),
+      csvCell(isHighlightColor(e.highlight) ? e.highlight : ''),
+    ].join(','));
+  }
+  return '﻿' + lines.join('\r\n') + '\r\n';
+}

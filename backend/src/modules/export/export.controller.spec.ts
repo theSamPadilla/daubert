@@ -119,6 +119,63 @@ describe('ExportController', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  // ── chronology + csv → reaches CSV branch ──────────────────────────────────
+
+  it('chronology + format "csv" → returns text/csv with BOM and header row', async () => {
+    (productionsService.findOne as jest.Mock).mockResolvedValue({
+      id: 'prod-csv',
+      type: 'chronology',
+      name: 'Timeline',
+      data: {
+        entries: [
+          {
+            date: '2024-01-01',
+            sourceUrl: 'https://etherscan.io/tx/0x1234567890abcdef',
+            sourceLabel: '0x1234…',
+            description: 'Initial transfer, of funds',
+            details: 'Line one\nLine two',
+            highlight: 'yellow',
+          },
+        ],
+      },
+    });
+
+    const res = makeMockRes();
+    await controller.exportProduction(
+      'prod-csv',
+      { format: 'csv' },
+      makeMockReq(),
+      res,
+    );
+
+    expect(res._headers['Content-Type']).toBe('text/csv; charset=utf-8');
+    expect(res._headers['Content-Disposition']).toMatch(/\.csv"$/);
+    const body = res._body as string;
+    expect(body.charCodeAt(0)).toBe(0xfeff); // UTF-8 BOM
+    expect(body).toContain('Date,Source URL,Source Label,Description,Details,Highlight');
+    expect(body).toContain('"Initial transfer, of funds"'); // comma forces quoting
+    expect(body).toContain('"Line one\nLine two"');         // newline forces quoting
+    expect(body).toContain('yellow');
+    // Did NOT touch any HTML pipeline
+    expect(exportService.htmlToPdf).not.toHaveBeenCalled();
+    expect(exportService.htmlToPng).not.toHaveBeenCalled();
+    expect(exportService.htmlToDocx).not.toHaveBeenCalled();
+  });
+
+  it('report + format "csv" → 400 BadRequestException', async () => {
+    (productionsService.findOne as jest.Mock).mockResolvedValue({
+      id: 'prod-csv-bad',
+      type: 'report',
+      name: 'My Report',
+      data: { content: '<p>x</p>' },
+    });
+
+    const res = makeMockRes();
+    await expect(
+      controller.exportProduction('prod-csv-bad', { format: 'csv' }, makeMockReq(), res),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   // ── chronology + png → reaches PNG branch ─────────────────────────────────
 
   it('chronology + format "png" → reaches PNG branch (calls htmlToPng, returns image/png)', async () => {

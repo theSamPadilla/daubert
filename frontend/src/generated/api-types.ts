@@ -488,7 +488,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export a production as PDF, PNG, or DOCX */
+        /** Export a production as PDF, PNG, DOCX, or CSV */
         post: operations["exportProduction"];
         delete?: never;
         options?: never;
@@ -2237,7 +2237,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    format: "pdf" | "png" | "docx";
+                    format: "pdf" | "png" | "docx" | "csv";
                     /** @description User-supplied filename stem (no extension) */
                     filename?: string;
                     /** @description PNG data URL (required for chart PDF export) */
@@ -2255,6 +2255,7 @@ export interface operations {
                     "application/pdf": string;
                     "image/png": string;
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": string;
+                    "text/csv": string;
                 };
             };
         };

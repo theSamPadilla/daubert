@@ -361,6 +361,14 @@ export class AiService {
 
     let prevToolKey = '';
 
+    // Container id from the prior iteration. The compact-2026-01-12 beta
+    // (programmatic tool calling) runs scripted client-tool sequences inside
+    // an Anthropic-managed container; the response carries `container.id` and
+    // the next request must echo it back so pending tool_use blocks can be
+    // resolved against the same container. Containers expire (see
+    // `container.expires_at`), so we only scope this to the current loop.
+    let containerId: string | undefined;
+
     // Tracks whether the last persisted DB row is a user(tool_result). The
     // compact-2026-01-12 beta requires that any user turn responding to a
     // tool_use contain ONLY tool_result blocks — so leaving the conversation
@@ -388,6 +396,7 @@ export class AiService {
           messages,
           tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
           model,
+          containerId,
         })) {
           if (event.type === 'text') {
             yield { type: 'text_delta', data: { content: event.content } };
@@ -397,6 +406,10 @@ export class AiService {
         }
 
         if (!response) break;
+
+        // Capture the container id for the next iteration. Persisted history
+        // is not affected — it's a per-loop value tied to the live container.
+        containerId = response.container?.id ?? containerId;
 
         // Provider already stripped server-side and thinking blocks.
         const responseContent =

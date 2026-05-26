@@ -1,6 +1,6 @@
 /exports/productions/{id}:
   post:
-    summary: Export a production as PDF, PNG, or DOCX
+    summary: Export a production as PDF, PNG, DOCX, or CSV
     operationId: exportProduction
     parameters:
       - name: id
@@ -17,7 +17,7 @@
             properties:
               format:
                 type: string
-                enum: [pdf, png, docx]
+                enum: [pdf, png, docx, csv]
               filename:
                 type: string
                 description: User-supplied filename stem (no extension)
@@ -32,6 +32,7 @@
           image/png: { schema: { type: string, format: binary } }
           application/vnd.openxmlformats-officedocument.wordprocessingml.document:
             schema: { type: string, format: binary }
+          text/csv: { schema: { type: string } }
 
 /exports/graph:
   post:

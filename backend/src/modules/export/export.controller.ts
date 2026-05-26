@@ -7,7 +7,7 @@ import { ExportService } from './export.service';
 import { ProductionsService } from '../productions/productions.service';
 import { InvestigationsService } from '../investigations/investigations.service';
 import { renderReport } from './templates/report';
-import { renderChronology } from './templates/chronology';
+import { renderChronology, renderChronologyCsv } from './templates/chronology';
 import { renderChart } from './templates/chart';
 import { renderReportBody } from './templates/report';
 import { renderChronologyBody } from './templates/chronology';
@@ -56,20 +56,31 @@ export class ExportController {
   ) {
     const userId = this.getUserId(req);
     const format = body.format;
-    if (!['pdf', 'png', 'docx'].includes(format)) {
-      throw new BadRequestException('format must be "pdf", "png", or "docx"');
+    if (!['pdf', 'png', 'docx', 'csv'].includes(format)) {
+      throw new BadRequestException('format must be "pdf", "png", "docx", or "csv"');
     }
 
     const production = await this.productionsService.findOne(id, { kind: 'user', userId });
 
     const ALLOWED: Record<string, string[]> = {
       report:     ['pdf', 'docx'],
-      chronology: ['pdf', 'png'],
+      chronology: ['pdf', 'png', 'csv'],
       chart:      ['pdf'],          // png is client-side, never hits backend
     };
     const allowed = ALLOWED[production.type];
     if (!allowed?.includes(format)) {
       throw new BadRequestException(`Format "${format}" not supported for ${production.type}`);
+    }
+
+    const filename = (body.filename || production.name || 'export').replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'export';
+
+    if (format === 'csv') {
+      // chronology is the only type that reaches here (ALLOWED gates it).
+      const csv = renderChronologyCsv(production.data as any);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+      res.send(csv);
+      return;
     }
 
     const renderOpts = parseRenderOptions(body);
@@ -97,8 +108,6 @@ export class ExportController {
       default:
         throw new BadRequestException(`Unsupported production type: ${production.type}`);
     }
-
-    const filename = (body.filename || production.name || 'export').replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'export';
 
     if (format === 'docx') {
       const docx = await this.exportService.htmlToDocx(html);

@@ -9,7 +9,7 @@ import {
 import { apiClient, type Investigation, type Production } from '@/lib/api-client';
 import { normalizeInvestigation } from '@/utils/normalizeInvestigation';
 import { useCaseContext } from '@/contexts/CaseContext';
-import { ExportModal } from '../Common/ExportModal';
+import { ExportModal, type ExportFormat } from '../Common/ExportModal';
 import { useGraphSnapshot } from '@/hooks/useGraphSnapshot';
 import { useChartSnapshot } from '@/hooks/useChartSnapshot';
 import type { ExportTheme } from '@/lib/exportTheme';
@@ -97,7 +97,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
     });
   };
 
-  const handleExport = async (_format: 'pdf' | 'png' | 'docx', filename: string, _theme: ExportTheme, renderOpts: RenderOptions) => {
+  const handleExport = async (_format: ExportFormat, filename: string, _theme: ExportTheme, renderOpts: RenderOptions) => {
     // Capture snapshots for investigation items in order.
     //
     // NOTE: apiClient.getCase() loads the case with `relations: ['investigations']`

@@ -70,7 +70,7 @@ export function renderChronologyBody(name: string, data: ChronologyData): string
     return `
     <tr${rowStyle}>
       <td style="font-size:9pt;font-family:monospace">${sourceCell}</td>
-      <td style="white-space:nowrap">${escapeHtml(e.date)}</td>
+      <td>${escapeHtml(e.date)}</td>
       <td>${escapeHtml(e.description)}</td>
       <td style="font-size:9pt;color:${detailsColor};overflow-wrap:anywhere">${e.details ? escapeHtml(e.details) : '--'}</td>
     </tr>

@@ -131,20 +131,22 @@ export class ExportService implements OnModuleDestroy {
   }
 
   /**
-   * Embed a PNG data URL into a single-page A4-landscape PDF, image centered
-   * and scaled to fit (object-fit: contain). Pure pdf-lib, no Chrome — bounded
-   * memory regardless of PNG size, and the image can't break across pages.
+   * Embed a PNG data URL into a single-page A4 PDF, image centered and scaled
+   * to fit (object-fit: contain). Defaults to landscape (graphs are usually
+   * wider than tall). Pure pdf-lib, no Chrome — bounded memory regardless of
+   * PNG size, and the image can't break across pages.
    */
-  async pngToPdf(imageDataUrl: string): Promise<Buffer> {
+  async pngToPdf(imageDataUrl: string, options?: { landscape?: boolean }): Promise<Buffer> {
     const base64 = imageDataUrl.replace(/^data:image\/png;base64,/, '');
     const pngBytes = Buffer.from(base64, 'base64');
 
     const pdfDoc = await PDFDocument.create();
     const png = await pdfDoc.embedPng(pngBytes);
 
-    // A4 landscape in PDF points (1 pt = 1/72 inch). 28 pt ≈ 10mm margin.
-    const PAGE_W = 842;
-    const PAGE_H = 595;
+    // A4 in PDF points (1 pt = 1/72 inch). 28 pt ≈ 10mm margin.
+    const landscape = options?.landscape ?? true;
+    const PAGE_W = landscape ? 842 : 595;
+    const PAGE_H = landscape ? 595 : 842;
     const MARGIN = 28;
     const maxW = PAGE_W - MARGIN * 2;
     const maxH = PAGE_H - MARGIN * 2;

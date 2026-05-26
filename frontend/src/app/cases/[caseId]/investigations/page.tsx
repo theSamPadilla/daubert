@@ -1502,10 +1502,10 @@ function InvestigationsWorkspace() {
         kind="graph"
         defaultFilename={investigation?.name ?? 'graph'}
         previewGenerate={previewGenerate}
-        onExport={async (format, filename, theme) => {
+        onExport={async (format, filename, theme, renderOpts) => {
           if (format !== 'png' && format !== 'pdf') return;
           try {
-            await graphRef.current?.exportImage(format, filename, theme);
+            await graphRef.current?.exportImage(format, filename, theme, renderOpts.orientation);
           } catch (err) {
             setExportError(err instanceof Error ? err.message : 'Export failed');
           }

@@ -49,6 +49,10 @@
               name: { type: string }
               filename: { type: string }
               imageDataUrl: { type: string }
+              orientation:
+                type: string
+                enum: [portrait, landscape]
+                description: Page orientation for the generated PDF. Defaults to landscape.
     responses:
       '200':
         description: PDF file

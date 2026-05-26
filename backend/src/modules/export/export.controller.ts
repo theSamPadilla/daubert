@@ -139,7 +139,7 @@ export class ExportController {
 
   @Post('graph')
   async exportGraph(
-    @Body() body: { name: string; filename?: string; imageDataUrl: string },
+    @Body() body: { name: string; filename?: string; imageDataUrl: string; orientation?: string },
     @Req() req: any,
     @Res() res: Response,
   ) {
@@ -148,8 +148,10 @@ export class ExportController {
       throw new BadRequestException('imageDataUrl is required');
     }
     validateDataUrl(body.imageDataUrl);
+    const orientation = parseOrientation(body.orientation);
+    const landscape = orientation !== 'portrait'; // default landscape
     const name = (body.name || 'graph').slice(0, 200);
-    const pdf = await this.exportService.pngToPdf(body.imageDataUrl);
+    const pdf = await this.exportService.pngToPdf(body.imageDataUrl, { landscape });
     const filename = (body.filename || name || 'graph').replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'graph';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);

@@ -242,7 +242,12 @@ export function useCytoscape(
   }, []);
 
   const exportImage = useCallback(
-    async (format: 'png' | 'pdf', filename = 'graph', theme: ExportTheme = 'dark') => {
+    async (
+      format: 'png' | 'pdf',
+      filename = 'graph',
+      theme: ExportTheme = 'dark',
+      orientation?: 'portrait' | 'landscape',
+    ) => {
       const dataUrl = await exportPngDataUrl(theme);
 
       if (format === 'png') {
@@ -251,7 +256,7 @@ export function useCytoscape(
         a.download = `${filename}.png`;
         a.click();
       } else {
-        await apiClient.exportGraph(filename, filename, dataUrl);
+        await apiClient.exportGraph(filename, filename, dataUrl, { orientation });
       }
     },
     [exportPngDataUrl],

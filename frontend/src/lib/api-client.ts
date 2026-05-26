@@ -426,12 +426,17 @@ export const apiClient = {
       }),
     });
   },
-  exportGraph: (name: string, filename: string, imageDataUrl: string) => {
+  exportGraph: (
+    name: string,
+    filename: string,
+    imageDataUrl: string,
+    opts?: { orientation?: 'portrait' | 'landscape' },
+  ) => {
     const safeStem = filename.replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'graph';
     return downloadFile('/exports/graph', `${safeStem}.pdf`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, filename: safeStem, imageDataUrl }),
+      body: JSON.stringify({ name, filename: safeStem, imageDataUrl, orientation: opts?.orientation }),
     });
   },
   exportExhibit: (

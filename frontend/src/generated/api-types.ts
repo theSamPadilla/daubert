@@ -2273,6 +2273,11 @@ export interface operations {
                     name: string;
                     filename?: string;
                     imageDataUrl: string;
+                    /**
+                     * @description Page orientation for the generated PDF. Defaults to landscape.
+                     * @enum {string}
+                     */
+                    orientation?: "portrait" | "landscape";
                 };
             };
         };

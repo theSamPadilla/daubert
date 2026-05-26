@@ -41,6 +41,11 @@ interface Props {
   previewGenerate?: (theme: ExportTheme) => Promise<string>;
 }
 
+// Graph snapshots default to landscape because the cytoscape canvas is
+// typically wider than tall; other exports follow the shared portrait default.
+const defaultOrientationForKind = (kind: ExportKind): Orientation =>
+  kind === 'graph' ? 'landscape' : DEFAULT_ORIENTATION;
+
 export function ExportModal({ open, onClose, kind, defaultFilename, onExport, previewGenerate }: Props) {
   const formats = FORMATS_BY_KIND[kind];
   const [format, setFormat] = useState<ExportFormat>(formats[0]);
@@ -50,7 +55,7 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
   const [theme, setTheme]   = useState<ExportTheme>('dark');
   const [fontFamily, setFontFamily] = useState<FontFamily>(DEFAULT_FONT_FAMILY);
   const [fontSize, setFontSize]     = useState<FontSize>(DEFAULT_FONT_SIZE);
-  const [orientation, setOrientation] = useState<Orientation>(DEFAULT_ORIENTATION);
+  const [orientation, setOrientation] = useState<Orientation>(defaultOrientationForKind(kind));
 
   useEffect(() => {
     if (open) {
@@ -61,7 +66,7 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
       setTheme('dark');
       setFontFamily(DEFAULT_FONT_FAMILY);
       setFontSize(DEFAULT_FONT_SIZE);
-      setOrientation(DEFAULT_ORIENTATION);
+      setOrientation(defaultOrientationForKind(kind));
     }
   }, [open, kind, defaultFilename]);
 
@@ -78,10 +83,10 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
   // chronologies, and exhibits. Charts and graphs render as rasters so font CSS
   // would be inert; CSV is plain data with no rendering layer.
   const showTypography = (kind === 'report' || kind === 'chronology' || kind === 'exhibit') && format !== 'csv';
-  // Orientation only matters for chronology PDF — reports stay portrait;
-  // charts/graphs handle orientation server-side; exhibit per-item orientation
-  // is deferred (see CLAUDE.md).
-  const showOrientation = kind === 'chronology' && format === 'pdf';
+  // Orientation matters for chronology PDF (table flow) and graph PDF (page
+  // shape for the snapshot). Reports stay portrait; charts always land
+  // landscape; exhibit per-item orientation is deferred (see CLAUDE.md).
+  const showOrientation = format === 'pdf' && (kind === 'chronology' || kind === 'graph');
 
   const submit = async () => {
     setBusy(true);

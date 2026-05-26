@@ -297,6 +297,56 @@ describe('ExportController', () => {
     expect(res._headers['Content-Disposition']).toContain('wallet_trace_alpha.pdf');
   });
 
+  // ── exportGraph: orientation ───────────────────────────────────────────────
+
+  it('exportGraph defaults to landscape when orientation omitted', async () => {
+    const res = makeMockRes();
+    const imageDataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+
+    await controller.exportGraph({ name: 'g', imageDataUrl }, makeMockReq(), res);
+
+    expect(exportService.pngToPdf).toHaveBeenCalledWith(imageDataUrl, { landscape: true });
+  });
+
+  it('exportGraph honours orientation "portrait"', async () => {
+    const res = makeMockRes();
+    const imageDataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+
+    await controller.exportGraph(
+      { name: 'g', imageDataUrl, orientation: 'portrait' },
+      makeMockReq(),
+      res,
+    );
+
+    expect(exportService.pngToPdf).toHaveBeenCalledWith(imageDataUrl, { landscape: false });
+  });
+
+  it('exportGraph honours orientation "landscape"', async () => {
+    const res = makeMockRes();
+    const imageDataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+
+    await controller.exportGraph(
+      { name: 'g', imageDataUrl, orientation: 'landscape' },
+      makeMockReq(),
+      res,
+    );
+
+    expect(exportService.pngToPdf).toHaveBeenCalledWith(imageDataUrl, { landscape: true });
+  });
+
+  it('exportGraph rejects invalid orientation values', async () => {
+    const res = makeMockRes();
+    const imageDataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+
+    await expect(
+      controller.exportGraph(
+        { name: 'g', imageDataUrl, orientation: 'sideways' } as any,
+        makeMockReq(),
+        res,
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   // ── auth guard ─────────────────────────────────────────────────────────────
 
   it('exportProduction without authenticated user → ForbiddenException', async () => {

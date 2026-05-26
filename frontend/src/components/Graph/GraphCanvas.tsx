@@ -5,7 +5,7 @@ import type { ExportTheme } from '@/lib/exportTheme';
 
 export interface GraphCanvasHandle {
   unselectAll: () => void;
-  exportImage: (format: 'png' | 'pdf', filename?: string, theme?: ExportTheme) => Promise<void>;
+  exportImage: (format: 'png' | 'pdf', filename?: string, theme?: ExportTheme, orientation?: 'portrait' | 'landscape') => Promise<void>;
   exportPngDataUrl: (theme?: ExportTheme) => Promise<string>;
   setEdgeArc: (edgeId: string, delta: number | null) => void;
 }

@@ -32,7 +32,7 @@ export function NewPrimaryModal() {
       } else {
         const defaultData =
           productionType === 'report' ? { content: '' }
-          : productionType === 'chronology' ? { title: trimmed, entries: [] }
+          : productionType === 'chronology' ? { entries: [] }
           : { chartType: 'bar', labels: [], datasets: [] };
         const prod = await apiClient.createProduction(caseId, {
           name: trimmed,

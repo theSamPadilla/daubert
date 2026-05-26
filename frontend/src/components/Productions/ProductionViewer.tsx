@@ -15,6 +15,7 @@ import { ExportModal, type ExportFormat } from '../Common/ExportModal';
 import { useChartSnapshot } from '@/hooks/useChartSnapshot';
 import type { ExportTheme } from '@/lib/exportTheme';
 import type { RenderOptions } from '@/lib/exportRenderOptions';
+import type { ColumnDef } from '@/lib/chronologySchema';
 
 const TYPE_COLORS: Record<string, string> = {
   report: 'bg-brand/10 text-brand',
@@ -35,6 +36,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(production.name);
+  const [lastError, setLastError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chartDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -221,7 +223,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
   );
 
   const handleColumnResize = useCallback(
-    async (widths: { source?: number; date?: number; description?: number; details?: number }) => {
+    async (widths: Record<string, number>) => {
       try {
         const updated = await apiClient.updateProduction(production.id, {
           ops: [{ op: 'chronology_set_column_widths', widths }],
@@ -229,6 +231,55 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
         onUpdate?.(updated);
       } catch (err) {
         console.error('Failed to save column widths:', err);
+        setLastError('Failed to save column widths.');
+      }
+    },
+    [production.id, onUpdate],
+  );
+
+  const handleColumnAdd = useCallback(
+    async (column: ColumnDef) => {
+      try {
+        setLastError(null);
+        const updated = await apiClient.updateProduction(production.id, {
+          ops: [{ op: 'chronology_add_column', column }],
+        });
+        onUpdate?.(updated);
+      } catch (err) {
+        console.error('Failed to add column:', err);
+        setLastError('Failed to add column.');
+      }
+    },
+    [production.id, onUpdate],
+  );
+
+  const handleColumnRemove = useCallback(
+    async (key: string) => {
+      try {
+        setLastError(null);
+        const updated = await apiClient.updateProduction(production.id, {
+          ops: [{ op: 'chronology_remove_column', key }],
+        });
+        onUpdate?.(updated);
+      } catch (err) {
+        console.error('Failed to remove column:', err);
+        setLastError('Failed to remove column.');
+      }
+    },
+    [production.id, onUpdate],
+  );
+
+  const handleColumnRename = useCallback(
+    async (key: string, label: string) => {
+      try {
+        setLastError(null);
+        const updated = await apiClient.updateProduction(production.id, {
+          ops: [{ op: 'chronology_update_column', key, patch: { label } }],
+        });
+        onUpdate?.(updated);
+      } catch (err) {
+        console.error('Failed to rename column:', err);
+        setLastError('Failed to rename column.');
       }
     },
     [production.id, onUpdate],
@@ -400,13 +451,23 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
           );
         })()}
         {production.type === 'chronology' && (
-          <ChronologyTable
-            data={data}
-            onColumnResize={handleColumnResize}
-            onEntryEdit={handleEntryEdit}
-            onRowHighlight={handleRowHighlight}
-            onRowsDelete={handleRowsDelete}
-          />
+          <>
+            {lastError && (
+              <div className="mb-2 px-3 py-2 rounded bg-red-50 border border-red-200 text-red-700 text-xs">
+                {lastError}
+              </div>
+            )}
+            <ChronologyTable
+              data={data}
+              onColumnResize={handleColumnResize}
+              onColumnAdd={handleColumnAdd}
+              onColumnRemove={handleColumnRemove}
+              onColumnRename={handleColumnRename}
+              onEntryEdit={handleEntryEdit}
+              onRowHighlight={handleRowHighlight}
+              onRowsDelete={handleRowsDelete}
+            />
+          </>
         )}
       </div>
 

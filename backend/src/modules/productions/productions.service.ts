@@ -7,23 +7,21 @@ import { AccessPrincipal } from '../auth/access-principal';
 import { CreateProductionDto } from './dto/create-production.dto';
 import { UpdateProductionDto } from './dto/update-production.dto';
 import { HighlightColor, isHighlightColor } from './chronology-highlights';
+import { ColumnDef, ChronologyEntry, seedChronologyData, normalizeEntry, isReservedColumnKey } from './chronology-schema';
 
 // Discriminated union of atomic ops. The list is intentionally small —
 // extend with `report_*` and `chart_*` shapes as those types acquire
 // equivalent token-cost issues. The discriminator is the `op` field.
-type ChronologyEntry = Record<string, unknown>;
-type ColumnWidths = {
-  source?: number;
-  date?: number;
-  description?: number;
-  details?: number;
-};
 type Op =
   | { op: 'chronology_append'; entries: ChronologyEntry[] }
   | { op: 'chronology_replace'; index: number; entry: ChronologyEntry }
   | { op: 'chronology_delete'; indexes: number[] }
-  | { op: 'chronology_set_column_widths'; widths: ColumnWidths }
+  | { op: 'chronology_set_column_widths'; widths: Record<string, number> }
   | { op: 'chronology_set_row_highlight'; indexes: number[]; color: HighlightColor | null }
+  | { op: 'chronology_add_column'; column: ColumnDef; index?: number }
+  | { op: 'chronology_remove_column'; key: string }
+  | { op: 'chronology_update_column'; key: string; patch: { label?: string; width?: number } }
+  | { op: 'chronology_reorder_columns'; keys: string[] }
   | { op: 'chart_set_height'; height: number };
 
 const CHART_HEIGHT_MIN = 200;
@@ -53,7 +51,10 @@ export class ProductionsService {
 
   async create(caseId: string, dto: CreateProductionDto, principal: AccessPrincipal) {
     await this.caseAccess.assertAccess(principal, caseId);
-    const production = this.repo.create({ ...dto, caseId });
+    const data: Record<string, unknown> = dto.type === ProductionType.CHRONOLOGY
+      ? seedChronologyData(dto.data as Record<string, unknown> | undefined) as unknown as Record<string, unknown>
+      : dto.data;
+    const production = this.repo.create({ ...dto, data, caseId });
     return this.repo.save(production);
   }
 
@@ -132,10 +133,8 @@ function parseOp(raw: Record<string, unknown>, i: number): Op {
       if (raw.widths === null || typeof raw.widths !== 'object') {
         throw new BadRequestException(`ops[${i}] (chronology_set_column_widths): \`widths\` must be an object`);
       }
-      const widths: ColumnWidths = {};
-      const allowed: (keyof ColumnWidths)[] = ['source', 'date', 'description', 'details'];
-      for (const k of allowed) {
-        const v = (raw.widths as Record<string, unknown>)[k];
+      const widths: Record<string, number> = {};
+      for (const [k, v] of Object.entries(raw.widths as Record<string, unknown>)) {
         if (v === undefined) continue;
         if (typeof v !== 'number' || !Number.isFinite(v) || v < 5 || v > 80) {
           throw new BadRequestException(`ops[${i}] (chronology_set_column_widths): widths.${k} must be a number between 5 and 80`);
@@ -156,6 +155,84 @@ function parseOp(raw: Record<string, unknown>, i: number): Op {
         throw new BadRequestException(`ops[${i}] (chronology_set_row_highlight): \`color\` must be one of yellow|gray|red|green|blue or null`);
       }
       return { op: 'chronology_set_row_highlight', indexes: raw.indexes as number[], color: raw.color as HighlightColor | null };
+    }
+    case 'chronology_add_column': {
+      const col = raw.column;
+      if (col === null || typeof col !== 'object') {
+        throw new BadRequestException(`ops[${i}] (chronology_add_column): \`column\` must be an object`);
+      }
+      const c = col as Record<string, unknown>;
+      if (typeof c.key !== 'string' || !c.key.trim()) {
+        throw new BadRequestException(`ops[${i}] (chronology_add_column): column.key must be a non-empty string`);
+      }
+      if (isReservedColumnKey(c.key)) {
+        throw new BadRequestException(`ops[${i}] (chronology_add_column): "${c.key}" is a reserved column key`);
+      }
+      if (typeof c.label !== 'string' || !c.label.trim()) {
+        throw new BadRequestException(`ops[${i}] (chronology_add_column): column.label must be a non-empty string`);
+      }
+      if (typeof c.width !== 'number' || !Number.isFinite(c.width) || c.width < 5 || c.width > 80) {
+        throw new BadRequestException(`ops[${i}] (chronology_add_column): column.width must be a number between 5 and 80`);
+      }
+      if (c.kind !== 'text') {
+        throw new BadRequestException(`ops[${i}] (chronology_add_column): column.kind must be "text" (link reserved for built-in source column)`);
+      }
+      let index: number | undefined;
+      if (raw.index !== undefined) {
+        if (typeof raw.index !== 'number' || !Number.isInteger(raw.index) || raw.index < 0) {
+          throw new BadRequestException(`ops[${i}] (chronology_add_column): \`index\` must be a non-negative integer`);
+        }
+        index = raw.index;
+      }
+      return {
+        op: 'chronology_add_column',
+        column: { key: c.key, label: c.label, width: c.width, kind: 'text' },
+        index,
+      };
+    }
+    case 'chronology_remove_column': {
+      if (typeof raw.key !== 'string' || !raw.key.trim()) {
+        throw new BadRequestException(`ops[${i}] (chronology_remove_column): \`key\` must be a non-empty string`);
+      }
+      return { op: 'chronology_remove_column', key: raw.key };
+    }
+    case 'chronology_update_column': {
+      if (typeof raw.key !== 'string' || !raw.key.trim()) {
+        throw new BadRequestException(`ops[${i}] (chronology_update_column): \`key\` must be a non-empty string`);
+      }
+      if (raw.patch === null || typeof raw.patch !== 'object') {
+        throw new BadRequestException(`ops[${i}] (chronology_update_column): \`patch\` must be an object`);
+      }
+      const patch = raw.patch as Record<string, unknown>;
+      if ('key' in patch) {
+        throw new BadRequestException(`ops[${i}] (chronology_update_column): cannot change column key`);
+      }
+      if ('kind' in patch) {
+        throw new BadRequestException(`ops[${i}] (chronology_update_column): cannot change column kind`);
+      }
+      const out: { label?: string; width?: number } = {};
+      if (patch.label !== undefined) {
+        if (typeof patch.label !== 'string' || !patch.label.trim()) {
+          throw new BadRequestException(`ops[${i}] (chronology_update_column): patch.label must be a non-empty string`);
+        }
+        out.label = patch.label;
+      }
+      if (patch.width !== undefined) {
+        if (typeof patch.width !== 'number' || !Number.isFinite(patch.width) || patch.width < 5 || patch.width > 80) {
+          throw new BadRequestException(`ops[${i}] (chronology_update_column): patch.width must be a number between 5 and 80`);
+        }
+        out.width = patch.width;
+      }
+      return { op: 'chronology_update_column', key: raw.key, patch: out };
+    }
+    case 'chronology_reorder_columns': {
+      if (!Array.isArray(raw.keys) || raw.keys.length === 0) {
+        throw new BadRequestException(`ops[${i}] (chronology_reorder_columns): \`keys\` must be a non-empty array`);
+      }
+      if (!raw.keys.every((k): k is string => typeof k === 'string')) {
+        throw new BadRequestException(`ops[${i}] (chronology_reorder_columns): \`keys\` must be an array of strings`);
+      }
+      return { op: 'chronology_reorder_columns', keys: raw.keys as string[] };
     }
     case 'chart_set_height': {
       if (
@@ -191,12 +268,12 @@ function applyOp(
 
   switch (op.op) {
     case 'chronology_append':
-      return { ...data, entries: [...entries, ...op.entries] };
+      return { ...data, entries: [...entries, ...op.entries.map((e) => normalizeEntry(e))] };
     case 'chronology_replace': {
       if (op.index >= entries.length) {
         throw new BadRequestException(`ops[${i}] (chronology_replace): index ${op.index} out of bounds (length=${entries.length})`);
       }
-      entries[op.index] = op.entry;
+      entries[op.index] = normalizeEntry(op.entry as Record<string, unknown>);
       return { ...data, entries };
     }
     case 'chronology_delete': {
@@ -210,8 +287,18 @@ function applyOp(
       return { ...data, entries };
     }
     case 'chronology_set_column_widths': {
-      const existing = (data.columnWidths ?? {}) as ColumnWidths;
-      return { ...data, columnWidths: { ...existing, ...op.widths } };
+      const columns = Array.isArray(data.columns) ? [...(data.columns as ColumnDef[])] : [];
+      const next = columns.map((c) => ({ ...c }));
+      for (const [key, width] of Object.entries(op.widths)) {
+        const idx = next.findIndex((c) => c.key === key);
+        if (idx < 0) {
+          throw new BadRequestException(`ops[${i}] (chronology_set_column_widths): unknown column key "${key}"`);
+        }
+        next[idx].width = width;
+      }
+      const out: Record<string, unknown> = { ...data, columns: next };
+      delete out.columnWidths;
+      return out;
     }
     case 'chronology_set_row_highlight': {
       for (const idx of op.indexes) {
@@ -225,6 +312,43 @@ function applyOp(
         entries[idx] = next;
       }
       return { ...data, entries };
+    }
+    case 'chronology_add_column': {
+      const columns = Array.isArray(data.columns) ? [...(data.columns as ColumnDef[])] : [];
+      if (columns.some((c) => c.key === op.column.key)) {
+        throw new BadRequestException(`ops[${i}] (chronology_add_column): duplicate column key "${op.column.key}"`);
+      }
+      const insertAt = op.index ?? columns.length;
+      if (insertAt > columns.length) {
+        throw new BadRequestException(`ops[${i}] (chronology_add_column): index ${insertAt} out of bounds (length=${columns.length})`);
+      }
+      columns.splice(insertAt, 0, op.column);
+      return { ...data, columns };
+    }
+    case 'chronology_remove_column': {
+      const columns = Array.isArray(data.columns) ? [...(data.columns as ColumnDef[])] : [];
+      const idx = columns.findIndex((c) => c.key === op.key);
+      if (idx < 0) throw new BadRequestException(`ops[${i}] (chronology_remove_column): unknown column key "${op.key}"`);
+      if (columns.length <= 1) throw new BadRequestException(`ops[${i}] (chronology_remove_column): chronology must have at least one column`);
+      columns.splice(idx, 1);
+      return { ...data, columns };
+    }
+    case 'chronology_update_column': {
+      const columns = Array.isArray(data.columns) ? [...(data.columns as ColumnDef[])] : [];
+      const idx = columns.findIndex((c) => c.key === op.key);
+      if (idx < 0) throw new BadRequestException(`ops[${i}] (chronology_update_column): unknown column key "${op.key}"`);
+      columns[idx] = { ...columns[idx], ...op.patch };
+      return { ...data, columns };
+    }
+    case 'chronology_reorder_columns': {
+      const columns = Array.isArray(data.columns) ? [...(data.columns as ColumnDef[])] : [];
+      const existing = new Set(columns.map((c) => c.key));
+      const incoming = new Set(op.keys);
+      if (existing.size !== incoming.size || [...existing].some((k) => !incoming.has(k))) {
+        throw new BadRequestException(`ops[${i}] (chronology_reorder_columns): \`keys\` must include exactly the existing column keys`);
+      }
+      const byKey = new Map(columns.map((c) => [c.key, c]));
+      return { ...data, columns: op.keys.map((k) => byKey.get(k)!) };
     }
     case 'chart_set_height':
       return { ...data, height: op.height };

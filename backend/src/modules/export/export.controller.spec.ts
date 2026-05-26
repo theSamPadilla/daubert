@@ -152,7 +152,7 @@ describe('ExportController', () => {
     expect(res._headers['Content-Disposition']).toMatch(/\.csv"$/);
     const body = res._body as string;
     expect(body.charCodeAt(0)).toBe(0xfeff); // UTF-8 BOM
-    expect(body).toContain('Date,Source URL,Source Label,Description,Details,Highlight');
+    expect(body).toContain('Source URL,Source Label,Date,Description,Details,Highlight');
     expect(body).toContain('"Initial transfer, of funds"'); // comma forces quoting
     expect(body).toContain('"Line one\nLine two"');         // newline forces quoting
     expect(body).toContain('yellow');

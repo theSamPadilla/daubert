@@ -33,18 +33,21 @@ describe('EncryptionService', () => {
   // ---------------------------------------------------------------------------
   describe('constructor', () => {
     it('throws when DATAROOM_ENCRYPTION_KEY is missing', () => {
-      expect(() => makeService(undefined)).toThrow(
+      const svc = makeService(undefined);
+      expect(() => svc.encrypt('x')).toThrow(
         /DATAROOM_ENCRYPTION_KEY is not set/,
       );
     });
 
     it('throws when DATAROOM_ENCRYPTION_KEY is non-hex', () => {
-      expect(() => makeService('not-hex-zzz')).toThrow(/hex-encoded/);
+      const svc = makeService('not-hex-zzz');
+      expect(() => svc.encrypt('x')).toThrow(/hex-encoded/);
     });
 
     it('throws when DATAROOM_ENCRYPTION_KEY decodes to wrong length', () => {
       // 16 bytes = 32 hex chars (AES-128 length, not allowed here).
-      expect(() => makeService('00'.repeat(16))).toThrow(/32 bytes/);
+      const svc = makeService('00'.repeat(16));
+      expect(() => svc.encrypt('x')).toThrow(/32 bytes/);
     });
 
     it('constructs successfully with a valid 32-byte hex key', () => {

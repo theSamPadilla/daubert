@@ -155,7 +155,7 @@ For category-axis charts (the default), `xMin`/`xMax` must be **exact label stri
 
 ## Chronologies
 
-Chronologies store ordered entries with dates, descriptions, and source links. Rendered as a table with Source, Date, Description, and Details columns.
+Chronologies store ordered entries rendered as a table. The column set is mutable — the default four columns (Source, Date, Description, Details) are a starting point, not a fixed schema.
 
 ### Data format
 
@@ -164,46 +164,100 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
   "name": "Transaction Timeline",
   "type": "chronology",
   "data": {
+    "columns": [
+      { "key": "source",      "label": "Source",      "width": 18, "kind": "link" },
+      { "key": "date",        "label": "Date",        "width": 14, "kind": "text" },
+      { "key": "description", "label": "Description", "width": 40, "kind": "text" },
+      { "key": "details",     "label": "Details",     "width": 28, "kind": "text" }
+    ],
     "entries": [
       {
-        "sourceUrl": "https://etherscan.io/tx/0x6ae5fc12abcd...",
-        "sourceLabel": "0x6ae5…",
+        "source": { "url": "https://etherscan.io/tx/0x6ae5fc12abcd...", "label": "0x6ae5…" },
         "date": "2025-01-15",
         "description": "Initial deposit of 50 ETH from Coinbase",
         "details": "Block 19500000. Withdrawal from verified Coinbase hot wallet."
       },
       {
-        "sourceUrl": "https://etherscan.io/tx/0x14b5ef89cdef...",
-        "sourceLabel": "0x14b5…",
+        "source": { "url": "https://etherscan.io/tx/0x14b5ef89cdef...", "label": "0x14b5…" },
         "date": "2025-01-16",
         "description": "Transfer of 25 ETH to mixer contract",
-        "details": "Tornado Cash 10 ETH pool, 2.5 deposits over 3 hours."
+        "details": "Tornado Cash 10 ETH pool, 2.5 deposits over 3 hours.",
+        "highlight": "red"
       }
     ]
   }
 }
 ```
 
+`columns` is optional — omit it and the renderer uses the four defaults above.
+
 ### Entry fields
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `sourceUrl` | no | URL to the blockchain explorer transaction (used as the link `href`) |
-| `sourceLabel` | no | Short display text for the link (e.g. `"0x6ae5…"`). If omitted, a label is auto-derived from `sourceUrl` (last 0x-hash, first 6 chars). |
-| `source` | no | **Deprecated** alias for `sourceUrl`. Still accepted for backward compatibility. Prefer `sourceUrl`. |
+| `source` | no | `{ url: string, label?: string } \| null`. Link shown in the Source column. If `label` is omitted, one is auto-derived from the URL (last 0x-hash, first 6 chars). |
 | `date` | yes | Date string displayed in the Date column (e.g. `"2025-01-15"` or `"Jan 15, 2025"`) |
 | `description` | yes | What happened — concise summary |
 | `details` | no | Additional context (block number, amounts, counterparty info) |
+| `[customKey]` | no | Value for any custom column added via `chronology_add_column`. Keys are arbitrary strings matching the column `key`. Values are plain strings. |
+| `highlight` | no | Row background color — one of `"yellow"`, `"gray"`, `"red"`, `"green"`, `"blue"`. Omit for no highlight. Renders in both the in-app table and the PDF/HTML export. Suggested semantics: `red` = suspicious/alert, `gray` = needs review, `yellow` = note, `green` = verified/cleared, `blue` = informational. |
 | `sourceTraceId` | no | Internal cross-reference to a trace (for app linking, not display) |
 | `sourceEdgeId` | no | Internal cross-reference to an edge (for app linking, not display) |
-| `highlight` | no | Row background color — one of `"yellow"`, `"gray"`, `"red"`, `"green"`, `"blue"`. Omit for no highlight. Renders in both the in-app table and the PDF/HTML export. Suggested semantics: `red` = suspicious/alert, `gray` = needs review, `yellow` = note, `green` = verified/cleared, `blue` = informational. |
+
+**Legacy entry shape accepted:** `{ sourceUrl, sourceLabel, ... }` (top-level string fields) is silently normalized to the `{ source: { url, label } }` shape on ingest. No need to convert existing data before appending.
+
+### Column fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `key` | yes | Unique identifier. Immutable after creation. Must not collide with reserved keys: `highlight`, `sourceTraceId`, `sourceEdgeId`, `source`. |
+| `label` | yes | Column header displayed in the table |
+| `width` | yes | Percent of total table width (5–80) |
+| `kind` | yes | `"text"` (plain string) or `"link"` (renders as hyperlink). Custom columns must use `"text"`. |
+
+### Column management ops
+
+Use these `update_production` ops to shape the table to the case. They can be mixed with row ops in a single call.
+
+```json
+// Add a custom text column (index is optional; omit to append at end)
+{ "op": "chronology_add_column", "column": { "key": "amount", "label": "Amount (USD)", "width": 12, "kind": "text" }, "index": 3 }
+
+// Remove a column (entry data under that key is preserved — re-adding the key restores rendering)
+{ "op": "chronology_remove_column", "key": "details" }
+
+// Rename or resize a column (key and kind are immutable)
+{ "op": "chronology_update_column", "key": "amount", "patch": { "label": "Amount", "width": 15 } }
+
+// Reorder columns — keys must be a permutation of current column keys
+{ "op": "chronology_reorder_columns", "keys": ["source", "date", "amount", "description", "details"] }
+
+// Resize existing columns by key (partial updates merged; missing columns keep current width)
+{ "op": "chronology_set_column_widths", "widths": { "description": 35, "details": 20 } }
+```
+
+**When to add a column:** If this chronology centers on a dominant attribute — cash amounts, exhibit numbers, counterparties, token symbols — add a column for it so the value is first-class instead of squeezed into `details`. Example: a funds-flow chronology dominated by transfer amounts:
+
+```json
+// Step 1: add the column
+{ "op": "chronology_add_column", "column": { "key": "amount", "label": "Amount (USD)", "width": 12, "kind": "text" } }
+
+// Step 2: append entries that include the new field
+{ "op": "chronology_append", "entries": [
+    { "source": { "url": "https://etherscan.io/tx/0xabc...", "label": "0xabc…" }, "date": "2025-03-10", "description": "Transfer to cold wallet", "amount": "$1,200,000" },
+    { "source": { "url": "https://etherscan.io/tx/0xdef...", "label": "0xdef…" }, "date": "2025-03-11", "description": "Withdrawal to exchange", "amount": "$450,000" }
+  ]
+}
+```
+
+Entries that predate the column (no `amount` key) render an empty cell — no backfill required.
 
 ### Best practices
 
 - Order entries chronologically (earliest first).
-- Always include the explorer URL as `sourceUrl` when the entry references an on-chain transaction.
-- Provide a `sourceLabel` for tx hashes (e.g. `"0x6ae5…"`) — keeps the Source column compact. The renderer will auto-derive one if you omit it.
-- Keep `description` to one sentence. Put specifics in `details`.
+- Always set `source.url` when the entry references an on-chain transaction.
+- Provide `source.label` for tx hashes (e.g. `"0x6ae5…"`) — keeps the Source column compact.
+- Keep `description` to one sentence. Put specifics in `details` or a custom column.
 - Use consistent date formatting across entries.
 - The chronology's title is the top-level `name` field — there is no separate `title` inside `data`. Pick a descriptive name at creation; rename later via `update_production` with just `name`.
 
@@ -233,7 +287,7 @@ Each `chronology_append` call only emits the rows being added, so the per-turn c
     {
       "op": "chronology_append",
       "entries": [
-        { "sourceUrl": "...", "date": "...", "description": "..." },
+        { "source": { "url": "...", "label": "..." }, "date": "...", "description": "..." },
         // ... up to ~50 entries ...
       ]
     }
@@ -265,8 +319,7 @@ Supported ops:
 // Append rows to the end
 { "op": "chronology_append", "entries": [
     {
-      "sourceUrl": "https://etherscan.io/tx/0xddc0fe45...",
-      "sourceLabel": "0xddc0…",
+      "source": { "url": "https://etherscan.io/tx/0xddc0fe45...", "label": "0xddc0…" },
       "date": "2025-08-29",
       "description": "Sun sends 300,000 USDC to 0xa624 / Gnosis Safe",
       "details": "Block 19700730. Intermediary route."

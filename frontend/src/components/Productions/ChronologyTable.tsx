@@ -5,6 +5,7 @@ import {
   FaArrowUpRightFromSquare,
   FaCheck,
   FaListCheck,
+  FaPlus,
   FaRotateLeft,
   FaTrash,
   FaXmark,
@@ -15,62 +16,40 @@ import {
   type HighlightColor,
   isHighlightColor,
 } from './chronologyHighlights';
-
-interface ChronologyEntry {
-  /** @deprecated use sourceUrl. Still accepted for backward compatibility. */
-  source?: string | null;
-  sourceUrl?: string | null;
-  sourceLabel?: string | null;
-  date: string;
-  description: string;
-  details?: string | null;
-  sourceTraceId?: string;
-  sourceEdgeId?: string;
-  highlight?: HighlightColor | null;
-}
-
-interface ColumnWidths {
-  source?: number;
-  date?: number;
-  description?: number;
-  details?: number;
-}
-
-interface ChronologyData {
-  entries: ChronologyEntry[];
-  columnWidths?: ColumnWidths;
-}
+import {
+  type ColumnDef,
+  type ChronologyData,
+  type ChronologyEntry,
+  DEFAULT_COLUMNS,
+  getColumns,
+  slugifyColumnLabel,
+} from '@/lib/chronologySchema';
 
 interface ChronologyTableProps {
   data: ChronologyData;
-  onColumnResize?: (widths: ColumnWidths) => void;
+  onColumnResize?: (widths: Record<string, number>) => void;
+  onColumnAdd?: (column: ColumnDef) => void;
+  onColumnRemove?: (key: string) => void;
+  onColumnRename?: (key: string, label: string) => void;
   onEntryEdit?: (index: number, entry: ChronologyEntry) => void;
   onRowHighlight?: (indexes: number[], color: HighlightColor | null) => void;
   onRowsDelete?: (indexes: number[]) => void;
 }
 
-// Mirror of backend default in chronology.ts. Keep in sync.
-const DEFAULT_WIDTHS: Required<ColumnWidths> = {
-  source: 18,
-  date: 14,
-  description: 40,
-  details: 28,
-};
-const COL_KEYS: (keyof ColumnWidths)[] = ['source', 'date', 'description', 'details'];
 const MIN_PCT = 5;
 const MAX_PCT = 80;
 
 export function ChronologyTable({
   data,
   onColumnResize,
+  onColumnAdd,
+  onColumnRemove,
+  onColumnRename,
   onEntryEdit,
   onRowHighlight,
   onRowsDelete,
 }: ChronologyTableProps) {
-  const persisted: Required<ColumnWidths> = {
-    ...DEFAULT_WIDTHS,
-    ...(data.columnWidths ?? {}),
-  };
+  const columns = getColumns(data);
   const entryCount = data.entries.length;
   const selectionEnabled = !!(onRowHighlight || onRowsDelete);
   const [selectMode, setSelectMode] = useState(false);
@@ -129,27 +108,32 @@ export function ChronologyTable({
     onRowsDelete(sortedSelected);
     setSelected(new Set());
   }, [onRowsDelete, sortedSelected]);
-  // Local override that takes effect during a drag — snappy UI without waiting
-  // for the network. Cleared once props reflect the saved state.
-  const [drag, setDrag] = useState<Required<ColumnWidths> | null>(null);
-  const widths = drag ?? persisted;
-  const tableRef = useRef<HTMLTableElement>(null);
 
+  // Local drag-overlay: Record<string, number> keyed by column key.
+  // Cleared once persisted widths catch up.
+  const [drag, setDrag] = useState<Record<string, number> | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const [activeHandle, setActiveHandle] = useState<number | null>(null);
 
-  // Drop the drag override once the saved widths catch up. Compares by value
-  // because parent passes a new object each render.
+  // Resolve effective width for a column: drag overlay → persisted column.width → DEFAULT
+  const effectiveWidth = useCallback(
+    (col: ColumnDef): number => {
+      if (drag && drag[col.key] !== undefined) return drag[col.key];
+      return col.width;
+    },
+    [drag],
+  );
+
+  // Drop the drag override once the saved widths catch up. Generalized: compare
+  // every column's persisted width against the drag overlay by key.
   useEffect(() => {
     if (!drag) return;
-    if (
-      drag.source === persisted.source &&
-      drag.date === persisted.date &&
-      drag.description === persisted.description &&
-      drag.details === persisted.details
-    ) {
-      setDrag(null);
-    }
-  }, [drag, persisted.source, persisted.date, persisted.description, persisted.details]);
+    const allMatch = columns.every((col) => {
+      const dragVal = drag[col.key];
+      return dragVal === undefined || dragVal === col.width;
+    });
+    if (allMatch) setDrag(null);
+  }, [drag, columns]);
 
   const startDrag = useCallback(
     (handleIdx: number, e: React.PointerEvent) => {
@@ -159,16 +143,18 @@ export function ChronologyTable({
       setActiveHandle(handleIdx);
       const tableWidth = tableEl.offsetWidth;
       const startX = e.clientX;
-      const aKey = COL_KEYS[handleIdx];
-      const bKey = COL_KEYS[handleIdx + 1];
-      const startA = widths[aKey];
-      const startB = widths[bKey];
+      const aCol = columns[handleIdx];
+      const bCol = columns[handleIdx + 1];
+      const aKey = aCol.key;
+      const bKey = bCol.key;
+      const startA = drag?.[aKey] ?? aCol.width;
+      const startB = drag?.[bKey] ?? bCol.width;
 
       const onMove = (ev: PointerEvent) => {
         const deltaPct = ((ev.clientX - startX) / tableWidth) * 100;
         let newA = startA + deltaPct;
         let newB = startB - deltaPct;
-        // Clamp each to [MIN_PCT, MAX_PCT], pushing the slack to the neighbor.
+        // Clamp each to [MIN_PCT, MAX_PCT], pushing slack to neighbor.
         if (newA < MIN_PCT) {
           newB -= MIN_PCT - newA;
           newA = MIN_PCT;
@@ -185,20 +171,24 @@ export function ChronologyTable({
           newA += newB - MAX_PCT;
           newB = MAX_PCT;
         }
-        setDrag({
-          ...widths,
+        setDrag((prev) => ({
+          ...(prev ?? {}),
           [aKey]: round(newA),
           [bKey]: round(newB),
-        });
+        }));
       };
 
       const onUp = () => {
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
         setActiveHandle(null);
-        // Capture latest drag state via setter.
         setDrag((latest) => {
-          if (latest && onColumnResize) onColumnResize(latest);
+          if (latest && onColumnResize) {
+            const patch: Record<string, number> = {};
+            if (latest[aKey] !== undefined) patch[aKey] = latest[aKey];
+            if (latest[bKey] !== undefined) patch[bKey] = latest[bKey];
+            onColumnResize(patch);
+          }
           return latest;
         });
       };
@@ -206,18 +196,30 @@ export function ChronologyTable({
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
     },
-    [widths, onColumnResize],
+    [columns, drag, onColumnResize],
   );
 
-  const isCustom =
-    persisted.source !== DEFAULT_WIDTHS.source ||
-    persisted.date !== DEFAULT_WIDTHS.date ||
-    persisted.description !== DEFAULT_WIDTHS.description ||
-    persisted.details !== DEFAULT_WIDTHS.details;
+  // isCustom: true if ANY column's current width differs from its DEFAULT counterpart.
+  const defaultWidthMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of DEFAULT_COLUMNS) m[c.key] = c.width;
+    return m;
+  }, []);
+
+  const isCustom = useMemo(
+    () => columns.some((col) => col.width !== (defaultWidthMap[col.key] ?? col.width)),
+    [columns, defaultWidthMap],
+  );
 
   const resetWidths = useCallback(() => {
-    if (onColumnResize) onColumnResize(DEFAULT_WIDTHS);
-  }, [onColumnResize]);
+    if (!onColumnResize) return;
+    const resets: Record<string, number> = {};
+    for (const col of columns) {
+      const def = defaultWidthMap[col.key];
+      if (def !== undefined) resets[col.key] = def;
+    }
+    if (Object.keys(resets).length > 0) onColumnResize(resets);
+  }, [columns, defaultWidthMap, onColumnResize]);
 
   const selectedCount = selected.size;
   const allSelected = entryCount > 0 && selectedCount === entryCount;
@@ -309,26 +311,42 @@ export function ChronologyTable({
       <div className="rounded-lg border border-line-strong overflow-hidden">
         <table ref={tableRef} className="w-full text-sm table-fixed">
           <colgroup>
-            <col style={{ width: `${widths.source}%` }} />
-            <col style={{ width: `${widths.date}%` }} />
-            <col style={{ width: `${widths.description}%` }} />
-            <col style={{ width: `${widths.details}%` }} />
+            {columns.map((col) => (
+              <col key={col.key} style={{ width: `${effectiveWidth(col)}%` }} />
+            ))}
           </colgroup>
           <thead>
             <tr className="bg-surface-panel/50 text-left text-ink-muted select-none">
-              <ResizableTh label="Source" onResizeStart={(e) => startDrag(0, e)} resizable={!!onColumnResize} active={activeHandle === 0} />
-              <ResizableTh label="Date" onResizeStart={(e) => startDrag(1, e)} resizable={!!onColumnResize} active={activeHandle === 1} />
-              <ResizableTh label="Description" onResizeStart={(e) => startDrag(2, e)} resizable={!!onColumnResize} active={activeHandle === 2} />
-              <ResizableTh label="Details" />
+              {columns.map((col, i) => (
+                <ResizableTh
+                  key={col.key}
+                  column={col}
+                  onResizeStart={
+                    i < columns.length - 1 && onColumnResize
+                      ? (e) => startDrag(i, e)
+                      : undefined
+                  }
+                  active={activeHandle === i}
+                  onRename={
+                    onColumnRename && col.kind === 'text'
+                      ? (label) => onColumnRename(col.key, label)
+                      : undefined
+                  }
+                  onRemove={
+                    onColumnRemove && columns.length > 1 && col.kind === 'text'
+                      ? () => onColumnRemove(col.key)
+                      : undefined
+                  }
+                />
+              ))}
             </tr>
           </thead>
           <tbody>
             {data.entries.map((entry, i) => {
-              const url = entry.sourceUrl ?? entry.source ?? null;
-              const label = entry.sourceLabel ?? (url ? deriveSourceLabel(url) : null);
-              const hl = isHighlightColor(entry.highlight) ? HIGHLIGHT_COLORS[entry.highlight] : null;
+              const hl = isHighlightColor(entry.highlight)
+                ? HIGHLIGHT_COLORS[entry.highlight as HighlightColor]
+                : null;
               const rowStyle = hl ? { background: hl.bg, color: hl.fg } : undefined;
-              const detailsStyle = hl ? { color: hl.fg } : undefined;
               const isSelected = selected.has(i);
               return (
                 <tr
@@ -338,77 +356,31 @@ export function ChronologyTable({
                   }`}
                   style={rowStyle}
                 >
-                  <td className="px-4 py-3 break-all relative">
-                    {selectMode ? (
-                      <RowCheckbox checked={isSelected} onChange={() => toggleRow(i)} />
-                    ) : (
-                      onRowHighlight && (
-                        <HighlightSwatch
-                          active={isHighlightColor(entry.highlight) ? entry.highlight : null}
-                          onChange={(c) => onRowHighlight([i], c)}
-                        />
-                      )
-                    )}
-                    {url ? (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline inline-flex items-center gap-1 text-xs font-mono"
-                        style={hl ? { color: hl.fg } : undefined}
-                      >
-                        <span className={hl ? '' : 'text-brand'}>{label ?? url}</span>
-                        <FaArrowUpRightFromSquare className="w-2.5 h-2.5 flex-shrink-0" />
-                      </a>
-                    ) : (
-                      <span className={hl ? '' : 'text-ink-faint'}>N/A</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap" style={hl ? undefined : undefined}>
-                    <span className={hl ? '' : 'text-ink-muted'}>
-                      {onEntryEdit ? (
-                        <EditableCell
-                          value={entry.date}
-                          onSave={(v) => onEntryEdit(i, { ...entry, date: v })}
-                        />
-                      ) : (
-                        entry.date
-                      )}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={hl ? '' : 'text-ink-muted'}>
-                      {onEntryEdit ? (
-                        <EditableCell
-                          value={entry.description}
-                          multiline
-                          onSave={(v) => onEntryEdit(i, { ...entry, description: v })}
-                        />
-                      ) : (
-                        entry.description
-                      )}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs break-words" style={detailsStyle}>
-                    <span className={hl ? '' : 'text-ink-muted'}>
-                      {onEntryEdit ? (
-                        <EditableCell
-                          value={entry.details ?? ''}
-                          multiline
-                          emptyText="--"
-                          onSave={(v) => onEntryEdit(i, { ...entry, details: v || null })}
-                        />
-                      ) : (
-                        entry.details || '--'
-                      )}
-                    </span>
-                  </td>
+                  {columns.map((col, ci) => (
+                    <Cell
+                      key={col.key}
+                      column={col}
+                      entry={entry}
+                      isFirst={ci === 0}
+                      hl={hl}
+                      editable={!!onEntryEdit && col.kind === 'text'}
+                      onEdit={
+                        onEntryEdit
+                          ? (value) => onEntryEdit(i, { ...entry, [col.key]: value || null })
+                          : undefined
+                      }
+                      onRowHighlight={onRowHighlight ? (c) => onRowHighlight([i], c) : undefined}
+                      selectMode={selectMode}
+                      isSelected={isSelected}
+                      toggleRow={() => toggleRow(i)}
+                    />
+                  ))}
                 </tr>
               );
             })}
             {data.entries.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-ink-faint">
                   No entries yet.
                 </td>
               </tr>
@@ -416,36 +388,212 @@ export function ChronologyTable({
           </tbody>
         </table>
       </div>
+      {/* "+ Add column" lives outside <table> so <colgroup> math stays clean */}
+      {onColumnAdd && (
+        <AddColumnButton
+          existingKeys={columns.map((c) => c.key)}
+          onAdd={onColumnAdd}
+        />
+      )}
     </div>
   );
 }
 
-function ResizableTh({
-  label,
-  onResizeStart,
-  resizable,
-  active,
-}: {
-  label: string;
-  onResizeStart?: (e: React.PointerEvent) => void;
-  resizable?: boolean;
-  active?: boolean;
-}) {
+// ---------------------------------------------------------------------------
+// Cell dispatcher
+// ---------------------------------------------------------------------------
+
+interface CellProps {
+  column: ColumnDef;
+  entry: ChronologyEntry;
+  isFirst: boolean;
+  hl: { bg: string; fg: string; label: string } | null;
+  editable: boolean;
+  onEdit?: (value: string) => void;
+  onRowHighlight?: (color: HighlightColor | null) => void;
+  selectMode: boolean;
+  isSelected: boolean;
+  toggleRow: () => void;
+}
+
+function Cell({
+  column,
+  entry,
+  isFirst,
+  hl,
+  editable,
+  onEdit,
+  onRowHighlight,
+  selectMode,
+  isSelected,
+  toggleRow,
+}: CellProps) {
+  const isDetails = column.key === 'details';
+
+  if (column.kind === 'link') {
+    // Source column (kind=link): render anchor + highlight/select affordance
+    const srcVal = entry.source as { url: string | null; label: string | null } | null | undefined;
+    const url = srcVal?.url ?? null;
+    const label = srcVal?.label ?? (url ? deriveSourceLabel(url) : null);
+    return (
+      <td className="px-4 py-3 break-all relative">
+        {isFirst && (
+          selectMode ? (
+            <RowCheckbox checked={isSelected} onChange={toggleRow} />
+          ) : (
+            onRowHighlight && (
+              <HighlightSwatch
+                active={isHighlightColor(entry.highlight) ? (entry.highlight as HighlightColor) : null}
+                onChange={onRowHighlight}
+              />
+            )
+          )
+        )}
+        {url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline inline-flex items-center gap-1 text-xs font-mono"
+            style={hl ? { color: hl.fg } : undefined}
+          >
+            <span className={hl ? '' : 'text-brand'}>{label ?? url}</span>
+            <FaArrowUpRightFromSquare className="w-2.5 h-2.5 flex-shrink-0" />
+          </a>
+        ) : (
+          <span className={hl ? '' : 'text-ink-faint'}>N/A</span>
+        )}
+      </td>
+    );
+  }
+
+  // text column
+  const rawValue = entry[column.key];
+  const strValue = typeof rawValue === 'string' ? rawValue : '';
+
   return (
-    <th className="relative px-4 py-3">
-      {label}
-      {resizable && onResizeStart && (
+    <td
+      className={`px-4 py-3 ${isDetails ? 'text-xs break-words' : ''} relative`}
+      style={hl && isDetails ? { color: hl.fg } : undefined}
+    >
+      {/* Highlight/select swatch on first text column when source column is absent */}
+      {isFirst && (
+        selectMode ? (
+          <RowCheckbox checked={isSelected} onChange={toggleRow} />
+        ) : (
+          onRowHighlight && (
+            <HighlightSwatch
+              active={isHighlightColor(entry.highlight) ? (entry.highlight as HighlightColor) : null}
+              onChange={onRowHighlight}
+            />
+          )
+        )
+      )}
+      <span className={hl ? '' : 'text-ink-muted'}>
+        {editable && onEdit ? (
+          <EditableCell
+            value={strValue}
+            multiline={isDetails || column.key === 'description'}
+            emptyText={isDetails ? '--' : undefined}
+            onSave={(v) => onEdit(isDetails ? (v || '') : v)}
+          />
+        ) : (
+          strValue || (isDetails ? '--' : strValue)
+        )}
+      </span>
+    </td>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ResizableTh — with optional inline rename + remove affordances
+// ---------------------------------------------------------------------------
+
+function ResizableTh({
+  column,
+  onResizeStart,
+  active,
+  onRename,
+  onRemove,
+}: {
+  column: ColumnDef;
+  onResizeStart?: (e: React.PointerEvent) => void;
+  active?: boolean;
+  onRename?: (newLabel: string) => void;
+  onRemove?: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      const len = inputRef.current.value.length;
+      inputRef.current.setSelectionRange(len, len);
+    }
+  }, [editing]);
+
+  const startRename = () => {
+    if (!onRename) return;
+    setDraft(column.label);
+    setEditing(true);
+  };
+
+  const commitRename = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== column.label && onRename) onRename(trimmed);
+  };
+
+  const cancelRename = () => setEditing(false);
+
+  return (
+    <th className="relative px-4 py-3 group/th">
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+            if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
+          }}
+          className="w-full bg-surface text-gray-100 px-1 py-0.5 rounded border border-brand focus:outline-none focus:ring-1 focus:ring-brand text-xs font-normal"
+        />
+      ) : (
+        <span
+          className={onRename ? 'cursor-pointer hover:text-gray-200 transition-colors' : ''}
+          onClick={onRename ? startRename : undefined}
+          title={onRename ? 'Click to rename' : undefined}
+        >
+          {column.label}
+        </span>
+      )}
+      {/* Remove button — hover-revealed, only when onRemove provided */}
+      {onRemove && !editing && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          title={`Remove "${column.label}" column`}
+          className="absolute top-1/2 -translate-y-1/2 right-5 z-10 opacity-0 group-hover/th:opacity-100 transition-opacity text-ink-faint hover:text-red-400 w-4 h-4 flex items-center justify-center"
+        >
+          <FaXmark className="w-2.5 h-2.5" />
+        </button>
+      )}
+      {/* Resize grip */}
+      {onResizeStart && (
         <span
           onPointerDown={onResizeStart}
-          className="group absolute top-0 -right-1.5 z-10 h-full w-3 flex items-center justify-center cursor-col-resize"
+          className="group/grip absolute top-0 -right-1.5 z-10 h-full w-3 flex items-center justify-center cursor-col-resize"
           title="Drag to resize column"
         >
-          {/* The visible grip — always present, brighter on hover, brightest while dragging. */}
           <span
             className={`block w-0.5 rounded-full transition-all ${
               active
                 ? 'bg-brand h-6 w-1'
-                : 'bg-surface-raised h-4 group-hover:bg-brand/90 group-hover:h-6 group-hover:w-1'
+                : 'bg-surface-raised h-4 group-hover/grip:bg-brand/90 group-hover/grip:h-6 group-hover/grip:w-1'
             }`}
           />
         </span>
@@ -453,6 +601,79 @@ function ResizableTh({
     </th>
   );
 }
+
+// ---------------------------------------------------------------------------
+// AddColumnButton
+// ---------------------------------------------------------------------------
+
+function AddColumnButton({
+  existingKeys,
+  onAdd,
+}: {
+  existingKeys: string[];
+  onAdd: (col: ColumnDef) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = () => {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    let key: string;
+    try {
+      key = slugifyColumnLabel(trimmed);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+      return;
+    }
+    // Uniquify key against existing ones.
+    let unique = key;
+    let n = 1;
+    while (existingKeys.includes(unique)) {
+      unique = `${key}_${++n}`;
+    }
+    onAdd({ key: unique, label: trimmed, width: 10, kind: 'text' });
+    setLabel('');
+    setOpen(false);
+    setError(null);
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-2 text-xs text-ink-muted hover:text-brand inline-flex items-center gap-1.5 transition-colors"
+      >
+        <FaPlus className="w-2.5 h-2.5" />
+        Add column
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 inline-flex items-center gap-2">
+      <input
+        autoFocus
+        value={label}
+        onChange={(e) => { setLabel(e.target.value); setError(null); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit();
+          if (e.key === 'Escape') { setOpen(false); setLabel(''); setError(null); }
+        }}
+        onBlur={() => { if (!label.trim()) { setOpen(false); setError(null); } }}
+        placeholder="Column name"
+        className="text-xs bg-surface text-gray-100 px-2 py-1 rounded border border-brand focus:outline-none focus:ring-1 focus:ring-brand w-40"
+      />
+      {error && <span className="text-xs text-red-400">{error}</span>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers (unchanged from original)
+// ---------------------------------------------------------------------------
 
 function round(n: number): number {
   return Math.round(n * 10) / 10;
@@ -476,7 +697,6 @@ function EditableCell({
   useEffect(() => {
     if (editing && inputRef.current) {
       inputRef.current.focus();
-      // Place cursor at end of text rather than selecting all — feels less destructive.
       const len = inputRef.current.value.length;
       inputRef.current.setSelectionRange(len, len);
     }
@@ -503,8 +723,6 @@ function EditableCell({
       return;
     }
     if (e.key === 'Enter') {
-      // Single-line: Enter commits. Multiline: only Cmd/Ctrl+Enter commits;
-      // bare Enter inserts a newline.
       if (!multiline || e.metaKey || e.ctrlKey) {
         e.preventDefault();
         commit();
@@ -525,18 +743,14 @@ function EditableCell({
     return multiline ? (
       <textarea
         {...sharedProps}
-        ref={(el) => {
-          inputRef.current = el;
-        }}
+        ref={(el) => { inputRef.current = el; }}
         rows={3}
         className={`${sharedProps.className} resize-y min-h-[60px]`}
       />
     ) : (
       <input
         {...sharedProps}
-        ref={(el) => {
-          inputRef.current = el;
-        }}
+        ref={(el) => { inputRef.current = el; }}
       />
     );
   }

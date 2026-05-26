@@ -39,6 +39,8 @@ export function EdgeBundleDetails({ bundle, traces, onToggle, onDelete, onUpdate
       tokenChip={displayToken}
       onColorChange={onUpdate ? (c) => onUpdate({ color: c }) : undefined}
       color={bundle.color}
+      onWidthChange={onUpdate ? (w) => onUpdate({ width: w }) : undefined}
+      width={bundle.width}
       onArcEdge={onArcEdge && bundle.collapsed ? onArcEdge : undefined}
       actions={
         <div className="flex gap-2 pt-1">

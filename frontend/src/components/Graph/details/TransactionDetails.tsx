@@ -23,6 +23,15 @@ const LINE_STYLES: { value: 'solid' | 'dashed' | 'dotted'; label: string; previe
   { value: 'dotted', label: 'Dotted', preview: '···' },
 ];
 
+// Thickness presets in pixels. 2 matches the base edge width in cytoscapeStyle.ts.
+export const THICKNESS_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: 'Thin' },
+  { value: 2, label: 'Normal' },
+  { value: 4, label: 'Thick' },
+  { value: 6, label: 'Extra' },
+];
+export const DEFAULT_EDGE_WIDTH = 2;
+
 function TransactionHeader({
   transaction,
   onUpdate,
@@ -90,6 +99,7 @@ export function TransactionDetails({
   const fromDisplay = resolveWalletDisplay(transaction.from, allWallets);
   const toDisplay = resolveWalletDisplay(transaction.to, allWallets);
   const currentStyle = transaction.lineStyle || 'solid';
+  const currentWidth = transaction.width ?? DEFAULT_EDGE_WIDTH;
   const [notes, setNotes] = useState(transaction.notes || '');
 
   // Keep local state in sync when a different transaction is selected
@@ -152,6 +162,27 @@ export function TransactionDetails({
                 }`}
               >
                 {preview}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {onUpdate && (
+        <div>
+          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Thickness</h4>
+          <div className="flex gap-1.5">
+            {THICKNESS_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => onUpdate({ width: value })}
+                title={label}
+                className={`flex-1 py-2 rounded transition-colors border flex items-center justify-center ${
+                  currentWidth === value
+                    ? 'border-brand bg-brand/20 text-brand'
+                    : 'border-line-strong text-ink-muted hover:border-line-strong hover:text-ink'
+                }`}
+              >
+                <span style={{ height: `${value}px` }} className="block w-6 rounded-full bg-current" />
               </button>
             ))}
           </div>

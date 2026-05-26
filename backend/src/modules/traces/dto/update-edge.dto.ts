@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsUrl, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsUrl, IsNumber, Min, Max } from 'class-validator';
 
 export class UpdateEdgeDto {
   @IsOptional()
@@ -23,6 +23,12 @@ export class UpdateEdgeDto {
   @IsOptional()
   @IsString()
   lineStyle?: 'solid' | 'dashed' | 'dotted';
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(20)
+  width?: number;
 
   @IsOptional()
   @IsString()

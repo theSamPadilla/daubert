@@ -204,6 +204,15 @@ export const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
     },
   },
 
+  // User-set thickness overrides the base width. Selector matches only when
+  // `width` is present on the edge data, so unset edges keep the base of 2.
+  {
+    selector: 'edge[width]',
+    style: {
+      'width': 'data(width)',
+    },
+  },
+
   // Near-vertical edges: keep label horizontal so it stays readable
   {
     selector: 'edge.near-vertical',

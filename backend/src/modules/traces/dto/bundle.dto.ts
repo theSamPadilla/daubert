@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsArray, ArrayNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ArrayNotEmpty, IsNumber, Min, Max } from 'class-validator';
 
 export class CreateEdgeBundleDto {
   @IsString()
@@ -26,6 +26,12 @@ export class CreateEdgeBundleDto {
   @IsOptional()
   @IsString()
   label?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(20)
+  width?: number;
 }
 
 export class UpdateEdgeBundleDto {
@@ -58,4 +64,10 @@ export class UpdateEdgeBundleDto {
   @IsOptional()
   @IsString()
   label?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(20)
+  width?: number;
 }

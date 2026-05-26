@@ -4,6 +4,7 @@ import { TransactionEdge } from '@/types/investigation';
 import { normalizeToken, parseTimestamp } from '@/utils/formatAmount';
 import { buildTxExplorerUrl } from '@/utils/addressParser';
 import { GroupColorPicker } from '@/components/Common/GroupColorPicker';
+import { THICKNESS_OPTIONS, DEFAULT_EDGE_WIDTH } from './details/TransactionDetails';
 
 export interface MultiTxDetailsProps {
   edges: TransactionEdge[];
@@ -20,6 +21,10 @@ export interface MultiTxDetailsProps {
   // Optional color editor (bundle only).
   onColorChange?: (color: string) => void;
   color?: string;
+
+  // Optional thickness editor (bundle + aggregated).
+  onWidthChange?: (width: number) => void;
+  width?: number;
 
   // Optional arc controls.
   onArcEdge?: (delta: number | null) => void;
@@ -52,10 +57,13 @@ export function MultiTxDetails({
   tokenChip,
   onColorChange,
   color,
+  onWidthChange,
+  width,
   onArcEdge,
   onDeleteTransaction,
   actions,
 }: MultiTxDetailsProps) {
+  const currentWidth = width ?? DEFAULT_EDGE_WIDTH;
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelValue, setLabelValue] = useState(editableLabel?.value ?? '');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -168,6 +176,29 @@ export function MultiTxDetails({
         <div>
           <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Color</h4>
           <GroupColorPicker color={color} onChange={(c) => onColorChange(c ?? '')} />
+        </div>
+      )}
+
+      {/* Thickness picker */}
+      {onWidthChange && (
+        <div>
+          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Thickness</h4>
+          <div className="flex gap-1.5">
+            {THICKNESS_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => onWidthChange(value)}
+                title={label}
+                className={`flex-1 py-2 rounded transition-colors border flex items-center justify-center ${
+                  currentWidth === value
+                    ? 'border-brand bg-brand/20 text-brand'
+                    : 'border-line-strong text-ink-muted hover:border-line-strong hover:text-ink'
+                }`}
+              >
+                <span style={{ height: `${value}px` }} className="block w-6 rounded-full bg-current" />
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

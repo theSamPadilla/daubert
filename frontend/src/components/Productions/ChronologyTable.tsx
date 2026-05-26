@@ -1,7 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { FaArrowUpRightFromSquare, FaRotateLeft, FaXmark } from 'react-icons/fa6';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  FaArrowUpRightFromSquare,
+  FaCheck,
+  FaListCheck,
+  FaRotateLeft,
+  FaTrash,
+  FaXmark,
+} from 'react-icons/fa6';
 import {
   HIGHLIGHT_COLORS,
   HIGHLIGHT_NAMES,
@@ -38,7 +45,8 @@ interface ChronologyTableProps {
   data: ChronologyData;
   onColumnResize?: (widths: ColumnWidths) => void;
   onEntryEdit?: (index: number, entry: ChronologyEntry) => void;
-  onRowHighlight?: (index: number, color: HighlightColor | null) => void;
+  onRowHighlight?: (indexes: number[], color: HighlightColor | null) => void;
+  onRowsDelete?: (indexes: number[]) => void;
 }
 
 // Mirror of backend default in chronology.ts. Keep in sync.
@@ -52,11 +60,75 @@ const COL_KEYS: (keyof ColumnWidths)[] = ['source', 'date', 'description', 'deta
 const MIN_PCT = 5;
 const MAX_PCT = 80;
 
-export function ChronologyTable({ data, onColumnResize, onEntryEdit, onRowHighlight }: ChronologyTableProps) {
+export function ChronologyTable({
+  data,
+  onColumnResize,
+  onEntryEdit,
+  onRowHighlight,
+  onRowsDelete,
+}: ChronologyTableProps) {
   const persisted: Required<ColumnWidths> = {
     ...DEFAULT_WIDTHS,
     ...(data.columnWidths ?? {}),
   };
+  const entryCount = data.entries.length;
+  const selectionEnabled = !!(onRowHighlight || onRowsDelete);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(() => new Set());
+
+  // Prune indexes that fall off the end (e.g. after an external delete).
+  useEffect(() => {
+    setSelected((prev) => {
+      let changed = false;
+      const next = new Set<number>();
+      for (const i of prev) {
+        if (i < entryCount) next.add(i);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [entryCount]);
+
+  const toggleSelectMode = useCallback(() => {
+    setSelectMode((m) => {
+      if (m) setSelected(new Set());
+      return !m;
+    });
+  }, []);
+
+  const toggleRow = useCallback((i: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelected(new Set(Array.from({ length: entryCount }, (_, i) => i)));
+  }, [entryCount]);
+
+  const clearSelection = useCallback(() => setSelected(new Set()), []);
+
+  const sortedSelected = useMemo(
+    () => Array.from(selected).sort((a, b) => a - b),
+    [selected],
+  );
+
+  const handleBulkHighlight = useCallback(
+    (color: HighlightColor | null) => {
+      if (!onRowHighlight || sortedSelected.length === 0) return;
+      onRowHighlight(sortedSelected, color);
+    },
+    [onRowHighlight, sortedSelected],
+  );
+
+  const handleBulkDelete = useCallback(() => {
+    if (!onRowsDelete || sortedSelected.length === 0) return;
+    onRowsDelete(sortedSelected);
+    setSelected(new Set());
+  }, [onRowsDelete, sortedSelected]);
   // Local override that takes effect during a drag — snappy UI without waiting
   // for the network. Cleared once props reflect the saved state.
   const [drag, setDrag] = useState<Required<ColumnWidths> | null>(null);
@@ -147,18 +219,91 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit, onRowHighli
     if (onColumnResize) onColumnResize(DEFAULT_WIDTHS);
   }, [onColumnResize]);
 
+  const selectedCount = selected.size;
+  const allSelected = entryCount > 0 && selectedCount === entryCount;
+
   return (
     <div>
-      {isCustom && onColumnResize && (
-        <div className="flex justify-end mb-4">
+      {(isCustom && onColumnResize) || selectionEnabled ? (
+        <div className="flex justify-end items-center gap-4 mb-4">
+          {isCustom && onColumnResize && (
+            <button
+              onClick={resetWidths}
+              className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-gray-200"
+              title="Reset column widths to defaults"
+            >
+              <FaRotateLeft className="w-3 h-3" />
+              Reset widths
+            </button>
+          )}
+          {selectionEnabled && entryCount > 0 && (
+            <button
+              onClick={toggleSelectMode}
+              className={`flex items-center gap-1.5 text-xs transition-colors ${
+                selectMode ? 'text-brand hover:text-brand/80' : 'text-ink-muted hover:text-gray-200'
+              }`}
+              title={selectMode ? 'Exit selection mode' : 'Select rows'}
+            >
+              {selectMode ? <FaXmark className="w-3 h-3" /> : <FaListCheck className="w-3 h-3" />}
+              {selectMode ? 'Done' : 'Select rows'}
+            </button>
+          )}
+        </div>
+      ) : null}
+      {selectMode && selectionEnabled && (
+        <div className="mb-3 flex items-center gap-3 px-3 py-2 rounded-md bg-surface-panel border border-line-strong">
+          <span className="text-xs text-ink-muted tabular-nums">
+            {selectedCount} selected
+          </span>
           <button
-            onClick={resetWidths}
-            className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-gray-200"
-            title="Reset column widths to defaults"
+            onClick={allSelected ? clearSelection : selectAll}
+            className="text-xs text-ink-muted hover:text-gray-200"
           >
-            <FaRotateLeft className="w-3 h-3" />
-            Reset widths
+            {allSelected ? 'Deselect all' : 'Select all'}
           </button>
+          <div className="flex-1" />
+          {onRowHighlight && (
+            <div className={`flex items-center gap-1 transition-opacity ${selectedCount === 0 ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+              {HIGHLIGHT_NAMES.map((name) => {
+                const c = HIGHLIGHT_COLORS[name];
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => handleBulkHighlight(name)}
+                    title={`Highlight ${selectedCount} row${selectedCount === 1 ? '' : 's'}: ${c.label}`}
+                    aria-label={`Apply ${c.label} highlight`}
+                    className="w-5 h-5 rounded-full border border-black/20 hover:scale-110 transition-transform"
+                    style={{ background: c.bg }}
+                  />
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => handleBulkHighlight(null)}
+                title="Clear highlight"
+                aria-label="Clear highlight"
+                className="w-5 h-5 rounded-full border border-line-strong flex items-center justify-center text-ink-muted hover:text-ink hover:border-brand transition-colors"
+              >
+                <FaXmark className="w-2.5 h-2.5" />
+              </button>
+            </div>
+          )}
+          {onRowsDelete && (
+            <>
+              {onRowHighlight && <div className="w-px h-5 bg-line-strong" />}
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={selectedCount === 0}
+                className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 disabled:opacity-40 disabled:hover:text-red-400"
+                title={`Delete ${selectedCount} row${selectedCount === 1 ? '' : 's'}`}
+              >
+                <FaTrash className="w-3 h-3" />
+                Delete
+              </button>
+            </>
+          )}
         </div>
       )}
       <div className="rounded-lg border border-line-strong overflow-hidden">
@@ -184,14 +329,25 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit, onRowHighli
               const hl = isHighlightColor(entry.highlight) ? HIGHLIGHT_COLORS[entry.highlight] : null;
               const rowStyle = hl ? { background: hl.bg, color: hl.fg } : undefined;
               const detailsStyle = hl ? { color: hl.fg } : undefined;
+              const isSelected = selected.has(i);
               return (
-                <tr key={i} className="border-t border-line-strong/50 align-top group" style={rowStyle}>
+                <tr
+                  key={i}
+                  className={`border-t border-line-strong/50 align-top group ${
+                    selectMode && isSelected ? 'ring-1 ring-inset ring-brand/60' : ''
+                  }`}
+                  style={rowStyle}
+                >
                   <td className="px-4 py-3 break-all relative">
-                    {onRowHighlight && (
-                      <HighlightSwatch
-                        active={isHighlightColor(entry.highlight) ? entry.highlight : null}
-                        onChange={(c) => onRowHighlight(i, c)}
-                      />
+                    {selectMode ? (
+                      <RowCheckbox checked={isSelected} onChange={() => toggleRow(i)} />
+                    ) : (
+                      onRowHighlight && (
+                        <HighlightSwatch
+                          active={isHighlightColor(entry.highlight) ? entry.highlight : null}
+                          onChange={(c) => onRowHighlight([i], c)}
+                        />
+                      )
                     )}
                     {url ? (
                       <a
@@ -394,6 +550,34 @@ function EditableCell({
     >
       {isEmpty ? <span className="text-ink-faint italic">{emptyText ?? 'click to add'}</span> : value}
     </div>
+  );
+}
+
+function RowCheckbox({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange();
+      }}
+      title={checked ? 'Deselect row' : 'Select row'}
+      className={`absolute left-1 top-1/2 -translate-y-1/2 z-10 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+        checked
+          ? 'bg-brand border-brand text-white'
+          : 'bg-surface border-line-strong hover:border-brand'
+      }`}
+    >
+      {checked && <FaCheck className="w-2 h-2" />}
+    </button>
   );
 }
 

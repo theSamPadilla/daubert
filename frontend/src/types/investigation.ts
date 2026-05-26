@@ -17,6 +17,7 @@ export interface EdgeBundle {
   edgeIds: string[];     // IDs of the bundled TransactionEdges
   color?: string;
   label?: string;        // optional display label; falls back to "<total> <token> (<n>)"
+  width?: number;        // visual line thickness; undefined falls back to the base style
   // User-set curve offset (signed pixels along the perpendicular). Persisted so
   // arcs survive reloads and appear in exhibit-rendered snapshots.
   hasArc?: boolean;
@@ -85,6 +86,7 @@ export interface TransactionEdge {
   usdValue?: number;
   color?: string;
   lineStyle?: 'solid' | 'dashed' | 'dotted';
+  width?: number;        // visual line thickness; undefined falls back to the base style
   label?: string;
   notes: string;
   tags: string[];

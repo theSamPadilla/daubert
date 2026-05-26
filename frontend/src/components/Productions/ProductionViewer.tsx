@@ -235,14 +235,30 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
   );
 
   const handleRowHighlight = useCallback(
-    async (index: number, color: string | null) => {
+    async (indexes: number[], color: string | null) => {
+      if (indexes.length === 0) return;
       try {
         const updated = await apiClient.updateProduction(production.id, {
-          ops: [{ op: 'chronology_set_row_highlight', indexes: [index], color }],
+          ops: [{ op: 'chronology_set_row_highlight', indexes, color }],
         });
         onUpdate?.(updated);
       } catch (err) {
         console.error('Failed to set row highlight:', err);
+      }
+    },
+    [production.id, onUpdate],
+  );
+
+  const handleRowsDelete = useCallback(
+    async (indexes: number[]) => {
+      if (indexes.length === 0) return;
+      try {
+        const updated = await apiClient.updateProduction(production.id, {
+          ops: [{ op: 'chronology_delete', indexes }],
+        });
+        onUpdate?.(updated);
+      } catch (err) {
+        console.error('Failed to delete rows:', err);
       }
     },
     [production.id, onUpdate],
@@ -389,6 +405,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
             onColumnResize={handleColumnResize}
             onEntryEdit={handleEntryEdit}
             onRowHighlight={handleRowHighlight}
+            onRowsDelete={handleRowsDelete}
           />
         )}
       </div>

@@ -13,9 +13,15 @@ interface AggregatedEdgeDetailsProps {
 
 export function AggregatedEdgeDetails({ edges, fromLabel, toLabel, traceId, onArcEdge, onUpdateTransaction, onDeleteTransaction }: AggregatedEdgeDetailsProps) {
   const currentColor = edges[0]?.color || '#10b981';
+  const currentWidth = edges[0]?.width;
   const handleColorChange = onUpdateTransaction
     ? (color: string) => {
         edges.forEach((e) => onUpdateTransaction(traceId, e.id, { color }));
+      }
+    : undefined;
+  const handleWidthChange = onUpdateTransaction
+    ? (width: number) => {
+        edges.forEach((e) => onUpdateTransaction(traceId, e.id, { width }));
       }
     : undefined;
   const handleDeleteTransaction = onDeleteTransaction
@@ -30,6 +36,8 @@ export function AggregatedEdgeDetails({ edges, fromLabel, toLabel, traceId, onAr
       onArcEdge={onArcEdge}
       color={currentColor}
       onColorChange={handleColorChange}
+      width={currentWidth}
+      onWidthChange={handleWidthChange}
       onDeleteTransaction={handleDeleteTransaction}
     />
   );

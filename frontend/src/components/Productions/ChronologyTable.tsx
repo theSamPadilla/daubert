@@ -22,13 +22,13 @@ import {
   type ChronologyEntry,
   DEFAULT_COLUMNS,
   getColumns,
-  slugifyColumnLabel,
 } from '@/lib/chronologySchema';
+import { AddColumnModal } from './AddColumnModal';
 
 interface ChronologyTableProps {
   data: ChronologyData;
   onColumnResize?: (widths: Record<string, number>) => void;
-  onColumnAdd?: (column: ColumnDef) => void;
+  onColumnAdd?: (column: ColumnDef, index?: number) => void;
   onColumnRemove?: (key: string) => void;
   onColumnRename?: (key: string, label: string) => void;
   onEntryEdit?: (index: number, entry: ChronologyEntry) => void;
@@ -54,6 +54,7 @@ export function ChronologyTable({
   const selectionEnabled = !!(onRowHighlight || onRowsDelete);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
+  const [addColumnOpen, setAddColumnOpen] = useState(false);
 
   // Prune indexes that fall off the end (e.g. after an external delete).
   useEffect(() => {
@@ -224,34 +225,51 @@ export function ChronologyTable({
   const selectedCount = selected.size;
   const allSelected = entryCount > 0 && selectedCount === entryCount;
 
+  const showToolbar = !!onColumnAdd || (isCustom && !!onColumnResize) || selectionEnabled;
+
   return (
     <div>
-      {(isCustom && onColumnResize) || selectionEnabled ? (
-        <div className="flex justify-end items-center gap-4 mb-4">
-          {isCustom && onColumnResize && (
-            <button
-              onClick={resetWidths}
-              className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-gray-200"
-              title="Reset column widths to defaults"
-            >
-              <FaRotateLeft className="w-3 h-3" />
-              Reset widths
-            </button>
-          )}
-          {selectionEnabled && entryCount > 0 && (
-            <button
-              onClick={toggleSelectMode}
-              className={`flex items-center gap-1.5 text-xs transition-colors ${
-                selectMode ? 'text-brand hover:text-brand/80' : 'text-ink-muted hover:text-gray-200'
-              }`}
-              title={selectMode ? 'Exit selection mode' : 'Select rows'}
-            >
-              {selectMode ? <FaXmark className="w-3 h-3" /> : <FaListCheck className="w-3 h-3" />}
-              {selectMode ? 'Done' : 'Select rows'}
-            </button>
-          )}
+      {showToolbar && (
+        <div className="mb-3 flex items-center justify-between gap-4 px-3 py-2 rounded-md bg-surface-panel/60 border border-line-strong">
+          <div className="flex items-center gap-3">
+            {onColumnAdd && (
+              <button
+                type="button"
+                onClick={() => setAddColumnOpen(true)}
+                className="flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-brand transition-colors"
+                title="Add a custom column"
+              >
+                <FaPlus className="w-3 h-3" />
+                Add column
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-4">
+            {isCustom && onColumnResize && (
+              <button
+                onClick={resetWidths}
+                className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-gray-200 transition-colors"
+                title="Reset column widths to defaults"
+              >
+                <FaRotateLeft className="w-3 h-3" />
+                Reset widths
+              </button>
+            )}
+            {selectionEnabled && entryCount > 0 && (
+              <button
+                onClick={toggleSelectMode}
+                className={`flex items-center gap-1.5 text-xs transition-colors ${
+                  selectMode ? 'text-brand hover:text-brand/80' : 'text-ink-muted hover:text-gray-200'
+                }`}
+                title={selectMode ? 'Exit selection mode' : 'Select rows'}
+              >
+                {selectMode ? <FaXmark className="w-3 h-3" /> : <FaListCheck className="w-3 h-3" />}
+                {selectMode ? 'Done' : 'Select rows'}
+              </button>
+            )}
+          </div>
         </div>
-      ) : null}
+      )}
       {selectMode && selectionEnabled && (
         <div className="mb-3 flex items-center gap-3 px-3 py-2 rounded-md bg-surface-panel border border-line-strong">
           <span className="text-xs text-ink-muted tabular-nums">
@@ -388,13 +406,15 @@ export function ChronologyTable({
           </tbody>
         </table>
       </div>
-      {/* "+ Add column" lives outside <table> so <colgroup> math stays clean */}
-      {onColumnAdd && (
-        <AddColumnButton
-          existingKeys={columns.map((c) => c.key)}
-          onAdd={onColumnAdd}
-        />
-      )}
+      <AddColumnModal
+        open={addColumnOpen}
+        existingColumns={columns}
+        onAdd={(col, index) => {
+          onColumnAdd?.(col, index);
+          setAddColumnOpen(false);
+        }}
+        onCancel={() => setAddColumnOpen(false)}
+      />
     </div>
   );
 }
@@ -599,75 +619,6 @@ function ResizableTh({
         </span>
       )}
     </th>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// AddColumnButton
-// ---------------------------------------------------------------------------
-
-function AddColumnButton({
-  existingKeys,
-  onAdd,
-}: {
-  existingKeys: string[];
-  onAdd: (col: ColumnDef) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = () => {
-    const trimmed = label.trim();
-    if (!trimmed) return;
-    let key: string;
-    try {
-      key = slugifyColumnLabel(trimmed);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-      return;
-    }
-    // Uniquify key against existing ones.
-    let unique = key;
-    let n = 1;
-    while (existingKeys.includes(unique)) {
-      unique = `${key}_${++n}`;
-    }
-    onAdd({ key: unique, label: trimmed, width: 10, kind: 'text' });
-    setLabel('');
-    setOpen(false);
-    setError(null);
-  };
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mt-2 text-xs text-ink-muted hover:text-brand inline-flex items-center gap-1.5 transition-colors"
-      >
-        <FaPlus className="w-2.5 h-2.5" />
-        Add column
-      </button>
-    );
-  }
-
-  return (
-    <div className="mt-2 inline-flex items-center gap-2">
-      <input
-        autoFocus
-        value={label}
-        onChange={(e) => { setLabel(e.target.value); setError(null); }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') submit();
-          if (e.key === 'Escape') { setOpen(false); setLabel(''); setError(null); }
-        }}
-        onBlur={() => { if (!label.trim()) { setOpen(false); setError(null); } }}
-        placeholder="Column name"
-        className="text-xs bg-surface text-gray-100 px-2 py-1 rounded border border-brand focus:outline-none focus:ring-1 focus:ring-brand w-40"
-      />
-      {error && <span className="text-xs text-red-400">{error}</span>}
-    </div>
   );
 }
 

@@ -238,11 +238,11 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
   );
 
   const handleColumnAdd = useCallback(
-    async (column: ColumnDef) => {
+    async (column: ColumnDef, index?: number) => {
       try {
         setLastError(null);
         const updated = await apiClient.updateProduction(production.id, {
-          ops: [{ op: 'chronology_add_column', column }],
+          ops: [{ op: 'chronology_add_column', column, ...(index !== undefined ? { index } : {}) }],
         });
         onUpdate?.(updated);
       } catch (err) {

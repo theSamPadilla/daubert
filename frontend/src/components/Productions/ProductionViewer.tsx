@@ -32,9 +32,34 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
   const [refreshing, setRefreshing] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(production.name);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chartDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  const prevIdRef = useRef(production.id);
+  if (prevIdRef.current !== production.id) {
+    prevIdRef.current = production.id;
+    setNameDraft(production.name);
+    setEditingName(false);
+  }
+
+  const commitName = useCallback(async () => {
+    setEditingName(false);
+    const next = nameDraft.trim();
+    if (!next || next === production.name) {
+      setNameDraft(production.name);
+      return;
+    }
+    try {
+      const updated = await apiClient.updateProduction(production.id, { name: next });
+      onUpdate?.(updated);
+    } catch (err) {
+      console.error('Failed to rename production:', err);
+      setNameDraft(production.name);
+    }
+  }, [nameDraft, production.id, production.name, onUpdate]);
 
   // Chart edit panel keeps an in-progress patch; merged over production.data
   // at render time and on save (so it doesn't race with the height drag op).
@@ -230,9 +255,28 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
             Production
           </span>
-          <h2 className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate">
-            {production.name}
-          </h2>
+          {editingName ? (
+            <input
+              autoFocus
+              type="text"
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitName();
+                if (e.key === 'Escape') { setNameDraft(production.name); setEditingName(false); }
+              }}
+              className="text-[15px] font-semibold tracking-tight text-[#0B1220] bg-white border border-brand rounded px-2 py-0.5 min-w-0 focus:outline-none"
+            />
+          ) : (
+            <h2
+              onClick={() => { setNameDraft(production.name); setEditingName(true); }}
+              title="Click to rename"
+              className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate cursor-pointer hover:text-brand transition-colors"
+            >
+              {production.name}
+            </h2>
+          )}
           <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider shrink-0 ${TYPE_COLORS[production.type] || 'bg-[#F1F4FA] text-[#5B6473]'}`}>
             {production.type}
           </span>

@@ -6,6 +6,7 @@ import { CaseAccessService } from '../auth/case-access.service';
 import { AccessPrincipal } from '../auth/access-principal';
 import { CreateProductionDto } from './dto/create-production.dto';
 import { UpdateProductionDto } from './dto/update-production.dto';
+import { HighlightColor, isHighlightColor } from './chronology-highlights';
 
 // Discriminated union of atomic ops. The list is intentionally small —
 // extend with `report_*` and `chart_*` shapes as those types acquire
@@ -23,6 +24,7 @@ type Op =
   | { op: 'chronology_delete'; indexes: number[] }
   | { op: 'chronology_set_title'; title: string }
   | { op: 'chronology_set_column_widths'; widths: ColumnWidths }
+  | { op: 'chronology_set_row_highlight'; indexes: number[]; color: HighlightColor | null }
   | { op: 'chart_set_height'; height: number };
 
 const CHART_HEIGHT_MIN = 200;
@@ -149,6 +151,19 @@ function parseOp(raw: Record<string, unknown>, i: number): Op {
       }
       return { op: 'chronology_set_column_widths', widths };
     }
+    case 'chronology_set_row_highlight': {
+      if (
+        !Array.isArray(raw.indexes) ||
+        raw.indexes.length === 0 ||
+        !raw.indexes.every((n): n is number => Number.isInteger(n) && (n as number) >= 0)
+      ) {
+        throw new BadRequestException(`ops[${i}] (chronology_set_row_highlight): \`indexes\` must be a non-empty array of non-negative integers`);
+      }
+      if (raw.color !== null && !isHighlightColor(raw.color)) {
+        throw new BadRequestException(`ops[${i}] (chronology_set_row_highlight): \`color\` must be one of yellow|amber|red|green|blue or null`);
+      }
+      return { op: 'chronology_set_row_highlight', indexes: raw.indexes as number[], color: raw.color as HighlightColor | null };
+    }
     case 'chart_set_height': {
       if (
         typeof raw.height !== 'number' ||
@@ -206,6 +221,19 @@ function applyOp(
     case 'chronology_set_column_widths': {
       const existing = (data.columnWidths ?? {}) as ColumnWidths;
       return { ...data, columnWidths: { ...existing, ...op.widths } };
+    }
+    case 'chronology_set_row_highlight': {
+      for (const idx of op.indexes) {
+        if (idx >= entries.length) {
+          throw new BadRequestException(`ops[${i}] (chronology_set_row_highlight): index ${idx} out of bounds (length=${entries.length})`);
+        }
+        const current = entries[idx] ?? {};
+        const next = { ...current };
+        if (op.color === null) delete next.highlight;
+        else next.highlight = op.color;
+        entries[idx] = next;
+      }
+      return { ...data, entries };
     }
     case 'chart_set_height':
       return { ...data, height: op.height };

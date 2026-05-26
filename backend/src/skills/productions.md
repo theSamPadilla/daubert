@@ -197,6 +197,7 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
 | `details` | no | Additional context (block number, amounts, counterparty info) |
 | `sourceTraceId` | no | Internal cross-reference to a trace (for app linking, not display) |
 | `sourceEdgeId` | no | Internal cross-reference to an edge (for app linking, not display) |
+| `highlight` | no | Row background color — one of `"yellow"`, `"amber"`, `"red"`, `"green"`, `"blue"`. Omit for no highlight. Renders in both the in-app table and the PDF/HTML export. Suggested semantics: `red` = suspicious/alert, `amber` = needs review, `yellow` = note, `green` = verified/cleared, `blue` = informational. |
 
 ### Best practices
 
@@ -282,7 +283,19 @@ Supported ops:
 
 // Replace just the chronology title
 { "op": "chronology_set_title", "title": "Updated timeline — May 2026" }
+
+// Highlight one or more rows (or clear with color: null)
+{ "op": "chronology_set_row_highlight", "indexes": [3, 7], "color": "red" }
+{ "op": "chronology_set_row_highlight", "indexes": [3], "color": null }
 ```
+
+**Row highlights** — use the dedicated op (above), not `chronology_replace`. Costs a few tokens, survives the row's content. Use sparingly; highlighting a third of the rows defeats the point. Default semantic mapping:
+
+- `red` — suspicious, alert, fraud indicator
+- `amber` — needs review, ambiguous
+- `yellow` — note, worth attention
+- `green` — verified, cleared, exonerating
+- `blue` — informational, context
 
 ### Example: add three rows + fix one row + delete one row, in one call
 

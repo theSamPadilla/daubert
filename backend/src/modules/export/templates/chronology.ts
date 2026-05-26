@@ -1,5 +1,6 @@
 import { BASE_STYLES, CHRONOLOGY_STYLES, CSP_META } from './styles';
 import { escapeHtml, sanitizeUrl } from './util';
+import { HIGHLIGHT_COLORS, isHighlightColor } from '../../productions/chronology-highlights';
 
 interface ChronologyEntry {
   /** @deprecated use sourceUrl. Still accepted for backward compatibility. */
@@ -9,6 +10,7 @@ interface ChronologyEntry {
   date: string;
   description: string;
   details?: string | null;
+  highlight?: string | null;
 }
 
 interface ChronologyColumnWidths {
@@ -63,12 +65,15 @@ export function renderChronologyBody(name: string, data: ChronologyData): string
     const sourceCell = url
       ? `<a href="${escapeHtml(sanitizeUrl(url))}">${escapeHtml(label ?? url)}</a>`
       : 'N/A';
+    const hl = isHighlightColor(e.highlight) ? HIGHLIGHT_COLORS[e.highlight] : null;
+    const rowStyle = hl ? ` style="background:${hl.bg};color:${hl.fg}"` : '';
+    const detailsColor = hl ? hl.fg : '#666';
     return `
-    <tr>
+    <tr${rowStyle}>
       <td style="font-size:9pt;font-family:monospace">${sourceCell}</td>
       <td style="white-space:nowrap">${escapeHtml(e.date)}</td>
       <td>${escapeHtml(e.description)}</td>
-      <td style="font-size:9pt;color:#666;overflow-wrap:anywhere">${e.details ? escapeHtml(e.details) : '--'}</td>
+      <td style="font-size:9pt;color:${detailsColor};overflow-wrap:anywhere">${e.details ? escapeHtml(e.details) : '--'}</td>
     </tr>
   `;
   }).join('');

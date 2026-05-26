@@ -169,6 +169,107 @@ describe('ProductionsService', () => {
         NotFoundException,
       );
     });
+
+    // ── chronology_set_row_highlight ──────────────────────────────────
+    describe('chronology_set_row_highlight op', () => {
+      const baseChronology = () =>
+        makeProduction({
+          type: ProductionType.CHRONOLOGY,
+          data: {
+            title: 'T',
+            entries: [
+              { date: '2026-01-01', description: 'a' },
+              { date: '2026-01-02', description: 'b' },
+              { date: '2026-01-03', description: 'c' },
+            ],
+          },
+        });
+
+      it('sets a highlight color on the given rows', async () => {
+        const existing = baseChronology();
+        mockProductionRepo.findOneBy.mockResolvedValue(existing);
+        mockProductionRepo.save.mockImplementation((p) => Promise.resolve(p));
+
+        await service.update(
+          'prod-1',
+          { ops: [{ op: 'chronology_set_row_highlight', indexes: [0, 2], color: 'red' }] },
+          USER_PRINCIPAL,
+        );
+
+        const saved = mockProductionRepo.save.mock.calls[0][0];
+        expect(saved.data.entries[0].highlight).toBe('red');
+        expect(saved.data.entries[1].highlight).toBeUndefined();
+        expect(saved.data.entries[2].highlight).toBe('red');
+      });
+
+      it('clears the highlight when color is null', async () => {
+        const existing = makeProduction({
+          type: ProductionType.CHRONOLOGY,
+          data: {
+            entries: [
+              { date: 'd', description: 'x', highlight: 'amber' },
+              { date: 'd', description: 'y', highlight: 'green' },
+            ],
+          },
+        });
+        mockProductionRepo.findOneBy.mockResolvedValue(existing);
+        mockProductionRepo.save.mockImplementation((p) => Promise.resolve(p));
+
+        await service.update(
+          'prod-1',
+          { ops: [{ op: 'chronology_set_row_highlight', indexes: [0], color: null }] },
+          USER_PRINCIPAL,
+        );
+
+        const saved = mockProductionRepo.save.mock.calls[0][0];
+        expect(saved.data.entries[0].highlight).toBeUndefined();
+        expect(saved.data.entries[1].highlight).toBe('green');
+      });
+
+      it('rejects an unknown color', async () => {
+        mockProductionRepo.findOneBy.mockResolvedValue(baseChronology());
+        await expect(
+          service.update(
+            'prod-1',
+            { ops: [{ op: 'chronology_set_row_highlight', indexes: [0], color: 'puce' }] },
+            USER_PRINCIPAL,
+          ),
+        ).rejects.toThrow(/color.*yellow.*amber.*red.*green.*blue.*null/);
+      });
+
+      it('rejects an out-of-bounds index', async () => {
+        mockProductionRepo.findOneBy.mockResolvedValue(baseChronology());
+        await expect(
+          service.update(
+            'prod-1',
+            { ops: [{ op: 'chronology_set_row_highlight', indexes: [99], color: 'red' }] },
+            USER_PRINCIPAL,
+          ),
+        ).rejects.toThrow(/out of bounds/);
+      });
+
+      it('rejects an empty indexes array', async () => {
+        mockProductionRepo.findOneBy.mockResolvedValue(baseChronology());
+        await expect(
+          service.update(
+            'prod-1',
+            { ops: [{ op: 'chronology_set_row_highlight', indexes: [], color: 'red' }] },
+            USER_PRINCIPAL,
+          ),
+        ).rejects.toThrow(/non-empty array/);
+      });
+
+      it('rejects on a non-chronology production', async () => {
+        mockProductionRepo.findOneBy.mockResolvedValue(makeProduction()); // REPORT
+        await expect(
+          service.update(
+            'prod-1',
+            { ops: [{ op: 'chronology_set_row_highlight', indexes: [0], color: 'red' }] },
+            USER_PRINCIPAL,
+          ),
+        ).rejects.toThrow(/not "chronology"/);
+      });
+    });
   });
 
   // ── remove ───────────────────────────────────────────────────────────

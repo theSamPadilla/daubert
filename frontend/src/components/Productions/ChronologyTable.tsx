@@ -1,7 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FaArrowUpRightFromSquare, FaRotateLeft } from 'react-icons/fa6';
+import { FaArrowUpRightFromSquare, FaRotateLeft, FaXmark } from 'react-icons/fa6';
+import {
+  HIGHLIGHT_COLORS,
+  HIGHLIGHT_NAMES,
+  type HighlightColor,
+  isHighlightColor,
+} from './chronologyHighlights';
 
 interface ChronologyEntry {
   /** @deprecated use sourceUrl. Still accepted for backward compatibility. */
@@ -13,6 +19,7 @@ interface ChronologyEntry {
   details?: string | null;
   sourceTraceId?: string;
   sourceEdgeId?: string;
+  highlight?: HighlightColor | null;
 }
 
 interface ColumnWidths {
@@ -32,6 +39,7 @@ interface ChronologyTableProps {
   data: ChronologyData;
   onColumnResize?: (widths: ColumnWidths) => void;
   onEntryEdit?: (index: number, entry: ChronologyEntry) => void;
+  onRowHighlight?: (index: number, color: HighlightColor | null) => void;
 }
 
 // Mirror of backend default in chronology.ts. Keep in sync.
@@ -45,7 +53,7 @@ const COL_KEYS: (keyof ColumnWidths)[] = ['source', 'date', 'description', 'deta
 const MIN_PCT = 5;
 const MAX_PCT = 80;
 
-export function ChronologyTable({ data, onColumnResize, onEntryEdit }: ChronologyTableProps) {
+export function ChronologyTable({ data, onColumnResize, onEntryEdit, onRowHighlight }: ChronologyTableProps) {
   const persisted: Required<ColumnWidths> = {
     ...DEFAULT_WIDTHS,
     ...(data.columnWidths ?? {}),
@@ -179,55 +187,71 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit }: Chronolog
             {data.entries.map((entry, i) => {
               const url = entry.sourceUrl ?? entry.source ?? null;
               const label = entry.sourceLabel ?? (url ? deriveSourceLabel(url) : null);
+              const hl = isHighlightColor(entry.highlight) ? HIGHLIGHT_COLORS[entry.highlight] : null;
+              const rowStyle = hl ? { background: hl.bg, color: hl.fg } : undefined;
+              const detailsStyle = hl ? { color: hl.fg } : undefined;
               return (
-                <tr key={i} className="border-t border-line-strong/50 align-top">
-                  <td className="px-4 py-3 break-all">
+                <tr key={i} className="border-t border-line-strong/50 align-top group" style={rowStyle}>
+                  <td className="px-4 py-3 break-all relative">
+                    {onRowHighlight && (
+                      <HighlightSwatch
+                        active={isHighlightColor(entry.highlight) ? entry.highlight : null}
+                        onChange={(c) => onRowHighlight(i, c)}
+                      />
+                    )}
                     {url ? (
                       <a
                         href={url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-brand hover:text-brand inline-flex items-center gap-1 text-xs font-mono"
+                        className="hover:underline inline-flex items-center gap-1 text-xs font-mono"
+                        style={hl ? { color: hl.fg } : undefined}
                       >
-                        {label ?? url}
+                        <span className={hl ? '' : 'text-brand'}>{label ?? url}</span>
                         <FaArrowUpRightFromSquare className="w-2.5 h-2.5 flex-shrink-0" />
                       </a>
                     ) : (
-                      <span className="text-ink-faint">N/A</span>
+                      <span className={hl ? '' : 'text-ink-faint'}>N/A</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-ink-muted whitespace-nowrap">
-                    {onEntryEdit ? (
-                      <EditableCell
-                        value={entry.date}
-                        onSave={(v) => onEntryEdit(i, { ...entry, date: v })}
-                      />
-                    ) : (
-                      entry.date
-                    )}
+                  <td className="px-4 py-3 whitespace-nowrap" style={hl ? undefined : undefined}>
+                    <span className={hl ? '' : 'text-ink-muted'}>
+                      {onEntryEdit ? (
+                        <EditableCell
+                          value={entry.date}
+                          onSave={(v) => onEntryEdit(i, { ...entry, date: v })}
+                        />
+                      ) : (
+                        entry.date
+                      )}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-ink-muted">
-                    {onEntryEdit ? (
-                      <EditableCell
-                        value={entry.description}
-                        multiline
-                        onSave={(v) => onEntryEdit(i, { ...entry, description: v })}
-                      />
-                    ) : (
-                      entry.description
-                    )}
+                  <td className="px-4 py-3">
+                    <span className={hl ? '' : 'text-ink-muted'}>
+                      {onEntryEdit ? (
+                        <EditableCell
+                          value={entry.description}
+                          multiline
+                          onSave={(v) => onEntryEdit(i, { ...entry, description: v })}
+                        />
+                      ) : (
+                        entry.description
+                      )}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-ink-muted text-xs break-words">
-                    {onEntryEdit ? (
-                      <EditableCell
-                        value={entry.details ?? ''}
-                        multiline
-                        emptyText="--"
-                        onSave={(v) => onEntryEdit(i, { ...entry, details: v || null })}
-                      />
-                    ) : (
-                      entry.details || '--'
-                    )}
+                  <td className="px-4 py-3 text-xs break-words" style={detailsStyle}>
+                    <span className={hl ? '' : 'text-ink-muted'}>
+                      {onEntryEdit ? (
+                        <EditableCell
+                          value={entry.details ?? ''}
+                          multiline
+                          emptyText="--"
+                          onSave={(v) => onEntryEdit(i, { ...entry, details: v || null })}
+                        />
+                      ) : (
+                        entry.details || '--'
+                      )}
+                    </span>
                   </td>
                 </tr>
               );
@@ -375,6 +399,84 @@ function EditableCell({
       title="Click to edit"
     >
       {isEmpty ? <span className="text-ink-faint italic">{emptyText ?? 'click to add'}</span> : value}
+    </div>
+  );
+}
+
+function HighlightSwatch({
+  active,
+  onChange,
+}: {
+  active: HighlightColor | null;
+  onChange: (color: HighlightColor | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const activeColor = active ? HIGHLIGHT_COLORS[active] : null;
+
+  return (
+    <div ref={rootRef} className="absolute left-1 top-1/2 -translate-y-1/2 z-10">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        title={active ? `Highlight: ${activeColor!.label}` : 'Highlight row'}
+        aria-label={active ? `Change row highlight (current: ${activeColor!.label})` : 'Highlight row'}
+        className={`w-3 h-3 rounded-full border transition-opacity ${
+          active
+            ? 'opacity-100 border-black/20'
+            : 'opacity-0 group-hover:opacity-100 border-line-strong hover:border-brand'
+        }`}
+        style={active ? { background: activeColor!.bg } : undefined}
+      />
+      {open && (
+        <div
+          className="absolute left-0 top-5 z-20 flex items-center gap-1 p-1.5 rounded-md bg-surface-panel border border-line-strong shadow-lg"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {HIGHLIGHT_NAMES.map((name) => {
+            const c = HIGHLIGHT_COLORS[name];
+            const isActive = active === name;
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => { onChange(name); setOpen(false); }}
+                title={c.label}
+                aria-label={c.label}
+                className={`w-5 h-5 rounded-full border transition-transform hover:scale-110 ${
+                  isActive ? 'border-brand ring-1 ring-brand' : 'border-black/20'
+                }`}
+                style={{ background: c.bg }}
+              />
+            );
+          })}
+          <div className="w-px h-5 bg-line-strong mx-0.5" />
+          <button
+            type="button"
+            onClick={() => { onChange(null); setOpen(false); }}
+            title="Clear highlight"
+            aria-label="Clear highlight"
+            className="w-5 h-5 rounded-full border border-line-strong flex items-center justify-center text-ink-muted hover:text-ink hover:border-brand transition-colors"
+          >
+            <FaXmark className="w-2.5 h-2.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

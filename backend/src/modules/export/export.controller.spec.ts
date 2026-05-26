@@ -252,4 +252,116 @@ describe('ExportController', () => {
       ),
     ).rejects.toThrow(ForbiddenException);
   });
+
+  // ── render options: fontFamily / fontSize / orientation ───────────────────
+
+  describe('render options', () => {
+    const chronology = {
+      id: 'prod-c',
+      type: 'chronology',
+      name: 'Timeline',
+      data: { entries: [{ date: '2026-01-01', description: 'a' }] },
+    };
+    const report = {
+      id: 'prod-r',
+      type: 'report',
+      name: 'Report',
+      data: { content: '<p>hi</p>' },
+    };
+
+    it('chronology pdf with orientation "landscape" → htmlToPdf called with landscape:true', async () => {
+      (productionsService.findOne as jest.Mock).mockResolvedValue(chronology);
+      await controller.exportProduction(
+        'prod-c',
+        { format: 'pdf', orientation: 'landscape' },
+        makeMockReq(),
+        makeMockRes(),
+      );
+      expect(exportService.htmlToPdf).toHaveBeenCalledWith(expect.any(String), { landscape: true });
+    });
+
+    it('chronology pdf without orientation → defaults to portrait', async () => {
+      (productionsService.findOne as jest.Mock).mockResolvedValue(chronology);
+      await controller.exportProduction(
+        'prod-c',
+        { format: 'pdf' },
+        makeMockReq(),
+        makeMockRes(),
+      );
+      expect(exportService.htmlToPdf).toHaveBeenCalledWith(expect.any(String), { landscape: false });
+    });
+
+    it('report pdf ignores orientation (always portrait)', async () => {
+      (productionsService.findOne as jest.Mock).mockResolvedValue(report);
+      await controller.exportProduction(
+        'prod-r',
+        { format: 'pdf', orientation: 'landscape' } as any,
+        makeMockReq(),
+        makeMockRes(),
+      );
+      expect(exportService.htmlToPdf).toHaveBeenCalledWith(expect.any(String), { landscape: false });
+    });
+
+    it('chronology pdf injects chosen font/size into the HTML passed to htmlToPdf', async () => {
+      (productionsService.findOne as jest.Mock).mockResolvedValue(chronology);
+      await controller.exportProduction(
+        'prod-c',
+        { format: 'pdf', fontFamily: 'georgia', fontSize: 14 },
+        makeMockReq(),
+        makeMockRes(),
+      );
+      const html = (exportService.htmlToPdf as jest.Mock).mock.calls[0][0];
+      expect(html).toMatch(/font-family:\s*Georgia/);
+      expect(html).toMatch(/font-size:\s*14pt/);
+    });
+
+    it('report docx injects chosen font/size into the HTML passed to htmlToDocx', async () => {
+      (productionsService.findOne as jest.Mock).mockResolvedValue(report);
+      await controller.exportProduction(
+        'prod-r',
+        { format: 'docx', fontFamily: 'times', fontSize: 12 },
+        makeMockReq(),
+        makeMockRes(),
+      );
+      const html = (exportService.htmlToDocx as jest.Mock).mock.calls[0][0];
+      expect(html).toMatch(/font-family:\s*'Times New Roman'/);
+      expect(html).toMatch(/font-size:\s*12pt/);
+    });
+
+    it('rejects an unknown fontFamily', async () => {
+      (productionsService.findOne as jest.Mock).mockResolvedValue(report);
+      await expect(
+        controller.exportProduction(
+          'prod-r',
+          { format: 'pdf', fontFamily: 'comic-sans' } as any,
+          makeMockReq(),
+          makeMockRes(),
+        ),
+      ).rejects.toThrow(/fontFamily/);
+    });
+
+    it('rejects an unknown fontSize', async () => {
+      (productionsService.findOne as jest.Mock).mockResolvedValue(report);
+      await expect(
+        controller.exportProduction(
+          'prod-r',
+          { format: 'pdf', fontSize: 99 } as any,
+          makeMockReq(),
+          makeMockRes(),
+        ),
+      ).rejects.toThrow(/fontSize/);
+    });
+
+    it('rejects an unknown orientation', async () => {
+      (productionsService.findOne as jest.Mock).mockResolvedValue(chronology);
+      await expect(
+        controller.exportProduction(
+          'prod-c',
+          { format: 'pdf', orientation: 'sideways' } as any,
+          makeMockReq(),
+          makeMockRes(),
+        ),
+      ).rejects.toThrow(/orientation/);
+    });
+  });
 });

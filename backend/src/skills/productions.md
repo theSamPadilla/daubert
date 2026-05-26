@@ -164,7 +164,6 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
   "name": "Transaction Timeline",
   "type": "chronology",
   "data": {
-    "title": "Key Events — Wallet 0xABC...",
     "entries": [
       {
         "sourceUrl": "https://etherscan.io/tx/0x6ae5fc12abcd...",
@@ -197,7 +196,7 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
 | `details` | no | Additional context (block number, amounts, counterparty info) |
 | `sourceTraceId` | no | Internal cross-reference to a trace (for app linking, not display) |
 | `sourceEdgeId` | no | Internal cross-reference to an edge (for app linking, not display) |
-| `highlight` | no | Row background color — one of `"yellow"`, `"amber"`, `"red"`, `"green"`, `"blue"`. Omit for no highlight. Renders in both the in-app table and the PDF/HTML export. Suggested semantics: `red` = suspicious/alert, `amber` = needs review, `yellow` = note, `green` = verified/cleared, `blue` = informational. |
+| `highlight` | no | Row background color — one of `"yellow"`, `"gray"`, `"red"`, `"green"`, `"blue"`. Omit for no highlight. Renders in both the in-app table and the PDF/HTML export. Suggested semantics: `red` = suspicious/alert, `gray` = needs review, `yellow` = note, `green` = verified/cleared, `blue` = informational. |
 
 ### Best practices
 
@@ -206,7 +205,7 @@ Chronologies store ordered entries with dates, descriptions, and source links. R
 - Provide a `sourceLabel` for tx hashes (e.g. `"0x6ae5…"`) — keeps the Source column compact. The renderer will auto-derive one if you omit it.
 - Keep `description` to one sentence. Put specifics in `details`.
 - Use consistent date formatting across entries.
-- The `title` field is optional but helpful for multi-chronology cases.
+- The chronology's title is the top-level `name` field — there is no separate `title` inside `data`. Pick a descriptive name at creation; rename later via `update_production` with just `name`.
 
 ### Large chronologies (>50 entries)
 
@@ -214,7 +213,7 @@ A single `create_production` call carries the entire `data` blob in the tool inp
 
 **Pattern: seed empty, then append in batches.**
 
-1. `create_production` with `data: { title, entries: [] }` — tiny call, returns the new production's id.
+1. `create_production` with `data: { entries: [] }` — tiny call, returns the new production's id. The title goes in the top-level `name`.
 2. Loop `update_production` with the `chronology_append` op, ~50 entries per call, until done.
 
 Each `chronology_append` call only emits the rows being added, so the per-turn cost is bounded by the batch size, not the chronology length. The batch size is a guideline — go smaller if individual entries are heavy (long `details`, many fields), larger if they're terse.
@@ -222,9 +221,9 @@ Each `chronology_append` call only emits the rows being added, so the per-turn c
 ```json
 // Step 1 — seed
 {
-  "name": "Transaction Chronology",
+  "name": "Wallet 0xABC… — full timeline",
   "type": "chronology",
-  "data": { "title": "Wallet 0xABC… — full timeline", "entries": [] }
+  "data": { "entries": [] }
 }
 
 // Step 2..N — append batches
@@ -281,9 +280,6 @@ Supported ops:
 // Delete one or more rows by zero-based index
 { "op": "chronology_delete", "indexes": [3, 7] }
 
-// Replace just the chronology title
-{ "op": "chronology_set_title", "title": "Updated timeline — May 2026" }
-
 // Highlight one or more rows (or clear with color: null)
 { "op": "chronology_set_row_highlight", "indexes": [3, 7], "color": "red" }
 { "op": "chronology_set_row_highlight", "indexes": [3], "color": null }
@@ -292,7 +288,7 @@ Supported ops:
 **Row highlights** — use the dedicated op (above), not `chronology_replace`. Costs a few tokens, survives the row's content. Use sparingly; highlighting a third of the rows defeats the point. Default semantic mapping:
 
 - `red` — suspicious, alert, fraud indicator
-- `amber` — needs review, ambiguous
+- `gray` — needs review, ambiguous
 - `yellow` — note, worth attention
 - `green` — verified, cleared, exonerating
 - `blue` — informational, context

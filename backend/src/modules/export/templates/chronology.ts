@@ -1,6 +1,7 @@
 import { BASE_STYLES, CHRONOLOGY_STYLES, CSP_META } from './styles';
 import { escapeHtml, sanitizeUrl } from './util';
 import { HIGHLIGHT_COLORS, isHighlightColor } from '../../productions/chronology-highlights';
+import { buildFontOverrideCss, RenderOptions } from '../render-options';
 
 interface ChronologyEntry {
   /** @deprecated use sourceUrl. Still accepted for backward compatibility. */
@@ -21,7 +22,6 @@ interface ChronologyColumnWidths {
 }
 
 interface ChronologyData {
-  title?: string;
   entries: ChronologyEntry[];
   columnWidths?: ChronologyColumnWidths;
 }
@@ -57,7 +57,6 @@ function deriveSourceLabel(url: string): string {
  * The caller must ensure CHRONOLOGY_STYLES is included in the document's <style> block.
  */
 export function renderChronologyBody(name: string, data: ChronologyData): string {
-  const title = data.title || name;
   const w = { ...DEFAULT_COLUMN_WIDTHS, ...(data.columnWidths ?? {}) };
   const rows = (data.entries || []).map((e) => {
     const url = e.sourceUrl ?? e.source ?? null;
@@ -90,13 +89,12 @@ export function renderChronologyBody(name: string, data: ChronologyData): string
 </table>`;
 }
 
-export function renderChronology(name: string, data: ChronologyData): string {
-  const title = data.title || name;
+export function renderChronology(name: string, data: ChronologyData, opts?: RenderOptions): string {
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8">${CSP_META}<title>${escapeHtml(title)}</title>
-<style>${BASE_STYLES}${CHRONOLOGY_STYLES}</style>
+<html><head><meta charset="utf-8">${CSP_META}<title>${escapeHtml(name)}</title>
+<style>${BASE_STYLES}${CHRONOLOGY_STYLES}${buildFontOverrideCss(opts)}</style>
 </head><body>
-<h1>${escapeHtml(title)}</h1>
+<h1>${escapeHtml(name)}</h1>
 ${renderChronologyBody(name, data)}
 </body></html>`;
 }

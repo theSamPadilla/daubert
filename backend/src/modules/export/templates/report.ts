@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { BASE_STYLES, CSP_META, REPORT_STYLES } from './styles';
 import { escapeHtml, sanitizeHtml, sanitizeUrl } from './util';
+import { buildFontOverrideCss, RenderOptions } from '../render-options';
 
 interface ReportData {
   content: string;
@@ -24,10 +25,10 @@ export function renderReportBody(name: string, data: ReportData): string {
   return `${numberedContent}\n${worksCited}`;
 }
 
-export function renderReport(name: string, data: ReportData): string {
+export function renderReport(name: string, data: ReportData, opts?: RenderOptions): string {
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">${CSP_META}<title>${escapeHtml(name)}</title>
-<style>${BASE_STYLES}${REPORT_STYLES}</style>
+<style>${BASE_STYLES}${REPORT_STYLES}${buildFontOverrideCss(opts)}</style>
 </head><body>
 ${renderReportBody(name, data)}
 </body></html>`;

@@ -1,5 +1,6 @@
-import { ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { FONT_FAMILIES, FONT_SIZES, FontFamily, FontSize } from './render-options';
 
 export class ExhibitItemDto {
   @IsIn(['production', 'investigation'])
@@ -26,4 +27,12 @@ export class ExportExhibitDto {
 
   @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => ExhibitItemDto)
   items!: ExhibitItemDto[];
+
+  // Whole-exhibit render options. Per-item overrides are deliberately not
+  // supported — see the design note in this folder's commit history.
+  @IsOptional() @IsIn(FONT_FAMILIES as readonly string[])
+  fontFamily?: FontFamily;
+
+  @IsOptional() @IsInt() @IsIn(FONT_SIZES as readonly number[])
+  fontSize?: FontSize;
 }

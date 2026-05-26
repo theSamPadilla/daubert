@@ -176,7 +176,6 @@ describe('ProductionsService', () => {
         makeProduction({
           type: ProductionType.CHRONOLOGY,
           data: {
-            title: 'T',
             entries: [
               { date: '2026-01-01', description: 'a' },
               { date: '2026-01-02', description: 'b' },
@@ -207,7 +206,7 @@ describe('ProductionsService', () => {
           type: ProductionType.CHRONOLOGY,
           data: {
             entries: [
-              { date: 'd', description: 'x', highlight: 'amber' },
+              { date: 'd', description: 'x', highlight: 'gray' },
               { date: 'd', description: 'y', highlight: 'green' },
             ],
           },
@@ -234,7 +233,7 @@ describe('ProductionsService', () => {
             { ops: [{ op: 'chronology_set_row_highlight', indexes: [0], color: 'puce' }] },
             USER_PRINCIPAL,
           ),
-        ).rejects.toThrow(/color.*yellow.*amber.*red.*green.*blue.*null/);
+        ).rejects.toThrow(/color.*yellow.*gray.*red.*green.*blue.*null/);
       });
 
       it('rejects an out-of-bounds index', async () => {

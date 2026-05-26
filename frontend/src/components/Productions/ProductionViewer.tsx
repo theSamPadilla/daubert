@@ -14,6 +14,7 @@ import { ChronologyTable } from './ChronologyTable';
 import { ExportModal, type ExportFormat } from '../Common/ExportModal';
 import { useChartSnapshot } from '@/hooks/useChartSnapshot';
 import type { ExportTheme } from '@/lib/exportTheme';
+import type { RenderOptions } from '@/lib/exportRenderOptions';
 
 const TYPE_COLORS: Record<string, string> = {
   report: 'bg-brand/10 text-brand',
@@ -182,7 +183,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
   const currentChartHeight = liveChartHeight ?? storedChartHeight;
 
   const handleExport = useCallback(
-    async (format: ExportFormat, filename: string, theme: ExportTheme) => {
+    async (format: ExportFormat, filename: string, theme: ExportTheme, renderOpts: RenderOptions) => {
       if (production.type === 'chart' && format === 'png') {
         const url = await snapshotChart(production.data, theme, currentChartHeight);
         const a = document.createElement('a');
@@ -195,7 +196,12 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
       if (production.type === 'chart' && format === 'pdf') {
         imageDataUrl = await snapshotChart(production.data, theme, currentChartHeight);
       }
-      await apiClient.exportProduction(production.id, format, filename, imageDataUrl);
+      await apiClient.exportProduction(production.id, format, filename, {
+        imageDataUrl,
+        fontFamily: renderOpts.fontFamily,
+        fontSize: renderOpts.fontSize,
+        orientation: renderOpts.orientation,
+      });
     },
     [production.id, production.type, production.data, snapshotChart, currentChartHeight],
   );

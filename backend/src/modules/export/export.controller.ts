@@ -16,6 +16,10 @@ import { renderGraphBody } from './templates/graph';
 import { validateDataUrl } from './templates/util';
 import { ExportExhibitDto } from './exhibit.dto';
 import { composeExhibitHtml } from './exhibit-composer';
+import {
+  FontFamily, FontSize, Orientation, RenderOptions,
+  isFontFamily, isFontSize, isOrientation,
+} from './render-options';
 
 /**
  * Requires authentication. Global AuthGuard runs first, but in dev mode
@@ -39,7 +43,14 @@ export class ExportController {
   @Post('productions/:id')
   async exportProduction(
     @Param('id') id: string,
-    @Body() body: { format: string; filename?: string; imageDataUrl?: string },
+    @Body() body: {
+      format: string;
+      filename?: string;
+      imageDataUrl?: string;
+      fontFamily?: string;
+      fontSize?: number;
+      orientation?: string;
+    },
     @Req() req: any,
     @Res() res: Response,
   ) {
@@ -61,15 +72,18 @@ export class ExportController {
       throw new BadRequestException(`Format "${format}" not supported for ${production.type}`);
     }
 
+    const renderOpts = parseRenderOptions(body);
+    const orientation = parseOrientation(body.orientation);
+
     const data = production.data as any;
     let html: string;
 
     switch (production.type) {
       case 'report':
-        html = renderReport(production.name, data);
+        html = renderReport(production.name, data, renderOpts);
         break;
       case 'chronology':
-        html = renderChronology(production.name, data);
+        html = renderChronology(production.name, data, renderOpts);
         break;
       case 'chart': {
         const imageDataUrl = body.imageDataUrl;
@@ -102,8 +116,13 @@ export class ExportController {
       return;
     }
 
-    // pdf
-    const pdf = await this.exportService.htmlToPdf(html, { landscape: production.type === 'chart' });
+    // pdf — chart always lands landscape (image); chronology honours the
+    // user's choice (falls back to portrait); report stays portrait.
+    let landscape = false;
+    if (production.type === 'chart') landscape = true;
+    else if (production.type === 'chronology') landscape = orientation === 'landscape';
+
+    const pdf = await this.exportService.htmlToPdf(html, { landscape });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
     res.send(pdf);
@@ -164,11 +183,40 @@ export class ExportController {
       composedItems.push({ title: item.title, subtitle: item.subtitle, bodyHtml });
     }
 
-    const html = composeExhibitHtml(composedItems);
+    const renderOpts: RenderOptions = {
+      fontFamily: body.fontFamily,
+      fontSize: body.fontSize,
+    };
+    const html = composeExhibitHtml(composedItems, renderOpts);
     const pdf = await this.exportService.htmlToPdf(html, { landscape: false });
     const safeName = (body.filename || 'exhibit').replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'exhibit';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${safeName}.pdf"`);
     res.send(pdf);
   }
+}
+
+function parseRenderOptions(body: { fontFamily?: unknown; fontSize?: unknown }): RenderOptions {
+  const opts: RenderOptions = {};
+  if (body.fontFamily !== undefined) {
+    if (!isFontFamily(body.fontFamily)) {
+      throw new BadRequestException(`fontFamily must be one of helvetica|arial|times|georgia|courier`);
+    }
+    opts.fontFamily = body.fontFamily as FontFamily;
+  }
+  if (body.fontSize !== undefined) {
+    if (!isFontSize(body.fontSize)) {
+      throw new BadRequestException(`fontSize must be one of 9|10|11|12|14`);
+    }
+    opts.fontSize = body.fontSize as FontSize;
+  }
+  return opts;
+}
+
+function parseOrientation(value: unknown): Orientation | undefined {
+  if (value === undefined) return undefined;
+  if (!isOrientation(value)) {
+    throw new BadRequestException(`orientation must be "portrait" or "landscape"`);
+  }
+  return value as Orientation;
 }

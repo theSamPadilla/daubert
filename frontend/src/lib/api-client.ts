@@ -401,12 +401,29 @@ export const apiClient = {
     request<void>(`/productions/${id}`, { method: 'DELETE' }),
 
   // Export
-  exportProduction: (id: string, format: 'pdf' | 'png' | 'docx', filename: string, imageDataUrl?: string) => {
+  exportProduction: (
+    id: string,
+    format: 'pdf' | 'png' | 'docx',
+    filename: string,
+    opts?: {
+      imageDataUrl?: string;
+      fontFamily?: string;
+      fontSize?: number;
+      orientation?: 'portrait' | 'landscape';
+    },
+  ) => {
     const safeStem = filename.replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'export';
     return downloadFile(`/exports/productions/${id}`, `${safeStem}.${format}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ format, filename: safeStem, imageDataUrl }),
+      body: JSON.stringify({
+        format,
+        filename: safeStem,
+        imageDataUrl: opts?.imageDataUrl,
+        fontFamily: opts?.fontFamily,
+        fontSize: opts?.fontSize,
+        orientation: opts?.orientation,
+      }),
     });
   },
   exportGraph: (name: string, filename: string, imageDataUrl: string) => {
@@ -417,18 +434,27 @@ export const apiClient = {
       body: JSON.stringify({ name, filename: safeStem, imageDataUrl }),
     });
   },
-  exportExhibit: (filename: string, items: Array<{
-    refType: 'production' | 'investigation';
-    refId: string;
-    title: string;
-    subtitle?: string;
-    imageDataUrl?: string;
-  }>) => {
+  exportExhibit: (
+    filename: string,
+    items: Array<{
+      refType: 'production' | 'investigation';
+      refId: string;
+      title: string;
+      subtitle?: string;
+      imageDataUrl?: string;
+    }>,
+    opts?: { fontFamily?: string; fontSize?: number },
+  ) => {
     const safeStem = filename.replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'exhibit';
     return downloadFile('/exports/exhibit', `${safeStem}.pdf`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: safeStem, items }),
+      body: JSON.stringify({
+        filename: safeStem,
+        items,
+        fontFamily: opts?.fontFamily,
+        fontSize: opts?.fontSize,
+      }),
     });
   },
 

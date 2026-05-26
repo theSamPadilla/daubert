@@ -4,6 +4,11 @@ import Image from 'next/image';
 import { FaImage, FaFilePdf, FaFileWord, FaSpinner, FaMoon, FaSun } from 'react-icons/fa6';
 import type { ExportTheme } from '@/lib/exportTheme';
 import { ExportPreview } from './ExportPreview';
+import {
+  FONT_FAMILIES, FONT_SIZES, FONT_LABELS,
+  DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_ORIENTATION,
+  type FontFamily, type FontSize, type Orientation, type RenderOptions,
+} from '@/lib/exportRenderOptions';
 
 export type ExportKind = 'graph' | 'chart' | 'chronology' | 'report' | 'exhibit';
 export type ExportFormat = 'pdf' | 'png' | 'docx';
@@ -31,7 +36,7 @@ interface Props {
   onClose: () => void;
   kind: ExportKind;
   defaultFilename: string;
-  onExport: (format: ExportFormat, filename: string, theme: ExportTheme) => Promise<void>;
+  onExport: (format: ExportFormat, filename: string, theme: ExportTheme, renderOpts: RenderOptions) => Promise<void>;
   previewGenerate?: (theme: ExportTheme) => Promise<string>;
 }
 
@@ -42,6 +47,9 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
   const [busy, setBusy]     = useState(false);
   const [error, setError]   = useState<string | null>(null);
   const [theme, setTheme]   = useState<ExportTheme>('dark');
+  const [fontFamily, setFontFamily] = useState<FontFamily>(DEFAULT_FONT_FAMILY);
+  const [fontSize, setFontSize]     = useState<FontSize>(DEFAULT_FONT_SIZE);
+  const [orientation, setOrientation] = useState<Orientation>(DEFAULT_ORIENTATION);
 
   useEffect(() => {
     if (open) {
@@ -50,6 +58,9 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
       setError(null);
       setBusy(false);
       setTheme('dark');
+      setFontFamily(DEFAULT_FONT_FAMILY);
+      setFontSize(DEFAULT_FONT_SIZE);
+      setOrientation(DEFAULT_ORIENTATION);
     }
   }, [open, kind, defaultFilename]);
 
@@ -62,11 +73,28 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
 
   if (!open) return null;
 
+  // Typography (font family + size) applies to text-based exports — reports,
+  // chronologies, and exhibits. Charts and graphs render as rasters so font
+  // CSS would be inert.
+  const showTypography = kind === 'report' || kind === 'chronology' || kind === 'exhibit';
+  // Orientation only matters for chronology PDF — reports stay portrait;
+  // charts/graphs handle orientation server-side; exhibit per-item orientation
+  // is deferred (see CLAUDE.md).
+  const showOrientation = kind === 'chronology' && format === 'pdf';
+
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      await onExport(format, sanitize(stem), theme);
+      const renderOpts: RenderOptions = {};
+      if (showTypography) {
+        renderOpts.fontFamily = fontFamily;
+        renderOpts.fontSize = fontSize;
+      }
+      if (showOrientation) {
+        renderOpts.orientation = orientation;
+      }
+      await onExport(format, sanitize(stem), theme, renderOpts);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed');
@@ -157,6 +185,61 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
                     >
                       {t === 'dark' ? <FaMoon className="w-3.5 h-3.5" /> : <FaSun className="w-3.5 h-3.5" />}
                       {t === 'dark' ? 'Dark' : 'Light'}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {showTypography && (
+              <div className="grid grid-cols-[1fr_auto] gap-3 mb-5">
+                <div>
+                  <label className="block text-xs font-medium text-ink-muted mb-1.5">Font</label>
+                  <select
+                    value={fontFamily}
+                    onChange={(e) => setFontFamily(e.target.value as FontFamily)}
+                    disabled={busy}
+                    className="w-full h-9 px-2.5 bg-surface border border-line-strong rounded-md text-sm text-ink focus:outline-none focus:border-brand/60 transition-colors"
+                  >
+                    {FONT_FAMILIES.map((f) => (
+                      <option key={f} value={f} style={{ fontFamily: FONT_LABELS[f].preview }}>
+                        {FONT_LABELS[f].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-ink-muted mb-1.5">Size</label>
+                  <select
+                    value={fontSize}
+                    onChange={(e) => setFontSize(Number(e.target.value) as FontSize)}
+                    disabled={busy}
+                    className="h-9 px-2.5 bg-surface border border-line-strong rounded-md text-sm text-ink focus:outline-none focus:border-brand/60 transition-colors"
+                  >
+                    {FONT_SIZES.map((s) => (
+                      <option key={s} value={s}>{s} pt</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {showOrientation && (
+              <>
+                <label className="block text-xs font-medium text-ink-muted mb-2">Orientation</label>
+                <div className="flex p-1 mb-5 bg-surface rounded-lg border border-line-strong">
+                  {(['portrait', 'landscape'] as const).map((o) => (
+                    <button
+                      key={o}
+                      onClick={() => setOrientation(o)}
+                      disabled={busy}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all capitalize ${
+                        orientation === o
+                          ? 'bg-surface-raised text-ink shadow-sm'
+                          : 'text-ink-muted hover:text-ink'
+                      }`}
+                    >
+                      {o}
                     </button>
                   ))}
                 </div>

@@ -13,6 +13,7 @@ import { ExportModal } from '../Common/ExportModal';
 import { useGraphSnapshot } from '@/hooks/useGraphSnapshot';
 import { useChartSnapshot } from '@/hooks/useChartSnapshot';
 import type { ExportTheme } from '@/lib/exportTheme';
+import type { RenderOptions } from '@/lib/exportRenderOptions';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   investigation: <FaDiagramProject className="w-3.5 h-3.5" />,
@@ -96,7 +97,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
     });
   };
 
-  const handleExport = async (_format: 'pdf' | 'png' | 'docx', filename: string, _theme: ExportTheme) => {
+  const handleExport = async (_format: 'pdf' | 'png' | 'docx', filename: string, _theme: ExportTheme, renderOpts: RenderOptions) => {
     // Capture snapshots for investigation items in order.
     //
     // NOTE: apiClient.getCase() loads the case with `relations: ['investigations']`
@@ -138,6 +139,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
         subtitle: it.subtitle,
         imageDataUrl: it.imageDataUrl,
       })),
+      { fontFamily: renderOpts.fontFamily, fontSize: renderOpts.fontSize },
     );
   };
 

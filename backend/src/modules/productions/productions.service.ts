@@ -22,7 +22,6 @@ type Op =
   | { op: 'chronology_append'; entries: ChronologyEntry[] }
   | { op: 'chronology_replace'; index: number; entry: ChronologyEntry }
   | { op: 'chronology_delete'; indexes: number[] }
-  | { op: 'chronology_set_title'; title: string }
   | { op: 'chronology_set_column_widths'; widths: ColumnWidths }
   | { op: 'chronology_set_row_highlight'; indexes: number[]; color: HighlightColor | null }
   | { op: 'chart_set_height'; height: number };
@@ -129,12 +128,6 @@ function parseOp(raw: Record<string, unknown>, i: number): Op {
       }
       return { op: 'chronology_delete', indexes: raw.indexes as number[] };
     }
-    case 'chronology_set_title': {
-      if (typeof raw.title !== 'string') {
-        throw new BadRequestException(`ops[${i}] (chronology_set_title): \`title\` must be a string`);
-      }
-      return { op: 'chronology_set_title', title: raw.title };
-    }
     case 'chronology_set_column_widths': {
       if (raw.widths === null || typeof raw.widths !== 'object') {
         throw new BadRequestException(`ops[${i}] (chronology_set_column_widths): \`widths\` must be an object`);
@@ -160,7 +153,7 @@ function parseOp(raw: Record<string, unknown>, i: number): Op {
         throw new BadRequestException(`ops[${i}] (chronology_set_row_highlight): \`indexes\` must be a non-empty array of non-negative integers`);
       }
       if (raw.color !== null && !isHighlightColor(raw.color)) {
-        throw new BadRequestException(`ops[${i}] (chronology_set_row_highlight): \`color\` must be one of yellow|amber|red|green|blue or null`);
+        throw new BadRequestException(`ops[${i}] (chronology_set_row_highlight): \`color\` must be one of yellow|gray|red|green|blue or null`);
       }
       return { op: 'chronology_set_row_highlight', indexes: raw.indexes as number[], color: raw.color as HighlightColor | null };
     }
@@ -216,8 +209,6 @@ function applyOp(
       }
       return { ...data, entries };
     }
-    case 'chronology_set_title':
-      return { ...data, title: op.title };
     case 'chronology_set_column_widths': {
       const existing = (data.columnWidths ?? {}) as ColumnWidths;
       return { ...data, columnWidths: { ...existing, ...op.widths } };

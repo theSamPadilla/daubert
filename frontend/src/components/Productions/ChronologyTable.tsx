@@ -30,7 +30,6 @@ interface ColumnWidths {
 }
 
 interface ChronologyData {
-  title?: string;
   entries: ChronologyEntry[];
   columnWidths?: ColumnWidths;
 }
@@ -150,13 +149,8 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit, onRowHighli
 
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-4">
-        {data.title ? (
-          <h2 className="text-xl font-bold text-ink">{data.title}</h2>
-        ) : (
-          <span />
-        )}
-        {isCustom && onColumnResize && (
+      {isCustom && onColumnResize && (
+        <div className="flex justify-end mb-4">
           <button
             onClick={resetWidths}
             className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-gray-200"
@@ -165,8 +159,8 @@ export function ChronologyTable({ data, onColumnResize, onEntryEdit, onRowHighli
             <FaRotateLeft className="w-3 h-3" />
             Reset widths
           </button>
-        )}
-      </div>
+        </div>
+      )}
       <div className="rounded-lg border border-line-strong overflow-hidden">
         <table ref={tableRef} className="w-full text-sm table-fixed">
           <colgroup>

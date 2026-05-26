@@ -1,5 +1,6 @@
 import { BASE_STYLES, CHART_STYLES, CHRONOLOGY_STYLES, CSP_META, REPORT_STYLES } from './templates/styles';
 import { escapeHtml } from './templates/util';
+import { buildFontOverrideCss, RenderOptions } from './render-options';
 
 interface ComposedItem {
   title: string;
@@ -29,7 +30,7 @@ const EXHIBIT_STYLES = `
   }
 `;
 
-export function composeExhibitHtml(items: ComposedItem[]): string {
+export function composeExhibitHtml(items: ComposedItem[], opts?: RenderOptions): string {
   const sections = items
     .map(
       (it, i) => `
@@ -46,6 +47,6 @@ export function composeExhibitHtml(items: ComposedItem[]): string {
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">${CSP_META}<title>Exhibit</title>
-<style>${BASE_STYLES}${REPORT_STYLES}${CHRONOLOGY_STYLES}${CHART_STYLES}${EXHIBIT_STYLES}</style>
+<style>${BASE_STYLES}${REPORT_STYLES}${CHRONOLOGY_STYLES}${CHART_STYLES}${EXHIBIT_STYLES}${buildFontOverrideCss(opts)}</style>
 </head><body>${sections}</body></html>`;
 }

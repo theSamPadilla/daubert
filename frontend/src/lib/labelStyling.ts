@@ -35,6 +35,11 @@ export const LABEL_WRAPPER_BASE_CSS =
   'background:' + DEFAULT_LABEL_BG + ';color:' + DEFAULT_LABEL_COLOR + ';' +
   'border:1px solid #374151;border-radius:6px;' +
   'padding:6px 8px;font-size:11px;line-height:1.35;cursor:move;user-select:none;' +
+  // text-align:center so the export overlay's font-hinting cushion (see
+  // exportLabelOverlay.tsx:106) splits evenly on either side of the content
+  // instead of all landing on the right. Without this, short labels (e.g. a
+  // 2-character chronology badge "10") show visible dead space on the right.
+  'text-align:center;' +
   'box-shadow:0 2px 8px rgba(0,0,0,0.4);z-index:5;';
 
 /**

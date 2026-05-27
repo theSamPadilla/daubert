@@ -1,13 +1,27 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import type { Core } from 'cytoscape';
+import type { TraceLabel, LabelAnchor } from '@/types/investigation';
+import {
+  contextFromCy,
+  resolveLabelRenderedPosition,
+  projectPointOntoEdge,
+  modelDeltaFromRenderedDelta,
+} from '@/lib/labelGeometry';
+import { renderLabelMarkdownInto } from '@/components/Graph/LabelOverlay';
 
 type OnResizeNode = (nodeId: string, traceId: string, size: number) => void;
+
+export interface OverlayHandle {
+  getOverlayElement: () => HTMLDivElement | null;
+}
 
 // DOM overlays layered on top of the Cytoscape canvas:
 //   - address sublabels (small truncated address under custom-labeled wallet nodes)
 //   - edge date sublabels (small date pill at the midpoint of every edge)
 //   - near-vertical edge orientation class (keeps labels horizontal when steep)
 //   - resize handle (yellow square at bottom-right of the single selected wallet/group)
+//   - annotation labels (user-created markdown labels anchored to the graph)
 //
 // All overlays are positioned via the `render` event Cytoscape fires whenever
 // the viewport or any element moves. They live in a single absolute-positioned
@@ -15,14 +29,46 @@ type OnResizeNode = (nodeId: string, traceId: string, size: number) => void;
 export function useCytoscapeOverlays(
   cy: Core | null,
   container: HTMLDivElement | null,
-  onResizeNode: OnResizeNode
-) {
+  onResizeNode: OnResizeNode,
+  labels: { traceId: string; label: TraceLabel }[] = [],
+  onLabelMove: (traceId: string, labelId: string, anchor: LabelAnchor) => void = () => {},
+  onLabelEdit: (traceId: string, labelId: string) => void = () => {},
+  onLabelSelect: (labelId: string | null) => void = () => {},
+  selectedLabelId: string | null = null,
+  unselectAllCytoscape: () => void = () => {},
+  onLabelContextMenu: (traceId: string, labelId: string, x: number, y: number) => void = () => {},
+): OverlayHandle {
+  // Mirror into refs so the main effect's dep array stays minimal.
+  // Changing prop identity (e.g. labels array on every reducer dispatch) must NOT
+  // tear down and recreate the overlay layer — that would break mid-drag state.
+  // This is the same callbacksRef pattern from useCytoscape.ts:46-55.
+  const labelsRef = useRef(labels);
+  const selectedLabelIdRef = useRef(selectedLabelId);
+  const onLabelMoveRef = useRef(onLabelMove);
+  const onLabelEditRef = useRef(onLabelEdit);
+  const onLabelSelectRef = useRef(onLabelSelect);
+  const unselectAllRef = useRef(unselectAllCytoscape);
+  const onLabelContextMenuRef = useRef(onLabelContextMenu);
+  // Stable ref to the overlay element so the export path can rasterize it
+  // without needing to re-run the effect. The ref is set when the overlay is
+  // created and cleared in the cleanup — safe to read at any time.
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+
+  labelsRef.current = labels;
+  selectedLabelIdRef.current = selectedLabelId;
+  onLabelMoveRef.current = onLabelMove;
+  onLabelEditRef.current = onLabelEdit;
+  onLabelSelectRef.current = onLabelSelect;
+  unselectAllRef.current = unselectAllCytoscape;
+  onLabelContextMenuRef.current = onLabelContextMenu;
+
   useEffect(() => {
     if (!cy || !container) return;
 
     const overlayEl = document.createElement('div');
     overlayEl.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;';
     container.parentElement?.appendChild(overlayEl);
+    overlayRef.current = overlayEl;
 
     const sublabelEls = new Map<string, HTMLDivElement>();
     const edgeSublabelEls = new Map<string, HTMLDivElement>();
@@ -162,11 +208,220 @@ export function useCytoscapeOverlays(
     };
     resizeHandleEl.addEventListener('mousedown', onMouseDown);
 
+    // ── Annotation label overlay ──────────────────────────────────────────────
+
+    interface LabelEntry {
+      wrapper: HTMLDivElement;
+      // Child div owned by the React root. Drag handlers attach to wrapper (parent),
+      // so React re-renders of markdownContainer cannot clobber the drag event listeners.
+      markdownContainer: HTMLDivElement;
+      cleanup: () => void;
+      lastRenderedText: string;
+    }
+    const labelEls = new Map<string, LabelEntry>();
+
+    /** Find the current anchor + traceId for a label by id, from the live ref. */
+    const findLabel = (labelId: string): { anchor: LabelAnchor; traceId: string } | null => {
+      for (const { traceId, label } of labelsRef.current) {
+        if (label.id === labelId) return { anchor: label.anchor, traceId };
+      }
+      return null;
+    };
+
+    /**
+     * Convert a rendered drag delta into a new LabelAnchor.
+     *
+     * edge/txEdge: when t clamps at an endpoint, freeze perpOffset at its
+     * pre-drag value to prevent the label silently teleporting perpendicular
+     * to the edge. The pre-drag perpOffset is captured in mousedown.
+     */
+    const computeDraggedAnchor = (
+      anchor: LabelAnchor,
+      dxRendered: number,
+      dyRendered: number,
+      preDragPerpOffset: number | null,
+    ): LabelAnchor => {
+      const zoom = cy.zoom();
+      switch (anchor.type) {
+        case 'free': {
+          const { dx, dy } = modelDeltaFromRenderedDelta({ dx: dxRendered, dy: dyRendered }, zoom);
+          return { ...anchor, x: anchor.x + dx, y: anchor.y + dy };
+        }
+        case 'node': {
+          const { dx, dy } = modelDeltaFromRenderedDelta({ dx: dxRendered, dy: dyRendered }, zoom);
+          return { ...anchor, dx: anchor.dx + dx, dy: anchor.dy + dy };
+        }
+        case 'edge':
+        case 'txEdge': {
+          const ctx = contextFromCy(cy);
+          const e = anchor.type === 'txEdge'
+            ? ctx.getEdgeByTxHash?.(anchor.txHash)
+            : ctx.getEdge?.(anchor.anchorId);
+          if (!e) return anchor; // no resolved edge — keep anchor unchanged
+          const s = e.source().renderedPosition();
+          const t = e.target().renderedPosition();
+          // Compute the label's current rendered position, then apply the drag delta.
+          const currentPos = resolveLabelRenderedPosition(anchor, ctx);
+          if (!currentPos) return anchor;
+          const newRenderedPos = { x: currentPos.x + dxRendered, y: currentPos.y + dyRendered };
+          const { t: newT, perpOffset: newPerpOffset } = projectPointOntoEdge(newRenderedPos, s, t);
+          // When t clamps at an endpoint (0 or 1), tRaw was outside [0,1] meaning the
+          // "closest point" on the edge is the endpoint itself. Recomputing perpOffset from
+          // there would silently teleport the label perpendicular to the edge. Freeze instead.
+          const tClamped = newT === 0 || newT === 1;
+          const finalPerpOffset = tClamped && preDragPerpOffset !== null
+            ? preDragPerpOffset
+            : newPerpOffset / zoom; // convert to model coords
+          return { ...anchor, t: newT, perpOffset: finalPerpOffset };
+        }
+      }
+    };
+
+    /** Attach drag + click handlers to a label wrapper div. */
+    const attachLabelInteractions = (wrapper: HTMLDivElement, labelId: string, traceId: string) => {
+      let dragStart: { x: number; y: number } | null = null;
+      let startAnchor: LabelAnchor | null = null; // anchor captured at mousedown — total-delta semantics
+      let didDrag = false;
+      // Capture pre-drag perpOffset for edge/txEdge anchors so we can freeze it
+      // when t clamps at an endpoint during drag (prevents silent teleport).
+      let preDragPerpOffset: number | null = null;
+
+      wrapper.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        dragStart = { x: e.clientX, y: e.clientY };
+        didDrag = false;
+
+        // Capture anchor once at mousedown. Each mousemove computes the TOTAL delta
+        // from dragStart applied to startAnchor — no dependency on React state propagation.
+        const current = findLabel(labelId);
+        if (!current) {
+          startAnchor = null;
+          preDragPerpOffset = null;
+        } else {
+          startAnchor = current.anchor;
+          if (current.anchor.type === 'edge' || current.anchor.type === 'txEdge') {
+            preDragPerpOffset = current.anchor.perpOffset;
+          } else {
+            preDragPerpOffset = null;
+          }
+        }
+
+        const onMove = (ev: MouseEvent) => {
+          if (!dragStart || !startAnchor) return;
+          // Total delta from mousedown — not incremental. dragStart never resets.
+          const dxRendered = ev.clientX - dragStart.x;
+          const dyRendered = ev.clientY - dragStart.y;
+          if (Math.hypot(dxRendered, dyRendered) > 3) didDrag = true;
+          if (!didDrag) return;
+
+          const nextAnchor = computeDraggedAnchor(startAnchor, dxRendered, dyRendered, preDragPerpOffset);
+          onLabelMoveRef.current(traceId, labelId, nextAnchor);
+          // DO NOT reset dragStart — total-delta semantics require the original mousedown position.
+        };
+
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          if (!didDrag) {
+            // Single click (not drag) = select this label AND open the editor.
+            // Also clear Cytoscape's selection so the DetailsPanel and .cy-sel painted
+            // state don't show a stale wallet/edge selection.
+            onLabelSelectRef.current(labelId);
+            unselectAllRef.current();
+            onLabelEditRef.current(traceId, labelId);
+          }
+          dragStart = null;
+          startAnchor = null;
+        };
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      // dblclick handler removed — single-click now opens the editor directly.
+      // Keeping dblclick would fire the editor open twice (once via mouseup, once here).
+
+      wrapper.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onLabelContextMenuRef.current(traceId, labelId, e.clientX, e.clientY);
+      });
+    };
+
+    const updateLabels = () => {
+      const activeIds = new Set<string>();
+      const ctx = contextFromCy(cy);
+
+      for (const { traceId, label } of labelsRef.current) {
+        activeIds.add(label.id);
+        const pos = resolveLabelRenderedPosition(label.anchor, ctx);
+
+        if (!pos) {
+          // Anchor element is gone (e.g. tethered to a bundled edge that just got aggregated).
+          const existing = labelEls.get(label.id);
+          if (existing) existing.wrapper.style.display = 'none';
+          continue;
+        }
+
+        let entry = labelEls.get(label.id);
+        if (!entry) {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'label-wrapper';
+          wrapper.style.cssText =
+            'position:absolute;transform:translate(-50%, -50%);pointer-events:auto;max-width:240px;' +
+            'background:rgba(17,24,39,0.92);color:#f3f4f6;border:1px solid #374151;border-radius:6px;' +
+            'padding:6px 8px;font-size:11px;line-height:1.35;cursor:move;user-select:none;' +
+            'box-shadow:0 2px 8px rgba(0,0,0,0.4);z-index:5;';
+
+          // markdownContainer is a child div owned by the React root.
+          // The wrapper stays under direct DOM control for drag handling — this split
+          // prevents React from clobbering the drag-listener DOM during re-renders.
+          const markdownContainer = document.createElement('div');
+          wrapper.appendChild(markdownContainer);
+          overlayEl.appendChild(wrapper);
+
+          const root = createRoot(markdownContainer);
+          const cleanup = () => { root.unmount(); wrapper.remove(); };
+          const newEntry: LabelEntry = { wrapper, markdownContainer, cleanup, lastRenderedText: '\0' };
+          labelEls.set(label.id, newEntry);
+          entry = newEntry;
+
+          attachLabelInteractions(wrapper, label.id, traceId);
+        }
+
+        // Position updates: direct DOM, no React re-render.
+        entry.wrapper.style.left = `${pos.x}px`;
+        entry.wrapper.style.top = `${pos.y}px`;
+        entry.wrapper.style.display = '';
+        // Selection highlight: toggle class so CSS can style the selected label.
+        entry.wrapper.classList.toggle('label-selected', selectedLabelIdRef.current === label.id);
+
+        // Markdown re-render: gated on text change. The `render` event fires on every pan/zoom;
+        // re-rendering the React tree every time would burn CPU for no visible change.
+        if (entry.lastRenderedText !== label.text) {
+          renderLabelMarkdownInto(entry.markdownContainer, label.text);
+          entry.lastRenderedText = label.text;
+        }
+      }
+
+      // Tear down labels that no longer exist in the trace data.
+      // Must unmount the React root — not just remove the wrapper — to avoid memory leaks.
+      labelEls.forEach((entry, id) => {
+        if (!activeIds.has(id)) {
+          entry.cleanup();
+          labelEls.delete(id);
+        }
+      });
+    };
+
+    // ── Render chain ─────────────────────────────────────────────────────────
+
     const onRender = () => {
       updateEdgeOrientations();
       updateSublabels();
       updateEdgeSublabels();
       updateResizeHandle();
+      updateLabels();
     };
     cy.on('render', onRender);
 
@@ -174,8 +429,14 @@ export function useCytoscapeOverlays(
       cy.off('render', onRender);
       resizeHandleEl.removeEventListener('mousedown', onMouseDown);
       overlayEl.remove();
+      overlayRef.current = null;
       sublabelEls.clear();
       edgeSublabelEls.clear();
+      // Unmount any live React roots before clearing the map.
+      labelEls.forEach((entry) => entry.cleanup());
+      labelEls.clear();
     };
   }, [cy, container, onResizeNode]);
+
+  return { getOverlayElement: () => overlayRef.current };
 }

@@ -1,5 +1,5 @@
 import { useReducer, useCallback, useEffect } from 'react';
-import { Investigation, Trace, WalletNode, TransactionEdge, Group, EdgeBundle } from '../types/investigation';
+import { Investigation, Trace, WalletNode, TransactionEdge, Group, EdgeBundle, TraceLabel, LabelAnchor } from '../types/investigation';
 
 // Action types
 type Action =
@@ -27,11 +27,16 @@ type Action =
   | { type: 'UPDATE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string; updates: Partial<EdgeBundle> } }
   | { type: 'TOGGLE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
   | { type: 'DELETE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
+  | { type: 'ADD_LABEL'; traceId: string; label: TraceLabel }
+  | { type: 'UPDATE_LABEL'; traceId: string; labelId: string; text: string }
+  | { type: 'DELETE_LABEL'; traceId: string; labelId: string }
+  | { type: 'MOVE_LABEL'; traceId: string; labelId: string; anchor: LabelAnchor }
+  | { type: 'TETHER_LABEL'; traceId: string; labelId: string; anchor: LabelAnchor }
   | { type: 'UNDO' }
   | { type: 'REDO' };
 
 // Actions that bypass the history stack (too granular or are load operations)
-const SKIP_HISTORY = new Set<Action['type']>(['SET_INVESTIGATION', 'UPDATE_NODE_POSITION', 'UNDO', 'REDO']);
+const SKIP_HISTORY = new Set<Action['type']>(['SET_INVESTIGATION', 'UPDATE_NODE_POSITION', 'UNDO', 'REDO', 'MOVE_LABEL']);
 
 const MAX_HISTORY = 50;
 
@@ -287,6 +292,31 @@ function applyAction(state: Investigation | null, action: Action): Investigation
       return mapTrace(state, action.payload.traceId, (t) => ({
         ...t,
         edgeBundles: (t.edgeBundles || []).filter((b) => b.id !== action.payload.bundleId),
+      }));
+
+    case 'ADD_LABEL':
+      return mapTrace(state, action.traceId, (t) => ({
+        ...t,
+        labels: [...(t.labels ?? []), action.label],
+      }));
+
+    case 'UPDATE_LABEL':
+      return mapTrace(state, action.traceId, (t) => ({
+        ...t,
+        labels: (t.labels ?? []).map((l) => (l.id === action.labelId ? { ...l, text: action.text } : l)),
+      }));
+
+    case 'DELETE_LABEL':
+      return mapTrace(state, action.traceId, (t) => ({
+        ...t,
+        labels: (t.labels ?? []).filter((l) => l.id !== action.labelId),
+      }));
+
+    case 'MOVE_LABEL':
+    case 'TETHER_LABEL':
+      return mapTrace(state, action.traceId, (t) => ({
+        ...t,
+        labels: (t.labels ?? []).map((l) => (l.id === action.labelId ? { ...l, anchor: action.anchor } : l)),
       }));
 
     case 'EXTRACT_TO_TRACE': {
@@ -559,6 +589,36 @@ export function useInvestigation(initial: Investigation | null) {
     []
   );
 
+  const addLabel = useCallback(
+    (traceId: string, label: TraceLabel) =>
+      dispatch({ type: 'ADD_LABEL', traceId, label }),
+    []
+  );
+
+  const updateLabel = useCallback(
+    (traceId: string, labelId: string, text: string) =>
+      dispatch({ type: 'UPDATE_LABEL', traceId, labelId, text }),
+    []
+  );
+
+  const deleteLabel = useCallback(
+    (traceId: string, labelId: string) =>
+      dispatch({ type: 'DELETE_LABEL', traceId, labelId }),
+    []
+  );
+
+  const moveLabel = useCallback(
+    (traceId: string, labelId: string, anchor: LabelAnchor) =>
+      dispatch({ type: 'MOVE_LABEL', traceId, labelId, anchor }),
+    []
+  );
+
+  const tetherLabel = useCallback(
+    (traceId: string, labelId: string, anchor: LabelAnchor) =>
+      dispatch({ type: 'TETHER_LABEL', traceId, labelId, anchor }),
+    []
+  );
+
   return {
     investigation,
     dispatch,
@@ -590,5 +650,10 @@ export function useInvestigation(initial: Investigation | null) {
     updateEdgeBundle,
     toggleEdgeBundle,
     deleteEdgeBundle,
+    addLabel,
+    updateLabel,
+    deleteLabel,
+    moveLabel,
+    tetherLabel,
   };
 }

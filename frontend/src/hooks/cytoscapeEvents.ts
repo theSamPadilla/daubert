@@ -128,6 +128,7 @@ export function bindCytoscapeEvents(cy: Core, getters: CytoscapeEventGetters): (
   const onTapBackground = (event: EventObject) => {
     if (event.target === cy) {
       getters.getCallbacks().onSelectionChange?.({ nodeIds: [], edgeIds: [], focusItem: null });
+      getters.getCallbacks().onBackgroundTap?.();
     }
   };
 
@@ -211,12 +212,14 @@ export function bindCytoscapeEvents(cy: Core, getters: CytoscapeEventGetters): (
   const onCxtTapNode = (event: EventObject) => {
     const node = event.target;
     const renderedPos = event.renderedPosition || event.position;
+    const modelPos = event.position;
     const containerRect = getters.getContainerRect();
     getters.getCallbacks().onContextMenu?.({
       type: 'node',
       id: node.data('id'),
       x: containerRect.left + renderedPos.x,
       y: containerRect.top + renderedPos.y,
+      modelPosition: { x: modelPos.x, y: modelPos.y },
     });
   };
 
@@ -235,11 +238,13 @@ export function bindCytoscapeEvents(cy: Core, getters: CytoscapeEventGetters): (
   const onCxtTapBackground = (event: EventObject) => {
     if (event.target === cy) {
       const renderedPos = event.renderedPosition || event.position;
+      const modelPos = event.position;
       const containerRect = getters.getContainerRect();
       getters.getCallbacks().onContextMenu?.({
         type: 'background',
         x: containerRect.left + renderedPos.x,
         y: containerRect.top + renderedPos.y,
+        modelPosition: { x: modelPos.x, y: modelPos.y },
       });
     }
   };

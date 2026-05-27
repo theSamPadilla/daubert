@@ -8,7 +8,8 @@
 
 - **Free-floating:** `{ x, y }` in **model** coordinates.
 - **Node-tethered:** `{ anchorType: 'node', anchorId, dx, dy }` — offset in model coords from the anchor's center.
-- **Edge-tethered:** `{ anchorType: 'edge', anchorId, t, perpOffset }` — `t` in `[0, 1]` along the edge from source to target; `perpOffset` perpendicular distance (model coords) from the edge line. Survives endpoint movement.
+- **Edge-tethered (transaction):** `{ anchorType: 'txEdge', txHash, t, perpOffset }` — preferred for transaction edges. `txHash` is stable across bundling, aggregation, and cross-trace de-duping. `t` in `[0, 1]` along the edge from source to target; `perpOffset` perpendicular distance (model coords) from the edge line.
+- **Edge-tethered (bundle / non-tx):** `{ anchorType: 'edge', anchorId, t, perpOffset }` — fallback for edges without a `txHash` (bundles, synthetic edges). Anchor by cytoscape edge UUID; may orphan if the edge is later aggregated.
 
 Text is markdown, rendered with `react-markdown` + `rehype-sanitize`. Edit UX is a small floating popover (textarea + live preview) that opens on double-click. Drag-to-move uses the same model→rendered pattern as the existing resize handle in `useCytoscapeOverlays.ts:131-163`. Selection is single-mode across labels and Cytoscape elements: selecting a label clears the Cytoscape selection and vice versa.
 
@@ -40,6 +41,7 @@ PNG export: labels are injected as transparent Cytoscape nodes at their resolved
 | 14 | `frontend/src/components/Graph/GraphCanvas.tsx` | Modify | "Add label" entry point (toolbar pill + double-click-background + context menu); wire reducer callbacks |
 | 15 | `frontend/src/components/Graph/ContextMenu.tsx` | Modify | Add "Add label here" (background), "Attach label to this node/edge" (element-targeted) |
 | 16 | `frontend/src/hooks/useCytoscape.ts` | Modify | PNG-export: rasterize overlay div via `html2canvas`, composite onto Cytoscape PNG so labels render with full markdown fidelity |
+| 16a | `frontend/src/hooks/cytoscapeSync.ts:151` | Modify | Mirror `txHash` into cytoscape edge data so `getEdgeByTxHash` can look it up. One-line addition to the data object for individual transaction edges (NOT aggregated edges or bundles, which have no single txHash). |
 | 17 | `frontend/src/app/cases/[caseId]/investigations/page.tsx` | Modify | Include `labels` in the auto-save `traceData` payload (line 410-418) — without this, label edits dispatch locally but never persist |
 | 18 | `frontend/package.json` | Modify | Add `react-markdown@^9`, `rehype-sanitize@^6`, `html2canvas@^1.4` |
 | 19 | `backend/src/modules/ai/ai.module.ts` | Modify | Import `TracesModule` so `AiService` can inject `TracesService` for label tool calls |
@@ -75,7 +77,7 @@ PNG export: labels are injected as transparent Cytoscape nodes at their resolved
 12. **`AiService` dispatcher shape is `executeTool(toolUse, caseId?, investigationId?)` (line 565).** It is a `switch` over `toolUse.name`, returns `{ error: '...' }` strings for tool failures (does not throw — keeps tool calls non-fatal to the conversation), and uses a `{ kind: 'script', caseId }` principal when calling other services (see how `productionsService.update` is called at line 674). Label tools must follow this exact pattern: inject `TracesService` (requires `TracesModule` import in `ai.module.ts`), use the script principal, and never throw. Task 5 implementation matches this.
 13. **React markdown re-render must be text-change gated.** `useCytoscapeOverlays`'s `render` event fires on every pan/zoom/mouseover — dozens of times per second. Calling `root.render(<LabelOverlay text={...} />)` every time will burn CPU rendering identical markdown. Track the last-rendered text per label id; only re-render the React subtree when text changes. Position changes mutate `wrapper.style.left/top` directly without touching React.
 14. **Labels must reach the overlay hook through a ref, not a prop.** `useCytoscapeOverlays` already uses the ref-mirror pattern for callbacks (see how `callbacksRef` is used in `useCytoscape.ts:46-55`). The labels array changes identity on every reducer dispatch — passing it as a hook dependency would tear down and re-create the overlay layer mid-drag. Mirror it into `latestLabelsRef.current = labels` outside the effect deps. Same pattern for `selectedLabelId`.
-15. **Edge id stability is a known limitation.** Bundling/aggregation regenerates edge UUIDs (see `useInvestigation.ts:92` and the bundle reducer paths). A label tethered to an edge whose id changes will resolve to `null` and be hidden (Task 7 returns `null` from `resolveLabelRenderedPosition` cleanly; Task 10 hides on null). For transaction edges, the `txHash` field on `TransactionEdge` is stable across aggregation — Phase 2 may switch the tether to use `txHash` for `kind === 'transaction'` edges. For Phase 1: document this in the tool description so the agent knows not to tether labels to bundled edges. Test coverage in Task 7 must include the missing-anchor case.
+15. **Two edge-anchor variants for stability.** Bundling/aggregation regenerates cytoscape edge UUIDs (see `useInvestigation.ts:92` and the bundle reducer paths). Labels tethered by raw edge UUID would orphan. To avoid this for transaction edges, the schema includes a `txEdge` anchor variant — anchored by `txHash`, which IS stable across bundling, aggregation, and cross-trace de-dup. **Rule of thumb (enforced in UI + agent tool descriptions):** when the underlying edge has a `txHash`, the anchor MUST be `txEdge`; the plain `edge` UUID variant is only for bundles/synthetic edges that have no `txHash`. The resolver in `labelGeometry.ts` looks up txEdges via `getEdgeByTxHash` (filters `cy.edges()` by data attribute). Task 7's tests cover both the resolves-correctly and missing-edge cases.
 16. **Selection coordination requires explicit cross-clears.** `useCytoscape.ts:102-114` and `cytoscapeEvents.ts`'s `onTapBackground` already clear Cytoscape selection on background tap. But: label divs have `pointer-events:auto` and stop event propagation (otherwise Cytoscape would intercept their clicks). That means clicks on labels never reach Cytoscape and Cytoscape's `.cy-sel` stays painted unless we explicitly clear it. The label click handler must call `unselectAll()` from `useCytoscape`, and the existing `onSelectionChange` callback in `GraphCanvas` must clear `setSelectedLabelId(null)` whenever a non-null Cytoscape selection arrives. Both directions, no race conditions, integration-tested.
 
 ### Out of scope (Phase 2)
@@ -196,12 +198,13 @@ describe('label-schema', () => {
 ```ts
 // backend/src/modules/traces/label-schema.ts
 
-export const MAX_LABEL_TEXT_LENGTH = 4000;
+export const MAX_LABEL_TEXT_LENGTH = 1000;
 
 export type LabelAnchor =
   | { type: 'free'; x: number; y: number }
   | { type: 'node'; anchorId: string; dx: number; dy: number }
-  | { type: 'edge'; anchorId: string; t: number; perpOffset: number };
+  | { type: 'edge'; anchorId: string; t: number; perpOffset: number }
+  | { type: 'txEdge'; txHash: string; t: number; perpOffset: number };
 
 export interface TraceLabel {
   id: string;
@@ -229,8 +232,13 @@ function validateAnchor(a: unknown, ctx: string): LabelAnchor {
       if (!isFiniteNumber(r.t) || r.t < 0 || r.t > 1) throw new Error(`${ctx}: edge anchor requires t in [0, 1]`);
       if (!isFiniteNumber(r.perpOffset)) throw new Error(`${ctx}: edge anchor requires finite perpOffset`);
       return { type: 'edge', anchorId: r.anchorId, t: r.t, perpOffset: r.perpOffset };
+    case 'txEdge':
+      if (typeof r.txHash !== 'string' || !r.txHash) throw new Error(`${ctx}: txEdge anchor requires txHash`);
+      if (!isFiniteNumber(r.t) || r.t < 0 || r.t > 1) throw new Error(`${ctx}: txEdge anchor requires t in [0, 1]`);
+      if (!isFiniteNumber(r.perpOffset)) throw new Error(`${ctx}: txEdge anchor requires finite perpOffset`);
+      return { type: 'txEdge', txHash: r.txHash, t: r.t, perpOffset: r.perpOffset };
     default:
-      throw new Error(`${ctx}: anchor.type must be "free" | "node" | "edge"`);
+      throw new Error(`${ctx}: anchor.type must be "free" | "node" | "edge" | "txEdge"`);
   }
 }
 
@@ -372,7 +380,17 @@ const ANCHOR_SCHEMA = {
       required: ['type', 'anchorId', 't', 'perpOffset'],
       properties: {
         type: { type: 'string', enum: ['edge'] },
-        anchorId: { type: 'string', description: 'Transaction edge ID' },
+        anchorId: { type: 'string', description: 'Cytoscape edge UUID. Prefer txEdge variant for transaction edges (stable across aggregation). Use this only for bundles or synthetic edges without a txHash.' },
+        t: { type: 'number', minimum: 0, maximum: 1, description: 'Position along edge (0=source, 1=target)' },
+        perpOffset: { type: 'number', description: 'Perpendicular offset from edge line (model coords, signed)' },
+      },
+    },
+    {
+      type: 'object',
+      required: ['type', 'txHash', 't', 'perpOffset'],
+      properties: {
+        type: { type: 'string', enum: ['txEdge'] },
+        txHash: { type: 'string', description: 'Transaction hash. PREFERRED for transaction edges — stable across bundling, aggregation, and cross-trace de-dup. Resolved at render time to the current cytoscape edge with matching txHash.' },
         t: { type: 'number', minimum: 0, maximum: 1, description: 'Position along edge (0=source, 1=target)' },
         perpOffset: { type: 'number', description: 'Perpendicular offset from edge line (model coords, signed)' },
       },
@@ -388,7 +406,7 @@ export const ADD_LABEL_TOOL: Tool = {
     required: ['traceId', 'text', 'anchor'],
     properties: {
       traceId: { type: 'string', format: 'uuid' },
-      text: { type: 'string', description: 'Markdown content. Max 4000 chars. Bold, links, code, line breaks supported.' },
+      text: { type: 'string', description: 'Markdown content. Max 1000 chars. Bold, links, code, line breaks supported.' },
       anchor: ANCHOR_SCHEMA as any,
     },
   },
@@ -403,7 +421,7 @@ export const UPDATE_LABEL_TOOL: Tool = {
     properties: {
       traceId: { type: 'string', format: 'uuid' },
       labelId: { type: 'string' },
-      text: { type: 'string', description: 'New markdown content. Max 4000 chars.' },
+      text: { type: 'string', description: 'New markdown content. Max 1000 chars.' },
     },
   },
 };
@@ -731,7 +749,8 @@ case TETHER_LABEL_TOOL.name: {
 export type LabelAnchor =
   | { type: 'free'; x: number; y: number }
   | { type: 'node'; anchorId: string; dx: number; dy: number }
-  | { type: 'edge'; anchorId: string; t: number; perpOffset: number };
+  | { type: 'edge'; anchorId: string; t: number; perpOffset: number }
+  | { type: 'txEdge'; txHash: string; t: number; perpOffset: number };
 
 export interface TraceLabel {
   id: string;
@@ -760,6 +779,7 @@ export interface Trace {
 **Files:**
 - Create: `frontend/src/lib/labelGeometry.ts`
 - Create: `frontend/src/lib/labelGeometry.test.ts`
+- Modify: `frontend/src/hooks/cytoscapeSync.ts:151` — add `txHash: edge.txHash` to the cytoscape edge data object (individual tx edges only; not aggregated/bundle branches). Required for `getEdgeByTxHash` to work.
 
 **Step 1: Failing tests.**
 
@@ -797,6 +817,26 @@ describe('labelGeometry', () => {
       );
       // midpoint (50, 0), perpendicular is (0, ±1) for a horizontal line; perpOffset=10 along (0, -1) per convention
       expect(out).toEqual({ x: 50, y: -10 });
+    });
+
+    it('resolves a txEdge anchor by looking up the edge via txHash', () => {
+      const fakeEdge = {
+        source: () => ({ renderedPosition: () => ({ x: 0, y: 0 }) }),
+        target: () => ({ renderedPosition: () => ({ x: 100, y: 0 }) }),
+      } as any;
+      const out = resolveLabelRenderedPosition(
+        { type: 'txEdge', txHash: '0xabc', t: 0.5, perpOffset: 0 },
+        { zoom: 1, getEdgeByTxHash: (h: string) => h === '0xabc' ? fakeEdge : null } as any,
+      );
+      expect(out).toEqual({ x: 50, y: 0 });
+    });
+
+    it('returns null for txEdge anchor when no edge has matching txHash (e.g. trace hidden)', () => {
+      const out = resolveLabelRenderedPosition(
+        { type: 'txEdge', txHash: '0xnotfound', t: 0.5, perpOffset: 0 },
+        { zoom: 1, getEdgeByTxHash: () => null } as any,
+      );
+      expect(out).toBeNull();
     });
 
     it('returns null when the tethered element is missing', () => {
@@ -845,6 +885,12 @@ export interface GeometryContext {
     source: () => { renderedPosition: () => { x: number; y: number } };
     target: () => { renderedPosition: () => { x: number; y: number } };
   } | null;
+  // Resolve a transaction hash to its current cytoscape edge. Stable across bundling/aggregation.
+  // If multiple visible edges share the txHash (cross-trace duplicate), prefer the first match.
+  getEdgeByTxHash?: (txHash: string) => {
+    source: () => { renderedPosition: () => { x: number; y: number } };
+    target: () => { renderedPosition: () => { x: number; y: number } };
+  } | null;
 }
 
 export function contextFromCy(cy: Core): GeometryContext {
@@ -859,8 +905,40 @@ export function contextFromCy(cy: Core): GeometryContext {
       const e = cy.getElementById(id);
       return e && e.length > 0 && e.isEdge() ? e : null;
     },
+    getEdgeByTxHash: (txHash: string) => {
+      // Cytoscape edge data carries the underlying TransactionEdge's txHash for individual
+      // transaction edges. Aggregated edges and bundles have no single txHash and are excluded
+      // by construction. See cytoscapeSync.ts:151 — `txHash` was added in this PR specifically
+      // to support txEdge anchor resolution.
+      const match = cy.edges().filter((e: any) => e.data('txHash') === txHash);
+      return match.length > 0 ? match[0] : null;
+    },
   };
 }
+```
+
+**Required companion edit — `cytoscapeSync.ts:151`.** Add `txHash` to the edge data object:
+
+```ts
+// frontend/src/hooks/cytoscapeSync.ts:151 — individual transaction edge branch
+targetEdges.set(edge.id, { data: {
+  id: edge.id,
+  source: edge.from,
+  target: edge.to,
+  traceId: trace.id,
+  label,
+  date,
+  txHash: edge.txHash,   // ← ADD: enables txEdge anchor resolution
+  color: edge.color || '#10b981',
+  lineStyle: edge.lineStyle || 'solid',
+  ...(edge.width ? { width: edge.width } : {}),
+  ...(edge.hasArc ? { hasArc: true, arcOffset: edge.arcOffset ?? 0 } : {}),
+} });
+```
+
+Do NOT add to the aggregated-edge branch (line 165) or bundle branch (line 199) — those don't have a single source txHash, and adding a placeholder would mislead the resolver.
+
+```ts
 
 export function resolveLabelRenderedPosition(
   anchor: LabelAnchor,
@@ -877,8 +955,11 @@ export function resolveLabelRenderedPosition(
       const p = n.renderedPosition();
       return { x: p.x + anchor.dx * ctx.zoom, y: p.y + anchor.dy * ctx.zoom };
     }
-    case 'edge': {
-      const e = ctx.getEdge?.(anchor.anchorId);
+    case 'edge':
+    case 'txEdge': {
+      const e = anchor.type === 'txEdge'
+        ? ctx.getEdgeByTxHash?.(anchor.txHash)
+        : ctx.getEdge?.(anchor.anchorId);
       if (!e) return null;
       const s = e.source().renderedPosition();
       const t = e.target().renderedPosition();
@@ -1359,7 +1440,6 @@ it('strips inline event handlers and script tags', () => {
 **Files:**
 - Modify: `frontend/src/components/Graph/GraphCanvas.tsx`
 - Modify: `frontend/src/components/Graph/ContextMenu.tsx`
-- Modify: `frontend/src/components/Graph/CanvasToolPill.tsx` (optional — adds a label-create button)
 
 **Step 1:** In `GraphCanvas`, pull the five label callbacks out of `useInvestigation`. Flatten labels across traces into one array for the overlay hook:
 
@@ -1388,23 +1468,32 @@ const { containerRef, /* ... */ } = useCytoscape(
 );
 ```
 
-**Step 3:** Add the "Add label here" entry points.
+**Step 3: Add the "Add label here" entry points — context menu ONLY (user-resolved decision, no dbl-click or toolbar pill in v1).**
 
-- **Double-click background:** existing `onDoubleClickBackground` callback. On fire, call:
+- **Context menu (background) → "Add label here":**
   ```ts
   const newLabel: TraceLabel = {
     id: crypto.randomUUID(),
     text: 'New label',
-    anchor: { type: 'free', x: position.x, y: position.y },
+    anchor: { type: 'free', x: modelPosition.x, y: modelPosition.y },
   };
   addLabel(activeTraceId, newLabel);
   setEditingLabel({ traceId: activeTraceId, labelId: newLabel.id });
   ```
-  (`activeTraceId` resolution policy: use the trace the user most recently interacted with, or fall back to the first visible trace. Pick the simpler one and document.)
+  `activeTraceId` resolution: use the most recently focused trace; fall back to the first visible trace. Document this in a comment.
 
-- **Context menu (background):** add "Add label here" item. Same handler.
-- **Context menu (node):** add "Attach label to this node". Creates a `node`-anchored label at `dx: 0, dy: -nodeRadius` (above the node).
-- **Context menu (edge):** add "Attach label to this edge". Creates an `edge`-anchored label at `t: 0.5, perpOffset: 12`.
+- **Context menu (node) → "Attach label to this node":** creates a `node`-anchored label at `dx: 0, dy: -nodeRadius` (above the node).
+
+- **Context menu (edge) → "Attach label to this edge":** anchor variant depends on the edge — if the edge has a `txHash` (individual transaction edge), use `txEdge` with the txHash; otherwise use `edge` with the UUID. The handler reads the trace's edge data:
+  ```ts
+  function buildEdgeAnchor(edge: TransactionEdge | EdgeBundle | AggregatedEdge): LabelAnchor {
+    if ('txHash' in edge && edge.txHash && edge.txHash !== 'aggregated') {
+      return { type: 'txEdge', txHash: edge.txHash, t: 0.5, perpOffset: 12 };
+    }
+    return { type: 'edge', anchorId: edge.id, t: 0.5, perpOffset: 12 };
+  }
+  ```
+  This is the rule of thumb from architectural call-out #15 — encoded once in the UI helper, applied everywhere a user creates an edge-tethered label.
 
 **Step 4:** Render the edit popover when `editingLabel` is set:
 
@@ -1432,11 +1521,9 @@ Add a `Delete`/`Backspace` keyboard shortcut at the GraphCanvas level: if `selec
 
 Integration test: simulate a label click → assert `unselectAll` was called and `.cy-sel` is gone. Then simulate a node click → assert `selectedLabelId` is null. Both directions covered.
 
-**Step 6:** Optional — add a "Label" pill to `CanvasToolPill.tsx`. Clicking enters "place label" mode where the next canvas click drops a free label there.
+**Step 6:** TS check + manual smoke.
 
-**Step 7:** TS check + manual smoke.
-
-**Step 8:** `git status`.
+**Step 7:** `git status`.
 
 ---
 
@@ -1561,15 +1648,17 @@ cd /Users/Sam/Work/Incite/dev/daubert && npm run db && npm run be & npm run fe
 **Step 2:** Browser smoke at `http://localhost:3001`:
 
 1. Open an investigation with at least one trace, multiple wallet nodes, and edges.
-2. Double-click empty canvas → label popover opens. Type `**OFAC SDN** · [SDN list](https://example.com)`, click outside → label appears with bold + link.
+2. Right-click empty canvas → "Add label here" → popover opens. Type `**OFAC SDN** · [SDN list](https://example.com)`, click outside → label appears with bold + link.
 3. Drag the label → moves smoothly, position persists on refresh.
 4. Right-click a wallet node → "Attach label to this node" → label appears above node. Drag the node → label follows.
-5. Right-click an edge → "Attach label to this edge" → label appears at midpoint. Move one endpoint → label re-projects along the edge.
-6. Double-click a label → popover reopens with current text. Edit, click outside → saved.
-7. Select a label → press Delete → label removed.
-8. Export PNG → all labels appear at correct on-screen positions, with plain text.
-9. As a second case member (separate browser/session), open the same investigation → all labels visible.
-10. Have the agent run `add_label({ traceId, text: 'agent-placed', anchor: { type: 'node', anchorId: '<wallet id>', dx: 0, dy: -40 } })` → label appears in real time after refresh.
+5. Right-click an individual transaction edge → "Attach label to this edge" → label appears at midpoint with `txEdge` anchor. Bundle that edge into a group → label persists (txHash resolution). Un-bundle → label still persists.
+6. Right-click a bundle edge → "Attach label to this edge" → label appears with `edge` UUID anchor. Un-bundle the edges (regenerating ids) → label hides cleanly (no crash).
+7. Double-click a label → popover reopens with current text. Edit, click outside → saved.
+8. Select a label → press Delete → label removed.
+9. Export PNG via `html2canvas` composite path → all labels appear at correct on-screen positions, **with full markdown rendering** (bold, links visible).
+10. As a second case member (separate browser/session), open the same investigation → all labels visible.
+11. Have the agent run `add_label({ traceId, text: 'agent-placed', anchor: { type: 'node', anchorId: '<wallet id>', dx: 0, dy: -40 } })` → label appears in real time after refresh.
+12. Try to send a label with text > 1000 chars via the agent → server rejects with `Invalid labels: labels[0]: text length ... exceeds max 1000`.
 
 **Step 3:** Final `git status` + `git diff --stat`. Hand off to the user for review and commit.
 
@@ -1582,25 +1671,11 @@ cd /Users/Sam/Work/Incite/dev/daubert && npm run db && npm run be & npm run fe
 - **Data model home:** Labels live on `Trace` (as `Trace.labels`). Free-floating labels use the "most recently focused trace" owner rule; fall back to first visible trace.
 - **Edge-tether drag UX:** Clamp `t` to `[0, 1]`. When `t` clamps during a drag, freeze `perpOffset` at its pre-drag value to avoid silent teleporting (see Task 10).
 - **PNG export fidelity:** `html2canvas` composite — full markdown fidelity. Task 13 rewritten around this.
+- **Entry points:** Context menu only for v1. No double-click background, no toolbar pill. Three menu items: "Add label here" (background), "Attach label to this node" (node), "Attach label to this edge" (edge).
+- **Tool naming:** Short — `add_label`, `update_label`, `delete_label`, `move_label`, `tether_label`. Trace id is in the args.
+- **Max label text length:** 1000 chars. Enforced in `label-schema.ts` `MAX_LABEL_TEXT_LENGTH` and surfaced in tool descriptions.
+- **Bundled-edge tethering:** Two anchor variants. `txEdge` (preferred, anchored by `txHash`, stable across bundling/aggregation) for individual transaction edges; `edge` (anchored by cytoscape UUID, fragile) for bundles / synthetic / non-tx edges. The UI helper at Task 12 picks the right variant automatically; the agent tool description tells the model to do the same.
 
-### Still open (resolve before implementation, or accept defaults below)
+### No remaining open decisions.
 
-1. **"Add label here" entry points — which subset for v1?**
-   - Plan-as-written: all three (double-click background, context menu background, context menu element).
-   - Alternative: context menu only (minimal). Or: toolbar pill that toggles a "label place mode" instead of double-click.
-   - **Default: all three — they cover different intents (quick drop / discoverable / element-targeted) with shared underlying code.**
-
-2. **Tool naming — `add_label` vs `add_trace_label`?**
-   - Plan-as-written: short — `add_label`, `update_label`, etc. Trace ID is in the args.
-   - Alternative: prefixed — `add_trace_label`, etc. Reduces collision risk if other label-like concepts emerge.
-   - **Default: short names for v1; rename later if collision occurs.**
-
-3. **Max label text length — 4000 chars?**
-   - Plan-as-written: 4000.
-   - Alternative: smaller (500) to keep labels label-ish, not paragraphs.
-   - **Default: 4000 — labels can hold paragraphs of context. UI `max-width: 240px` keeps them visually contained without truncation.**
-
-4. **Bundled-edge tethering — accept Phase 1 fragility, or switch to txHash now?**
-   - Plan-as-written: tether by edge UUID, accept that bundle/aggregation can orphan labels (they're hidden cleanly, not crashed).
-   - Alternative: for transaction edges (i.e. anchors where the underlying edge has a `txHash`), use `txHash` as the anchor id. Stable across aggregation. Adds a `edge` vs `txEdge` anchor distinction.
-   - **Default: edge UUID + accept fragility for v1. Promote to txHash in Phase 2 if users complain.**
+All product/UX questions are resolved. Implementation can begin.

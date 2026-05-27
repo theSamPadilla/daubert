@@ -24,6 +24,18 @@ export interface EdgeBundle {
   arcOffset?: number;
 }
 
+export type LabelAnchor =
+  | { type: 'free'; x: number; y: number }
+  | { type: 'node'; anchorId: string; dx: number; dy: number }
+  | { type: 'edge'; anchorId: string; t: number; perpOffset: number }
+  | { type: 'txEdge'; txHash: string; t: number; perpOffset: number };
+
+export interface TraceLabel {
+  id: string;
+  text: string;
+  anchor: LabelAnchor;
+}
+
 export interface Investigation {
   id: string;
   name: string;
@@ -48,6 +60,7 @@ export interface Trace {
   edges: TransactionEdge[];
   groups?: Group[];
   edgeBundles?: EdgeBundle[];
+  labels?: TraceLabel[];
   position?: { x: number; y: number };
   collapsed: boolean;
   hideTitle?: boolean;

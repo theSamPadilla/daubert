@@ -17,6 +17,7 @@ import { CreateEdgeBundleDto, UpdateEdgeBundleDto } from './dto/bundle.dto';
 import { ImportTransactionItem, ImportTransactionsDto } from './dto/import-transactions.dto';
 import { SearchBetweenDto, WalletSetDto } from './dto/search-between.dto';
 import { normalizeAddressForChain } from '../../generated/shared/address';
+import { normalizeLabels } from './label-schema';
 
 @Injectable()
 export class TracesService {
@@ -55,12 +56,21 @@ export class TracesService {
     if (!inv) throw new NotFoundException(`Investigation ${investigationId} not found`);
     await this.caseAccess.assertAccess(principal, inv.caseId);
 
+    let data: any = dto.data || {};
+    if ('labels' in data) {
+      try {
+        data = { ...data, labels: normalizeLabels((data as any).labels) };
+      } catch (err) {
+        throw new BadRequestException(`Invalid labels: ${(err as Error).message}`);
+      }
+    }
+
     const entity = this.repo.create({
       name: dto.name,
       color: dto.color || null,
       visible: dto.visible ?? true,
       collapsed: dto.collapsed ?? false,
-      data: dto.data || {},
+      data,
       investigationId,
     });
     return this.repo.save(entity);
@@ -72,7 +82,17 @@ export class TracesService {
     if (dto.color !== undefined) trace.color = dto.color;
     if (dto.visible !== undefined) trace.visible = dto.visible;
     if (dto.collapsed !== undefined) trace.collapsed = dto.collapsed;
-    if (dto.data !== undefined) trace.data = dto.data;
+    if (dto.data !== undefined) {
+      let data: any = dto.data;
+      if ('labels' in data) {
+        try {
+          data = { ...data, labels: normalizeLabels((data as any).labels) };
+        } catch (err) {
+          throw new BadRequestException(`Invalid labels: ${(err as Error).message}`);
+        }
+      }
+      trace.data = data;
+    }
     return this.repo.save(trace);
   }
 

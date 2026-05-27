@@ -17,6 +17,7 @@ import { AuthModule } from '../auth/auth.module';
 import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
 import { ProductionsModule } from '../productions/productions.module';
 import { ScriptModule } from '../script/script.module';
+import { TracesModule } from '../traces/traces.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ScriptModule } from '../script/script.module';
     LabeledEntitiesModule,
     ProductionsModule,
     ScriptModule,
+    TracesModule,
   ],
   controllers: [AiController, ConversationsController, CaseConversationsController],
   providers: [

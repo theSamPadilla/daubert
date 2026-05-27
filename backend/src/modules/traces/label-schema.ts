@@ -1,0 +1,69 @@
+// backend/src/modules/traces/label-schema.ts
+
+export const MAX_LABEL_TEXT_LENGTH = 1000;
+
+export type LabelAnchor =
+  | { type: 'free'; x: number; y: number }
+  | { type: 'node'; anchorId: string; dx: number; dy: number }
+  | { type: 'edge'; anchorId: string; t: number; perpOffset: number }
+  | { type: 'txEdge'; txHash: string; t: number; perpOffset: number };
+
+export interface TraceLabel {
+  id: string;
+  text: string;
+  anchor: LabelAnchor;
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function validateAnchor(a: unknown, ctx: string): LabelAnchor {
+  if (a === null || typeof a !== 'object') throw new Error(`${ctx}: anchor must be an object`);
+  const r = a as Record<string, unknown>;
+  switch (r.type) {
+    case 'free':
+      if (!isFiniteNumber(r.x) || !isFiniteNumber(r.y)) throw new Error(`${ctx}: free anchor requires finite x, y`);
+      return { type: 'free', x: r.x, y: r.y };
+    case 'node':
+      if (typeof r.anchorId !== 'string' || !r.anchorId) throw new Error(`${ctx}: node anchor requires anchorId`);
+      if (!isFiniteNumber(r.dx) || !isFiniteNumber(r.dy)) throw new Error(`${ctx}: node anchor requires finite dx, dy`);
+      return { type: 'node', anchorId: r.anchorId, dx: r.dx, dy: r.dy };
+    case 'edge':
+      if (typeof r.anchorId !== 'string' || !r.anchorId) throw new Error(`${ctx}: edge anchor requires anchorId`);
+      if (!isFiniteNumber(r.t) || r.t < 0 || r.t > 1) throw new Error(`${ctx}: edge anchor requires t in [0, 1]`);
+      if (!isFiniteNumber(r.perpOffset)) throw new Error(`${ctx}: edge anchor requires finite perpOffset`);
+      return { type: 'edge', anchorId: r.anchorId, t: r.t, perpOffset: r.perpOffset };
+    case 'txEdge':
+      if (typeof r.txHash !== 'string' || !r.txHash) throw new Error(`${ctx}: txEdge anchor requires txHash`);
+      if (!isFiniteNumber(r.t) || r.t < 0 || r.t > 1) throw new Error(`${ctx}: txEdge anchor requires t in [0, 1]`);
+      if (!isFiniteNumber(r.perpOffset)) throw new Error(`${ctx}: txEdge anchor requires finite perpOffset`);
+      return { type: 'txEdge', txHash: r.txHash, t: r.t, perpOffset: r.perpOffset };
+    default:
+      throw new Error(`${ctx}: anchor.type must be "free" | "node" | "edge" | "txEdge"`);
+  }
+}
+
+export function validateLabels(input: unknown): TraceLabel[] {
+  if (!Array.isArray(input)) throw new Error('labels must be an array');
+  const out: TraceLabel[] = [];
+  const seen = new Set<string>();
+  input.forEach((raw, i) => {
+    const ctx = `labels[${i}]`;
+    if (raw === null || typeof raw !== 'object') throw new Error(`${ctx}: label must be an object`);
+    const r = raw as Record<string, unknown>;
+    if (typeof r.id !== 'string' || !r.id) throw new Error(`${ctx}: id must be a non-empty string`);
+    if (seen.has(r.id)) throw new Error(`${ctx}: duplicate label id "${r.id}"`);
+    seen.add(r.id);
+    if (typeof r.text !== 'string') throw new Error(`${ctx}: text must be a string`);
+    if (r.text.length > MAX_LABEL_TEXT_LENGTH) throw new Error(`${ctx}: text length ${r.text.length} exceeds max ${MAX_LABEL_TEXT_LENGTH}`);
+    const anchor = validateAnchor(r.anchor, ctx);
+    out.push({ id: r.id, text: r.text, anchor });
+  });
+  return out;
+}
+
+export function normalizeLabels(input: unknown): TraceLabel[] {
+  if (input === undefined || input === null) return [];
+  return validateLabels(input);
+}

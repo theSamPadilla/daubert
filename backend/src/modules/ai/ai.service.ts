@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
@@ -13,6 +14,8 @@ import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.ser
 import { EntityCategory } from '../../database/entities/labeled-entity.entity';
 import { ProductionsService } from '../productions/productions.service';
 import { ProductionType } from '../../database/entities/production.entity';
+import { TracesService } from '../traces/traces.service';
+import { LabelAnchor } from '../traces/label-schema';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import {
   AGENT_TOOLS,
@@ -25,6 +28,11 @@ import {
   CREATE_PRODUCTION_TOOL,
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
+  ADD_LABEL_TOOL,
+  UPDATE_LABEL_TOOL,
+  DELETE_LABEL_TOOL,
+  MOVE_LABEL_TOOL,
+  TETHER_LABEL_TOOL,
   SKILL_NAMES,
   getSkillContent,
 } from './tools';
@@ -263,6 +271,7 @@ export class AiService {
     private readonly scriptExecutionService: ScriptExecutionService,
     private readonly labeledEntitiesService: LabeledEntitiesService,
     private readonly productionsService: ProductionsService,
+    private readonly tracesService: TracesService,
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
     @InjectRepository(InvestigationEntity)
@@ -676,6 +685,105 @@ export class AiService {
           { name: input.name, data: input.data, ops: input.ops },
           { kind: 'script', caseId },
         );
+      }
+
+      case ADD_LABEL_TOOL.name: {
+        if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
+        const input = toolUse.input as { traceId: string; text: string; anchor: LabelAnchor };
+        if (!input.traceId) return { error: 'traceId is required' };
+        const principal = { kind: 'script' as const, caseId };
+        try {
+          const trace = await this.tracesService.findOne(input.traceId, principal);
+          const labels = Array.isArray((trace.data as any)?.labels) ? [...(trace.data as any).labels] : [];
+          const id = randomUUID();
+          labels.push({ id, text: input.text, anchor: input.anchor });
+          await this.tracesService.update(input.traceId, { data: { ...(trace.data as any), labels } }, principal);
+          return { id };
+        } catch (e) { return { error: (e as Error).message }; }
+      }
+
+      case UPDATE_LABEL_TOOL.name: {
+        if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
+        const input = toolUse.input as { traceId: string; labelId: string; text: string };
+        const principal = { kind: 'script' as const, caseId };
+        try {
+          const trace = await this.tracesService.findOne(input.traceId, principal);
+          const labels = Array.isArray((trace.data as any)?.labels) ? [...(trace.data as any).labels] : [];
+          const idx = labels.findIndex((l: any) => l.id === input.labelId);
+          if (idx < 0) return { error: `Label ${input.labelId} not found on trace ${input.traceId}` };
+          labels[idx] = { ...labels[idx], text: input.text };
+          await this.tracesService.update(input.traceId, { data: { ...(trace.data as any), labels } }, principal);
+          return { ok: true };
+        } catch (e) { return { error: (e as Error).message }; }
+      }
+
+      case DELETE_LABEL_TOOL.name: {
+        if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
+        const input = toolUse.input as { traceId: string; labelId: string };
+        const principal = { kind: 'script' as const, caseId };
+        try {
+          const trace = await this.tracesService.findOne(input.traceId, principal);
+          const labels = Array.isArray((trace.data as any)?.labels) ? (trace.data as any).labels : [];
+          const next = labels.filter((l: any) => l.id !== input.labelId);
+          if (next.length === labels.length) return { error: `Label ${input.labelId} not found on trace ${input.traceId}` };
+          await this.tracesService.update(input.traceId, { data: { ...(trace.data as any), labels: next } }, principal);
+          return { ok: true };
+        } catch (e) { return { error: (e as Error).message }; }
+      }
+
+      case MOVE_LABEL_TOOL.name: {
+        if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
+        const input = toolUse.input as { traceId: string; labelId: string; position: Record<string, unknown> };
+        const principal = { kind: 'script' as const, caseId };
+        try {
+          const trace = await this.tracesService.findOne(input.traceId, principal);
+          const labels = Array.isArray((trace.data as any)?.labels) ? [...(trace.data as any).labels] : [];
+          const idx = labels.findIndex((l: any) => l.id === input.labelId);
+          if (idx < 0) return { error: `Label ${input.labelId} not found on trace ${input.traceId}` };
+          const current = labels[idx];
+          let nextAnchor: LabelAnchor;
+          switch (current.anchor.type) {
+            case 'free':
+              if (typeof input.position.x !== 'number' || typeof input.position.y !== 'number') {
+                return { error: 'move_label on a free anchor requires { x, y }' };
+              }
+              nextAnchor = { type: 'free', x: input.position.x, y: input.position.y };
+              break;
+            case 'node':
+              if (typeof input.position.dx !== 'number' || typeof input.position.dy !== 'number') {
+                return { error: 'move_label on a node anchor requires { dx, dy }' };
+              }
+              nextAnchor = { ...current.anchor, dx: input.position.dx, dy: input.position.dy };
+              break;
+            case 'edge':
+            case 'txEdge':
+              if (typeof input.position.t !== 'number' || typeof input.position.perpOffset !== 'number') {
+                return { error: 'move_label on an edge anchor requires { t, perpOffset }' };
+              }
+              nextAnchor = { ...current.anchor, t: Math.max(0, Math.min(1, input.position.t)), perpOffset: input.position.perpOffset };
+              break;
+            default:
+              return { error: `Unsupported anchor type: ${(current.anchor as any).type}` };
+          }
+          labels[idx] = { ...current, anchor: nextAnchor };
+          await this.tracesService.update(input.traceId, { data: { ...(trace.data as any), labels } }, principal);
+          return { ok: true };
+        } catch (e) { return { error: (e as Error).message }; }
+      }
+
+      case TETHER_LABEL_TOOL.name: {
+        if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
+        const input = toolUse.input as { traceId: string; labelId: string; anchor: LabelAnchor };
+        const principal = { kind: 'script' as const, caseId };
+        try {
+          const trace = await this.tracesService.findOne(input.traceId, principal);
+          const labels = Array.isArray((trace.data as any)?.labels) ? [...(trace.data as any).labels] : [];
+          const idx = labels.findIndex((l: any) => l.id === input.labelId);
+          if (idx < 0) return { error: `Label ${input.labelId} not found on trace ${input.traceId}` };
+          labels[idx] = { ...labels[idx], anchor: input.anchor };
+          await this.tracesService.update(input.traceId, { data: { ...(trace.data as any), labels } }, principal);
+          return { ok: true };
+        } catch (e) { return { error: (e as Error).message }; }
       }
 
       default:

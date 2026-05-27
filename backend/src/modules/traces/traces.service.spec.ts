@@ -534,6 +534,46 @@ describe('TracesService', () => {
     });
   });
 
+  // ── label validation ─────────────────────────────────────────────────────
+
+  describe('label validation', () => {
+    /** Seeds a fresh trace via mock — returns a plain object the update() call can read. */
+    async function seedTrace() {
+      const trace = { ...baseTrace, data: {} };
+      mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
+      mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
+      return trace;
+    }
+
+    it('accepts a trace update with valid labels', async () => {
+      const trace = await seedTrace();
+      await expect(
+        service.update(trace.id, { data: { ...trace.data, labels: [{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 } }] } }, PRINCIPAL),
+      ).resolves.toBeDefined();
+    });
+
+    it('rejects a trace update with malformed labels', async () => {
+      const trace = await seedTrace();
+      await expect(
+        service.update(trace.id, { data: { ...trace.data, labels: [{ text: 'oops' }] as any } }, PRINCIPAL),
+      ).rejects.toThrow(/labels\[0\]/);
+    });
+
+    it('strips unknown fields on labels', async () => {
+      const trace = await seedTrace();
+      const out = await service.update(trace.id, { data: { ...trace.data, labels: [{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, evil: 'x' } as any] } }, PRINCIPAL);
+      expect((out.data as any).labels[0]).not.toHaveProperty('evil');
+    });
+
+    it('treats missing labels as empty', async () => {
+      const trace = await seedTrace();
+      const out = await service.update(trace.id, { data: { ...trace.data } }, PRINCIPAL);
+      // labels is optional; if not present in the saved data, it's absent.
+      expect((out.data as any).labels === undefined || Array.isArray((out.data as any).labels)).toBe(true);
+    });
+  });
+
   // ── searchBetween ────────────────────────────────────────────────────────
 
   describe('searchBetween', () => {

@@ -22,9 +22,11 @@ import { ErrorModal } from '@/components/Common/ErrorModal';
 import { SearchPanel } from '@/components/AdvancedSearch/SearchPanel';
 import { FaMagnifyingGlass, FaDownload } from 'react-icons/fa6';
 import { QuickAddInput } from '@/components/Graph/QuickAddInput';
-import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle } from '@/types/investigation';
+import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle, TraceLabel } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
 import { CytoscapeCallbacks, FocusItem } from '@/hooks/useCytoscape';
+import { type LabelCallbacks } from '@/components/Graph/GraphCanvas';
+import { buildGraphContextMenu, buildLabelContextMenu } from '@/components/Graph/graphContextMenu';
 import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } from '@/lib/api-client';
 import type { ExportTheme } from '@/lib/exportTheme';
 import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
@@ -333,7 +335,14 @@ function InvestigationsWorkspace() {
     updateEdgeBundle,
     toggleEdgeBundle,
     deleteEdgeBundle,
+    addLabel,
+    updateLabel,
+    deleteLabel,
+    moveLabel,
   } = useInvestigation(null);
+
+  // Most-recently focused trace id for resolving free-label ownership.
+  const [lastFocusedTraceId, setLastFocusedTraceId] = useState<string | null>(null);
 
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
@@ -415,6 +424,7 @@ function InvestigationsWorkspace() {
             edgeBundles: trace.edgeBundles || [],
             position: trace.position,
             hideTitle: trace.hideTitle ?? false,
+            labels: trace.labels || [],
           };
           await apiClient.updateTrace(trace.id, {
             name: trace.name,
@@ -1037,58 +1047,70 @@ function InvestigationsWorkspace() {
   }, [activeInvestigationId, selectedNodeIds, investigation?.traces.length, extractToTrace]);
 
   const handleContextMenu = useCallback(
-    (event: { type: 'node' | 'edge' | 'background'; id?: string; x: number; y: number }) => {
+    (event: {
+      type: 'node' | 'edge' | 'background';
+      id?: string;
+      x: number;
+      y: number;
+      modelPosition?: { x: number; y: number };
+    }) => {
       if (!investigation) return;
-
-      const items: ContextMenuItem[] = [];
-
-      if (event.type === 'node' && event.id) {
-        const trace = investigation.traces.find((t) => t.id === event.id);
-        if (trace) {
-          items.push(
-            { label: 'Edit Trace', onClick: () => setSelectedItem({ type: 'trace', data: trace }) },
-            { label: trace.visible ? 'Hide' : 'Show', onClick: () => toggleTraceVisibility(trace.id) },
-            { label: trace.collapsed ? 'Expand' : 'Collapse', onClick: () => toggleTraceCollapsed(trace.id) },
-            { label: 'Delete Trace', onClick: () => { apiClient.deleteTrace(trace.id).catch(console.error); deleteTrace(trace.id); }, danger: true }
-          );
-        } else {
-          let walletData: { wallet: WalletNode; traceId: string } | undefined;
-          for (const t of investigation.traces) {
-            const w = t.nodes.find((n) => n.id === event.id);
-            if (w) { walletData = { wallet: w, traceId: t.id }; break; }
-          }
-          if (walletData) {
-            items.push(
-              { label: 'Edit Address', onClick: () => setSelectedItem({ type: 'wallet', data: walletData!.wallet }) },
-              { label: 'Fetch History', onClick: () => handleFetchHistory(walletData!.wallet.address, walletData!.wallet.chain) },
-              { label: 'Delete Address', onClick: () => deleteWallet(walletData!.traceId, walletData!.wallet.id), danger: true }
-            );
-          }
-        }
-      } else if (event.type === 'edge' && event.id) {
-        let txData: { tx: TransactionEdge; traceId: string } | undefined;
-        for (const t of investigation.traces) {
-          const tx = t.edges.find((e) => e.id === event.id);
-          if (tx) { txData = { tx, traceId: t.id }; break; }
-        }
-        if (txData) {
-          items.push(
-            { label: 'Edit Transaction', onClick: () => setSelectedItem({ type: 'transaction', data: txData!.tx }) },
-            { label: 'Delete Transaction', onClick: () => deleteTransaction(txData!.traceId, txData!.tx.id), danger: true }
-          );
-        }
-      } else if (event.type === 'background') {
-        items.push(
-          { label: 'Add Address Here', onClick: () => handleCreateWalletAtPosition({ x: event.x, y: event.y }) },
-          { label: 'Add Trace', onClick: handleAddTrace }
-        );
-      }
-
+      const items = buildGraphContextMenu(event, {
+        investigation,
+        lastFocusedTraceId,
+        setLastFocusedTraceId,
+        setSelectedItem,
+        toggleTraceVisibility,
+        toggleTraceCollapsed,
+        deleteWallet,
+        deleteTransaction,
+        addLabel,
+        deleteLabel,
+        handleCreateWalletAtPosition,
+        handleAddTrace,
+        handleFetchHistory,
+        graphRef,
+      });
       if (items.length > 0) {
         setContextMenu({ x: event.x, y: event.y, items });
       }
     },
-    [investigation, toggleTraceVisibility, toggleTraceCollapsed, deleteTrace, deleteWallet, deleteTransaction, handleFetchHistory, handleCreateWalletAtPosition, handleAddTrace]
+    [
+      investigation,
+      lastFocusedTraceId,
+      toggleTraceVisibility,
+      toggleTraceCollapsed,
+      deleteWallet,
+      deleteTransaction,
+      handleFetchHistory,
+      handleCreateWalletAtPosition,
+      handleAddTrace,
+      addLabel,
+      deleteLabel,
+    ]
+  );
+
+  const handleLabelContextMenu = useCallback(
+    (traceId: string, labelId: string, x: number, y: number) => {
+      const items = buildLabelContextMenu(traceId, labelId, {
+        investigation: investigation!,
+        lastFocusedTraceId,
+        setLastFocusedTraceId,
+        setSelectedItem,
+        toggleTraceVisibility,
+        toggleTraceCollapsed,
+        deleteWallet,
+        deleteTransaction,
+        addLabel,
+        deleteLabel,
+        handleCreateWalletAtPosition,
+        handleAddTrace,
+        handleFetchHistory,
+        graphRef,
+      });
+      setContextMenu({ x, y, items });
+    },
+    [deleteLabel, graphRef],
   );
 
   const cytoscapeCallbacks: CytoscapeCallbacks = useMemo(
@@ -1099,6 +1121,12 @@ function InvestigationsWorkspace() {
         // open script-run panel — script-run selection is derived from selectedItem.
         setSelectedEdgeIds(edgeIds);
         setSelectedItem(resolveFocusItem(focusItem, investigation));
+        // Track the most recently focused trace for free-label ownership resolution.
+        if (focusItem && focusItem.type !== 'trace' && 'traceId' in focusItem) {
+          setLastFocusedTraceId(focusItem.traceId);
+        } else if (focusItem?.type === 'trace') {
+          setLastFocusedTraceId(focusItem.id);
+        }
       },
       onNodeDrag: updateNodePosition,
       onGroupDrag: (groupId, newPos) => {
@@ -1224,6 +1252,8 @@ function InvestigationsWorkspace() {
                 selectedNodeIds={selectedNodeIds}
                 selectedEdgeIds={selectedEdgeIds}
                 callbacks={cytoscapeCallbacks}
+                labelCallbacks={{ addLabel, updateLabel, deleteLabel, moveLabel }}
+                onLabelContextMenu={handleLabelContextMenu}
               />
             )}
 

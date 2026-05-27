@@ -227,16 +227,19 @@ export function ChronologyTable({
 
   const showToolbar = !!onColumnAdd || (isCustom && !!onColumnResize) || selectionEnabled;
 
+  const toolbarBtn =
+    'h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md text-xs font-medium bg-surface-panel/70 border border-line-strong text-ink-muted hover:bg-surface-raised hover:text-gray-100 hover:border-line-strong transition-colors';
+
   return (
     <div>
       {showToolbar && (
-        <div className="mb-3 flex items-center justify-between gap-4 px-3 py-2 rounded-md bg-surface-panel/60 border border-line-strong">
-          <div className="flex items-center gap-3">
+        <div className="mb-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
             {onColumnAdd && (
               <button
                 type="button"
                 onClick={() => setAddColumnOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-brand transition-colors"
+                className={toolbarBtn}
                 title="Add a custom column"
               >
                 <FaPlus className="w-3 h-3" />
@@ -244,11 +247,11 @@ export function ChronologyTable({
               </button>
             )}
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             {isCustom && onColumnResize && (
               <button
                 onClick={resetWidths}
-                className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-gray-200 transition-colors"
+                className={toolbarBtn}
                 title="Reset column widths to defaults"
               >
                 <FaRotateLeft className="w-3 h-3" />
@@ -258,13 +261,15 @@ export function ChronologyTable({
             {selectionEnabled && entryCount > 0 && (
               <button
                 onClick={toggleSelectMode}
-                className={`flex items-center gap-1.5 text-xs transition-colors ${
-                  selectMode ? 'text-brand hover:text-brand/80' : 'text-ink-muted hover:text-gray-200'
-                }`}
-                title={selectMode ? 'Exit selection mode' : 'Select rows'}
+                className={
+                  selectMode
+                    ? 'h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md text-xs font-medium bg-brand/15 border border-brand/60 text-brand hover:bg-brand/25 transition-colors'
+                    : toolbarBtn
+                }
+                title={selectMode ? 'Exit edit mode' : 'Edit rows'}
               >
                 {selectMode ? <FaXmark className="w-3 h-3" /> : <FaListCheck className="w-3 h-3" />}
-                {selectMode ? 'Done' : 'Select rows'}
+                {selectMode ? 'Done' : 'Edit rows'}
               </button>
             )}
           </div>
@@ -387,7 +392,6 @@ export function ChronologyTable({
                           ? (value) => onEntryEdit(i, { ...entry, [col.key]: value || null })
                           : undefined
                       }
-                      onRowHighlight={onRowHighlight ? (c) => onRowHighlight([i], c) : undefined}
                       selectMode={selectMode}
                       isSelected={isSelected}
                       toggleRow={() => toggleRow(i)}
@@ -430,7 +434,6 @@ interface CellProps {
   hl: { bg: string; fg: string; label: string } | null;
   editable: boolean;
   onEdit?: (value: string) => void;
-  onRowHighlight?: (color: HighlightColor | null) => void;
   selectMode: boolean;
   isSelected: boolean;
   toggleRow: () => void;
@@ -443,7 +446,6 @@ function Cell({
   hl,
   editable,
   onEdit,
-  onRowHighlight,
   selectMode,
   isSelected,
   toggleRow,
@@ -457,17 +459,8 @@ function Cell({
     const label = srcVal?.label ?? (url ? deriveSourceLabel(url) : null);
     return (
       <td className="px-4 py-3 break-all relative">
-        {isFirst && (
-          selectMode ? (
-            <RowCheckbox checked={isSelected} onChange={toggleRow} />
-          ) : (
-            onRowHighlight && (
-              <HighlightSwatch
-                active={isHighlightColor(entry.highlight) ? (entry.highlight as HighlightColor) : null}
-                onChange={onRowHighlight}
-              />
-            )
-          )
+        {isFirst && selectMode && (
+          <RowCheckbox checked={isSelected} onChange={toggleRow} />
         )}
         {url ? (
           <a
@@ -496,18 +489,8 @@ function Cell({
       className={`px-4 py-3 ${isDetails ? 'text-xs break-words' : ''} relative`}
       style={hl && isDetails ? { color: hl.fg } : undefined}
     >
-      {/* Highlight/select swatch on first text column when source column is absent */}
-      {isFirst && (
-        selectMode ? (
-          <RowCheckbox checked={isSelected} onChange={toggleRow} />
-        ) : (
-          onRowHighlight && (
-            <HighlightSwatch
-              active={isHighlightColor(entry.highlight) ? (entry.highlight as HighlightColor) : null}
-              onChange={onRowHighlight}
-            />
-          )
-        )
+      {isFirst && selectMode && (
+        <RowCheckbox checked={isSelected} onChange={toggleRow} />
       )}
       <span className={hl ? '' : 'text-ink-muted'}>
         {editable && onEdit ? (
@@ -743,84 +726,6 @@ function RowCheckbox({
     >
       {checked && <FaCheck className="w-2 h-2" />}
     </button>
-  );
-}
-
-function HighlightSwatch({
-  active,
-  onChange,
-}: {
-  active: HighlightColor | null;
-  onChange: (color: HighlightColor | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  const activeColor = active ? HIGHLIGHT_COLORS[active] : null;
-
-  return (
-    <div ref={rootRef} className="absolute left-1 top-1/2 -translate-y-1/2 z-10">
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        title={active ? `Highlight: ${activeColor!.label}` : 'Highlight row'}
-        aria-label={active ? `Change row highlight (current: ${activeColor!.label})` : 'Highlight row'}
-        className={`w-3 h-3 rounded-full border transition-opacity ${
-          active
-            ? 'opacity-100 border-black/20'
-            : 'opacity-0 group-hover:opacity-100 border-line-strong hover:border-brand'
-        }`}
-        style={active ? { background: activeColor!.bg } : undefined}
-      />
-      {open && (
-        <div
-          className="absolute left-0 top-5 z-20 flex items-center gap-1 p-1.5 rounded-md bg-surface-panel border border-line-strong shadow-lg"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {HIGHLIGHT_NAMES.map((name) => {
-            const c = HIGHLIGHT_COLORS[name];
-            const isActive = active === name;
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => { onChange(name); setOpen(false); }}
-                title={c.label}
-                aria-label={c.label}
-                className={`w-5 h-5 rounded-full border transition-transform hover:scale-110 ${
-                  isActive ? 'border-brand ring-1 ring-brand' : 'border-black/20'
-                }`}
-                style={{ background: c.bg }}
-              />
-            );
-          })}
-          <div className="w-px h-5 bg-line-strong mx-0.5" />
-          <button
-            type="button"
-            onClick={() => { onChange(null); setOpen(false); }}
-            title="Clear highlight"
-            aria-label="Clear highlight"
-            className="w-5 h-5 rounded-full border border-line-strong flex items-center justify-center text-ink-muted hover:text-ink hover:border-brand transition-colors"
-          >
-            <FaXmark className="w-2.5 h-2.5" />
-          </button>
-        </div>
-      )}
-    </div>
   );
 }
 

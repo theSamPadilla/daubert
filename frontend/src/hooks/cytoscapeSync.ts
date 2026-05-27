@@ -148,7 +148,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
           const amountLabel = `${formatTokenAmount(edge.amount, tok.decimals)} ${tok.symbol}`;
           const label = edge.label || amountLabel;
           const date = formatShortDate(edge.timestamp);
-          targetEdges.set(edge.id, { data: { id: edge.id, source: edge.from, target: edge.to, traceId: trace.id, label, date, color: edge.color || '#10b981', lineStyle: edge.lineStyle || 'solid', ...(edge.width ? { width: edge.width } : {}), ...(edge.hasArc ? { hasArc: true, arcOffset: edge.arcOffset ?? 0 } : {}) } });
+          targetEdges.set(edge.id, { data: { id: edge.id, source: edge.from, target: edge.to, traceId: trace.id, label, date, txHash: edge.txHash, color: edge.color || '#10b981', lineStyle: edge.lineStyle || 'solid', ...(edge.width ? { width: edge.width } : {}), ...(edge.hasArc ? { hasArc: true, arcOffset: edge.arcOffset ?? 0 } : {}) } });
         }
       });
 

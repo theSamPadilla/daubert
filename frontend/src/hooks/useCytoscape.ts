@@ -1,12 +1,14 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import cytoscape, { Core } from 'cytoscape';
-import { Investigation } from '../types/investigation';
+import { Investigation, TraceLabel, LabelAnchor } from '../types/investigation';
 import { apiClient } from '@/lib/api-client';
 import { CYTOSCAPE_STYLE } from './cytoscapeStyle';
 import { useCytoscapeOverlays } from './useCytoscapeOverlays';
+import type { OverlayHandle } from './useCytoscapeOverlays';
 import { bindCytoscapeEvents } from './cytoscapeEvents';
 import { syncCytoscape } from './cytoscapeSync';
 import { EXPORT_THEMES, type ExportTheme } from '@/lib/exportTheme';
+import html2canvas from 'html2canvas';
 
 export type FocusItem =
   | { type: 'wallet'; id: string; traceId: string }
@@ -28,15 +30,36 @@ export interface CytoscapeCallbacks {
   onNodeDrag?: (nodeId: string, position: { x: number; y: number }) => void;
   onGroupDrag?: (groupId: string, newPos: { x: number; y: number }) => void;
   onResizeNode?: (nodeId: string, traceId: string, size: number) => void;
-  onContextMenu?: (event: { type: 'node' | 'edge' | 'background'; id?: string; x: number; y: number }) => void;
+  onContextMenu?: (event: {
+    type: 'node' | 'edge' | 'background';
+    id?: string;
+    x: number;
+    y: number;
+    /** Model-space coordinates — only present on background context menu events. */
+    modelPosition?: { x: number; y: number };
+  }) => void;
   onDoubleClickBackground?: (position: { x: number; y: number }) => void;
+  /** Fired when the user taps the empty canvas background (not a node or edge). */
+  onBackgroundTap?: () => void;
+}
+
+/** Label-related controls threaded from GraphCanvas down to useCytoscapeOverlays. */
+export interface LabelControls {
+  labels: { traceId: string; label: TraceLabel }[];
+  onLabelMove: (traceId: string, labelId: string, anchor: LabelAnchor) => void;
+  onLabelEdit: (traceId: string, labelId: string) => void;
+  onLabelSelect: (labelId: string | null) => void;
+  selectedLabelId: string | null;
+  /** Fired when the user right-clicks a label overlay div. */
+  onLabelContextMenu?: (traceId: string, labelId: string, x: number, y: number) => void;
 }
 
 export function useCytoscape(
   investigation: Investigation | null,
   selectedNodeIds: { id: string; traceId: string }[],
   selectedEdgeIds: string[],
-  callbacks: CytoscapeCallbacks = {}
+  callbacks: CytoscapeCallbacks = {},
+  labelControls?: LabelControls,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -94,7 +117,30 @@ export function useCytoscape(
     callbacksRef.current.onResizeNode?.(nodeId, traceId, size);
   }, []);
 
-  useCytoscapeOverlays(cy, containerRef.current, onResizeNode);
+  // Stable unselectAll passed into useCytoscapeOverlays so label clicks can clear Cytoscape
+  // selection. Uses the same ref-delegation pattern as onResizeNode — stable identity regardless
+  // of callbacks object churn, and avoids a temporal dependency since unselectAll is declared
+  // later in the function body.
+  const unselectAllForOverlays = useCallback(() => {
+    callbacksRef.current.onSelectionChange?.({ nodeIds: [], edgeIds: [], focusItem: null });
+  }, []);
+
+  const overlayHandle: OverlayHandle = useCytoscapeOverlays(
+    cy,
+    containerRef.current,
+    onResizeNode,
+    labelControls?.labels,
+    labelControls?.onLabelMove,
+    labelControls?.onLabelEdit,
+    labelControls?.onLabelSelect,
+    labelControls?.selectedLabelId,
+    unselectAllForOverlays,
+    labelControls?.onLabelContextMenu,
+  );
+  // Mirror overlayHandle into a ref so exportPngDataUrl (stable useCallback) can
+  // access the latest overlay element without being re-created on every render.
+  const overlayHandleRef = useRef<OverlayHandle>(overlayHandle);
+  overlayHandleRef.current = overlayHandle;
 
   // Selection paint: React state is the source of truth for cy-sel.
   // Reads from refs so the function identity is stable; effect deps below
@@ -238,6 +284,70 @@ export function useCytoscape(
       });
     }
 
+    // ── html2canvas composite: rasterize annotation labels onto the Cytoscape PNG ──
+    // Only composite if there are user-authored labels and an overlay element.
+    const overlayEl = overlayHandleRef.current.getOverlayElement();
+    const hasLabels = (investigationRef.current?.traces ?? []).some(
+      (t) => (t.labels?.length ?? 0) > 0,
+    );
+    if (overlayEl && hasLabels) {
+      // Identify non-label overlay children (resize handle, address sublabels, edge date pills).
+      // Label wrappers carry the 'label-wrapper' class (added in useCytoscapeOverlays.ts).
+      // Everything else must be hidden during rasterization so it doesn't appear in the export.
+      const childrenToHide: HTMLElement[] = Array.from(overlayEl.children).filter(
+        (c) => !(c as HTMLElement).classList.contains('label-wrapper'),
+      ) as HTMLElement[];
+      const savedDisplays = childrenToHide.map((c) => c.style.display);
+      childrenToHide.forEach((c) => { c.style.display = 'none'; });
+
+      let overlayCanvas: HTMLCanvasElement;
+      try {
+        overlayCanvas = await html2canvas(overlayEl, {
+          backgroundColor: null, // transparent — labels have their own bg
+          scale: 2,              // matches cy.png({ scale: 2 })
+          logging: false,
+          useCORS: true,
+        });
+      } finally {
+        childrenToHide.forEach((c, i) => { c.style.display = savedDisplays[i]; });
+      }
+
+      // Load the Cytoscape PNG (full extent, scale 2) as an image.
+      const baseImg = new Image();
+      await new Promise<void>((resolve, reject) => {
+        baseImg.onload = () => resolve();
+        baseImg.onerror = () => reject(new Error('Failed to load base PNG'));
+        baseImg.src = dataUrl;
+      });
+
+      // Create a composite canvas matching the full-extent PNG.
+      const composite = document.createElement('canvas');
+      composite.width = baseImg.width;
+      composite.height = baseImg.height;
+      const ctx = composite.getContext('2d')!;
+
+      // Draw the Cytoscape full-extent PNG as the base layer.
+      ctx.drawImage(baseImg, 0, 0);
+
+      // Compute where the overlay (viewport-sized, screen coords) maps inside the
+      // full-extent image. cy.png({ full: true, scale: 2 }) origins at bb.x1 - padding.
+      // The visible viewport's top-left in model coords is (-pan.x / zoom, -pan.y / zoom).
+      // Subtracting the full-extent origin gives the pixel offset in the full-extent image.
+      const bb = cy.elements().boundingBox();
+      const padding = 50; // matches cy.fit() padding used in the existing code
+      const pan = cy.pan();
+      const zoom = cy.zoom();
+      const visTopLeftModel = { x: -pan.x / zoom, y: -pan.y / zoom };
+      const overlayDestX = (visTopLeftModel.x - (bb.x1 - padding)) * 2;
+      const overlayDestY = (visTopLeftModel.y - (bb.y1 - padding)) * 2;
+      const containerRect = containerRef.current!.getBoundingClientRect();
+      const overlayDestW = containerRect.width * 2;
+      const overlayDestH = containerRect.height * 2;
+
+      ctx.drawImage(overlayCanvas, overlayDestX, overlayDestY, overlayDestW, overlayDestH);
+      dataUrl = composite.toDataURL('image/png');
+    }
+
     return dataUrl;
   }, []);
 
@@ -278,5 +388,5 @@ export function useCytoscape(
     }
   }, []);
 
-  return { containerRef, unselectAll, exportImage, exportPngDataUrl, setEdgeArc };
+  return { containerRef, cy, unselectAll, exportImage, exportPngDataUrl, setEdgeArc };
 }

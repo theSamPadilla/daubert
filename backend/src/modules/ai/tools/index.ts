@@ -11,6 +11,14 @@ export {
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
 } from './tool-definitions';
+export {
+  ADD_LABEL_TOOL,
+  UPDATE_LABEL_TOOL,
+  DELETE_LABEL_TOOL,
+  MOVE_LABEL_TOOL,
+  TETHER_LABEL_TOOL,
+  LABEL_TOOLS,
+} from './label-tools';
 
 import {
   WEB_SEARCH_TOOL,
@@ -24,6 +32,7 @@ import {
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
 } from './tool-definitions';
+import { LABEL_TOOLS } from './label-tools';
 
 export const AGENT_TOOLS = [
   WEB_SEARCH_TOOL,
@@ -36,4 +45,5 @@ export const AGENT_TOOLS = [
   CREATE_PRODUCTION_TOOL,
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
+  ...LABEL_TOOLS,
 ];

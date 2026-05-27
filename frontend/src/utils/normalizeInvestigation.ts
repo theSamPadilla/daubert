@@ -39,6 +39,7 @@ export function normalizeInvestigation(inv: ApiInvestigation): Investigation {
       edges: (t.data as any)?.edges || [],
       groups: (t.data as any)?.groups || [],
       edgeBundles: (t.data as any)?.edgeBundles || [],
+      labels: (t.data as any)?.labels || [],
       position: (t.data as any)?.position || { x: 0, y: 0 },
       hideTitle: (t.data as any)?.hideTitle ?? false,
     })),

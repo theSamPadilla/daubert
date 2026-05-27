@@ -38,7 +38,6 @@ export interface CytoscapeCallbacks {
     /** Model-space coordinates — only present on background context menu events. */
     modelPosition?: { x: number; y: number };
   }) => void;
-  onDoubleClickBackground?: (position: { x: number; y: number }) => void;
   /** Fired when the user taps the empty canvas background (not a node or edge). */
   onBackgroundTap?: () => void;
 }

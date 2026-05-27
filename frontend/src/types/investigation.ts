@@ -32,14 +32,20 @@ export type LabelAnchor =
 
 export type LabelFontSize = 'sm' | 'md' | 'lg';
 
+export type LabelShape = 'rectangle' | 'rounded' | 'pill' | 'ellipse';
+
 export interface TraceLabel {
   id: string;
   text: string;
   anchor: LabelAnchor;
   /** Optional hex color (e.g. "#ef4444") applied to the whole label wrapper. */
   color?: string;
+  /** Optional hex background color. Absent = the default semi-transparent dark fill. */
+  bgColor?: string;
   /** Optional font size. Absent = 'md' (11px). */
   fontSize?: LabelFontSize;
+  /** Optional wrapper shape. Absent = 'rounded' (preserves legacy 6px corner radius). */
+  shape?: LabelShape;
 }
 
 export interface Investigation {

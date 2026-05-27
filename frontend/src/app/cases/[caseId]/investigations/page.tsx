@@ -1,309 +1,39 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
-import { useRouter, useSearchParams, useParams } from 'next/navigation';
+import { useInvestigationUrlSync } from '@/hooks/useInvestigationUrlSync';
+import { useInvestigationLoader } from '@/hooks/useInvestigationLoader';
+import { useSelectedItem } from '@/hooks/useSelectedItem';
 import { GraphCanvas, type GraphCanvasHandle } from '@/components/Graph/GraphCanvas';
 import { useCaseContext } from '@/contexts/CaseContext';
 import { PageHeader } from '@/components/Common/PageHeader';
-import { DetailsPanel, type DetailsPanelHandle } from '@/components/Graph/DetailsPanel';
-import { FloatingPanel } from '@/components/Common/FloatingPanel';
-import { InvestigationForm } from '@/components/Forms/InvestigationForm';
-import { ConfirmDeleteModal } from '@/components/Common/ConfirmDeleteModal';
-import { FetchModal } from '@/components/Workspace/FetchModal';
+import { SelectionDetailsPanel } from '@/components/Graph/SelectionDetailsPanel';
 import { BatchEditPanel } from '@/components/Graph/BatchEditPanel';
 import { EdgeBatchPanel } from '@/components/Graph/EdgeBatchPanel';
-import { StagingPanel } from '@/components/Graph/StagingPanel';
 import { ContextMenu, ContextMenuItem } from '@/components/Graph/ContextMenu';
-import { WalletForm } from '@/components/Forms/WalletForm';
-import { TransactionForm } from '@/components/Forms/TransactionForm';
 import { CanvasToolPill } from '@/components/Graph/CanvasToolPill';
+import { CreationPanels } from '@/components/Graph/CreationPanels';
 import { ExportModal } from '@/components/Common/ExportModal';
 import { ErrorModal } from '@/components/Common/ErrorModal';
-import { SearchPanel } from '@/components/AdvancedSearch/SearchPanel';
+import { WorkspaceModals } from '@/components/Workspace/WorkspaceModals';
+import { WorkspaceEmptyState } from '@/components/Workspace/WorkspaceEmptyState';
 import { FaMagnifyingGlass, FaDownload } from 'react-icons/fa6';
 import { QuickAddInput } from '@/components/Graph/QuickAddInput';
-import { WalletNode, TransactionEdge, Trace, Investigation, Group, EdgeBundle, TraceLabel } from '@/types/investigation';
+import { TransactionEdge, Trace } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
-import { CytoscapeCallbacks, FocusItem } from '@/hooks/useCytoscape';
-import { type LabelCallbacks } from '@/components/Graph/GraphCanvas';
-import { buildGraphContextMenu, buildLabelContextMenu } from '@/components/Graph/graphContextMenu';
-import { apiClient, type Investigation as ApiInvestigation, type ScriptRun } from '@/lib/api-client';
+import { useEdgeBundling } from '@/hooks/useEdgeBundling';
+import { useBatchNodeOps } from '@/hooks/useBatchNodeOps';
+import { type Investigation as ApiInvestigation, type ScriptRun } from '@/lib/api-client';
 import type { ExportTheme } from '@/lib/exportTheme';
-import { buildExplorerUrl, parseAddressInput } from '@/utils/addressParser';
-import { normalizeInvestigation } from '@/utils/normalizeInvestigation';
-import { normalizeToken } from '@/utils/formatAmount';
+import { resolveFocusItem } from '@/utils/focusItem';
 import UserMenu from '@/components/Auth/UserMenu';
 import { Loader } from '@/components/Common/Loader';
-
-type PanelMode =
-  | { type: 'none' }
-  | { type: 'createWallet'; position?: { x: number; y: number }; prefill?: Partial<WalletNode> }
-  | { type: 'createTransaction'; prefill?: Partial<TransactionEdge> };
-
-const EDIT_ICON = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-  </svg>
-);
-
-const TRASH_ICON = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="3 6 5 6 21 6"/>
-    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-    <path d="M10 11v6M14 11v6"/>
-    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-  </svg>
-);
-
-const PRESET_COLORS = [
-  '#3b82f6', '#06b6d4', '#10b981', '#22c55e',
-  '#ef4444', '#f97316', '#eab308', '#f59e0b',
-  '#8b5cf6', '#a855f7', '#ec4899', '#f43f5e',
-  '#14b8a6', '#6366f1', '#84cc16', '#fb7185',
-  '#94a3b8', '#6b7280', '#78716c', '#ffffff',
-];
-
-function ColorPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const customRef = useRef<HTMLInputElement>(null);
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-3.5 h-3.5 rounded-full border-2 border-line-strong hover:border-gray-400 transition-colors shrink-0"
-        style={{ backgroundColor: color }}
-        title="Change color"
-      />
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onMouseDown={() => setOpen(false)} />
-          <div className="absolute right-0 top-5 z-50 bg-surface border border-line-strong rounded-lg p-2 shadow-2xl" style={{ width: '116px' }}>
-            <div className="grid grid-cols-4 gap-1.5">
-              {PRESET_COLORS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => { onChange(c); setOpen(false); }}
-                  className="w-6 h-6 rounded-full border-2 transition-all hover:scale-110"
-                  style={{
-                    backgroundColor: c,
-                    borderColor: c === color ? '#fff' : 'transparent',
-                  }}
-                />
-              ))}
-              <button
-                onClick={() => customRef.current?.click()}
-                className="w-6 h-6 rounded-full border-2 border-dashed border-line-strong hover:border-gray-400 flex items-center justify-center text-ink-muted hover:text-white text-xs transition-colors"
-                title="Custom color"
-              >
-                +
-              </button>
-            </div>
-            <input
-              ref={customRef}
-              type="color"
-              value={color}
-              onChange={(e) => { onChange(e.target.value); setOpen(false); }}
-              className="sr-only"
-            />
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function EditDeleteActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  return (
-    <div className="flex items-center gap-2">
-      <button onClick={onEdit} title="Edit" className="text-ink-faint hover:text-ink-muted transition-colors">
-        {EDIT_ICON}
-      </button>
-      {confirmDelete ? (
-        <div className="flex items-center gap-1">
-          <button onClick={() => { onDelete(); setConfirmDelete(false); }}
-            className="text-[10px] px-1.5 py-0.5 bg-red-600 hover:bg-red-500 rounded text-white">
-            Delete
-          </button>
-          <button onClick={() => setConfirmDelete(false)} className="text-[10px] text-ink-muted hover:text-white">
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <button onClick={() => setConfirmDelete(true)} title="Delete" className="text-ink-faint hover:text-red-400 transition-colors">
-          {TRASH_ICON}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function TransactionHeaderActions({
-  transaction,
-  onEdit,
-  onDelete,
-  onColorChange,
-}: {
-  transaction: TransactionEdge;
-  onEdit: () => void;
-  onDelete: () => void;
-  onColorChange: (color: string) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <ColorPicker color={transaction.color || '#10b981'} onChange={onColorChange} />
-      <EditDeleteActions onEdit={onEdit} onDelete={onDelete} />
-    </div>
-  );
-}
-
-function WalletHeaderActions({
-  wallet,
-  onEdit,
-  onDelete,
-  onColorChange,
-}: {
-  wallet: WalletNode;
-  onEdit: () => void;
-  onDelete: () => void;
-  onColorChange: (color: string) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <ColorPicker color={wallet.color || '#60a5fa'} onChange={onColorChange} />
-      <EditDeleteActions onEdit={onEdit} onDelete={onDelete} />
-    </div>
-  );
-}
-
-// Resolve an endpoint id (wallet id, group id, or trace id) to the display label
-// that matches the on-graph label. Precedence mirrors cytoscapeSync.ts label logic:
-//   1. Trace id with collapsed=true  → "TraceName (N)"
-//   2. Trace id (any)                → "TraceName"
-//   3. Group id with collapsed=true  → "GroupName (N)"
-//   4. Group id (expanded)           → "GroupName"
-//   5. Wallet id                     → wallet.label || truncAddr || ""
-//   6. Fallback                      → first 8 chars + "…"
-function resolveEndpointLabel(id: string, investigation: Investigation): string {
-  // 1 & 2: trace id match
-  for (const trace of investigation.traces) {
-    if (trace.id === id) {
-      return trace.collapsed ? `${trace.name} (${trace.nodes.length})` : trace.name;
-    }
-  }
-
-  // 3 & 4: group id match
-  for (const trace of investigation.traces) {
-    for (const group of trace.groups || []) {
-      if (group.id === id) {
-        if (group.collapsed) {
-          const memberCount = trace.nodes.filter((n) => n.groupId === group.id).length;
-          return `${group.name} (${memberCount})`;
-        }
-        return group.name;
-      }
-    }
-  }
-
-  // 5: wallet id match
-  for (const trace of investigation.traces) {
-    const wallet = trace.nodes.find((n) => n.id === id);
-    if (wallet) {
-      if (wallet.label) return wallet.label;
-      const addr = wallet.address;
-      if (addr) {
-        return addr.length > 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
-      }
-      return '';
-    }
-  }
-
-  // 6: fallback
-  return id.length > 8 ? `${id.slice(0, 8)}…` : id;
-}
-
-// Resolve a FocusItem (id-only, emitted by useCytoscape) into the legacy
-// `{ type, data }` shape consumed by the right details panel. Walks the
-// investigation traces to find the wallet/group/trace/transaction/edgeBundle
-// matching the focusItem id. Returns null when no match (or focusItem is null).
-function resolveFocusItem(
-  focusItem: FocusItem,
-  investigation: Investigation | null
-): { type: string; data: any } | null {
-  if (!focusItem || !investigation) return null;
-  if (focusItem.type === 'trace') {
-    const trace = investigation.traces.find((t) => t.id === focusItem.id);
-    return trace ? { type: 'trace', data: trace } : null;
-  }
-  if (focusItem.type === 'wallet') {
-    for (const trace of investigation.traces) {
-      const wallet = trace.nodes.find((n) => n.id === focusItem.id);
-      if (wallet) return { type: 'wallet', data: wallet };
-    }
-    return null;
-  }
-  if (focusItem.type === 'group') {
-    for (const trace of investigation.traces) {
-      const group = (trace.groups || []).find((g) => g.id === focusItem.id);
-      if (group) return { type: 'group', data: group };
-    }
-    return null;
-  }
-  if (focusItem.type === 'transaction') {
-    for (const trace of investigation.traces) {
-      const tx = trace.edges.find((e) => e.id === focusItem.id);
-      if (tx) return { type: 'transaction', data: tx };
-    }
-    return null;
-  }
-  if (focusItem.type === 'edgeBundle') {
-    for (const trace of investigation.traces) {
-      const bundle = (trace.edgeBundles || []).find((b) => b.id === focusItem.id);
-      if (bundle) return { type: 'edgeBundle', data: bundle };
-    }
-    return null;
-  }
-  if (focusItem.type === 'aggregatedEdge') {
-    const trace = investigation.traces.find((t) => t.id === focusItem.traceId);
-    if (!trace) return null;
-
-    const edges = focusItem.edgeIds
-      .map((id) => trace.edges.find((e) => e.id === id))
-      .filter(Boolean) as TransactionEdge[];
-    // Race after delete: underlying txs may be gone. Return null so the panel
-    // simply collapses — preferred over a "no transactions" placeholder for a
-    // synthetic edge that itself will disappear on the next syncCytoscape pass.
-    if (edges.length === 0) return null;
-
-    // The synthetic edge id encodes both endpoints: "${effFrom}::${effTo}::${tokenKey}".
-    // Parse them out — they may be wallet ids, group ids, or trace ids.
-    const [srcId, tgtId] = focusItem.id.split('::');
-
-    return {
-      type: 'aggregatedEdge',
-      data: {
-        edges,
-        traceId: trace.id,
-        fromNodeId: srcId,
-        toNodeId: tgtId,
-        fromLabel: resolveEndpointLabel(srcId, investigation),
-        toLabel: resolveEndpointLabel(tgtId, investigation),
-        syntheticEdgeId: focusItem.id,
-      },
-    };
-  }
-  return null;
-}
+import type { PanelMode } from '@/types/panel';
+import { useWalletTransactionAuthoring } from '@/hooks/useWalletTransactionAuthoring';
+import { useGraphContextMenu } from '@/hooks/useGraphContextMenu';
 
 function InvestigationsWorkspace() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const params = useParams();
-  const caseId = params.caseId as string;
-
-  const [activeInvestigationId, setActiveInvestigationId] = useState<string | null>(null);
+  const { caseId, activeInvestigationId, selectInvestigation, clearInvestigation } = useInvestigationUrlSync();
 
   const {
     investigation,
@@ -341,17 +71,13 @@ function InvestigationsWorkspace() {
     moveLabel,
   } = useInvestigation(null);
 
-  // Most-recently focused trace id for resolving free-label ownership.
-  const [lastFocusedTraceId, setLastFocusedTraceId] = useState<string | null>(null);
-
-  const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const { selectedItem, setSelectedItem, clearSelection } = useSelectedItem(investigation);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
   const graphRef = useRef<GraphCanvasHandle>(null);
   const previewGenerate = useCallback(async (theme: ExportTheme) => {
     if (!graphRef.current) throw new Error('Graph not ready');
     return graphRef.current.exportPngDataUrl(theme);
   }, []); // graphRef.current is a ref, not a dep
-  const detailsPanelRef = useRef<DetailsPanelHandle>(null);
   const [editingInvestigation, setEditingInvestigation] = useState<ApiInvestigation | null>(null);
   const [deletingInvestigation, setDeletingInvestigation] = useState<ApiInvestigation | null>(null);
   const [fetchModalWallet, setFetchModalWallet] = useState<{ address: string; chain: string } | null>(null);
@@ -362,84 +88,17 @@ function InvestigationsWorkspace() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [scriptRuns, setScriptRuns] = useState<ScriptRun[]>([]);
-  const { updateSidebar, setOnGraphUpdated, reloadInvestigations } = useCaseContext();
+  const { updateSidebar, reloadInvestigations } = useCaseContext();
 
-  // Load investigation from backend when selection changes
-  const loadInvestigationFromApi = useCallback(async (id: string) => {
-    setLoading(true);
-    setSelectedItem(null);
-    setStagedItems([]);
-    try {
-      const inv = await apiClient.getInvestigation(id);
-      setInvestigation(normalizeInvestigation(inv));
-    } catch (err) {
-      console.error('Failed to load investigation:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [setInvestigation]);
-
-  // Sync activeInvestigationId from URL whenever ?inv= changes
-  useEffect(() => {
-    const invId = searchParams.get('inv');
-    if (invId && invId !== activeInvestigationId) {
-      setActiveInvestigationId(invId);
-    }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (activeInvestigationId) {
-      loadInvestigationFromApi(activeInvestigationId);
-      apiClient.listScriptRuns(activeInvestigationId).then(setScriptRuns).catch(console.error);
-    } else {
-      setInvestigation(null);
-      setScriptRuns([]);
-    }
-  }, [activeInvestigationId, loadInvestigationFromApi, setInvestigation]);
-
-  // Refresh script runs periodically
-  useEffect(() => {
-    if (!activeInvestigationId) return;
-    const interval = setInterval(() => {
-      apiClient.listScriptRuns(activeInvestigationId).then(setScriptRuns).catch(console.error);
-    }, 10_000);
-    return () => clearInterval(interval);
-  }, [activeInvestigationId]);
-
-  // Auto-save traces to backend
-  const saveTimeoutRef = useMemo(() => ({ current: null as ReturnType<typeof setTimeout> | null }), []);
-  useEffect(() => {
-    if (!investigation || loading) return;
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(async () => {
-      try {
-        for (const trace of investigation.traces) {
-          const traceData = {
-            criteria: trace.criteria,
-            nodes: trace.nodes,
-            edges: trace.edges,
-            groups: trace.groups || [],
-            edgeBundles: trace.edgeBundles || [],
-            position: trace.position,
-            hideTitle: trace.hideTitle ?? false,
-            labels: trace.labels || [],
-          };
-          await apiClient.updateTrace(trace.id, {
-            name: trace.name,
-            color: trace.color || null,
-            visible: trace.visible,
-            collapsed: trace.collapsed,
-            data: traceData,
-          });
-        }
-      } catch (err) {
-        console.error('Auto-save failed:', err);
-      }
-    }, 1000);
-    return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
-  }, [investigation, loading, saveTimeoutRef]);
+  const { loading, scriptRuns, reloadCurrent, refreshScriptRuns } = useInvestigationLoader({
+    activeInvestigationId,
+    investigation,
+    setInvestigation,
+    onBeforeLoad: () => {
+      setSelectedItem(null);
+      setStagedItems([]);
+    },
+  });
 
   const allWallets = useMemo(() => {
     if (!investigation) return [];
@@ -447,91 +106,6 @@ function InvestigationsWorkspace() {
       t.nodes.map((wallet) => ({ wallet, traceId: t.id }))
     );
   }, [investigation]);
-
-  // Re-derive selectedItem after investigation changes
-  useEffect(() => {
-    if (!selectedItem || !investigation) return;
-    const { type, data } = selectedItem;
-    if (type === 'wallet' && data) {
-      for (const trace of investigation.traces) {
-        const found = trace.nodes.find((n: WalletNode) => n.id === data.id);
-        if (found) { setSelectedItem({ type: 'wallet', data: found }); return; }
-      }
-      setSelectedItem(null);
-    } else if (type === 'transaction' && data) {
-      for (const trace of investigation.traces) {
-        const found = trace.edges.find((e: TransactionEdge) => e.id === data.id);
-        if (found) { setSelectedItem({ type: 'transaction', data: found }); return; }
-      }
-      setSelectedItem(null);
-    } else if (type === 'trace' && data) {
-      const found = investigation.traces.find((t) => t.id === data.id);
-      if (found) setSelectedItem({ type: 'trace', data: found });
-      else setSelectedItem(null);
-    } else if (type === 'group' && data) {
-      for (const trace of investigation.traces) {
-        const found = (trace.groups || []).find((g) => g.id === data.id);
-        if (found) { setSelectedItem({ type: 'group', data: found }); return; }
-      }
-      setSelectedItem(null);
-    } else if (type === 'edgeBundle' && data) {
-      for (const trace of investigation.traces) {
-        const found = (trace.edgeBundles || []).find((b) => b.id === data.id);
-        if (found) { setSelectedItem({ type: 'edgeBundle', data: found }); return; }
-      }
-      setSelectedItem(null);
-    } else if (type === 'aggregatedEdge' && data) {
-      const trace = investigation.traces.find((t) => t.id === data.traceId);
-      if (!trace) { setSelectedItem(null); return; }
-      const remaining = data.edges.filter((e: TransactionEdge) =>
-        trace.edges.some((te) => te.id === e.id)
-      );
-      if (remaining.length === 0) { setSelectedItem(null); return; }
-      setSelectedItem({ type: 'aggregatedEdge', data: { ...data, edges: remaining } });
-    }
-  }, [investigation]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    setOnGraphUpdated(() => {
-      if (activeInvestigationId) loadInvestigationFromApi(activeInvestigationId);
-    });
-    return () => setOnGraphUpdated(undefined);
-  }, [activeInvestigationId, loadInvestigationFromApi, setOnGraphUpdated]);
-
-  // Sidebar callback
-  const handleSelectInvestigation = useCallback((inv: ApiInvestigation) => {
-    setActiveInvestigationId(inv.id);
-    router.push(`/cases/${caseId}/investigations?inv=${inv.id}`, { scroll: false });
-  }, [router, caseId]);
-
-  // Trace operations
-  const handleAddTrace = useCallback(async (): Promise<string | undefined> => {
-    if (!activeInvestigationId) return undefined;
-    const colors = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#ef4444'];
-    const color = colors[(investigation?.traces.length || 0) % colors.length];
-    const name = `Trace ${(investigation?.traces.length || 0) + 1}`;
-
-    try {
-      const created = await apiClient.createTrace(activeInvestigationId, { name, color });
-      const trace: Trace = {
-        id: created.id,
-        name: created.name,
-        criteria: { type: 'custom' },
-        visible: true,
-        collapsed: false,
-        color,
-        nodes: [],
-        edges: [],
-        position: { x: 0, y: 0 },
-      };
-      addTrace(trace);
-      setSelectedItem({ type: 'trace', data: trace });
-      return trace.id;
-    } catch (err) {
-      console.error('Failed to create trace:', err);
-      return undefined;
-    }
-  }, [addTrace, investigation?.traces.length, activeInvestigationId]);
 
   const handleSelectTrace = useCallback((trace: Trace) => {
     setSelectedItem({ type: 'trace', data: trace });
@@ -543,6 +117,26 @@ function InvestigationsWorkspace() {
 
   const selectedTraceId = selectedItem?.type === 'trace' ? selectedItem.data?.id : undefined;
   const selectedScriptRunId = selectedItem?.type === 'scriptRun' ? selectedItem.data?.id : undefined;
+
+  const handleFetchHistory = useCallback((address: string, chain: string) => {
+    setFetchModalWallet({ address, chain });
+  }, []);
+
+  const {
+    handleAddTrace,
+    handleCreateWalletAtPosition,
+    handleContextMenu,
+    handleLabelContextMenu,
+    cytoscapeCallbacks,
+  } = useGraphContextMenu({
+    investigation, activeInvestigationId, graphRef,
+    addTrace, updateNodePosition, updateWallet, updateGroup,
+    deleteWallet, deleteTransaction, toggleTraceVisibility, toggleTraceCollapsed,
+    addLabel, deleteLabel,
+    setSelectedItem, setSelectedNodeIds, setSelectedEdgeIds, setPanelMode, setContextMenu,
+    onFetchHistory: handleFetchHistory,
+    resolveFocusItem,
+  });
 
   // Push data to the shared sidebar via CaseContext.
   // Every value referenced in the effect body must be in the deps array — without
@@ -576,626 +170,51 @@ function InvestigationsWorkspace() {
     handleSelectScriptRun,
   ]);
 
-  const handleCreateWalletAtPosition = useCallback((position: { x: number; y: number }) => {
-    setPanelMode({ type: 'createWallet', position });
-  }, []);
+  const {
+    handleSaveNewWallet,
+    handleSaveNewTransaction,
+    handleAddStagedToTrace,
+  } = useWalletTransactionAuthoring({
+    investigation, allWallets, panelMode, setPanelMode, setSelectedItem,
+    setStagedItems, addWallet, updateWallet, addTransaction,
+  });
 
-  const handleSaveNewWallet = useCallback(
-    (traceId: string, data: Partial<WalletNode>) => {
-      const position = panelMode.type === 'createWallet' && panelMode.position
-        ? panelMode.position
-        : { x: Math.random() * 400, y: Math.random() * 400 };
+  const {
+    handleBatchRename,
+    handleBatchRecolor,
+    handleBatchDelete,
+    handleGroupNodes,
+    selectedGroupEntry,
+    handleAddToGroup,
+    handleExtractToTrace,
+  } = useBatchNodeOps({
+    investigation,
+    activeInvestigationId,
+    selectedNodeIds,
+    setSelectedNodeIds,
+    updateWallet,
+    deleteWallet,
+    createGroup,
+    setNodeGroup,
+    extractToTrace,
+  });
 
-      const addr = (data.address || '').toLowerCase();
-      const ch = data.chain || 'ethereum';
-      const wallet: WalletNode = {
-        id: crypto.randomUUID(),
-        label: data.label || 'New Node',
-        address: addr,
-        chain: ch,
-        color: data.color || '#60a5fa',
-        size: data.size,
-        notes: data.notes || '',
-        tags: data.tags || [],
-        position,
-        parentTrace: traceId,
-        addressType: addr ? 'unknown' : undefined,
-        explorerUrl: addr ? buildExplorerUrl(ch, addr) : undefined,
-      };
-      addWallet(traceId, wallet);
-      setPanelMode({ type: 'none' });
-      setSelectedItem({ type: 'wallet', data: wallet });
-
-      if (addr) {
-        apiClient.getAddressInfo(addr, ch).then((info) => {
-          updateWallet(traceId, wallet.id, { addressType: info.addressType });
-        }).catch(() => {});
-      }
-    },
-    [addWallet, updateWallet, panelMode]
-  );
-
-  const findOrCreateWallet = useCallback(
-    (address: string, chain: string, traceId: string): string => {
-      const existing = allWallets.find(
-        (w) => w.wallet.address.toLowerCase() === address.toLowerCase()
-      );
-      if (existing) return existing.wallet.id;
-
-      const normAddress = address.toLowerCase();
-      const walletId = crypto.randomUUID();
-      const wallet: WalletNode = {
-        id: walletId,
-        label: normAddress.length > 10 ? `${normAddress.slice(0, 6)}...${normAddress.slice(-4)}` : normAddress,
-        address: normAddress,
-        chain,
-        notes: '',
-        tags: [],
-        position: { x: Math.random() * 400, y: Math.random() * 400 },
-        parentTrace: traceId,
-        addressType: 'unknown',
-        explorerUrl: buildExplorerUrl(chain, normAddress),
-      };
-      addWallet(traceId, wallet);
-
-      apiClient.getAddressInfo(normAddress, chain).then((info) => {
-        updateWallet(traceId, walletId, { addressType: info.addressType });
-      }).catch(() => {});
-
-      return wallet.id;
-    },
-    [allWallets, addWallet, updateWallet]
-  );
-
-  const handleSaveNewTransaction = useCallback(
-    (traceId: string, data: Partial<TransactionEdge>) => {
-      const ch = data.chain || 'ethereum';
-
-      let fromId = data.from || '';
-      let toId = data.to || '';
-      const isExistingWallet = (val: string) =>
-        allWallets.some((w) => w.wallet.id === val || w.wallet.address.toLowerCase() === val.toLowerCase());
-      if (fromId && !isExistingWallet(fromId)) {
-        fromId = findOrCreateWallet(fromId, ch, traceId);
-      }
-      if (toId && !isExistingWallet(toId)) {
-        toId = findOrCreateWallet(toId, ch, traceId);
-      }
-
-      const fromTrace = allWallets.find((w) => w.wallet.id === fromId)?.traceId;
-      const toTrace = allWallets.find((w) => w.wallet.id === toId)?.traceId;
-      const crossTrace = !!(fromTrace && toTrace && fromTrace !== toTrace);
-
-      const transaction: TransactionEdge = {
-        id: crypto.randomUUID(),
-        from: fromId,
-        to: toId,
-        txHash: data.txHash || '0x',
-        chain: ch,
-        timestamp: data.timestamp || new Date().toISOString(),
-        amount: data.amount || '0',
-        token: data.token || { address: '0x', symbol: 'ETH', decimals: 18 },
-        usdValue: data.usdValue,
-        color: data.color || '#10b981',
-        label: data.label || '',
-        notes: data.notes || '',
-        tags: data.tags || [],
-        blockNumber: data.blockNumber || 0,
-        crossTrace,
-      };
-      addTransaction(traceId, transaction);
-      setPanelMode({ type: 'none' });
-      setSelectedItem({ type: 'transaction', data: transaction });
-    },
-    [addTransaction, allWallets, findOrCreateWallet]
-  );
-
-  const handleFetchHistory = useCallback((address: string, chain: string) => {
-    setFetchModalWallet({ address, chain });
-  }, []);
-
-  const handleAddStagedToTrace = useCallback(
-    (traceId: string, selected: TransactionEdge[]) => {
-      if (!investigation) return;
-
-      const existingTxHashes = new Set<string>();
-      investigation.traces.forEach((t) =>
-        t.edges.forEach((e) => existingTxHashes.add(`${e.txHash}-${e.from}-${e.to}`))
-      );
-
-      const existingWalletAddresses = new Map<string, string>();
-      investigation.traces.forEach((t) =>
-        t.nodes.forEach((n) => existingWalletAddresses.set(n.address.toLowerCase(), n.id))
-      );
-
-      let maxX = 0;
-      investigation.traces.forEach((t) =>
-        t.nodes.forEach((n) => { if (n.position.x > maxX) maxX = n.position.x; })
-      );
-      let newNodeX = maxX + 150;
-      let newNodeY = 100;
-      let placedCount = 0;
-
-      for (const tx of selected) {
-        const key = `${tx.txHash}-${tx.from}-${tx.to}`;
-        if (existingTxHashes.has(key)) continue;
-
-        for (const addr of [tx.from, tx.to]) {
-          if (!existingWalletAddresses.has(addr.toLowerCase())) {
-            const x = newNodeX + Math.floor(placedCount / 5) * 150;
-            const y = newNodeY + (placedCount % 5) * 100;
-            placedCount++;
-
-            const normAddr = addr.toLowerCase();
-            const wallet: WalletNode = {
-              id: crypto.randomUUID(),
-              label: `${addr.slice(0, 6)}...${addr.slice(-4)}`,
-              address: normAddr,
-              chain: tx.chain,
-              notes: '',
-              tags: [],
-              position: { x, y },
-              parentTrace: traceId,
-            };
-            addWallet(traceId, wallet);
-            existingWalletAddresses.set(normAddr, wallet.id);
-          }
-        }
-
-        const fromId = existingWalletAddresses.get(tx.from.toLowerCase()) || tx.from;
-        const toId = existingWalletAddresses.get(tx.to.toLowerCase()) || tx.to;
-
-        addTransaction(traceId, { ...tx, id: crypto.randomUUID(), from: fromId, to: toId });
-        existingTxHashes.add(key);
-      }
-
-      const selectedIds = new Set(selected.map((s) => s.id));
-      setStagedItems((prev) => prev.filter((i) => !selectedIds.has(i.id)));
-    },
-    [investigation, addWallet, addTransaction]
-  );
-
-  const handleBatchRename = useCallback((prefix: string) => {
-    selectedNodeIds.forEach(({ id, traceId }, i) => {
-      updateWallet(traceId, id, { label: `${prefix} ${i + 1}` });
-    });
-    setSelectedNodeIds([]);
-  }, [selectedNodeIds, updateWallet]);
-
-  const handleBatchRecolor = useCallback((color: string) => {
-    selectedNodeIds.forEach(({ id, traceId }) => {
-      updateWallet(traceId, id, { color });
-    });
-    setSelectedNodeIds([]);
-  }, [selectedNodeIds, updateWallet]);
-
-  const handleBatchDelete = useCallback(() => {
-    selectedNodeIds.forEach(({ id, traceId }) => {
-      deleteWallet(traceId, id);
-    });
-    setSelectedNodeIds([]);
-  }, [selectedNodeIds, deleteWallet]);
-
-  const handleGroupNodes = useCallback((name: string) => {
-    if (selectedNodeIds.length < 2) return;
-    const traceId = selectedNodeIds[0].traceId;
-    const group: Group = {
-      id: crypto.randomUUID(),
-      name,
-      traceId,
-    };
-    createGroup(traceId, group, selectedNodeIds.map((n) => n.id));
-    setSelectedNodeIds([]);
-  }, [selectedNodeIds, createGroup]);
-
-  const selectedGroupEntry = useMemo(() => {
-    if (!investigation || selectedNodeIds.length < 2) return null;
-    for (const { id, traceId } of selectedNodeIds) {
-      const trace = investigation.traces.find((t) => t.id === traceId);
-      const group = (trace?.groups || []).find((g) => g.id === id);
-      if (group) return { group, traceId };
-    }
-    return null;
-  }, [selectedNodeIds, investigation]);
-
-  const handleBundleEdges = useCallback(() => {
-    if (!investigation || selectedEdgeIds.length < 2) return;
-
-    const nodeAddr = new Map<string, string>();
-    for (const trace of investigation.traces) {
-      for (const node of trace.nodes) nodeAddr.set(node.id, node.address);
-    }
-
-    const fromBundles = new Set<string>();
-    const rawEdgeIds: string[] = [];
-    const consumedBundleIds: { traceId: string; bundleId: string }[] = [];
-    for (const id of selectedEdgeIds) {
-      let found = false;
-      for (const trace of investigation.traces) {
-        const bundle = (trace.edgeBundles || []).find((b) => b.id === id);
-        if (bundle) {
-          bundle.edgeIds.forEach((eid) => fromBundles.add(eid));
-          consumedBundleIds.push({ traceId: trace.id, bundleId: bundle.id });
-          found = true;
-          break;
-        }
-      }
-      if (!found) rawEdgeIds.push(id);
-    }
-
-    const uniqueEdgeIds = [...new Set([...fromBundles, ...rawEdgeIds])];
-
-    const groups = new Map<string, { fromNodeId: string; toNodeId: string; token: string; edgeIds: string[] }>();
-    for (const trace of investigation.traces) {
-      for (const edge of trace.edges) {
-        if (!uniqueEdgeIds.includes(edge.id)) continue;
-        const token = normalizeToken(edge.token).symbol;
-        const fromAddr = nodeAddr.get(edge.from) || edge.from;
-        const toAddr = nodeAddr.get(edge.to) || edge.to;
-        const key = `${fromAddr}::${toAddr}::${token}`;
-        if (!groups.has(key)) groups.set(key, { fromNodeId: edge.from, toNodeId: edge.to, token, edgeIds: [] });
-        groups.get(key)!.edgeIds.push(edge.id);
-      }
-    }
-
-    for (const { traceId, bundleId } of consumedBundleIds) {
-      deleteEdgeBundle(traceId, bundleId);
-    }
-
-    for (const { fromNodeId, toNodeId, token, edgeIds } of groups.values()) {
-      if (edgeIds.length < 2) continue;
-      let traceId = '';
-      for (const t of investigation.traces) {
-        if (t.edges.some((e) => e.id === edgeIds[0])) { traceId = t.id; break; }
-      }
-      if (!traceId) continue;
-      const bundle: EdgeBundle = {
-        id: crypto.randomUUID(),
-        traceId,
-        fromNodeId,
-        toNodeId,
-        token,
-        collapsed: true,
-        edgeIds,
-      };
-      addEdgeBundle(traceId, bundle);
-    }
-    setSelectedEdgeIds([]);
-  }, [investigation, selectedEdgeIds, addEdgeBundle, deleteEdgeBundle]);
-
-  const handleBundleAllOutbound = useCallback((walletId: string, color: string) => {
-    if (!investigation) return;
-
-    let walletTraceId = '';
-    for (const t of investigation.traces) {
-      if (t.nodes.some((n) => n.id === walletId)) { walletTraceId = t.id; break; }
-    }
-    if (!walletTraceId) return;
-
-    const nodeAddr = new Map<string, string>();
-    for (const trace of investigation.traces) {
-      for (const node of trace.nodes) nodeAddr.set(node.id, node.address);
-    }
-
-    const outboundEdgeIds = new Set<string>();
-    const consumedBundleIds: { traceId: string; bundleId: string }[] = [];
-    for (const trace of investigation.traces) {
-      for (const edge of trace.edges) {
-        if (edge.from === walletId) outboundEdgeIds.add(edge.id);
-      }
-      for (const bundle of trace.edgeBundles || []) {
-        if (bundle.fromNodeId === walletId) {
-          bundle.edgeIds.forEach((eid) => outboundEdgeIds.add(eid));
-          consumedBundleIds.push({ traceId: trace.id, bundleId: bundle.id });
-        }
-      }
-    }
-    if (outboundEdgeIds.size === 0) return;
-
-    // Color all outbound edges so the bundle's color is consistent if later un-bundled.
-    for (const trace of investigation.traces) {
-      for (const edge of trace.edges) {
-        if (outboundEdgeIds.has(edge.id)) {
-          updateTransaction(trace.id, edge.id, { color });
-        }
-      }
-    }
-
-    const groups = new Map<string, { fromNodeId: string; toNodeId: string; token: string; edgeIds: string[] }>();
-    for (const trace of investigation.traces) {
-      for (const edge of trace.edges) {
-        if (!outboundEdgeIds.has(edge.id)) continue;
-        const token = normalizeToken(edge.token).symbol;
-        const toAddr = nodeAddr.get(edge.to) || edge.to;
-        const key = `${toAddr}::${token}`;
-        if (!groups.has(key)) groups.set(key, { fromNodeId: edge.from, toNodeId: edge.to, token, edgeIds: [] });
-        groups.get(key)!.edgeIds.push(edge.id);
-      }
-    }
-
-    for (const { traceId, bundleId } of consumedBundleIds) {
-      deleteEdgeBundle(traceId, bundleId);
-    }
-
-    for (const { fromNodeId, toNodeId, token, edgeIds } of groups.values()) {
-      if (edgeIds.length < 2) continue;
-      const bundle: EdgeBundle = {
-        id: crypto.randomUUID(),
-        traceId: walletTraceId,
-        fromNodeId,
-        toNodeId,
-        token,
-        collapsed: true,
-        edgeIds,
-        color,
-      };
-      addEdgeBundle(walletTraceId, bundle);
-    }
-  }, [investigation, addEdgeBundle, deleteEdgeBundle, updateTransaction]);
-
-  const handleDeleteAllOutbound = useCallback((walletId: string) => {
-    deleteOutboundEdges(walletId);
-  }, [deleteOutboundEdges]);
-
-  const handleBundleAllInbound = useCallback((walletId: string, color: string) => {
-    if (!investigation) return;
-
-    let walletTraceId = '';
-    for (const t of investigation.traces) {
-      if (t.nodes.some((n) => n.id === walletId)) { walletTraceId = t.id; break; }
-    }
-    if (!walletTraceId) return;
-
-    const nodeAddr = new Map<string, string>();
-    for (const trace of investigation.traces) {
-      for (const node of trace.nodes) nodeAddr.set(node.id, node.address);
-    }
-
-    const inboundEdgeIds = new Set<string>();
-    const consumedBundleIds: { traceId: string; bundleId: string }[] = [];
-    for (const trace of investigation.traces) {
-      for (const edge of trace.edges) {
-        if (edge.to === walletId) inboundEdgeIds.add(edge.id);
-      }
-      for (const bundle of trace.edgeBundles || []) {
-        if (bundle.toNodeId === walletId) {
-          bundle.edgeIds.forEach((eid) => inboundEdgeIds.add(eid));
-          consumedBundleIds.push({ traceId: trace.id, bundleId: bundle.id });
-        }
-      }
-    }
-    if (inboundEdgeIds.size === 0) return;
-
-    // Color all inbound edges so the bundle's color is consistent if later un-bundled.
-    for (const trace of investigation.traces) {
-      for (const edge of trace.edges) {
-        if (inboundEdgeIds.has(edge.id)) {
-          updateTransaction(trace.id, edge.id, { color });
-        }
-      }
-    }
-
-    const groups = new Map<string, { fromNodeId: string; toNodeId: string; token: string; edgeIds: string[] }>();
-    for (const trace of investigation.traces) {
-      for (const edge of trace.edges) {
-        if (!inboundEdgeIds.has(edge.id)) continue;
-        const token = normalizeToken(edge.token).symbol;
-        const fromAddr = nodeAddr.get(edge.from) || edge.from;
-        const key = `${fromAddr}::${token}`;
-        if (!groups.has(key)) groups.set(key, { fromNodeId: edge.from, toNodeId: edge.to, token, edgeIds: [] });
-        groups.get(key)!.edgeIds.push(edge.id);
-      }
-    }
-
-    for (const { traceId, bundleId } of consumedBundleIds) {
-      deleteEdgeBundle(traceId, bundleId);
-    }
-
-    for (const { fromNodeId, toNodeId, token, edgeIds } of groups.values()) {
-      if (edgeIds.length < 2) continue;
-      const bundle: EdgeBundle = {
-        id: crypto.randomUUID(),
-        traceId: walletTraceId,
-        fromNodeId,
-        toNodeId,
-        token,
-        collapsed: true,
-        edgeIds,
-        color,
-      };
-      addEdgeBundle(walletTraceId, bundle);
-    }
-  }, [investigation, addEdgeBundle, deleteEdgeBundle, updateTransaction]);
-
-  const handleDeleteAllInbound = useCallback((walletId: string) => {
-    deleteInboundEdges(walletId);
-  }, [deleteInboundEdges]);
-
-  const handleAddToGroup = useCallback(() => {
-    if (!selectedGroupEntry) return;
-    const { group, traceId } = selectedGroupEntry;
-    const nodeIds = selectedNodeIds
-      .filter(({ id }) => id !== group.id)
-      .map(({ id }) => id);
-    setNodeGroup(traceId, nodeIds, group.id);
-    setSelectedNodeIds([]);
-  }, [selectedGroupEntry, selectedNodeIds, setNodeGroup]);
-
-  const handleExtractToTrace = useCallback(async () => {
-    if (!activeInvestigationId || selectedNodeIds.length < 2) return;
-    const colors = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#ef4444'];
-    const color = colors[(investigation?.traces.length || 0) % colors.length];
-    const name = `Trace ${(investigation?.traces.length || 0) + 1}`;
-    try {
-      const created = await apiClient.createTrace(activeInvestigationId, { name, color });
-      const newTrace: Trace = {
-        id: created.id,
-        name: created.name,
-        criteria: { type: 'wallet-group' },
-        visible: true,
-        collapsed: false,
-        color,
-        nodes: [],
-        edges: [],
-        position: { x: 0, y: 0 },
-      };
-      extractToTrace(selectedNodeIds.map((n) => n.id), newTrace);
-      setSelectedNodeIds([]);
-    } catch (err) {
-      console.error('Failed to extract to trace:', err);
-    }
-  }, [activeInvestigationId, selectedNodeIds, investigation?.traces.length, extractToTrace]);
-
-  const handleContextMenu = useCallback(
-    (event: {
-      type: 'node' | 'edge' | 'background';
-      id?: string;
-      x: number;
-      y: number;
-      modelPosition?: { x: number; y: number };
-    }) => {
-      if (!investigation) return;
-      const items = buildGraphContextMenu(event, {
-        investigation,
-        lastFocusedTraceId,
-        setLastFocusedTraceId,
-        setSelectedItem,
-        toggleTraceVisibility,
-        toggleTraceCollapsed,
-        deleteWallet,
-        deleteTransaction,
-        addLabel,
-        deleteLabel,
-        handleCreateWalletAtPosition,
-        handleAddTrace,
-        handleFetchHistory,
-        graphRef,
-      });
-      if (items.length > 0) {
-        setContextMenu({ x: event.x, y: event.y, items });
-      }
-    },
-    [
-      investigation,
-      lastFocusedTraceId,
-      toggleTraceVisibility,
-      toggleTraceCollapsed,
-      deleteWallet,
-      deleteTransaction,
-      handleFetchHistory,
-      handleCreateWalletAtPosition,
-      handleAddTrace,
-      addLabel,
-      deleteLabel,
-    ]
-  );
-
-  const handleLabelContextMenu = useCallback(
-    (traceId: string, labelId: string, x: number, y: number) => {
-      const items = buildLabelContextMenu(traceId, labelId, {
-        investigation: investigation!,
-        lastFocusedTraceId,
-        setLastFocusedTraceId,
-        setSelectedItem,
-        toggleTraceVisibility,
-        toggleTraceCollapsed,
-        deleteWallet,
-        deleteTransaction,
-        addLabel,
-        deleteLabel,
-        handleCreateWalletAtPosition,
-        handleAddTrace,
-        handleFetchHistory,
-        graphRef,
-      });
-      setContextMenu({ x, y, items });
-    },
-    [deleteLabel, graphRef],
-  );
-
-  const cytoscapeCallbacks: CytoscapeCallbacks = useMemo(
-    () => ({
-      onSelectionChange: ({ nodeIds, edgeIds, focusItem }) => {
-        setSelectedNodeIds(nodeIds);
-        // setSelectedItem(null) when focusItem is null also implicitly closes any
-        // open script-run panel — script-run selection is derived from selectedItem.
-        setSelectedEdgeIds(edgeIds);
-        setSelectedItem(resolveFocusItem(focusItem, investigation));
-        // Track the most recently focused trace for free-label ownership resolution.
-        if (focusItem && focusItem.type !== 'trace' && 'traceId' in focusItem) {
-          setLastFocusedTraceId(focusItem.traceId);
-        } else if (focusItem?.type === 'trace') {
-          setLastFocusedTraceId(focusItem.id);
-        }
-      },
-      onNodeDrag: updateNodePosition,
-      onGroupDrag: (groupId, newPos) => {
-        if (!investigation) return;
-        for (const trace of investigation.traces) {
-          const group = (trace.groups || []).find((g) => g.id === groupId);
-          if (!group) continue;
-          const members = trace.nodes.filter((n) => n.groupId === groupId);
-          if (members.length === 0) break;
-          const oldCx = members.reduce((s, n) => s + n.position.x, 0) / members.length;
-          const oldCy = members.reduce((s, n) => s + n.position.y, 0) / members.length;
-          const dx = newPos.x - oldCx;
-          const dy = newPos.y - oldCy;
-          members.forEach((n) => updateNodePosition(n.id, { x: n.position.x + dx, y: n.position.y + dy }));
-          break;
-        }
-      },
-      onResizeNode: (nodeId, traceId, size) => {
-        const isGroup = investigation?.traces.some(t => (t.groups || []).some(g => g.id === nodeId));
-        if (isGroup) updateGroup(traceId, nodeId, { size });
-        else updateWallet(traceId, nodeId, { size });
-      },
-      onContextMenu: handleContextMenu,
-      onDoubleClickBackground: handleCreateWalletAtPosition,
-    }),
-    [updateNodePosition, updateWallet, updateGroup, investigation, handleContextMenu, handleCreateWalletAtPosition]
-  );
-
-  const renderCreationPanel = () => {
-    if (!investigation) return null;
-
-    if (panelMode.type === 'createWallet') {
-      return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40">
-          <div className="bg-surface-panel rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
-            <h3 className="text-sm font-semibold text-ink-muted uppercase mb-4">New Address</h3>
-            <WalletForm
-              traces={investigation.traces}
-              selectedTraceId={investigation.traces[0]?.id}
-              onSave={handleSaveNewWallet}
-              onCancel={() => setPanelMode({ type: 'none' })}
-              onCreateTrace={handleAddTrace}
-              prefill={panelMode.prefill}
-            />
-          </div>
-        </div>
-      );
-    }
-
-    if (panelMode.type === 'createTransaction') {
-      return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40">
-          <div className="bg-surface-panel rounded-lg p-6 w-[480px] max-h-[80vh] overflow-y-auto">
-            <h3 className="text-sm font-semibold text-ink-muted uppercase mb-4">New Transaction</h3>
-            <TransactionForm
-              traces={investigation.traces}
-              allWallets={allWallets}
-              onSave={handleSaveNewTransaction}
-              onCancel={() => setPanelMode({ type: 'none' })}
-              onCreateTrace={handleAddTrace}
-              prefill={panelMode.prefill}
-            />
-          </div>
-        </div>
-      );
-    }
-
-    return null;
-  };
+  const {
+    handleBundleEdges,
+    handleBundleAllOutbound,
+    handleBundleAllInbound,
+    handleDeleteAllOutbound,
+    handleDeleteAllInbound,
+  } = useEdgeBundling({
+    investigation,
+    selectedEdgeIds,
+    setSelectedEdgeIds,
+    addEdgeBundle,
+    deleteEdgeBundle,
+    updateTransaction,
+    deleteOutboundEdges,
+    deleteInboundEdges,
+  });
 
   return (
     <>
@@ -1217,7 +236,7 @@ function InvestigationsWorkspace() {
           <div className="flex-1 bg-surface relative overflow-hidden">
             {investigation && (
               <CanvasToolPill
-                onRefresh={() => activeInvestigationId && loadInvestigationFromApi(activeInvestigationId)}
+                onRefresh={reloadCurrent}
                 onUndo={undo}
                 canUndo={canUndo}
                 onRedo={redo}
@@ -1294,225 +313,58 @@ function InvestigationsWorkspace() {
             )}
 
             {selectedItem && selectedNodeIds.length < 2 && selectedEdgeIds.length < 2 && (
-              <FloatingPanel
-                title={`${selectedItem.type === 'wallet' ? 'Address' : selectedItem.type === 'scriptRun' ? 'Script' : selectedItem.type === 'aggregatedEdge' ? 'Aggregated Transactions' : selectedItem.type} Details`}
-                onClose={() => { setSelectedItem(null); graphRef.current?.unselectAll(); }}
-                className="absolute bottom-4 left-4"
-                width="w-[420px]"
-                actions={selectedItem.type === 'wallet' ? (
-                  <WalletHeaderActions
-                    wallet={selectedItem.data as WalletNode}
-                    onEdit={() => detailsPanelRef.current?.startEdit()}
-                    onDelete={() => {
-                      const w = selectedItem.data as WalletNode;
-                      deleteWallet(w.parentTrace, w.id);
-                      setSelectedItem(null);
-                      graphRef.current?.unselectAll();
-                    }}
-                    onColorChange={(color) => updateWallet(selectedItem.data.parentTrace, selectedItem.data.id, { color })}
-                  />
-                ) : selectedItem.type === 'transaction' ? (
-                  <TransactionHeaderActions
-                    transaction={selectedItem.data as TransactionEdge}
-                    onEdit={() => detailsPanelRef.current?.startEdit()}
-                    onDelete={() => {
-                      const tx = selectedItem.data as TransactionEdge;
-                      const traceId = investigation.traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
-                      deleteTransaction(traceId, tx.id);
-                      setSelectedItem(null);
-                      graphRef.current?.unselectAll();
-                    }}
-                    onColorChange={(color) => {
-                      const tx = selectedItem.data as TransactionEdge;
-                      const traceId = investigation.traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
-                      updateTransaction(traceId, tx.id, { color });
-                    }}
-                  />
-                ) : undefined}
-              >
-                <DetailsPanel
-                  ref={detailsPanelRef}
-                  selectedItem={selectedItem}
-                  traces={investigation.traces}
-                  allWallets={allWallets}
-                  onUpdateWallet={updateWallet}
-                  onDeleteWallet={(traceId, walletId) => {
-                    deleteWallet(traceId, walletId);
-                    setSelectedItem(null);
-                  }}
-                  onUpdateTransaction={updateTransaction}
-                  onDeleteTransaction={(traceId, txId) => {
-                    deleteTransaction(traceId, txId);
-                    setSelectedItem(null);
-                  }}
-                  onUpdateTrace={updateTrace}
-                  onDeleteTrace={(traceId) => {
-                    apiClient.deleteTrace(traceId).catch(console.error);
-                    deleteTrace(traceId);
-                    setSelectedItem(null);
-                  }}
-                  onUpdateGroup={updateGroup}
-                  onDeleteGroup={(traceId, groupId) => {
-                    deleteGroup(traceId, groupId);
-                    setSelectedItem(null);
-                  }}
-                  onSetNodeGroup={setNodeGroup}
-                  onToggleEdgeBundle={toggleEdgeBundle}
-                  onUpdateEdgeBundle={updateEdgeBundle}
-                  onDeleteEdgeBundle={(traceId, bundleId) => {
-                    deleteEdgeBundle(traceId, bundleId);
-                    setSelectedItem(null);
-                  }}
-                  onFetchHistory={handleFetchHistory}
-                  onBundleAllOutbound={handleBundleAllOutbound}
-                  onDeleteAllOutbound={handleDeleteAllOutbound}
-                  onBundleAllInbound={handleBundleAllInbound}
-                  onDeleteAllInbound={handleDeleteAllInbound}
-                  onRerunScript={async (scriptRunId) => {
-                    await apiClient.rerunScript(scriptRunId);
-                    if (activeInvestigationId) {
-                      const runs = await apiClient.listScriptRuns(activeInvestigationId);
-                      setScriptRuns(runs);
-                    }
-                  }}
-                  onArcEdge={(edgeId, delta) => {
-                    // Persist arc state on the underlying model so it survives
-                    // reloads and flows into exhibit snapshots. Single edges →
-                    // TransactionEdge, collapsed bundles → EdgeBundle. Synthetic
-                    // aggregated edges (no backing entity) fall back to the
-                    // ephemeral cy override.
-                    if (!investigation) return;
-                    for (const trace of investigation.traces) {
-                      const edge = trace.edges.find((e) => e.id === edgeId);
-                      if (edge) {
-                        if (delta === null) {
-                          updateTransaction(trace.id, edgeId, { hasArc: undefined, arcOffset: undefined });
-                        } else {
-                          const next = (edge.arcOffset ?? 0) + delta;
-                          updateTransaction(trace.id, edgeId, { hasArc: true, arcOffset: next });
-                        }
-                        return;
-                      }
-                      const bundle = (trace.edgeBundles || []).find((b) => b.id === edgeId);
-                      if (bundle) {
-                        if (delta === null) {
-                          updateEdgeBundle(trace.id, edgeId, { hasArc: undefined, arcOffset: undefined });
-                        } else {
-                          const next = (bundle.arcOffset ?? 0) + delta;
-                          updateEdgeBundle(trace.id, edgeId, { hasArc: true, arcOffset: next });
-                        }
-                        return;
-                      }
-                    }
-                    // Synthetic aggregated edge — no entity to persist on.
-                    graphRef.current?.setEdgeArc(edgeId, delta);
-                  }}
-                />
-              </FloatingPanel>
-            )}
-
-            {editingInvestigation && (
-              <FloatingPanel
-                title="Investigation"
-                onClose={() => setEditingInvestigation(null)}
-                className="absolute top-4 left-4"
-              >
-                <InvestigationForm
-                  investigation={editingInvestigation}
-                  traces={investigation?.id === editingInvestigation.id ? (investigation.traces as any) : undefined}
-                  onSave={async (updates) => {
-                    await apiClient.updateInvestigation(editingInvestigation.id, updates);
-                    setEditingInvestigation(null);
-                    reloadInvestigations();
-                  }}
-                  onDelete={() => {
-                    setDeletingInvestigation(editingInvestigation);
-                    setEditingInvestigation(null);
-                  }}
-                  onDuplicate={async () => {
-                    const copy = await apiClient.duplicateInvestigation(editingInvestigation.id);
-                    setEditingInvestigation(null);
-                    reloadInvestigations();
-                    router.push(`/cases/${caseId}/investigations?inv=${copy.id}`);
-                  }}
-                  onCancel={() => setEditingInvestigation(null)}
-                />
-              </FloatingPanel>
-            )}
-
-            {deletingInvestigation && (
-              <ConfirmDeleteModal
-                title="Delete investigation"
-                expectedText={deletingInvestigation.name}
-                message={
-                  <>
-                    This will permanently delete <span className="text-gray-200 font-medium">{deletingInvestigation.name}</span> and all of its traces, nodes, edges, and scripts. This cannot be undone.
-                  </>
-                }
-                onConfirm={async () => {
-                  const id = deletingInvestigation.id;
-                  await apiClient.deleteInvestigation(id);
-                  setDeletingInvestigation(null);
-                  if (activeInvestigationId === id) setActiveInvestigationId(null);
-                  reloadInvestigations();
-                }}
-                onCancel={() => setDeletingInvestigation(null)}
-              />
-            )}
-
-            {investigation && investigation.traces.length > 0 && (
-              <SearchPanel
+              <SelectionDetailsPanel
+                selectedItem={selectedItem}
+                setSelectedItem={setSelectedItem}
                 investigation={investigation}
-                selectedTraceId={selectedTraceId}
-                open={searchOpen}
-                onClose={() => setSearchOpen(false)}
+                allWallets={allWallets}
+                graphRef={graphRef}
+                activeInvestigationId={activeInvestigationId}
+                updateWallet={updateWallet}
+                deleteWallet={deleteWallet}
+                updateTransaction={updateTransaction}
+                deleteTransaction={deleteTransaction}
+                updateTrace={updateTrace}
+                deleteTrace={deleteTrace}
+                updateGroup={updateGroup}
+                deleteGroup={deleteGroup}
+                setNodeGroup={setNodeGroup}
+                toggleEdgeBundle={toggleEdgeBundle}
+                updateEdgeBundle={updateEdgeBundle}
+                deleteEdgeBundle={deleteEdgeBundle}
+                onFetchHistory={handleFetchHistory}
+                onBundleAllOutbound={handleBundleAllOutbound}
+                onDeleteAllOutbound={handleDeleteAllOutbound}
+                onBundleAllInbound={handleBundleAllInbound}
+                onDeleteAllInbound={handleDeleteAllInbound}
+                onRefreshScriptRuns={refreshScriptRuns}
               />
             )}
 
-            {fetchModalWallet && investigation && (
-              <FetchModal
-                initialAddress={fetchModalWallet.address}
-                initialChain={fetchModalWallet.chain}
-                traces={investigation.traces}
-                existingTxKeys={new Set(
-                  investigation.traces.flatMap((t) =>
-                    t.edges.map((e) => `${e.txHash}-${e.from}-${e.to}`)
-                  )
-                )}
-                onAdd={handleAddStagedToTrace}
-                onClose={() => setFetchModalWallet(null)}
-              />
-            )}
-
-            {stagedItems.length > 0 && (
-              <div className="absolute bottom-0 left-0 right-0 z-20">
-                <StagingPanel
-                  items={stagedItems}
-                  traces={investigation.traces}
-                  onAddToTrace={handleAddStagedToTrace}
-                  onClear={() => setStagedItems([])}
-                />
-              </div>
-            )}
+            <WorkspaceModals
+              caseId={caseId}
+              investigation={investigation}
+              editingInvestigation={editingInvestigation}
+              setEditingInvestigation={setEditingInvestigation}
+              deletingInvestigation={deletingInvestigation}
+              setDeletingInvestigation={setDeletingInvestigation}
+              activeInvestigationId={activeInvestigationId}
+              clearInvestigation={clearInvestigation}
+              reloadInvestigations={reloadInvestigations}
+              selectInvestigation={selectInvestigation}
+              searchOpen={searchOpen}
+              setSearchOpen={setSearchOpen}
+              selectedTraceId={selectedTraceId}
+              fetchModalWallet={fetchModalWallet}
+              setFetchModalWallet={setFetchModalWallet}
+              onAddStagedToTrace={handleAddStagedToTrace}
+              stagedItems={stagedItems}
+              setStagedItems={setStagedItems}
+            />
           </div>
         </>
       ) : (
-        <>
-          <PageHeader title="Investigations" rightContent={<UserMenu variant="light" />} />
-          <div className="flex-1 flex items-center justify-center bg-surface">
-            <div className="flex flex-col items-center text-center">
-              <img
-                src="/logo-light.png"
-                alt=""
-                aria-hidden="true"
-                draggable={false}
-                className="h-20 w-20 select-none mb-4 opacity-90"
-              />
-              <h2 className="text-2xl font-bold mb-2">Daubert</h2>
-              <p className="text-ink-faint">Select or create an investigation to begin</p>
-            </div>
-          </div>
-        </>
+        <WorkspaceEmptyState />
       )}
 
       {contextMenu && (
@@ -1524,7 +376,17 @@ function InvestigationsWorkspace() {
         />
       )}
 
-      {renderCreationPanel()}
+      {investigation && (
+        <CreationPanels
+          panelMode={panelMode}
+          investigation={investigation}
+          allWallets={allWallets}
+          onSaveWallet={handleSaveNewWallet}
+          onSaveTransaction={handleSaveNewTransaction}
+          onCancel={() => setPanelMode({ type: 'none' })}
+          onCreateTrace={handleAddTrace}
+        />
+      )}
 
       <ExportModal
         open={exportModalOpen}

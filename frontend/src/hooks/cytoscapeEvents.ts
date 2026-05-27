@@ -249,14 +249,6 @@ export function bindCytoscapeEvents(cy: Core, getters: CytoscapeEventGetters): (
     }
   };
 
-  // Double-click background for creating wallets
-  const onDblTapBackground = (event: EventObject) => {
-    if (event.target === cy) {
-      const pos = event.position;
-      getters.getCallbacks().onDoubleClickBackground?.({ x: pos.x, y: pos.y });
-    }
-  };
-
   // Edge hover highlight
   const onEdgeMouseOver = (event: EventObject) => {
     event.target.addClass('hovered');
@@ -273,7 +265,6 @@ export function bindCytoscapeEvents(cy: Core, getters: CytoscapeEventGetters): (
   cy.on('cxttap', 'node', onCxtTapNode);
   cy.on('cxttap', 'edge', onCxtTapEdge);
   cy.on('cxttap', onCxtTapBackground);
-  cy.on('dbltap', onDblTapBackground);
   cy.on('mouseover', 'edge', onEdgeMouseOver);
   cy.on('mouseout', 'edge', onEdgeMouseOut);
 
@@ -286,7 +277,6 @@ export function bindCytoscapeEvents(cy: Core, getters: CytoscapeEventGetters): (
     cy.off('cxttap', 'node', onCxtTapNode);
     cy.off('cxttap', 'edge', onCxtTapEdge);
     cy.off('cxttap', onCxtTapBackground);
-    cy.off('dbltap', onDblTapBackground);
     cy.off('mouseover', 'edge', onEdgeMouseOver);
     cy.off('mouseout', 'edge', onEdgeMouseOut);
   };

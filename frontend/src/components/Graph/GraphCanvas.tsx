@@ -17,7 +17,7 @@ export interface GraphCanvasHandle {
 /** Callbacks for label CRUD, forwarded from the parent (page.tsx) which owns useInvestigation. */
 export interface LabelCallbacks {
   addLabel: (traceId: string, label: TraceLabel) => void;
-  updateLabel: (traceId: string, labelId: string, patch: Partial<Pick<TraceLabel, 'text' | 'color' | 'fontSize'>>) => void;
+  updateLabel: (traceId: string, labelId: string, patch: Partial<Pick<TraceLabel, 'text' | 'color' | 'bgColor' | 'fontSize' | 'shape'>>) => void;
   deleteLabel: (traceId: string, labelId: string) => void;
   moveLabel: (traceId: string, labelId: string, anchor: LabelAnchor) => void;
 }
@@ -196,6 +196,10 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
               setEditingLabel(null);
             }}
             onCancel={() => setEditingLabel(null)}
+            onDelete={() => {
+              labelCallbacks.deleteLabel(editingLabel.traceId, editingLabel.labelId);
+              setEditingLabel(null);
+            }}
           />
         )}
       </div>

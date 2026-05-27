@@ -28,7 +28,7 @@ type Action =
   | { type: 'TOGGLE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
   | { type: 'DELETE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
   | { type: 'ADD_LABEL'; traceId: string; label: TraceLabel }
-  | { type: 'UPDATE_LABEL'; traceId: string; labelId: string; patch: Partial<Pick<TraceLabel, 'text' | 'color' | 'fontSize'>> }
+  | { type: 'UPDATE_LABEL'; traceId: string; labelId: string; patch: Partial<Pick<TraceLabel, 'text' | 'color' | 'bgColor' | 'fontSize' | 'shape'>> }
   | { type: 'DELETE_LABEL'; traceId: string; labelId: string }
   | { type: 'MOVE_LABEL'; traceId: string; labelId: string; anchor: LabelAnchor }
   | { type: 'TETHER_LABEL'; traceId: string; labelId: string; anchor: LabelAnchor }
@@ -596,7 +596,7 @@ export function useInvestigation(initial: Investigation | null) {
   );
 
   const updateLabel = useCallback(
-    (traceId: string, labelId: string, patch: Partial<Pick<TraceLabel, 'text' | 'color' | 'fontSize'>>) =>
+    (traceId: string, labelId: string, patch: Partial<Pick<TraceLabel, 'text' | 'color' | 'bgColor' | 'fontSize' | 'shape'>>) =>
       dispatch({ type: 'UPDATE_LABEL', traceId, labelId, patch }),
     []
   );

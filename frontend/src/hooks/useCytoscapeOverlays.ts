@@ -53,6 +53,10 @@ export function useCytoscapeOverlays(
   // without needing to re-run the effect. The ref is set when the overlay is
   // created and cleared in the cleanup — safe to read at any time.
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  // Ref to the overlay render pipeline so prop-change effects can trigger a redraw.
+  // Cytoscape's 'render' event only fires on canvas repaints (pan/zoom/element moves),
+  // so React-driven changes to labels never reach the DOM overlay without this nudge.
+  const runOverlayRenderRef = useRef<() => void>(() => {});
 
   labelsRef.current = labels;
   selectedLabelIdRef.current = selectedLabelId;
@@ -210,6 +214,20 @@ export function useCytoscapeOverlays(
 
     // ── Annotation label overlay ──────────────────────────────────────────────
 
+    // Font size enum → pixel mapping for label wrapper
+    const FONT_SIZE_PX: Record<string, string> = { sm: '10px', md: '11px', lg: '14px' };
+    // Shape enum → border-radius value. 'rounded' (6px) matches the pre-shape default
+    // so existing labels keep their look.
+    const SHAPE_BORDER_RADIUS: Record<string, string> = {
+      rectangle: '0',
+      rounded: '6px',
+      pill: '999px',
+      ellipse: '50%',
+    };
+    // Default background — matches the hardcoded value in the wrapper cssText
+    // so labels without bgColor stay visually identical.
+    const DEFAULT_LABEL_BG = 'rgba(17,24,39,0.92)';
+
     interface LabelEntry {
       wrapper: HTMLDivElement;
       // Child div owned by the React root. Drag handlers attach to wrapper (parent),
@@ -217,6 +235,10 @@ export function useCytoscapeOverlays(
       markdownContainer: HTMLDivElement;
       cleanup: () => void;
       lastRenderedText: string;
+      lastAppliedColor: string;
+      lastAppliedBgColor: string;
+      lastAppliedFontSize: string;
+      lastAppliedShape: string;
     }
     const labelEls = new Map<string, LabelEntry>();
 
@@ -382,7 +404,16 @@ export function useCytoscapeOverlays(
 
           const root = createRoot(markdownContainer);
           const cleanup = () => { root.unmount(); wrapper.remove(); };
-          const newEntry: LabelEntry = { wrapper, markdownContainer, cleanup, lastRenderedText: '\0' };
+          const newEntry: LabelEntry = {
+            wrapper,
+            markdownContainer,
+            cleanup,
+            lastRenderedText: '\0',
+            lastAppliedColor: '',
+            lastAppliedBgColor: '',
+            lastAppliedFontSize: '',
+            lastAppliedShape: '',
+          };
           labelEls.set(label.id, newEntry);
           entry = newEntry;
 
@@ -395,6 +426,29 @@ export function useCytoscapeOverlays(
         entry.wrapper.style.display = '';
         // Selection highlight: toggle class so CSS can style the selected label.
         entry.wrapper.classList.toggle('label-selected', selectedLabelIdRef.current === label.id);
+
+        // Color + bgColor + fontSize + shape: direct style mutation on the wrapper, gated on change.
+        // Applied at wrapper level so color cascades into rendered markdown text.
+        const appliedColor = label.color ?? '';
+        const appliedBgColor = label.bgColor ?? '';
+        const appliedFontSize = FONT_SIZE_PX[label.fontSize ?? 'md'] ?? '11px';
+        const appliedShape = label.shape ?? 'rounded';
+        if (entry.lastAppliedColor !== appliedColor) {
+          entry.wrapper.style.color = appliedColor || '#f3f4f6';
+          entry.lastAppliedColor = appliedColor;
+        }
+        if (entry.lastAppliedBgColor !== appliedBgColor) {
+          entry.wrapper.style.background = appliedBgColor || DEFAULT_LABEL_BG;
+          entry.lastAppliedBgColor = appliedBgColor;
+        }
+        if (entry.lastAppliedFontSize !== appliedFontSize) {
+          entry.wrapper.style.fontSize = appliedFontSize;
+          entry.lastAppliedFontSize = appliedFontSize;
+        }
+        if (entry.lastAppliedShape !== appliedShape) {
+          entry.wrapper.style.borderRadius = SHAPE_BORDER_RADIUS[appliedShape] ?? '6px';
+          entry.lastAppliedShape = appliedShape;
+        }
 
         // Markdown re-render: gated on text change. The `render` event fires on every pan/zoom;
         // re-rendering the React tree every time would burn CPU for no visible change.
@@ -424,6 +478,7 @@ export function useCytoscapeOverlays(
       updateLabels();
     };
     cy.on('render', onRender);
+    runOverlayRenderRef.current = onRender;
 
     return () => {
       cy.off('render', onRender);
@@ -435,8 +490,16 @@ export function useCytoscapeOverlays(
       // Unmount any live React roots before clearing the map.
       labelEls.forEach((entry) => entry.cleanup());
       labelEls.clear();
+      runOverlayRenderRef.current = () => {};
     };
   }, [cy, container, onResizeNode]);
+
+  // Cytoscape only fires 'render' on canvas repaints. Label add/edit/select
+  // changes React state but doesn't move any Cytoscape element, so without this
+  // the new/updated label wouldn't appear until the user pans, zooms, or clicks.
+  useEffect(() => {
+    runOverlayRenderRef.current();
+  }, [labels, selectedLabelId]);
 
   return { getOverlayElement: () => overlayRef.current };
 }

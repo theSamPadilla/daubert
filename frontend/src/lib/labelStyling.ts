@@ -17,17 +17,18 @@ export const DEFAULT_LABEL_COLOR = '#f3f4f6';
  * styles (left/top) are applied by the caller per-render.
  */
 export const LABEL_WRAPPER_BASE_CSS =
-  'position:absolute;transform:translate(-50%, -50%);pointer-events:auto;max-width:240px;' +
+  'position:absolute;transform:translate(-50%, -50%);pointer-events:auto;' +
+  // width:max-content with max-width:240px gives an explicit shrink-to-fit
+  // (capped at 240px). The implicit shrink-to-fit on absolute-positioned
+  // wrappers works the same in normal browser layout, but SVG <foreignObject>
+  // (used by html2canvas's foreignObjectRendering) re-flows the wrapper
+  // independently of its computed dimensions, sometimes producing a wrapper
+  // that's sized for one line of text while the inner text wraps to multiple.
+  // Stating width:max-content explicitly removes the ambiguity.
+  'width:max-content;max-width:240px;' +
   'background:' + DEFAULT_LABEL_BG + ';color:' + DEFAULT_LABEL_COLOR + ';' +
   'border:1px solid #374151;border-radius:6px;' +
-  // line-height:1.2 matches html2canvas's internal baseline-probe container
-  // (html2canvas.js:6589 measures the alphabetic baseline in a probe with
-  // line-height:normal ≈ 1.2 and then applies that offset to text rendered in
-  // our line-box). Using anything higher (e.g. 1.35) causes the rasterizer
-  // to place glyphs below their proper baseline — text drifts toward the
-  // bottom of the wrapper in exports. 1.2 keeps text centered in both live
-  // and export, and is still readable for the rare multi-line label.
-  'padding:6px 8px;font-size:11px;line-height:1.2;cursor:move;user-select:none;' +
+  'padding:6px 8px;font-size:11px;line-height:1.35;cursor:move;user-select:none;' +
   'box-shadow:0 2px 8px rgba(0,0,0,0.4);z-index:5;';
 
 /**

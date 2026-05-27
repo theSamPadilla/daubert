@@ -35,11 +35,18 @@ describe('renderExportLabelOverlay', () => {
     result.dispose();
   });
 
-  it('positions the overlay off-screen via position:absolute (not fixed)', () => {
+  it('positions the overlay onscreen-but-hidden (position:fixed, z-index:-1, opacity:0)', () => {
     const cy = makeFakeCy({ bb: BB_DEFAULT });
     const result = renderExportLabelOverlay(cy, [], BB_DEFAULT, EXPORT_PADDING);
-    expect(result.overlayEl.style.position).toBe('absolute');
-    expect(parseInt(result.overlayEl.style.left, 10)).toBeLessThan(-10000);
+    // position:fixed at (0,0) keeps the overlay's bounding rect inside the
+    // viewport so foreignObjectRendering's SVG viewBox captures it correctly.
+    // z-index:-1 + opacity:0 keep it visually hidden until the caller flips
+    // opacity to 1 for the duration of the html2canvas capture.
+    expect(result.overlayEl.style.position).toBe('fixed');
+    expect(result.overlayEl.style.top).toBe('0px');
+    expect(result.overlayEl.style.left).toBe('0px');
+    expect(result.overlayEl.style.zIndex).toBe('-1');
+    expect(result.overlayEl.style.opacity).toBe('0');
     result.dispose();
   });
 

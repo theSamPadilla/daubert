@@ -340,16 +340,31 @@ export function useCytoscape(
     if (labelsForExport.length > 0) {
       const overlay = renderExportLabelOverlay(cy, labelsForExport, bb, EXPORT_PADDING);
       overlayDisposer = overlay.dispose;
-      // Match cy.png's effective scale: cy multiplies by getPixelRatio() when
-      // maxWidth/maxHeight is unset (cytoscape.cjs.js:34744-34748). Pass the
-      // same effective scale to html2canvas so both layers are at the same
-      // resolution.
-      overlayCanvas = await html2canvas(overlay.overlayEl, {
-        backgroundColor: null,
-        scale: effectiveScale,
-        logging: false,
-        useCORS: true,
-      });
+      // Flip opacity to 1 only for the capture; the overlay sits at z-index:-1
+      // behind everything, so users barely perceive the briefly-visible state.
+      // foreignObjectRendering captures content faithfully but honors opacity,
+      // so opacity:0 would produce a transparent capture.
+      overlay.overlayEl.style.opacity = '1';
+      try {
+        // Match cy.png's effective scale: cy multiplies by getPixelRatio() when
+        // maxWidth/maxHeight is unset (cytoscape.cjs.js:34744-34748). Pass the
+        // same effective scale to html2canvas so both layers are at the same
+        // resolution.
+        //
+        // foreignObjectRendering: true sidesteps html2canvas's text-layout
+        // reimplementation by serializing the DOM into an SVG <foreignObject>
+        // and letting the browser rasterize it. This is the only way to get
+        // pixel-accurate text positioning to match the live view.
+        overlayCanvas = await html2canvas(overlay.overlayEl, {
+          backgroundColor: null,
+          scale: effectiveScale,
+          logging: false,
+          useCORS: true,
+          foreignObjectRendering: true,
+        });
+      } finally {
+        overlay.overlayEl.style.opacity = '0';
+      }
     } else {
       // Empty overlay: a transparent canvas sized to bb + 2 * padding * scale.
       overlayCanvas = document.createElement('canvas');

@@ -15,18 +15,27 @@ export interface ExportLabelOverlayResult {
 }
 
 /**
- * Build a hidden off-screen overlay sized to the full-extent bounding box of
+ * Build a hidden onscreen overlay sized to the full-extent bounding box of
  * the cy elements (+ padding on each side). Position every resolvable label
  * inside it using the synthetic export GeometryContext.
  *
  * The caller is responsible for:
- *   1. Rasterizing via html2canvas (use scale = 2 * devicePixelRatio to match cy.png).
+ *   1. Rasterizing via html2canvas with `foreignObjectRendering: true` so the
+ *      browser's own text rasterizer is used (sidesteps html2canvas's reimpl
+ *      of text layout, which drifts text baselines by several pixels — see
+ *      html2canvas.js:6589 and the discussion that led to this choice).
  *   2. Calling dispose() to remove the overlay element + unmount React roots.
  *
- * Why `position: absolute; left: -100000px` (not `fixed`): html2canvas's iframe-cloning
- * path has documented issues with `position: fixed` elements at extreme offsets
- * (html2canvas#2493, #2658). Absolute positioning at a large negative offset is the
- * safe pattern.
+ * Why the overlay is positioned ONSCREEN (top:0; left:0; z-index:-1; opacity:0):
+ * `foreignObjectRendering: true` serializes the element through an SVG
+ * `<foreignObject>`. When the source element sits at extreme negative offsets
+ * (e.g. left:-100000px), the resulting SVG viewBox is either zero-sized or
+ * out-of-bounds and the labels disappear in the capture. Onscreen-but-hidden
+ * (opacity:0 behind everything via z-index:-1) keeps the bounding rect at
+ * (0, 0) so the SVG captures correctly. opacity is flipped to 1 by the
+ * caller for the duration of the html2canvas call (since opacity:0 makes
+ * captured pixels transparent), then back to 0; the user sees the labels for
+ * ~100ms during export, which is acceptable.
  *
  * Why `flushSync` instead of `requestAnimationFrame`: `createRoot.render()` is async
  * under React 18 concurrent mode; one RAF tick is not a reliable commit barrier.
@@ -43,8 +52,8 @@ export function renderExportLabelOverlay(
 
   const overlayEl = document.createElement('div');
   overlayEl.style.cssText =
-    `position:absolute;left:-100000px;top:0;width:${width}px;height:${height}px;` +
-    `pointer-events:none;overflow:hidden;`;
+    `position:fixed;top:0;left:0;width:${width}px;height:${height}px;` +
+    `pointer-events:none;overflow:hidden;z-index:-1;opacity:0;`;
   document.body.appendChild(overlayEl);
 
   const ctx = exportContextFromCy(cy, bb, padding);

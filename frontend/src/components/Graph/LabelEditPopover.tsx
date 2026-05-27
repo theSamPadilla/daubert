@@ -32,7 +32,9 @@ const SHAPE_OPTIONS: { value: LabelShape; label: string; borderRadius: string }[
 
 /**
  * Wrap the current textarea selection with prefix/suffix.
- * If no selection, insert prefix + placeholder + suffix at the caret.
+ * If no selection but the textarea has content, wrap the entire content
+ * (so clicking Bold on existing text bolds that text rather than inserting a new tag).
+ * If no selection and no content, insert prefix + placeholder + suffix at the caret.
  * Returns the new text string plus the selection range to restore inside the wrapped content.
  */
 function computeWrapped(
@@ -43,12 +45,17 @@ function computeWrapped(
   suffix: string,
   placeholder: string,
 ): { next: string; selStart: number; selEnd: number } {
+  // No selection but text exists → wrap the whole thing.
+  if (start === end && text.length > 0) {
+    start = 0;
+    end = text.length;
+  }
   if (start !== end) {
     const selected = text.slice(start, end);
     const next = text.slice(0, start) + prefix + selected + suffix + text.slice(end);
     return { next, selStart: start + prefix.length, selEnd: start + prefix.length + selected.length };
   }
-  // No selection — insert template at caret
+  // No selection and empty textarea — insert template at caret
   const insert = prefix + placeholder + suffix;
   const next = text.slice(0, start) + insert + text.slice(start);
   return {

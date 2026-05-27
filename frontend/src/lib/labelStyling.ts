@@ -18,6 +18,13 @@ export const DEFAULT_LABEL_COLOR = '#f3f4f6';
  */
 export const LABEL_WRAPPER_BASE_CSS =
   'position:absolute;transform:translate(-50%, -50%);pointer-events:auto;max-width:240px;' +
+  // Flex centering: vertical text alignment via align-items, instead of relying
+  // on line-height + padding equilibrium. html2canvas's default rasterizer
+  // mis-aligns text baselines when line-height != 1 (glyphs drift toward the
+  // bottom of the line box); flex layout sidesteps that path entirely.
+  // justify-content:flex-start preserves left-aligned text inside multi-line
+  // labels — only the cross-axis (vertical) is centered.
+  'display:flex;align-items:center;justify-content:flex-start;' +
   'background:' + DEFAULT_LABEL_BG + ';color:' + DEFAULT_LABEL_COLOR + ';' +
   'border:1px solid #374151;border-radius:6px;' +
   'padding:6px 8px;font-size:11px;line-height:1.35;cursor:move;user-select:none;' +

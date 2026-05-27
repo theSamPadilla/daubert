@@ -55,20 +55,24 @@ export const ADD_LABEL_TOOL: Tool = {
       traceId: { type: 'string', format: 'uuid' },
       text: { type: 'string', description: 'Markdown content. Max 1000 chars. Bold, links, code, line breaks supported.' },
       anchor: ANCHOR_SCHEMA as any,
+      color: { type: 'string', description: 'Optional hex color applied to the whole label (e.g. "#ef4444"). Must be a 6-digit hex string.' },
+      fontSize: { type: 'string', enum: ['sm', 'md', 'lg'], description: 'Optional font size: "sm" (10px), "md" (11px, default), "lg" (14px).' },
     },
   },
 };
 
 export const UPDATE_LABEL_TOOL: Tool = {
   name: 'update_label',
-  description: 'Update the markdown text of an existing label. Anchor and position are unchanged.',
+  description: 'Partially update an existing label. Only the fields you provide are changed — omitted fields keep their current value. At least one of text, color, or fontSize must be provided.',
   input_schema: {
     type: 'object',
-    required: ['traceId', 'labelId', 'text'],
+    required: ['traceId', 'labelId'],
     properties: {
       traceId: { type: 'string', format: 'uuid' },
       labelId: { type: 'string' },
-      text: { type: 'string', description: 'New markdown content. Max 1000 chars.' },
+      text: { type: 'string', description: 'New markdown content. Max 1000 chars. Omit to leave unchanged.' },
+      color: { type: 'string', description: 'New hex color (e.g. "#ef4444"). Pass empty string to clear. Omit to leave unchanged.' },
+      fontSize: { type: 'string', enum: ['sm', 'md', 'lg'], description: 'New font size. Omit to leave unchanged.' },
     },
   },
 };

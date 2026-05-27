@@ -689,14 +689,17 @@ export class AiService {
 
       case ADD_LABEL_TOOL.name: {
         if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
-        const input = toolUse.input as { traceId: string; text: string; anchor: LabelAnchor };
+        const input = toolUse.input as { traceId: string; text: string; anchor: LabelAnchor; color?: string; fontSize?: 'sm' | 'md' | 'lg' };
         if (!input.traceId) return { error: 'traceId is required' };
         const principal = { kind: 'script' as const, caseId };
         try {
           const trace = await this.tracesService.findOne(input.traceId, principal);
           const labels = Array.isArray((trace.data as any)?.labels) ? [...(trace.data as any).labels] : [];
           const id = randomUUID();
-          labels.push({ id, text: input.text, anchor: input.anchor });
+          const newLabel: Record<string, unknown> = { id, text: input.text, anchor: input.anchor };
+          if (input.color !== undefined) newLabel.color = input.color;
+          if (input.fontSize !== undefined) newLabel.fontSize = input.fontSize;
+          labels.push(newLabel);
           await this.tracesService.update(input.traceId, { data: { ...(trace.data as any), labels } }, principal);
           return { id };
         } catch (e) { return { error: (e as Error).message }; }
@@ -704,14 +707,21 @@ export class AiService {
 
       case UPDATE_LABEL_TOOL.name: {
         if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
-        const input = toolUse.input as { traceId: string; labelId: string; text: string };
+        const input = toolUse.input as { traceId: string; labelId: string; text?: string; color?: string; fontSize?: 'sm' | 'md' | 'lg' };
+        if (input.text === undefined && input.color === undefined && input.fontSize === undefined) {
+          return { error: 'At least one of text, color, or fontSize must be provided' };
+        }
         const principal = { kind: 'script' as const, caseId };
         try {
           const trace = await this.tracesService.findOne(input.traceId, principal);
           const labels = Array.isArray((trace.data as any)?.labels) ? [...(trace.data as any).labels] : [];
           const idx = labels.findIndex((l: any) => l.id === input.labelId);
           if (idx < 0) return { error: `Label ${input.labelId} not found on trace ${input.traceId}` };
-          labels[idx] = { ...labels[idx], text: input.text };
+          const patch: Record<string, unknown> = {};
+          if (input.text !== undefined) patch.text = input.text;
+          if (input.color !== undefined) patch.color = input.color;
+          if (input.fontSize !== undefined) patch.fontSize = input.fontSize;
+          labels[idx] = { ...labels[idx], ...patch };
           await this.tracesService.update(input.traceId, { data: { ...(trace.data as any), labels } }, principal);
           return { ok: true };
         } catch (e) { return { error: (e as Error).message }; }

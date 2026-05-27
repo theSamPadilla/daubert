@@ -17,7 +17,7 @@ export interface GraphCanvasHandle {
 /** Callbacks for label CRUD, forwarded from the parent (page.tsx) which owns useInvestigation. */
 export interface LabelCallbacks {
   addLabel: (traceId: string, label: TraceLabel) => void;
-  updateLabel: (traceId: string, labelId: string, text: string) => void;
+  updateLabel: (traceId: string, labelId: string, patch: Partial<Pick<TraceLabel, 'text' | 'color' | 'fontSize'>>) => void;
   deleteLabel: (traceId: string, labelId: string) => void;
   moveLabel: (traceId: string, labelId: string, anchor: LabelAnchor) => void;
 }
@@ -175,24 +175,24 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
       return pos;
     }, [editingLabel, flatLabels, cy]);
 
-    // Find the current text of the label being edited.
-    const editingLabelText = useMemo(() => {
-      if (!editingLabel) return '';
+    // Find the current label being edited (full TraceLabel for initializer).
+    const editingLabelData = useMemo(() => {
+      if (!editingLabel) return null;
       const entry = flatLabels.find(
         (fl) => fl.label.id === editingLabel.labelId && fl.traceId === editingLabel.traceId,
       );
-      return entry?.label.text ?? '';
+      return entry?.label ?? null;
     }, [editingLabel, flatLabels]);
 
     return (
       <div className="relative w-full h-full">
         <div ref={containerRef} className="w-full h-full" />
-        {editingLabel && editPopoverPosition && labelCallbacks && (
+        {editingLabel && editPopoverPosition && labelCallbacks && editingLabelData && (
           <LabelEditPopover
-            initialText={editingLabelText}
+            initialLabel={editingLabelData}
             position={editPopoverPosition}
-            onSave={(text) => {
-              labelCallbacks.updateLabel(editingLabel.traceId, editingLabel.labelId, text);
+            onSave={(patch) => {
+              labelCallbacks.updateLabel(editingLabel.traceId, editingLabel.labelId, patch);
               setEditingLabel(null);
             }}
             onCancel={() => setEditingLabel(null)}

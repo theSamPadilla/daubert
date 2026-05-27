@@ -66,6 +66,30 @@ describe('label-schema', () => {
     it('rejects txEdge anchor with t outside [0, 1]', () => {
       expect(() => validateLabels([{ id: 'l1', text: 'x', anchor: { type: 'txEdge', txHash: '0xabc', t: -0.1, perpOffset: 0 } }])).toThrow(/t.*0.*1/i);
     });
+
+    it('accepts a valid hex color', () => {
+      expect(() =>
+        validateLabels([{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, color: '#ef4444' }]),
+      ).not.toThrow();
+    });
+
+    it('rejects an invalid color (not a 6-digit hex)', () => {
+      expect(() =>
+        validateLabels([{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, color: 'red' }]),
+      ).toThrow(/color/);
+    });
+
+    it('accepts a valid fontSize value', () => {
+      expect(() =>
+        validateLabels([{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, fontSize: 'lg' }]),
+      ).not.toThrow();
+    });
+
+    it('rejects an invalid fontSize value', () => {
+      expect(() =>
+        validateLabels([{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, fontSize: 'xl' as any }]),
+      ).toThrow(/fontSize/);
+    });
   });
 
   describe('normalizeLabels', () => {
@@ -79,6 +103,12 @@ describe('label-schema', () => {
     it('strips unknown fields on each label', () => {
       const input = [{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, evil: 'payload' } as any];
       expect(normalizeLabels(input)[0]).not.toHaveProperty('evil');
+    });
+    it('passes color and fontSize through when valid', () => {
+      const labels = [{ id: 'l1', text: 'x', anchor: { type: 'free' as const, x: 0, y: 0 }, color: '#3b82f6', fontSize: 'sm' as const }];
+      const result = normalizeLabels(labels);
+      expect(result[0].color).toBe('#3b82f6');
+      expect(result[0].fontSize).toBe('sm');
     });
   });
 });

@@ -7,6 +7,7 @@ import {
   FaListCheck,
   FaPlus,
   FaRotateLeft,
+  FaTableColumns,
   FaTrash,
   FaXmark,
 } from 'react-icons/fa6';
@@ -29,7 +30,7 @@ interface ChronologyTableProps {
   data: ChronologyData;
   onColumnResize?: (widths: Record<string, number>) => void;
   onColumnAdd?: (column: ColumnDef, index?: number) => void;
-  onColumnRemove?: (key: string) => void;
+  onColumnsRemove?: (keys: string[]) => void;
   onColumnRename?: (key: string, label: string) => void;
   onEntryEdit?: (index: number, entry: ChronologyEntry) => void;
   onRowHighlight?: (indexes: number[], color: HighlightColor | null) => void;
@@ -43,7 +44,7 @@ export function ChronologyTable({
   data,
   onColumnResize,
   onColumnAdd,
-  onColumnRemove,
+  onColumnsRemove,
   onColumnRename,
   onEntryEdit,
   onRowHighlight,
@@ -52,8 +53,11 @@ export function ChronologyTable({
   const columns = getColumns(data);
   const entryCount = data.entries.length;
   const selectionEnabled = !!(onRowHighlight || onRowsDelete);
+  const colEditEnabled = !!onColumnsRemove;
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
+  const [colSelectMode, setColSelectMode] = useState(false);
+  const [selectedCols, setSelectedCols] = useState<Set<string>>(() => new Set());
   const [addColumnOpen, setAddColumnOpen] = useState(false);
 
   // Prune indexes that fall off the end (e.g. after an external delete).
@@ -69,12 +73,67 @@ export function ChronologyTable({
     });
   }, [entryCount]);
 
+  // Prune column keys that no longer exist (e.g. after rename/remove).
+  useEffect(() => {
+    setSelectedCols((prev) => {
+      if (prev.size === 0) return prev;
+      const live = new Set(columns.map((c) => c.key));
+      let changed = false;
+      const next = new Set<string>();
+      for (const k of prev) {
+        if (live.has(k)) next.add(k);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [columns]);
+
   const toggleSelectMode = useCallback(() => {
     setSelectMode((m) => {
       if (m) setSelected(new Set());
       return !m;
     });
+    setColSelectMode(false);
+    setSelectedCols(new Set());
   }, []);
+
+  const toggleColSelectMode = useCallback(() => {
+    setColSelectMode((m) => {
+      if (m) setSelectedCols(new Set());
+      return !m;
+    });
+    setSelectMode(false);
+    setSelected(new Set());
+  }, []);
+
+  const toggleCol = useCallback((key: string) => {
+    setSelectedCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const eligibleColKeys = useMemo(
+    () => columns.filter((c) => c.kind === 'text').map((c) => c.key),
+    [columns],
+  );
+  const allColsSelected =
+    eligibleColKeys.length > 0 && selectedCols.size === eligibleColKeys.length;
+
+  const selectAllCols = useCallback(() => {
+    setSelectedCols(new Set(eligibleColKeys));
+  }, [eligibleColKeys]);
+
+  const clearColSelection = useCallback(() => setSelectedCols(new Set()), []);
+
+  const handleBulkColDelete = useCallback(() => {
+    if (!onColumnsRemove || selectedCols.size === 0) return;
+    const ordered = columns.map((c) => c.key).filter((k) => selectedCols.has(k));
+    onColumnsRemove(ordered);
+    setSelectedCols(new Set());
+  }, [onColumnsRemove, selectedCols, columns]);
 
   const toggleRow = useCallback((i: number) => {
     setSelected((prev) => {
@@ -224,8 +283,10 @@ export function ChronologyTable({
 
   const selectedCount = selected.size;
   const allSelected = entryCount > 0 && selectedCount === entryCount;
+  const colSelectedCount = selectedCols.size;
 
-  const showToolbar = !!onColumnAdd || (isCustom && !!onColumnResize) || selectionEnabled;
+  const showToolbar =
+    !!onColumnAdd || (isCustom && !!onColumnResize) || selectionEnabled || colEditEnabled;
 
   const toolbarBtn =
     'h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md text-xs font-medium bg-surface-panel/70 border border-line-strong text-ink-muted hover:bg-surface-raised hover:text-gray-100 hover:border-line-strong transition-colors';
@@ -258,6 +319,20 @@ export function ChronologyTable({
                 Reset widths
               </button>
             )}
+            {colEditEnabled && eligibleColKeys.length > 0 && (
+              <button
+                onClick={toggleColSelectMode}
+                className={
+                  colSelectMode
+                    ? 'h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md text-xs font-medium bg-brand/15 border border-brand/60 text-brand hover:bg-brand/25 transition-colors'
+                    : toolbarBtn
+                }
+                title={colSelectMode ? 'Exit edit mode' : 'Edit columns'}
+              >
+                {colSelectMode ? <FaXmark className="w-3 h-3" /> : <FaTableColumns className="w-3 h-3" />}
+                {colSelectMode ? 'Done' : 'Edit columns'}
+              </button>
+            )}
             {selectionEnabled && entryCount > 0 && (
               <button
                 onClick={toggleSelectMode}
@@ -273,6 +348,30 @@ export function ChronologyTable({
               </button>
             )}
           </div>
+        </div>
+      )}
+      {colSelectMode && colEditEnabled && (
+        <div className="mb-3 flex items-center gap-3 px-3 py-2 rounded-md bg-surface-panel border border-line-strong">
+          <span className="text-xs text-ink-muted tabular-nums">
+            {colSelectedCount} selected
+          </span>
+          <button
+            onClick={allColsSelected ? clearColSelection : selectAllCols}
+            className="text-xs text-ink-muted hover:text-gray-200"
+          >
+            {allColsSelected ? 'Deselect all' : 'Select all'}
+          </button>
+          <div className="flex-1" />
+          <button
+            type="button"
+            onClick={handleBulkColDelete}
+            disabled={colSelectedCount === 0}
+            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 disabled:opacity-40 disabled:hover:text-red-400"
+            title={`Delete ${colSelectedCount} column${colSelectedCount === 1 ? '' : 's'}`}
+          >
+            <FaTrash className="w-3 h-3" />
+            Delete
+          </button>
         </div>
       )}
       {selectMode && selectionEnabled && (
@@ -340,28 +439,31 @@ export function ChronologyTable({
           </colgroup>
           <thead>
             <tr className="bg-surface-panel/50 text-left text-ink-muted select-none">
-              {columns.map((col, i) => (
-                <ResizableTh
-                  key={col.key}
-                  column={col}
-                  onResizeStart={
-                    i < columns.length - 1 && onColumnResize
-                      ? (e) => startDrag(i, e)
-                      : undefined
-                  }
-                  active={activeHandle === i}
-                  onRename={
-                    onColumnRename && col.kind === 'text'
-                      ? (label) => onColumnRename(col.key, label)
-                      : undefined
-                  }
-                  onRemove={
-                    onColumnRemove && columns.length > 1 && col.kind === 'text'
-                      ? () => onColumnRemove(col.key)
-                      : undefined
-                  }
-                />
-              ))}
+              {columns.map((col, i) => {
+                const eligible = col.kind === 'text';
+                return (
+                  <ResizableTh
+                    key={col.key}
+                    column={col}
+                    onResizeStart={
+                      i < columns.length - 1 && onColumnResize && !colSelectMode
+                        ? (e) => startDrag(i, e)
+                        : undefined
+                    }
+                    active={activeHandle === i}
+                    onRename={
+                      onColumnRename && eligible && !colSelectMode
+                        ? (label) => onColumnRename(col.key, label)
+                        : undefined
+                    }
+                    colSelectMode={colSelectMode && eligible}
+                    isColSelected={selectedCols.has(col.key)}
+                    onToggleColSelect={
+                      colSelectMode && eligible ? () => toggleCol(col.key) : undefined
+                    }
+                  />
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -517,13 +619,17 @@ function ResizableTh({
   onResizeStart,
   active,
   onRename,
-  onRemove,
+  colSelectMode,
+  isColSelected,
+  onToggleColSelect,
 }: {
   column: ColumnDef;
   onResizeStart?: (e: React.PointerEvent) => void;
   active?: boolean;
   onRename?: (newLabel: string) => void;
-  onRemove?: () => void;
+  colSelectMode?: boolean;
+  isColSelected?: boolean;
+  onToggleColSelect?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -551,8 +657,18 @@ function ResizableTh({
 
   const cancelRename = () => setEditing(false);
 
+  const labelClickable = !!onRename || !!onToggleColSelect;
+  const handleLabelClick = onToggleColSelect ?? (onRename ? startRename : undefined);
+  const labelTitle = onToggleColSelect
+    ? (isColSelected ? 'Click to deselect column' : 'Click to select column')
+    : (onRename ? 'Click to rename' : undefined);
+
   return (
-    <th className="relative px-4 py-3 group/th">
+    <th
+      className={`relative px-4 py-3 transition-colors ${
+        colSelectMode && isColSelected ? 'bg-brand/15 ring-1 ring-inset ring-brand/60' : ''
+      }`}
+    >
       {editing ? (
         <input
           ref={inputRef}
@@ -566,24 +682,27 @@ function ResizableTh({
           className="w-full bg-surface text-gray-100 px-1 py-0.5 rounded border border-brand focus:outline-none focus:ring-1 focus:ring-brand text-xs font-normal"
         />
       ) : (
-        <span
-          className={onRename ? 'cursor-pointer hover:text-gray-200 transition-colors' : ''}
-          onClick={onRename ? startRename : undefined}
-          title={onRename ? 'Click to rename' : undefined}
-        >
-          {column.label}
+        <span className="inline-flex items-center gap-2">
+          {colSelectMode && onToggleColSelect && (
+            <span
+              aria-hidden
+              className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                isColSelected
+                  ? 'bg-brand border-brand text-white'
+                  : 'bg-surface border-line-strong'
+              }`}
+            >
+              {isColSelected && <FaCheck className="w-2 h-2" />}
+            </span>
+          )}
+          <span
+            className={labelClickable ? 'cursor-pointer hover:text-gray-200 transition-colors' : ''}
+            onClick={handleLabelClick}
+            title={labelTitle}
+          >
+            {column.label}
+          </span>
         </span>
-      )}
-      {/* Remove button — hover-revealed, only when onRemove provided */}
-      {onRemove && !editing && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          title={`Remove "${column.label}" column`}
-          className="absolute top-1/2 -translate-y-1/2 right-5 z-10 opacity-0 group-hover/th:opacity-100 transition-opacity text-ink-faint hover:text-red-400 w-4 h-4 flex items-center justify-center"
-        >
-          <FaXmark className="w-2.5 h-2.5" />
-        </button>
       )}
       {/* Resize grip */}
       {onResizeStart && (

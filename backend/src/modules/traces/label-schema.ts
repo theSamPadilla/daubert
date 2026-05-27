@@ -8,10 +8,16 @@ export type LabelAnchor =
   | { type: 'edge'; anchorId: string; t: number; perpOffset: number }
   | { type: 'txEdge'; txHash: string; t: number; perpOffset: number };
 
+export type LabelFontSize = 'sm' | 'md' | 'lg';
+
 export interface TraceLabel {
   id: string;
   text: string;
   anchor: LabelAnchor;
+  /** Optional hex color (e.g. "#ef4444") applied to the label wrapper. */
+  color?: string;
+  /** Optional font size. Defaults to 'md' (11px) when absent. */
+  fontSize?: LabelFontSize;
 }
 
 function isFiniteNumber(v: unknown): v is number {
@@ -58,7 +64,20 @@ export function validateLabels(input: unknown): TraceLabel[] {
     if (typeof r.text !== 'string') throw new Error(`${ctx}: text must be a string`);
     if (r.text.length > MAX_LABEL_TEXT_LENGTH) throw new Error(`${ctx}: text length ${r.text.length} exceeds max ${MAX_LABEL_TEXT_LENGTH}`);
     const anchor = validateAnchor(r.anchor, ctx);
-    out.push({ id: r.id, text: r.text, anchor });
+    const label: TraceLabel = { id: r.id, text: r.text, anchor };
+    if (r.color !== undefined) {
+      if (typeof r.color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(r.color)) {
+        throw new Error(`${ctx}: color must be a 6-digit hex string like "#ef4444"`);
+      }
+      label.color = r.color;
+    }
+    if (r.fontSize !== undefined) {
+      if (r.fontSize !== 'sm' && r.fontSize !== 'md' && r.fontSize !== 'lg') {
+        throw new Error(`${ctx}: fontSize must be "sm" | "md" | "lg"`);
+      }
+      label.fontSize = r.fontSize;
+    }
+    out.push(label);
   });
   return out;
 }

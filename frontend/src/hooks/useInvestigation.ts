@@ -28,7 +28,7 @@ type Action =
   | { type: 'TOGGLE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
   | { type: 'DELETE_EDGE_BUNDLE'; payload: { traceId: string; bundleId: string } }
   | { type: 'ADD_LABEL'; traceId: string; label: TraceLabel }
-  | { type: 'UPDATE_LABEL'; traceId: string; labelId: string; text: string }
+  | { type: 'UPDATE_LABEL'; traceId: string; labelId: string; patch: Partial<Pick<TraceLabel, 'text' | 'color' | 'fontSize'>> }
   | { type: 'DELETE_LABEL'; traceId: string; labelId: string }
   | { type: 'MOVE_LABEL'; traceId: string; labelId: string; anchor: LabelAnchor }
   | { type: 'TETHER_LABEL'; traceId: string; labelId: string; anchor: LabelAnchor }
@@ -303,7 +303,7 @@ function applyAction(state: Investigation | null, action: Action): Investigation
     case 'UPDATE_LABEL':
       return mapTrace(state, action.traceId, (t) => ({
         ...t,
-        labels: (t.labels ?? []).map((l) => (l.id === action.labelId ? { ...l, text: action.text } : l)),
+        labels: (t.labels ?? []).map((l) => (l.id === action.labelId ? { ...l, ...action.patch } : l)),
       }));
 
     case 'DELETE_LABEL':
@@ -596,8 +596,8 @@ export function useInvestigation(initial: Investigation | null) {
   );
 
   const updateLabel = useCallback(
-    (traceId: string, labelId: string, text: string) =>
-      dispatch({ type: 'UPDATE_LABEL', traceId, labelId, text }),
+    (traceId: string, labelId: string, patch: Partial<Pick<TraceLabel, 'text' | 'color' | 'fontSize'>>) =>
+      dispatch({ type: 'UPDATE_LABEL', traceId, labelId, patch }),
     []
   );
 

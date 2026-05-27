@@ -30,10 +30,16 @@ export type LabelAnchor =
   | { type: 'edge'; anchorId: string; t: number; perpOffset: number }
   | { type: 'txEdge'; txHash: string; t: number; perpOffset: number };
 
+export type LabelFontSize = 'sm' | 'md' | 'lg';
+
 export interface TraceLabel {
   id: string;
   text: string;
   anchor: LabelAnchor;
+  /** Optional hex color (e.g. "#ef4444") applied to the whole label wrapper. */
+  color?: string;
+  /** Optional font size. Absent = 'md' (11px). */
+  fontSize?: LabelFontSize;
 }
 
 export interface Investigation {

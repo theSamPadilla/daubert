@@ -253,17 +253,18 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
     [production.id, onUpdate],
   );
 
-  const handleColumnRemove = useCallback(
-    async (key: string) => {
+  const handleColumnsRemove = useCallback(
+    async (keys: string[]) => {
+      if (keys.length === 0) return;
       try {
         setLastError(null);
         const updated = await apiClient.updateProduction(production.id, {
-          ops: [{ op: 'chronology_remove_column', key }],
+          ops: keys.map((key) => ({ op: 'chronology_remove_column', key })),
         });
         onUpdate?.(updated);
       } catch (err) {
-        console.error('Failed to remove column:', err);
-        setLastError('Failed to remove column.');
+        console.error('Failed to remove columns:', err);
+        setLastError(keys.length === 1 ? 'Failed to remove column.' : 'Failed to remove columns.');
       }
     },
     [production.id, onUpdate],
@@ -461,7 +462,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
               data={data}
               onColumnResize={handleColumnResize}
               onColumnAdd={handleColumnAdd}
-              onColumnRemove={handleColumnRemove}
+              onColumnsRemove={handleColumnsRemove}
               onColumnRename={handleColumnRename}
               onEntryEdit={handleEntryEdit}
               onRowHighlight={handleRowHighlight}

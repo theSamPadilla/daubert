@@ -90,6 +90,32 @@ describe('label-schema', () => {
         validateLabels([{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, fontSize: 'xl' as any }]),
       ).toThrow(/fontSize/);
     });
+
+    it('accepts a valid bgColor', () => {
+      expect(() =>
+        validateLabels([{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, bgColor: '#ef4444' }]),
+      ).not.toThrow();
+    });
+
+    it('rejects an invalid bgColor (not a 6-digit hex)', () => {
+      expect(() =>
+        validateLabels([{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, bgColor: 'red' } as any]),
+      ).toThrow(/bgColor/);
+    });
+
+    it('accepts each valid shape value', () => {
+      (['rectangle', 'rounded', 'pill', 'ellipse'] as const).forEach((shape) => {
+        expect(() =>
+          validateLabels([{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, shape }]),
+        ).not.toThrow();
+      });
+    });
+
+    it('rejects an invalid shape value', () => {
+      expect(() =>
+        validateLabels([{ id: 'l1', text: 'x', anchor: { type: 'free', x: 0, y: 0 }, shape: 'circle' as any }]),
+      ).toThrow(/shape/);
+    });
   });
 
   describe('normalizeLabels', () => {
@@ -109,6 +135,15 @@ describe('label-schema', () => {
       const result = normalizeLabels(labels);
       expect(result[0].color).toBe('#3b82f6');
       expect(result[0].fontSize).toBe('sm');
+    });
+    it('passes bgColor and shape through when valid', () => {
+      const labels = [{
+        id: 'l1', text: 'x', anchor: { type: 'free' as const, x: 0, y: 0 },
+        bgColor: '#ef4444', shape: 'pill' as const,
+      }];
+      const result = normalizeLabels(labels);
+      expect(result[0].bgColor).toBe('#ef4444');
+      expect(result[0].shape).toBe('pill');
     });
   });
 });

@@ -10,14 +10,20 @@ export type LabelAnchor =
 
 export type LabelFontSize = 'sm' | 'md' | 'lg';
 
+export type LabelShape = 'rectangle' | 'rounded' | 'pill' | 'ellipse';
+
 export interface TraceLabel {
   id: string;
   text: string;
   anchor: LabelAnchor;
-  /** Optional hex color (e.g. "#ef4444") applied to the label wrapper. */
+  /** Optional hex color (e.g. "#ef4444") applied to the label wrapper text. */
   color?: string;
+  /** Optional hex color applied to the label wrapper background. */
+  bgColor?: string;
   /** Optional font size. Defaults to 'md' (11px) when absent. */
   fontSize?: LabelFontSize;
+  /** Optional wrapper shape. Defaults to 'rounded' when absent. */
+  shape?: LabelShape;
 }
 
 function isFiniteNumber(v: unknown): v is number {
@@ -71,11 +77,23 @@ export function validateLabels(input: unknown): TraceLabel[] {
       }
       label.color = r.color;
     }
+    if (r.bgColor !== undefined) {
+      if (typeof r.bgColor !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(r.bgColor)) {
+        throw new Error(`${ctx}: bgColor must be a 6-digit hex string like "#ef4444"`);
+      }
+      label.bgColor = r.bgColor;
+    }
     if (r.fontSize !== undefined) {
       if (r.fontSize !== 'sm' && r.fontSize !== 'md' && r.fontSize !== 'lg') {
         throw new Error(`${ctx}: fontSize must be "sm" | "md" | "lg"`);
       }
       label.fontSize = r.fontSize;
+    }
+    if (r.shape !== undefined) {
+      if (r.shape !== 'rectangle' && r.shape !== 'rounded' && r.shape !== 'pill' && r.shape !== 'ellipse') {
+        throw new Error(`${ctx}: shape must be "rectangle" | "rounded" | "pill" | "ellipse"`);
+      }
+      label.shape = r.shape;
     }
     out.push(label);
   });

@@ -18,6 +18,12 @@ export const DEFAULT_LABEL_COLOR = '#f3f4f6';
  */
 export const LABEL_WRAPPER_BASE_CSS =
   'position:absolute;transform:translate(-50%, -50%);pointer-events:auto;' +
+  // box-sizing:border-box so any pixel width we set (e.g. the export overlay's
+  // measure-and-lock step) is interpreted as the border-box width — matching
+  // what getBoundingClientRect() returns. Without this, locking
+  // `style.width = rect.width + cushion` inflates the rendered label by
+  // padding+border (~18px) because `width` would default to content-box.
+  'box-sizing:border-box;' +
   // width:max-content with max-width:240px gives an explicit shrink-to-fit
   // (capped at 240px). The implicit shrink-to-fit on absolute-positioned
   // wrappers works the same in normal browser layout, but SVG <foreignObject>

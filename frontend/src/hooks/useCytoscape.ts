@@ -344,11 +344,17 @@ export function useCytoscape(
       // maxWidth/maxHeight is unset (cytoscape.cjs.js:34744-34748). Pass the
       // same effective scale to html2canvas so both layers are at the same
       // resolution.
+      // foreignObjectRendering: true uses SVG <foreignObject> to serialize the
+      // DOM, which preserves browser-computed text layout exactly. The default
+      // path has known issues with line-height != 1 (text glyphs drift toward
+      // the bottom of their line box). Labels use system fonts only, so the
+      // cross-origin restriction of foreignObjectRendering does not bite.
       overlayCanvas = await html2canvas(overlay.overlayEl, {
         backgroundColor: null,
         scale: effectiveScale,
         logging: false,
         useCORS: true,
+        foreignObjectRendering: true,
       });
     } else {
       // Empty overlay: a transparent canvas sized to bb + 2 * padding * scale.

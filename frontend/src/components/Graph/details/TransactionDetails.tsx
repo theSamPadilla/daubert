@@ -29,6 +29,7 @@ export const THICKNESS_OPTIONS: { value: number; label: string }[] = [
   { value: 2, label: 'Normal' },
   { value: 4, label: 'Thick' },
   { value: 6, label: 'Extra' },
+  { value: 9, label: 'Heavy' },
 ];
 export const DEFAULT_EDGE_WIDTH = 2;
 

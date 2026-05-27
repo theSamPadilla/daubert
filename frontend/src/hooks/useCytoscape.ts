@@ -339,9 +339,15 @@ export function useCytoscape(
       const visTopLeftModel = { x: -pan.x / zoom, y: -pan.y / zoom };
       const overlayDestX = (visTopLeftModel.x - (bb.x1 - padding)) * 2;
       const overlayDestY = (visTopLeftModel.y - (bb.y1 - padding)) * 2;
+      // The full-extent PNG is rendered at 2 px/model unit (scale: 2, full: true —
+      // viewport zoom is ignored). The html2canvas overlay capture, however, is in
+      // SCREEN pixels: containerRect.width screen px = containerRect.width / zoom
+      // model units. So the destination region in the full PNG must be
+      // (containerRect.width / zoom) * 2 pixels — otherwise labels are shifted
+      // and scaled by a factor of 1/zoom (visible at any zoom != 1).
       const containerRect = containerRef.current!.getBoundingClientRect();
-      const overlayDestW = containerRect.width * 2;
-      const overlayDestH = containerRect.height * 2;
+      const overlayDestW = (containerRect.width / zoom) * 2;
+      const overlayDestH = (containerRect.height / zoom) * 2;
 
       ctx.drawImage(overlayCanvas, overlayDestX, overlayDestY, overlayDestW, overlayDestH);
       dataUrl = composite.toDataURL('image/png');

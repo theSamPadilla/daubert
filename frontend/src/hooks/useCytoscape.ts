@@ -4,11 +4,35 @@ import { Investigation, TraceLabel, LabelAnchor } from '../types/investigation';
 import { apiClient } from '@/lib/api-client';
 import { CYTOSCAPE_STYLE } from './cytoscapeStyle';
 import { useCytoscapeOverlays } from './useCytoscapeOverlays';
-import type { OverlayHandle } from './useCytoscapeOverlays';
 import { bindCytoscapeEvents } from './cytoscapeEvents';
 import { syncCytoscape } from './cytoscapeSync';
 import { EXPORT_THEMES, type ExportTheme } from '@/lib/exportTheme';
 import html2canvas from 'html2canvas';
+import { renderExportLabelOverlay } from '@/lib/exportLabelOverlay';
+import { EXPORT_PADDING } from '@/lib/labelGeometry';
+
+/**
+ * Compose the export image: a transparent canvas the size of the overlay,
+ * with the base PNG drawn at `(padding * scale, padding * scale)` and the
+ * overlay drawn at (0, 0) on top.
+ *
+ * Exported for unit testing — jsdom can't run cy.png or html2canvas, but it
+ * CAN run 2D canvas ops, so this isolates the math we actually care about.
+ */
+export function composeExport(
+  baseCanvas: HTMLCanvasElement,
+  overlayCanvas: HTMLCanvasElement,
+  padding: number,
+  scale: number,
+): HTMLCanvasElement {
+  const composite = document.createElement('canvas');
+  composite.width = overlayCanvas.width;
+  composite.height = overlayCanvas.height;
+  const ctx = composite.getContext('2d')!;
+  ctx.drawImage(baseCanvas, padding * scale, padding * scale);
+  ctx.drawImage(overlayCanvas, 0, 0);
+  return composite;
+}
 
 export type FocusItem =
   | { type: 'wallet'; id: string; traceId: string }
@@ -124,7 +148,7 @@ export function useCytoscape(
     callbacksRef.current.onSelectionChange?.({ nodeIds: [], edgeIds: [], focusItem: null });
   }, []);
 
-  const overlayHandle: OverlayHandle = useCytoscapeOverlays(
+  useCytoscapeOverlays(
     cy,
     containerRef.current,
     onResizeNode,
@@ -136,11 +160,6 @@ export function useCytoscape(
     unselectAllForOverlays,
     labelControls?.onLabelContextMenu,
   );
-  // Mirror overlayHandle into a ref so exportPngDataUrl (stable useCallback) can
-  // access the latest overlay element without being re-created on every render.
-  const overlayHandleRef = useRef<OverlayHandle>(overlayHandle);
-  overlayHandleRef.current = overlayHandle;
-
   // Selection paint: React state is the source of truth for cy-sel.
   // Reads from refs so the function identity is stable; effect deps below
   // drive when it actually runs.
@@ -283,74 +302,66 @@ export function useCytoscape(
       });
     }
 
-    // ── html2canvas composite: rasterize annotation labels onto the Cytoscape PNG ──
-    // Only composite if there are user-authored labels and an overlay element.
-    const overlayEl = overlayHandleRef.current.getOverlayElement();
-    const hasLabels = (investigationRef.current?.traces ?? []).some(
-      (t) => (t.labels?.length ?? 0) > 0,
-    );
-    if (overlayEl && hasLabels) {
-      // Identify non-label overlay children (resize handle, address sublabels, edge date pills).
-      // Label wrappers carry the 'label-wrapper' class (added in useCytoscapeOverlays.ts).
-      // Everything else must be hidden during rasterization so it doesn't appear in the export.
-      const childrenToHide: HTMLElement[] = Array.from(overlayEl.children).filter(
-        (c) => !(c as HTMLElement).classList.contains('label-wrapper'),
-      ) as HTMLElement[];
-      const savedDisplays = childrenToHide.map((c) => c.style.display);
-      childrenToHide.forEach((c) => { c.style.display = 'none'; });
+    // ── Export label overlay: rasterize annotation labels at full-extent coords ──
+    // The live DOM overlay is viewport-bound and zoom-dependent — compositing it
+    // onto the full-extent PNG required brittle math that drifted at any zoom !=
+    // fit-zoom. Instead, build a dedicated off-screen overlay sized to the same
+    // bbox as the PNG, render each label via a synthetic GeometryContext at
+    // zoom=1, then composite with no zoom math.
+    //
+    // Always wrap the base PNG in a padded composite — consistent output aspect
+    // ratio regardless of whether the user added annotation labels.
+    const labelsForExport = (investigationRef.current?.traces ?? [])
+      .filter((t) => t.visible)
+      .flatMap((t) => (t.labels ?? []).map((label) => ({ traceId: t.id, label })));
 
-      let overlayCanvas: HTMLCanvasElement;
-      try {
-        overlayCanvas = await html2canvas(overlayEl, {
-          backgroundColor: null, // transparent — labels have their own bg
-          scale: 2,              // matches cy.png({ scale: 2 })
-          logging: false,
-          useCORS: true,
-        });
-      } finally {
-        childrenToHide.forEach((c, i) => { c.style.display = savedDisplays[i]; });
-      }
+    const bb = cy.elements().boundingBox();
+    const dpr = window.devicePixelRatio ?? 1;
+    const effectiveScale = 2 * dpr;
 
-      // Load the Cytoscape PNG (full extent, scale 2) as an image.
-      const baseImg = new Image();
-      await new Promise<void>((resolve, reject) => {
-        baseImg.onload = () => resolve();
-        baseImg.onerror = () => reject(new Error('Failed to load base PNG'));
-        baseImg.src = dataUrl;
+    // Load the base PNG into a canvas so composeExport can drawImage it.
+    const baseImg = new Image();
+    await new Promise<void>((resolve, reject) => {
+      baseImg.onload = () => resolve();
+      baseImg.onerror = () => reject(new Error('Failed to load base PNG'));
+      baseImg.src = dataUrl;
+    });
+    const baseCanvas = document.createElement('canvas');
+    baseCanvas.width = baseImg.width;
+    baseCanvas.height = baseImg.height;
+    baseCanvas.getContext('2d')!.drawImage(baseImg, 0, 0);
+
+    // Build an overlay-sized canvas. If there are no labels, the overlay is just
+    // a transparent canvas sized to bb + 2 * padding — composeExport draws the
+    // base into it with the padding offset, giving us a consistently padded image.
+    let overlayCanvas: HTMLCanvasElement;
+    let overlayDisposer: (() => void) | null = null;
+
+    if (labelsForExport.length > 0) {
+      const overlay = renderExportLabelOverlay(cy, labelsForExport, bb, EXPORT_PADDING);
+      overlayDisposer = overlay.dispose;
+      // Match cy.png's effective scale: cy multiplies by getPixelRatio() when
+      // maxWidth/maxHeight is unset (cytoscape.cjs.js:34744-34748). Pass the
+      // same effective scale to html2canvas so both layers are at the same
+      // resolution.
+      overlayCanvas = await html2canvas(overlay.overlayEl, {
+        backgroundColor: null,
+        scale: effectiveScale,
+        logging: false,
+        useCORS: true,
       });
+    } else {
+      // Empty overlay: a transparent canvas sized to bb + 2 * padding * scale.
+      overlayCanvas = document.createElement('canvas');
+      overlayCanvas.width = (bb.w + 2 * EXPORT_PADDING) * effectiveScale;
+      overlayCanvas.height = (bb.h + 2 * EXPORT_PADDING) * effectiveScale;
+    }
 
-      // Create a composite canvas matching the full-extent PNG.
-      const composite = document.createElement('canvas');
-      composite.width = baseImg.width;
-      composite.height = baseImg.height;
-      const ctx = composite.getContext('2d')!;
-
-      // Draw the Cytoscape full-extent PNG as the base layer.
-      ctx.drawImage(baseImg, 0, 0);
-
-      // Compute where the overlay (viewport-sized, screen coords) maps inside the
-      // full-extent image. cy.png({ full: true, scale: 2 }) origins at bb.x1 - padding.
-      // The visible viewport's top-left in model coords is (-pan.x / zoom, -pan.y / zoom).
-      // Subtracting the full-extent origin gives the pixel offset in the full-extent image.
-      const bb = cy.elements().boundingBox();
-      const padding = 50; // matches cy.fit() padding used in the existing code
-      const pan = cy.pan();
-      const zoom = cy.zoom();
-      const visTopLeftModel = { x: -pan.x / zoom, y: -pan.y / zoom };
-      const overlayDestX = (visTopLeftModel.x - (bb.x1 - padding)) * 2;
-      const overlayDestY = (visTopLeftModel.y - (bb.y1 - padding)) * 2;
-      // The full-extent PNG is rendered at 2 px/model unit (scale: 2, full: true —
-      // viewport zoom is ignored). The html2canvas overlay capture, however, is in
-      // SCREEN pixels: containerRect.width screen px = containerRect.width / zoom
-      // model units. So the destination region in the full PNG must be
-      // (containerRect.width / zoom) * 2 pixels — otherwise labels are shifted
-      // and scaled by a factor of 1/zoom (visible at any zoom != 1).
-      const containerRect = containerRef.current!.getBoundingClientRect();
-      const overlayDestW = (containerRect.width / zoom) * 2;
-      const overlayDestH = (containerRect.height / zoom) * 2;
-
-      ctx.drawImage(overlayCanvas, overlayDestX, overlayDestY, overlayDestW, overlayDestH);
+    try {
+      const composite = composeExport(baseCanvas, overlayCanvas, EXPORT_PADDING, effectiveScale);
       dataUrl = composite.toDataURL('image/png');
+    } finally {
+      overlayDisposer?.();
     }
 
     return dataUrl;

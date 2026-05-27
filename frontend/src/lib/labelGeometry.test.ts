@@ -1,4 +1,4 @@
-import { resolveLabelRenderedPosition, modelDeltaFromRenderedDelta, projectPointOntoEdge } from './labelGeometry';
+import { resolveLabelRenderedPosition, modelDeltaFromRenderedDelta, projectPointOntoEdge, exportContextFromCy, EXPORT_PADDING } from './labelGeometry';
 
 describe('labelGeometry', () => {
   describe('resolveLabelRenderedPosition', () => {
@@ -106,5 +106,78 @@ describe('labelGeometry', () => {
       expect(back.t).toBeCloseTo(original.t);
       expect(back.perpOffset).toBeCloseTo(original.perpOffset);
     });
+  });
+});
+
+describe('EXPORT_PADDING', () => {
+  it('is 50px (matches cy.fit padding for visual consistency)', () => {
+    expect(EXPORT_PADDING).toBe(50);
+  });
+});
+
+describe('exportContextFromCy', () => {
+  function makeFakeCy(overrides: Partial<any> = {}) {
+    return {
+      zoom: jest.fn(() => 0.37),                  // export must ignore this
+      pan: jest.fn(() => ({ x: 999, y: -999 })),  // export must ignore this
+      getElementById: () => ({ length: 0 }),
+      edges: () => ({ filter: () => [] }),
+      ...overrides,
+    } as any;
+  }
+
+  it('returns zoom=1 and pan derived from bb + padding, never reading live zoom/pan', () => {
+    const cy = makeFakeCy();
+    const bb = { x1: 200, y1: 100, x2: 1200, y2: 700, w: 1000, h: 600 } as any;
+    const ctx = exportContextFromCy(cy, bb, 50);
+    expect(ctx.zoom).toBe(1);
+    expect(ctx.pan).toEqual({ x: -150, y: -50 });
+    expect(cy.zoom).not.toHaveBeenCalled();
+    expect(cy.pan).not.toHaveBeenCalled();
+  });
+
+  it('resolves a free anchor in PNG-pixel space (model + offset)', () => {
+    const cy = makeFakeCy();
+    const bb = { x1: 0, y1: 0, x2: 1000, y2: 1000, w: 1000, h: 1000 } as any;
+    const ctx = exportContextFromCy(cy, bb, 50);
+    expect(resolveLabelRenderedPosition({ type: 'free', x: 100, y: 200 }, ctx))
+      .toEqual({ x: 150, y: 250 });
+  });
+
+  it('resolves a node anchor from node.position() (model), NOT renderedPosition()', () => {
+    const fakeNode = {
+      length: 1,
+      isNode: () => true,
+      position: () => ({ x: 400, y: 300 }),
+      renderedPosition: () => ({ x: 9999, y: 9999 }), // tripwire — must not be read
+    } as any;
+    const cy = makeFakeCy({ getElementById: () => fakeNode });
+    const bb = { x1: 0, y1: 0, x2: 1000, y2: 1000, w: 1000, h: 1000 } as any;
+    const ctx = exportContextFromCy(cy, bb, 50);
+    expect(resolveLabelRenderedPosition({ type: 'node', anchorId: 'n1', dx: 10, dy: -20 }, ctx))
+      .toEqual({ x: 460, y: 330 });
+  });
+
+  it('resolves an edge anchor at midpoint + perpOffset, in PNG-pixel space', () => {
+    const src = { renderedPosition: () => ({ x: 100, y: 100 }), position: () => ({ x: 100, y: 100 }) };
+    const tgt = { renderedPosition: () => ({ x: 300, y: 100 }), position: () => ({ x: 300, y: 100 }) };
+    const fakeEdge = { length: 1, isEdge: () => true, source: () => src, target: () => tgt } as any;
+    const cy = makeFakeCy({ getElementById: () => fakeEdge });
+    const bb = { x1: 0, y1: 0, x2: 400, y2: 400, w: 400, h: 400 } as any;
+    const ctx = exportContextFromCy(cy, bb, 50);
+    expect(resolveLabelRenderedPosition({ type: 'edge', anchorId: 'e1', t: 0.5, perpOffset: 10 }, ctx))
+      .toEqual({ x: 250, y: 140 });
+  });
+
+  it('resolves a txEdge anchor via edges().filter, in PNG-pixel space', () => {
+    const src = { position: () => ({ x: 0, y: 0 }), renderedPosition: () => ({ x: 0, y: 0 }) };
+    const tgt = { position: () => ({ x: 200, y: 0 }), renderedPosition: () => ({ x: 200, y: 0 }) };
+    const fakeEdge = { source: () => src, target: () => tgt, data: (k: string) => (k === 'txHash' ? '0xabc' : undefined) } as any;
+    const fakeMatch = { length: 1, 0: fakeEdge };
+    const cy = makeFakeCy({ edges: () => ({ filter: (_pred: any) => fakeMatch }) });
+    const bb = { x1: 0, y1: 0, x2: 200, y2: 200, w: 200, h: 200 } as any;
+    const ctx = exportContextFromCy(cy, bb, 50);
+    expect(resolveLabelRenderedPosition({ type: 'txEdge', txHash: '0xabc', t: 0.5, perpOffset: 0 }, ctx))
+      .toEqual({ x: 150, y: 50 });
   });
 });

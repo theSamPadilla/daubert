@@ -85,6 +85,83 @@ export function modelDeltaFromRenderedDelta(
   return { dx: delta.dx / zoom, dy: delta.dy / zoom };
 }
 
+/**
+ * Padding applied around the cy bounding box in the exported image.
+ * Matches the live `cy.fit(undefined, 50)` so exports feel visually consistent.
+ */
+export const EXPORT_PADDING = 50;
+
+/**
+ * GeometryContext for the export pipeline. Positions are returned in PNG-pixel
+ * space relative to the composite canvas top-left, i.e. `(bb.x1 - padding, bb.y1 - padding)`
+ * in model coords maps to (0, 0). Zoom is forced to 1 because the export PNG is unzoomed.
+ *
+ * Note: the returned `getNode/getEdge` adaptors expose `renderedPosition()`, but the
+ * value they return is the cy element's **model** position translated by the export pan offset.
+ * This is intentional — the existing `resolveLabelRenderedPosition` expects renderedPosition()
+ * in whatever coord space matches the context's zoom/pan, and for export that's model space
+ * shifted by the padding offset.
+ *
+ * Why the asymmetry between `pan` and the baked-in offset:
+ *   - `resolveLabelRenderedPosition` reads `ctx.pan` ONLY for `free` anchors;
+ *     `node`/`edge`/`txEdge` cases trust `renderedPosition()` to already be in
+ *     the correct coord space (because the live `contextFromCy` returns
+ *     cytoscape's already-pan-applied rendered positions).
+ *   - For export we want PNG-pixel space, so this context bakes the offset
+ *     into the `renderedPosition()` adaptors (so node/edge anchors land
+ *     correctly) AND sets `pan: offset` (so free anchors land correctly).
+ *   - A future change to `resolveLabelRenderedPosition` that makes node/edge
+ *     cases honor `ctx.pan` would double-count for this context — but it
+ *     would also break the live overlay first (since cy.pan is already in
+ *     renderedPosition for live), so the issue would be caught quickly.
+ */
+export function exportContextFromCy(
+  cy: Core,
+  bb: { x1: number; y1: number },
+  padding: number,
+): GeometryContext {
+  const offset = { x: -bb.x1 + padding, y: -bb.y1 + padding };
+  return {
+    zoom: 1,
+    pan: offset,
+    getNode: (id: string) => {
+      const n = cy.getElementById(id);
+      if (!n || n.length === 0 || !n.isNode()) return null;
+      const p = n.position();
+      return { renderedPosition: () => ({ x: p.x + offset.x, y: p.y + offset.y }) };
+    },
+    getEdge: (id: string) => {
+      const e = cy.getElementById(id);
+      if (!e || e.length === 0 || !e.isEdge()) return null;
+      return {
+        source: () => {
+          const p = e.source().position();
+          return { renderedPosition: () => ({ x: p.x + offset.x, y: p.y + offset.y }) };
+        },
+        target: () => {
+          const p = e.target().position();
+          return { renderedPosition: () => ({ x: p.x + offset.x, y: p.y + offset.y }) };
+        },
+      };
+    },
+    getEdgeByTxHash: (txHash: string) => {
+      const match = cy.edges().filter((e: any) => e.data('txHash') === txHash);
+      if (match.length === 0) return null;
+      const e = match[0];
+      return {
+        source: () => {
+          const p = e.source().position();
+          return { renderedPosition: () => ({ x: p.x + offset.x, y: p.y + offset.y }) };
+        },
+        target: () => {
+          const p = e.target().position();
+          return { renderedPosition: () => ({ x: p.x + offset.x, y: p.y + offset.y }) };
+        },
+      };
+    },
+  };
+}
+
 export function projectPointOntoEdge(
   p: { x: number; y: number },
   source: { x: number; y: number },

@@ -82,6 +82,30 @@ export function renderExportLabelOverlay(
     roots.push(root);
   }
 
+  // Lock each wrapper's WIDTH to an explicit pixel value with a small cushion.
+  //
+  // Why: SVG <foreignObject> (used by foreignObjectRendering) re-interprets
+  // intrinsic sizing values like `width:max-content` inconsistently — observed
+  // regression: max-content collapses to min-content (longest word), squashing
+  // the wrapper. Locking width in pixels removes the ambiguity.
+  //
+  // Why a cushion: even with locked width, foreignObject renders text 1-2px
+  // wider per word than the live DOM (font hinting / metrics differ slightly
+  // in the SVG context). Without cushion, that micro-difference is enough to
+  // push the last word onto a second line. ~8px is enough to absorb typical
+  // drift for short and medium-length labels without making the box visibly
+  // larger than the live version.
+  //
+  // Why NOT lock height: if foreignObject does wrap to extra lines despite
+  // the cushion, an unlocked height lets the wrapper grow vertically rather
+  // than clipping or leaking. The wrapper background extends to cover all
+  // text. Visual outcome: text always inside the box, possibly a row taller
+  // than live for pathological long labels — acceptable.
+  overlayEl.querySelectorAll<HTMLDivElement>('.label-wrapper').forEach((w) => {
+    const rect = w.getBoundingClientRect();
+    w.style.width = `${rect.width + 8}px`;
+  });
+
   const dispose = () => {
     if (disposed) return;
     disposed = true;

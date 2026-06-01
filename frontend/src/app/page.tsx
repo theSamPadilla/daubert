@@ -72,15 +72,6 @@ function CaseSelector() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {canCreate && (
-              <button
-                onClick={() => setNewCaseOpen(true)}
-                className="flex flex-col items-center justify-center gap-2 p-4 h-full min-h-[100px] bg-surface-panel border border-dashed border-line-strong rounded-lg hover:border-gray-500 hover:bg-surface-raised/80 transition-colors text-ink-muted hover:text-ink"
-              >
-                <FaPlus size={22} />
-                <span className="text-sm">New case</span>
-              </button>
-            )}
             {cases.map((c) => {
               const canAccessSettings = c.role === 'owner' || c.role === 'editor';
               return (
@@ -115,6 +106,15 @@ function CaseSelector() {
                 </div>
               );
             })}
+            {canCreate && (
+              <button
+                onClick={() => setNewCaseOpen(true)}
+                className="flex flex-col items-center justify-center gap-2 p-4 h-full min-h-[100px] bg-surface-panel border border-dashed border-line-strong rounded-lg hover:border-gray-500 hover:bg-surface-raised/80 transition-colors text-ink-muted hover:text-ink"
+              >
+                <FaPlus size={22} />
+                <span className="text-sm">New case</span>
+              </button>
+            )}
           </div>
         )}
       </main>

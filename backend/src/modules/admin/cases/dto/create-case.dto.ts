@@ -1,4 +1,4 @@
-import { IsDateString, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateCaseDto {
   @IsString()
@@ -9,6 +9,6 @@ export class CreateCaseDto {
   ownerUserId: string;
 
   @IsOptional()
-  @IsDateString()
-  startDate?: string;
+  @IsString()
+  summary?: string;
 }

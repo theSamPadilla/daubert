@@ -99,7 +99,7 @@ function ResultRow({ result }: { result: AddResult }) {
 export function NewCaseModal({ open, onClose, onCreated }: NewCaseModalProps) {
   const [phase, setPhase] = useState<'form' | 'summary'>('form');
   const [name, setName] = useState('');
-  const [startDate, setStartDate] = useState('');
+  const [summary, setSummary] = useState('');
   const [members, setMembers] = useState<{ email: string; role: 'editor' | 'viewer' }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +108,7 @@ export function NewCaseModal({ open, onClose, onCreated }: NewCaseModalProps) {
 
   const resetForm = () => {
     setName('');
-    setStartDate('');
+    setSummary('');
     setMembers([]);
     setCreatedCase(null);
     setResults([]);
@@ -159,7 +159,7 @@ export function NewCaseModal({ open, onClose, onCreated }: NewCaseModalProps) {
 
       const created = await apiClient.createCase({
         name: name.trim(),
-        startDate: startDate || undefined,
+        summary: summary.trim() || undefined,
       });
 
       const valid = members.filter((m) => m.email.trim().includes('@'));
@@ -256,16 +256,17 @@ export function NewCaseModal({ open, onClose, onCreated }: NewCaseModalProps) {
                 />
               </div>
 
-              {/* Start date */}
+              {/* Summary */}
               <div>
                 <label className="block text-sm text-ink-muted mb-1.5">
-                  Start date
+                  Summary
                 </label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="rounded border border-line-strong bg-surface px-3 py-2 text-sm text-white focus:outline-none focus:border-brand"
+                <textarea
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  rows={3}
+                  placeholder="What's this case about? Parties, allegations, timeline."
+                  className="w-full bg-surface border border-line-strong rounded px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-brand resize-y"
                 />
               </div>
 

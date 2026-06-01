@@ -20,7 +20,7 @@ export class AdminCasesController {
     return this.cases.createWithOwner({
       name: dto.name,
       ownerUserId: dto.ownerUserId,
-      startDate: dto.startDate,
+      summary: dto.summary,
     });
   }
 

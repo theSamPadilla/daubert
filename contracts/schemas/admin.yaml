@@ -63,9 +63,8 @@ AdminCreateCaseRequest:
     ownerUserId:
       type: string
       format: uuid
-    startDate:
+    summary:
       type: string
-      format: date-time
 
 CaseMember:
   type: object

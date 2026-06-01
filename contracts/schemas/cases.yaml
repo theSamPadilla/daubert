@@ -7,10 +7,10 @@ Case:
       format: uuid
     name:
       type: string
-    startDate:
+    summary:
       type: string
-      format: date-time
       nullable: true
+      description: Free-form description of the matter under investigation.
     role:
       $ref: '../schemas/admin.yaml#/CaseRole'
       description: The caller's role in this case. Present when the case is fetched in user context.
@@ -41,18 +41,16 @@ CreateCaseRequest:
   properties:
     name:
       type: string
-    startDate:
+    summary:
       type: string
-      format: date-time
 
 UpdateCaseRequest:
   type: object
   properties:
     name:
       type: string
-    startDate:
+    summary:
       type: string
-      format: date-time
       nullable: true
 
 AddCaseMemberRequest:

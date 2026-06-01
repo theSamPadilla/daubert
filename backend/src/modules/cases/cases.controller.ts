@@ -17,7 +17,7 @@ export class CasesController {
     return this.service.createWithOwner({
       name: dto.name,
       ownerUserId: req.user.id,
-      startDate: dto.startDate ?? null,
+      summary: dto.summary ?? null,
     });
   }
 

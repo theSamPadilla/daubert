@@ -30,17 +30,9 @@ function CaseSelector() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-surface text-white overflow-hidden">
-      {/* Subtle decorative gradient + watermark */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          background:
-            'radial-gradient(900px 500px at 15% -10%, rgba(59, 130, 246, 0.08), transparent 60%), radial-gradient(700px 400px at 95% 110%, rgba(168, 85, 247, 0.06), transparent 60%)',
-        }}
-      />
-      <div className="pointer-events-none absolute -right-24 top-24 -z-10 opacity-[0.035] select-none">
-        <Image src="/logo-light.png" alt="" width={520} height={520} priority />
+    <div className="relative min-h-screen bg-surface bg-hero-dark text-white overflow-hidden">
+      <div className="pointer-events-none absolute -right-32 top-16 -z-10 opacity-[0.06] select-none">
+        <Image src="/logo-light.png" alt="" width={720} height={720} priority />
       </div>
 
       {/* Header */}
@@ -61,14 +53,30 @@ function CaseSelector() {
 
       {/* Case grid */}
       <main className="max-w-4xl mx-auto px-6 py-10">
-        <h2 className="text-xl font-semibold mb-6">Your Cases</h2>
+        <div className="mb-8">
+          <span className="text-xs font-semibold uppercase tracking-widest text-brand">
+            Workspace
+          </span>
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+            Your cases
+          </h2>
+          {!loading && (
+            <p className="mt-2 text-sm text-ink-muted">
+              {cases.length === 0
+                ? canCreate
+                  ? 'Start a new investigation.'
+                  : 'No cases assigned yet.'
+                : `${cases.length} active ${cases.length === 1 ? 'investigation' : 'investigations'}`}
+            </p>
+          )}
+        </div>
 
         {loading ? (
           <Loader inline />
         ) : cases.length === 0 && !canCreate ? (
-          <div className="text-center py-20">
-            <p className="text-ink-muted">No cases assigned to your account yet.</p>
-            <p className="text-ink-faint text-sm mt-2">Contact your administrator to get access to a case.</p>
+          <div className="text-center py-24 max-w-md mx-auto">
+            <p className="text-base text-ink-muted">No cases assigned to your account yet.</p>
+            <p className="text-sm text-ink-faint mt-2">Contact your administrator to get access.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -78,14 +86,14 @@ function CaseSelector() {
                 <div key={c.id} className="relative group">
                   <button
                     onClick={() => router.push(`/cases/${c.id}/investigations`)}
-                    className="w-full text-left p-4 bg-surface-panel border border-line-strong rounded-lg hover:border-gray-500 hover:bg-surface-raised/80 transition-colors"
+                    className="w-full text-left p-5 bg-surface-panel border border-line-strong/50 rounded-lg hover:border-brand/40 hover:bg-surface-raised/60 hover:-translate-y-px hover:shadow-lg hover:shadow-brand/5 transition-all duration-150"
                   >
                     <h3 className="font-medium text-white group-hover:text-brand transition-colors pr-7">
                       {c.name}
                     </h3>
-                    {c.startDate && (
-                      <p className="text-xs text-ink-faint mt-1">
-                        Started {new Date(c.startDate).toLocaleDateString()}
+                    {c.summary && (
+                      <p className="text-xs text-ink-faint mt-1 line-clamp-2">
+                        {c.summary}
                       </p>
                     )}
                     {c.role && (
@@ -109,10 +117,11 @@ function CaseSelector() {
             {canCreate && (
               <button
                 onClick={() => setNewCaseOpen(true)}
-                className="flex flex-col items-center justify-center gap-2 p-4 h-full min-h-[100px] bg-surface-panel border border-dashed border-line-strong rounded-lg hover:border-gray-500 hover:bg-surface-raised/80 transition-colors text-ink-muted hover:text-ink"
+                className="flex flex-col items-center justify-center gap-1.5 p-5 h-full min-h-[100px] bg-surface-panel/60 border border-dashed border-brand/25 rounded-lg hover:border-brand/60 hover:bg-brand/5 transition-colors text-ink-muted hover:text-brand"
               >
                 <FaPlus size={22} />
-                <span className="text-sm">New case</span>
+                <span className="text-sm font-medium">New case</span>
+                <span className="text-xs text-ink-faint">Start a new investigation</span>
               </button>
             )}
           </div>

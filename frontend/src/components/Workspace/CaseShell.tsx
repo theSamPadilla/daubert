@@ -88,7 +88,7 @@ export function CaseShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Center content */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
+      <div className="flex-1 flex flex-col overflow-hidden relative bg-grid-dark">
         {/* Sidebar toggle */}
         <button
           onClick={() => setSidebarOpen((v: boolean) => !v)}

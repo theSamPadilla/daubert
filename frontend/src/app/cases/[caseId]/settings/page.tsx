@@ -41,7 +41,7 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 function CaseInfoSection({ caseId }: { caseId: string }) {
   const [name, setName] = useState('');
-  const [startDate, setStartDate] = useState('');
+  const [summary, setSummary] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +49,7 @@ function CaseInfoSection({ caseId }: { caseId: string }) {
   useEffect(() => {
     apiClient.getCase(caseId).then((c) => {
       setName(c.name);
-      setStartDate(c.startDate ?? '');
+      setSummary(c.summary ?? '');
     }).catch((e) => setError(e.message));
   }, [caseId]);
 
@@ -60,7 +60,7 @@ function CaseInfoSection({ caseId }: { caseId: string }) {
     try {
       await apiClient.updateCase(caseId, {
         name,
-        startDate: startDate || null,
+        summary: summary.trim() ? summary : null,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -86,12 +86,13 @@ function CaseInfoSection({ caseId }: { caseId: string }) {
           />
         </div>
         <div>
-          <label className="block text-sm text-ink-muted mb-1">Start date</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="rounded border border-line-strong bg-surface px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          <label className="block text-sm text-ink-muted mb-1">Summary</label>
+          <textarea
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            rows={4}
+            placeholder="What's this case about? Parties, allegations, timeline, anything that helps team members get oriented."
+            className="w-full rounded border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
           />
         </div>
         <div className="flex items-center gap-3 pt-1">

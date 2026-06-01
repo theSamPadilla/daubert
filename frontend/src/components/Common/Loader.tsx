@@ -30,9 +30,9 @@ export function Loader({ inline = false, className = '' }: LoaderProps) {
           className="h-16 w-16 select-none animate-[breathing_2.4s_ease-in-out_infinite]"
         />
         <div aria-hidden="true" className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-ink-muted animate-[dotFade_1.4s_ease-in-out_infinite]" />
-          <span className="h-1.5 w-1.5 rounded-full bg-ink-muted animate-[dotFade_1.4s_ease-in-out_infinite] [animation-delay:200ms]" />
-          <span className="h-1.5 w-1.5 rounded-full bg-ink-muted animate-[dotFade_1.4s_ease-in-out_infinite] [animation-delay:400ms]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-brand animate-[dotFade_1.4s_ease-in-out_infinite]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-brand animate-[dotFade_1.4s_ease-in-out_infinite] [animation-delay:200ms]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-brand animate-[dotFade_1.4s_ease-in-out_infinite] [animation-delay:400ms]" />
         </div>
       </div>
       <span className="sr-only">Loading</span>

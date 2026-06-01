@@ -128,7 +128,7 @@ describe('CasesController', () => {
   // ── create (POST /cases) ──────────────────────────────────────────────────
 
   it('create: member — calls createWithOwner with ownerUserId from req.user.id and DTO fields', async () => {
-    const dto: CreateCaseDto = { name: 'New Case', startDate: '2024-06-01' };
+    const dto: CreateCaseDto = { name: 'New Case', summary: 'Embezzlement at FTX' };
     const saved = { ...BASE_CASE, name: dto.name };
     service.createWithOwner!.mockResolvedValue(saved as any);
 
@@ -138,7 +138,7 @@ describe('CasesController', () => {
     expect(service.createWithOwner).toHaveBeenCalledWith({
       name: 'New Case',
       ownerUserId: 'member-user-1',
-      startDate: '2024-06-01',
+      summary: 'Embezzlement at FTX',
     });
     expect(result).toEqual(saved);
   });
@@ -154,7 +154,7 @@ describe('CasesController', () => {
     expect(service.createWithOwner).toHaveBeenCalledWith({
       name: 'Admin Case',
       ownerUserId: 'admin-user-1',
-      startDate: null,
+      summary: null,
     });
     expect(result).toEqual(saved);
   });

@@ -815,8 +815,8 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
-            /** Format: date-time */
-            startDate?: string | null;
+            /** @description Free-form description of the matter under investigation. */
+            summary?: string | null;
             /** @description The caller's role in this case. Present when the case is fetched in user context. */
             role?: components["schemas"]["CaseRole"];
             /** Format: date-time */
@@ -827,13 +827,11 @@ export interface components {
         };
         CreateCaseRequest: {
             name: string;
-            /** Format: date-time */
-            startDate?: string;
+            summary?: string;
         };
         UpdateCaseRequest: {
             name?: string;
-            /** Format: date-time */
-            startDate?: string | null;
+            summary?: string | null;
         };
         Investigation: {
             /** Format: uuid */
@@ -1097,8 +1095,7 @@ export interface components {
             name: string;
             /** Format: uuid */
             ownerUserId: string;
-            /** Format: date-time */
-            startDate?: string;
+            summary?: string;
         };
         CaseMember: {
             /** Format: uuid */

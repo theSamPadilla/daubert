@@ -1,11 +1,12 @@
-import { IsString, IsOptional, IsDateString } from 'class-validator';
+import { IsString, IsOptional, ValidateIf } from 'class-validator';
 
 export class UpdateCaseDto {
   @IsOptional()
   @IsString()
   name?: string;
 
+  @ValidateIf((o) => o.summary !== null)
   @IsOptional()
-  @IsDateString()
-  startDate?: string;
+  @IsString()
+  summary?: string | null;
 }

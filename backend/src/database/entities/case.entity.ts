@@ -10,8 +10,8 @@ export class CaseEntity extends BaseEntity {
   @Column()
   name: string;
 
-  @Column({ name: 'start_date', type: 'timestamp', nullable: true })
-  startDate: Date | null;
+  @Column({ type: 'text', nullable: true })
+  summary: string | null;
 
   // Legacy — kept until phase 4 cleanup drops this column
   @Column({ name: 'user_id', nullable: true })

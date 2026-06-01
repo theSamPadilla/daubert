@@ -56,7 +56,7 @@ export class CasesService {
   async update(id: string, dto: UpdateCaseDto) {
     const c = await this.fetchOne(id);
     if (dto.name !== undefined) c.name = dto.name;
-    if (dto.startDate !== undefined) c.startDate = dto.startDate ? new Date(dto.startDate) : null;
+    if (dto.summary !== undefined) c.summary = dto.summary ?? null;
     return this.repo.save(c);
   }
 
@@ -76,14 +76,14 @@ export class CasesService {
    * Create a case and atomically add the supplied user as the owner.
    * Used by the admin panel to provision a new case for a specific user.
    */
-  async createWithOwner(input: { name: string; ownerUserId: string; startDate?: string | null }) {
+  async createWithOwner(input: { name: string; ownerUserId: string; summary?: string | null }) {
     return this.dataSource.transaction(async (manager) => {
       const owner = await manager.findOneBy(UserEntity, { id: input.ownerUserId });
       if (!owner) throw new NotFoundException(`User ${input.ownerUserId} not found`);
 
       const caseEntity = manager.create(CaseEntity, {
         name: input.name,
-        startDate: input.startDate ? new Date(input.startDate) : null,
+        summary: input.summary ?? null,
       });
       const saved = await manager.save(caseEntity);
 

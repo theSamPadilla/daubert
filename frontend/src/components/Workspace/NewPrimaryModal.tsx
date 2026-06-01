@@ -83,7 +83,7 @@ export function NewPrimaryModal() {
         <div className="p-5 space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-xs font-medium text-ink-muted uppercase tracking-wider mb-1.5">
+            <label className="block text-sm text-ink-muted mb-1.5">
               Name
             </label>
             <input
@@ -100,7 +100,7 @@ export function NewPrimaryModal() {
           {/* Production type selector */}
           {tab === 'production' && (
             <div>
-              <label className="block text-xs font-medium text-ink-muted uppercase tracking-wider mb-1.5">
+              <label className="block text-sm text-ink-muted mb-1.5">
                 Type
               </label>
               <div className="flex gap-2">

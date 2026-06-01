@@ -2,6 +2,7 @@ import { Controller, Get, Patch, Delete, Post, Param, Body, Req, ForbiddenExcept
 import { CasesService } from './cases.service';
 import { UpdateCaseDto } from './dto/update-case.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+import { AddMemberDto } from './dto/add-member.dto';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { RequireRole } from '../auth/require-role.decorator';
 import { RequireOrgRole } from '../auth/require-org-role.decorator';
@@ -17,7 +18,6 @@ export class CasesController {
       name: dto.name,
       ownerUserId: req.user.id,
       startDate: dto.startDate ?? null,
-      links: dto.links,
     });
   }
 
@@ -51,6 +51,15 @@ export class CasesController {
   @Get(':caseId/members')
   listMembers(@Param('caseId') caseId: string) {
     return this.service.listMembers(caseId);
+  }
+
+  @RequireRole('owner')
+  @Post(':caseId/members')
+  addMember(
+    @Param('caseId') caseId: string,
+    @Body() dto: AddMemberDto,
+  ) {
+    return this.service.addMemberByEmail(caseId, dto.email, dto.role);
   }
 
   @RequireRole('owner')

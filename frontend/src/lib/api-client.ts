@@ -111,7 +111,6 @@ export interface Case {
   id: string;
   name: string;
   startDate: string | null;
-  links: { url: string; label: string }[];
   createdAt: string;
   updatedAt: string;
   role?: CaseRole;
@@ -268,16 +267,18 @@ export const apiClient = {
 
   // Cases
   listCases: () => request<Case[]>('/cases'),
-  createCase: (dto: { name: string; startDate?: string; links?: { url: string; label: string }[] }) =>
+  createCase: (dto: { name: string; startDate?: string }) =>
     request<Case>('/cases', { method: 'POST', body: JSON.stringify(dto) }),
   getCase: (id: string) => request<Case>(`/cases/${id}`),
-  updateCase: (id: string, body: Partial<{ name: string; startDate: string | null; links: { url: string; label: string }[] }>) =>
+  updateCase: (id: string, body: Partial<{ name: string; startDate: string | null }>) =>
     request<Case>(`/cases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteCase: (id: string) => request<void>(`/cases/${id}`, { method: 'DELETE' }),
 
   // Case Members (member-facing)
   listCaseMembers: (caseId: string) =>
     request<CaseMember[]>(`/cases/${caseId}/members`),
+  addCaseMember: (caseId: string, dto: { email: string; role: CaseRole }) =>
+    request<CaseMember>(`/cases/${caseId}/members`, { method: 'POST', body: JSON.stringify(dto) }),
   updateCaseMemberRole: (caseId: string, userId: string, role: CaseRole) =>
     request<CaseMember>(`/cases/${caseId}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   removeCaseMember: (caseId: string, userId: string) =>
@@ -425,7 +426,7 @@ export const apiClient = {
 
   // Admin — Cases
   adminListCases: () => request<Case[]>('/admin/cases'),
-  adminCreateCase: (body: { name: string; ownerUserId: string; startDate?: string; links?: { url: string; label: string }[] }) =>
+  adminCreateCase: (body: { name: string; ownerUserId: string; startDate?: string }) =>
     request<Case>('/admin/cases', { method: 'POST', body: JSON.stringify(body) }),
   adminDeleteCase: (id: string) =>
     request<void>(`/admin/cases/${id}`, { method: 'DELETE' }),

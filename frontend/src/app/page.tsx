@@ -122,7 +122,7 @@ function CaseSelector() {
       <NewCaseModal
         open={newCaseOpen}
         onClose={() => setNewCaseOpen(false)}
-        onCreated={(created) => router.push(`/cases/${created.id}/investigations`)}
+        onCreated={(created /*, results */) => router.push(`/cases/${created.id}/investigations`)}
       />
     </div>
   );

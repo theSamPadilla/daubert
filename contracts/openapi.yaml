@@ -167,6 +167,8 @@ components:
       $ref: './schemas/admin.yaml#/CaseMember'
     AddMemberRequest:
       $ref: './schemas/admin.yaml#/AddMemberRequest'
+    AddCaseMemberRequest:
+      $ref: './schemas/cases.yaml#/AddCaseMemberRequest'
     UpdateMemberRoleRequest:
       $ref: './schemas/admin.yaml#/UpdateMemberRoleRequest'
     InviteRole:

@@ -66,10 +66,6 @@ AdminCreateCaseRequest:
     startDate:
       type: string
       format: date-time
-    links:
-      type: array
-      items:
-        $ref: '../schemas/cases.yaml#/Link'
 
 CaseMember:
   type: object

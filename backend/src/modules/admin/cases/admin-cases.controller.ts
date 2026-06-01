@@ -21,7 +21,6 @@ export class AdminCasesController {
       name: dto.name,
       ownerUserId: dto.ownerUserId,
       startDate: dto.startDate,
-      links: dto.links,
     });
   }
 

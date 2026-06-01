@@ -13,9 +13,6 @@ export class CaseEntity extends BaseEntity {
   @Column({ name: 'start_date', type: 'timestamp', nullable: true })
   startDate: Date | null;
 
-  @Column({ type: 'jsonb', default: '[]' })
-  links: { url: string; label: string }[];
-
   // Legacy — kept until phase 4 cleanup drops this column
   @Column({ name: 'user_id', nullable: true })
   userId: string | null;

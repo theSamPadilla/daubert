@@ -26,6 +26,10 @@ const mockDataSource = {
   transaction: jest.fn(),
 };
 
+const mockUsersService = {
+  findByEmail: jest.fn(),
+};
+
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const CASE_ID = 'case-1';
@@ -39,7 +43,7 @@ function makeMember(userId: string, role: CaseRole) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeService() {
-  return new CasesService(mockRepo as any, mockMemberRepo as any, mockDataSource as any);
+  return new CasesService(mockRepo as any, mockMemberRepo as any, mockDataSource as any, mockUsersService as any);
 }
 
 /**
@@ -200,5 +204,59 @@ describe('CasesService — ≥1 owner invariant: leave', () => {
     });
 
     await expect(service.leave(CASE_ID, 'not-a-member')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+// ── addMemberByEmail ──────────────────────────────────────────────────────────
+
+describe('CasesService — addMemberByEmail', () => {
+  let service: CasesService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = makeService();
+  });
+
+  it('throws NotFoundException when no user matches the email', async () => {
+    mockUsersService.findByEmail.mockResolvedValue(null);
+
+    await expect(
+      service.addMemberByEmail(CASE_ID, 'ghost@example.com', 'viewer'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(mockUsersService.findByEmail).toHaveBeenCalledWith('ghost@example.com');
+  });
+
+  it('calls addMember with resolved userId when user exists', async () => {
+    const user = { id: 'user-123', email: 'alice@example.com' };
+    const membership = makeMember(user.id, 'editor');
+
+    mockUsersService.findByEmail.mockResolvedValue(user);
+    // fetchOne inside addMember
+    mockRepo.findOne.mockResolvedValue({ id: CASE_ID, investigations: [] });
+    // no existing membership
+    mockMemberRepo.findOneBy.mockResolvedValue(null);
+    mockMemberRepo.create.mockReturnValue(membership);
+    mockMemberRepo.save.mockResolvedValue(membership);
+
+    const result = await service.addMemberByEmail(CASE_ID, 'alice@example.com', 'editor');
+
+    expect(mockUsersService.findByEmail).toHaveBeenCalledWith('alice@example.com');
+    expect(mockMemberRepo.create).toHaveBeenCalledWith({
+      caseId: CASE_ID,
+      userId: user.id,
+      role: 'editor',
+    });
+    expect(result).toEqual(membership);
+  });
+
+  it('trims and lowercases the email before lookup', async () => {
+    mockUsersService.findByEmail.mockResolvedValue(null);
+
+    await expect(
+      service.addMemberByEmail(CASE_ID, '  Alice@Example.COM  ', 'viewer'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(mockUsersService.findByEmail).toHaveBeenCalledWith('alice@example.com');
   });
 });

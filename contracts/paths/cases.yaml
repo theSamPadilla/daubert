@@ -127,6 +127,34 @@
           application/json:
             schema:
               $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    summary: Add an existing platform user to this case
+    operationId: addCaseMember
+    tags: [cases]
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/cases.yaml#/AddCaseMemberRequest'
+    responses:
+      '200':
+        description: Membership created
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/admin.yaml#/CaseMember'
+      '404':
+        description: No user with that email
+      '409':
+        description: User is already a member
 
 /cases/{caseId}/members/{userId}:
   patch:

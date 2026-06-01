@@ -117,6 +117,7 @@ Script-token requests (`AccessPrincipal` of kind `'script'`) never have `req.use
 | `DELETE /cases/:caseId` | `owner` |
 | `GET /cases/:caseId/members` | `editor` (viewers blocked) |
 | `POST /cases/:caseId/members` (invite-link accept) | (token-gated, not role-gated) |
+| `POST /cases/:caseId/members` | `owner` (direct-add an existing platform user by email) |
 | `PATCH /cases/:caseId/members/:userId` | `owner` |
 | `DELETE /cases/:caseId/members/:userId` | `owner` (admin-style removal of another member) |
 | `POST /cases/:caseId/members/me/leave` | any member (self-remove); refused if caller is the last owner |

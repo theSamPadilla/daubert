@@ -5,6 +5,7 @@ import { CaseEntity } from '../../database/entities/case.entity';
 import { CaseMemberEntity, CaseRole } from '../../database/entities/case-member.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UpdateCaseDto } from './dto/update-case.dto';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class CasesService {
@@ -14,6 +15,7 @@ export class CasesService {
     @InjectRepository(CaseMemberEntity)
     private readonly memberRepo: Repository<CaseMemberEntity>,
     private readonly dataSource: DataSource,
+    private readonly usersService: UsersService,
   ) {}
 
   async findAllForUser(user: UserEntity) {
@@ -55,7 +57,6 @@ export class CasesService {
     const c = await this.fetchOne(id);
     if (dto.name !== undefined) c.name = dto.name;
     if (dto.startDate !== undefined) c.startDate = dto.startDate ? new Date(dto.startDate) : null;
-    if (dto.links !== undefined) c.links = dto.links;
     return this.repo.save(c);
   }
 
@@ -75,7 +76,7 @@ export class CasesService {
    * Create a case and atomically add the supplied user as the owner.
    * Used by the admin panel to provision a new case for a specific user.
    */
-  async createWithOwner(input: { name: string; ownerUserId: string; startDate?: string | null; links?: { url: string; label: string }[] }) {
+  async createWithOwner(input: { name: string; ownerUserId: string; startDate?: string | null }) {
     return this.dataSource.transaction(async (manager) => {
       const owner = await manager.findOneBy(UserEntity, { id: input.ownerUserId });
       if (!owner) throw new NotFoundException(`User ${input.ownerUserId} not found`);
@@ -83,7 +84,6 @@ export class CasesService {
       const caseEntity = manager.create(CaseEntity, {
         name: input.name,
         startDate: input.startDate ? new Date(input.startDate) : null,
-        links: input.links ?? [],
       });
       const saved = await manager.save(caseEntity);
 
@@ -137,6 +137,15 @@ export class CasesService {
 
     const member = this.memberRepo.create({ caseId, userId, role });
     return this.memberRepo.save(member);
+  }
+
+  async addMemberByEmail(caseId: string, email: string, role: CaseRole): Promise<CaseMemberEntity> {
+    const lower = email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(lower);
+    if (!user) {
+      throw new NotFoundException(`No user found with email ${lower}`);
+    }
+    return this.addMember(caseId, user.id, role);
   }
 
   private async assertNotLastOwnerOperation(

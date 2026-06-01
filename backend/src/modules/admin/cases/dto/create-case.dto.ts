@@ -1,15 +1,4 @@
-import { IsArray, IsDateString, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
-
-class LinkDto {
-  @IsString()
-  @MaxLength(2048)
-  url: string;
-
-  @IsString()
-  @MaxLength(200)
-  label: string;
-}
+import { IsDateString, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateCaseDto {
   @IsString()
@@ -22,10 +11,4 @@ export class CreateCaseDto {
   @IsOptional()
   @IsDateString()
   startDate?: string;
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => LinkDto)
-  links?: LinkDto[];
 }

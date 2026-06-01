@@ -454,7 +454,8 @@ export interface paths {
         /** List members of a case */
         get: operations["listCaseMembers"];
         put?: never;
-        post?: never;
+        /** Add an existing platform user to this case */
+        post: operations["addCaseMember"];
         delete?: never;
         options?: never;
         head?: never;
@@ -816,7 +817,6 @@ export interface components {
             name: string;
             /** Format: date-time */
             startDate?: string | null;
-            links: components["schemas"]["Link"][];
             /** @description The caller's role in this case. Present when the case is fetched in user context. */
             role?: components["schemas"]["CaseRole"];
             /** Format: date-time */
@@ -829,13 +829,11 @@ export interface components {
             name: string;
             /** Format: date-time */
             startDate?: string;
-            links?: components["schemas"]["Link"][];
         };
         UpdateCaseRequest: {
             name?: string;
             /** Format: date-time */
             startDate?: string | null;
-            links?: components["schemas"]["Link"][];
         };
         Investigation: {
             /** Format: uuid */
@@ -1101,7 +1099,6 @@ export interface components {
             ownerUserId: string;
             /** Format: date-time */
             startDate?: string;
-            links?: components["schemas"]["Link"][];
         };
         CaseMember: {
             /** Format: uuid */
@@ -1120,6 +1117,11 @@ export interface components {
         AddMemberRequest: {
             /** Format: uuid */
             userId: string;
+            role: components["schemas"]["CaseRole"];
+        };
+        AddCaseMemberRequest: {
+            /** Format: email */
+            email: string;
             role: components["schemas"]["CaseRole"];
         };
         UpdateMemberRoleRequest: {
@@ -1227,10 +1229,6 @@ export interface components {
              *     than firing a Picker request that may 401 mid-flight.
              */
             expiresAt: string;
-        };
-        Link: {
-            url: string;
-            label: string;
         };
         InvestigationSummary: {
             /** Format: uuid */
@@ -2357,6 +2355,46 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
+            };
+        };
+    };
+    addCaseMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddCaseMemberRequest"];
+            };
+        };
+        responses: {
+            /** @description Membership created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseMember"];
+                };
+            };
+            /** @description No user with that email */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User is already a member */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

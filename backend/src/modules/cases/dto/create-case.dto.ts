@@ -1,13 +1,4 @@
-import { IsString, IsOptional, IsArray, ValidateNested, IsDateString } from 'class-validator';
-import { Type } from 'class-transformer';
-
-class LinkDto {
-  @IsString()
-  url: string;
-
-  @IsString()
-  label: string;
-}
+import { IsString, IsOptional, IsDateString } from 'class-validator';
 
 export class CreateCaseDto {
   @IsString()
@@ -16,10 +7,4 @@ export class CreateCaseDto {
   @IsOptional()
   @IsDateString()
   startDate?: string;
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => LinkDto)
-  links?: LinkDto[];
 }

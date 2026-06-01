@@ -1,15 +1,6 @@
-Link:
-  type: object
-  required: [url, label]
-  properties:
-    url:
-      type: string
-    label:
-      type: string
-
 Case:
   type: object
-  required: [id, name, links, createdAt, updatedAt]
+  required: [id, name, createdAt, updatedAt]
   properties:
     id:
       type: string
@@ -20,10 +11,6 @@ Case:
       type: string
       format: date-time
       nullable: true
-    links:
-      type: array
-      items:
-        $ref: '#/Link'
     role:
       $ref: '../schemas/admin.yaml#/CaseRole'
       description: The caller's role in this case. Present when the case is fetched in user context.
@@ -57,10 +44,6 @@ CreateCaseRequest:
     startDate:
       type: string
       format: date-time
-    links:
-      type: array
-      items:
-        $ref: '#/Link'
 
 UpdateCaseRequest:
   type: object
@@ -71,7 +54,13 @@ UpdateCaseRequest:
       type: string
       format: date-time
       nullable: true
-    links:
-      type: array
-      items:
-        $ref: '#/Link'
+
+AddCaseMemberRequest:
+  type: object
+  required: [email, role]
+  properties:
+    email:
+      type: string
+      format: email
+    role:
+      $ref: '../schemas/admin.yaml#/CaseRole'

@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CasesController } from './cases.controller';
@@ -36,6 +36,7 @@ describe('CasesController', () => {
       update: jest.fn(),
       remove: jest.fn(),
       createWithOwner: jest.fn(),
+      addMemberByEmail: jest.fn(),
     };
 
     // RoleGuard is pulled in via @RequireRole on controller methods;
@@ -127,7 +128,7 @@ describe('CasesController', () => {
   // ── create (POST /cases) ──────────────────────────────────────────────────
 
   it('create: member — calls createWithOwner with ownerUserId from req.user.id and DTO fields', async () => {
-    const dto: CreateCaseDto = { name: 'New Case', startDate: '2024-06-01', links: [{ url: 'https://example.com', label: 'Example' }] };
+    const dto: CreateCaseDto = { name: 'New Case', startDate: '2024-06-01' };
     const saved = { ...BASE_CASE, name: dto.name };
     service.createWithOwner!.mockResolvedValue(saved as any);
 
@@ -138,7 +139,6 @@ describe('CasesController', () => {
       name: 'New Case',
       ownerUserId: 'member-user-1',
       startDate: '2024-06-01',
-      links: dto.links,
     });
     expect(result).toEqual(saved);
   });
@@ -155,8 +155,34 @@ describe('CasesController', () => {
       name: 'Admin Case',
       ownerUserId: 'admin-user-1',
       startDate: null,
-      links: undefined,
     });
     expect(result).toEqual(saved);
+  });
+
+  // ── addMember (POST /cases/:caseId/members) ──────────────────────────────
+
+  it('addMember: owner — calls addMemberByEmail with caseId, email, role and returns membership', async () => {
+    const membership = { id: 'mem-1', caseId: 'case-1', userId: 'user-2', role: 'editor' };
+    service.addMemberByEmail!.mockResolvedValue(membership as any);
+
+    const dto = { email: 'guest@example.com', role: 'editor' as const };
+    const result = await controller.addMember('case-1', dto as any);
+
+    expect(service.addMemberByEmail).toHaveBeenCalledWith('case-1', 'guest@example.com', 'editor');
+    expect(result).toEqual(membership);
+  });
+
+  it('addMember: propagates NotFoundException from service', async () => {
+    service.addMemberByEmail!.mockRejectedValue(new NotFoundException('User not found'));
+
+    await expect(controller.addMember('case-1', { email: 'nobody@example.com', role: 'viewer' } as any))
+      .rejects.toThrow(NotFoundException);
+  });
+
+  it('addMember: propagates ConflictException from service', async () => {
+    service.addMemberByEmail!.mockRejectedValue(new ConflictException('Already a member'));
+
+    await expect(controller.addMember('case-1', { email: 'existing@example.com', role: 'viewer' } as any))
+      .rejects.toThrow(ConflictException);
   });
 });

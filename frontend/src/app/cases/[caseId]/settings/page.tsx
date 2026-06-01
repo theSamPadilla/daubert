@@ -42,7 +42,6 @@ function SectionCard({ title, children }: { title: string; children: React.React
 function CaseInfoSection({ caseId }: { caseId: string }) {
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
-  const [links, setLinks] = useState<{ url: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,14 +50,8 @@ function CaseInfoSection({ caseId }: { caseId: string }) {
     apiClient.getCase(caseId).then((c) => {
       setName(c.name);
       setStartDate(c.startDate ?? '');
-      setLinks(c.links ?? []);
     }).catch((e) => setError(e.message));
   }, [caseId]);
-
-  const addLink = () => setLinks((prev) => [...prev, { url: '', label: '' }]);
-  const removeLink = (i: number) => setLinks((prev) => prev.filter((_, idx) => idx !== i));
-  const updateLink = (i: number, field: 'url' | 'label', value: string) =>
-    setLinks((prev) => prev.map((l, idx) => (idx === i ? { ...l, [field]: value } : l)));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +61,6 @@ function CaseInfoSection({ caseId }: { caseId: string }) {
       await apiClient.updateCase(caseId, {
         name,
         startDate: startDate || null,
-        links,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -101,45 +93,6 @@ function CaseInfoSection({ caseId }: { caseId: string }) {
             onChange={(e) => setStartDate(e.target.value)}
             className="rounded border border-line-strong bg-surface px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
-        </div>
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm text-ink-muted">Links</label>
-            <button
-              type="button"
-              onClick={addLink}
-              className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              <FaPlus size={10} /> Add link
-            </button>
-          </div>
-          <div className="space-y-2">
-            {links.map((link, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={link.url}
-                  onChange={(e) => updateLink(i, 'url', e.target.value)}
-                  className="flex-1 rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <input
-                  type="text"
-                  placeholder="Label"
-                  value={link.label}
-                  onChange={(e) => updateLink(i, 'label', e.target.value)}
-                  className="w-32 rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeLink(i)}
-                  className="text-ink-muted hover:text-red-400 transition-colors"
-                >
-                  <FaTrash size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
         </div>
         <div className="flex items-center gap-3 pt-1">
           <button

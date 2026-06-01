@@ -3,6 +3,13 @@ import type { components } from '../generated/api-types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -26,7 +33,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || `API error ${res.status}`);
+    throw new ApiError(err.message || `API error ${res.status}`, res.status);
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') return undefined as T;
   return res.json();
@@ -55,7 +62,7 @@ async function requestNullable404<T>(path: string, options?: RequestInit): Promi
   if (res.status === 404) return null;
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || `API error ${res.status}`);
+    throw new ApiError(err.message || `API error ${res.status}`, res.status);
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') return null;
   return res.json();
@@ -77,7 +84,7 @@ async function downloadFile(path: string, filename: string, options?: RequestIni
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || `Export error ${res.status}`);
+    throw new ApiError(err.message || `Export error ${res.status}`, res.status);
   }
 
   const blob = await res.blob();
@@ -90,11 +97,14 @@ async function downloadFile(path: string, filename: string, options?: RequestIni
 }
 
 // Types matching the backend entities
+export type OrgRole = 'admin' | 'member' | 'guest';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   avatarUrl: string | null;
+  orgRole: OrgRole;
 }
 
 export interface Case {
@@ -104,7 +114,7 @@ export interface Case {
   links: { url: string; label: string }[];
   createdAt: string;
   updatedAt: string;
-  role?: string;
+  role?: CaseRole;
   investigations?: Investigation[];
 }
 
@@ -203,8 +213,33 @@ export interface DataRoomFile {
   webViewLink?: string;
 }
 
+// Invites
+export interface CaseInvite {
+  id: string;
+  caseId: string;
+  email: string;
+  role: 'editor' | 'viewer';
+  code: string;
+  message?: string | null;
+  createdByUserId: string;
+  expiresAt: string;
+  usedAt?: string | null;
+  usedByUserId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CaseInviteLookup {
+  status: 'pending' | 'used' | 'expired' | 'revoked';
+  caseName?: string;
+  inviterName?: string;
+  role?: 'editor' | 'viewer';
+  email?: string;
+  message?: string | null;
+}
+
 // Admin
-export type CaseRole = 'owner' | 'guest';
+export type CaseRole = 'owner' | 'editor' | 'viewer';
 
 export interface AdminUser {
   id: string;
@@ -212,6 +247,7 @@ export interface AdminUser {
   name: string;
   avatarUrl: string | null;
   linked: boolean;
+  orgRole: OrgRole;
   createdAt: string;
   updatedAt: string;
 }
@@ -232,10 +268,34 @@ export const apiClient = {
 
   // Cases
   listCases: () => request<Case[]>('/cases'),
+  createCase: (dto: { name: string; startDate?: string; links?: { url: string; label: string }[] }) =>
+    request<Case>('/cases', { method: 'POST', body: JSON.stringify(dto) }),
   getCase: (id: string) => request<Case>(`/cases/${id}`),
   updateCase: (id: string, body: Partial<{ name: string; startDate: string | null; links: { url: string; label: string }[] }>) =>
     request<Case>(`/cases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteCase: (id: string) => request<void>(`/cases/${id}`, { method: 'DELETE' }),
+
+  // Case Members (member-facing)
+  listCaseMembers: (caseId: string) =>
+    request<CaseMember[]>(`/cases/${caseId}/members`),
+  updateCaseMemberRole: (caseId: string, userId: string, role: CaseRole) =>
+    request<CaseMember>(`/cases/${caseId}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  removeCaseMember: (caseId: string, userId: string) =>
+    request<void>(`/cases/${caseId}/members/${userId}`, { method: 'DELETE' }),
+  leaveCase: (caseId: string) =>
+    request<void>(`/cases/${caseId}/members/me/leave`, { method: 'POST' }),
+
+  // Invites
+  createInvite: (caseId: string, dto: { email: string; role: 'editor' | 'viewer'; message?: string }) =>
+    request<CaseInvite>(`/cases/${caseId}/invites`, { method: 'POST', body: JSON.stringify(dto) }),
+  listInvites: (caseId: string) =>
+    request<CaseInvite[]>(`/cases/${caseId}/invites`),
+  revokeInvite: (caseId: string, inviteId: string) =>
+    request<void>(`/cases/${caseId}/invites/${inviteId}`, { method: 'DELETE' }),
+  lookupInvite: (code: string) =>
+    request<CaseInviteLookup>(`/invites/${code}`),
+  acceptInvite: (code: string) =>
+    request<{ caseId: string; alreadyMember: boolean }>(`/invites/${code}/accept`, { method: 'POST' }),
 
   // Investigations
   listInvestigations: (caseId: string) =>

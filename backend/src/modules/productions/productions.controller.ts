@@ -1,8 +1,8 @@
 import {
   Controller, Get, Post, Patch, Delete,
-  Param, Body, Query, Req, HttpCode, BadRequestException, UseGuards,
+  Param, Body, Query, Req, HttpCode, BadRequestException,
 } from '@nestjs/common';
-import { CaseMemberGuard } from '../auth/case-member.guard';
+import { RequireRole } from '../auth/require-role.decorator';
 import { getPrincipal } from '../auth/access-principal';
 import { ProductionsService } from './productions.service';
 import { CreateProductionDto } from './dto/create-production.dto';
@@ -15,7 +15,7 @@ const VALID_TYPES = new Set(Object.values(ProductionType));
 export class ProductionsController {
   constructor(private readonly service: ProductionsService) {}
 
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('viewer')
   @Get('cases/:caseId/productions')
   findAllForCase(
     @Param('caseId') caseId: string,
@@ -30,7 +30,7 @@ export class ProductionsController {
     );
   }
 
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('editor')
   @Post('cases/:caseId/productions')
   create(
     @Param('caseId') caseId: string,

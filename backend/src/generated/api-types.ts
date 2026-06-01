@@ -444,6 +444,127 @@ export interface paths {
         patch: operations["adminUpdateCaseMemberRole"];
         trace?: never;
     };
+    "/cases/{caseId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List members of a case */
+        get: operations["listCaseMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a member from a case */
+        delete: operations["removeCaseMember"];
+        options?: never;
+        head?: never;
+        /** Change a member's role */
+        patch: operations["updateCaseMemberRole"];
+        trace?: never;
+    };
+    "/cases/{caseId}/members/me/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave a case (self-leave) */
+        post: operations["leaveCaseMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List invites for a case */
+        get: operations["listCaseInvites"];
+        put?: never;
+        /** Create an invite for a case */
+        post: operations["createCaseInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/invites/{inviteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke (delete) an invite */
+        delete: operations["revokeCaseInvite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invites/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Look up an invite by code (public, no auth required) */
+        get: operations["lookupInvite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invites/{code}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept an invite by code */
+        post: operations["acceptInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/labeled-entities": {
         parameters: {
             query?: never;
@@ -696,6 +817,8 @@ export interface components {
             /** Format: date-time */
             startDate?: string | null;
             links: components["schemas"]["Link"][];
+            /** @description The caller's role in this case. Present when the case is fetched in user context. */
+            role?: components["schemas"]["CaseRole"];
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -938,8 +1061,13 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * @description Org-wide role on the platform. Distinct from case-level roles.
+         * @enum {string}
+         */
+        OrgRole: "admin" | "member" | "guest";
         /** @enum {string} */
-        CaseRole: "owner" | "guest";
+        CaseRole: "owner" | "editor" | "viewer";
         AdminUser: {
             /** Format: uuid */
             id: string;
@@ -949,6 +1077,7 @@ export interface components {
             avatarUrl?: string | null;
             /** @description True once the user has signed in to Firebase and the UID has been bound to this row. */
             linked: boolean;
+            orgRole: components["schemas"]["OrgRole"];
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -995,6 +1124,52 @@ export interface components {
         };
         UpdateMemberRoleRequest: {
             role: components["schemas"]["CaseRole"];
+        };
+        /** @enum {string} */
+        InviteRole: "editor" | "viewer";
+        CaseInvite: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            caseId: string;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["InviteRole"];
+            code: string;
+            message?: string | null;
+            /** Format: uuid */
+            createdByUserId: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            usedAt?: string | null;
+            /** Format: uuid */
+            usedByUserId?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CaseInviteLookup: {
+            /** @enum {string} */
+            status: "pending" | "used" | "expired" | "revoked";
+            caseName?: string;
+            inviterName?: string;
+            role?: components["schemas"]["InviteRole"];
+            /** Format: email */
+            email?: string;
+            message?: string | null;
+        };
+        CreateInviteRequest: {
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["InviteRole"];
+            message?: string;
+        };
+        AcceptInviteResponse: {
+            /** Format: uuid */
+            caseId: string;
+            alreadyMember: boolean;
         };
         /** @enum {string} */
         DataRoomStatus: "active" | "broken";
@@ -2150,6 +2325,362 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaseMember"];
+                };
+            };
+        };
+    };
+    listCaseMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Case members */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseMember"][];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    removeCaseMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateCaseMemberRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMemberRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated membership */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseMember"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    leaveCaseMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Left */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cannot leave — you are the sole owner */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listCaseInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Case invites */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseInvite"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createCaseInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInviteRequest"];
+            };
+        };
+        responses: {
+            /** @description Created invite */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseInvite"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revokeCaseInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+                inviteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    lookupInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invite lookup result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseInviteLookup"];
+                };
+            };
+            /** @description Invite not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    acceptInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invite accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptInviteResponse"];
+                };
+            };
+            /** @description Email mismatch — caller is signed in with a different account */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invite not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invite already used or expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

@@ -6,6 +6,7 @@ import { TraceEntity } from '../../database/entities/trace.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { CaseAccessService } from '../auth/case-access.service';
 import { AccessPrincipal } from '../auth/access-principal';
+import { CaseRole } from '../../database/entities/case-member.entity';
 import { CHAIN_CONFIGS, FetchOptions } from '../blockchain/types';
 import { BlockchainService, TransactionResult } from '../blockchain/blockchain.service';
 import { CreateTraceDto } from './dto/create-trace.dto';
@@ -35,26 +36,26 @@ export class TracesService {
   async findAllForInvestigation(investigationId: string, principal: AccessPrincipal) {
     const inv = await this.invRepo.findOneBy({ id: investigationId });
     if (!inv) throw new NotFoundException(`Investigation ${investigationId} not found`);
-    await this.caseAccess.assertAccess(principal, inv.caseId);
+    await this.caseAccess.assertRole(principal, inv.caseId, 'viewer');
     return this.repo.find({
       where: { investigationId },
       order: { createdAt: 'ASC' },
     });
   }
 
-  async findOne(id: string, principal: AccessPrincipal) {
+  async findOne(id: string, principal: AccessPrincipal, minRole: CaseRole = 'viewer') {
     const trace = await this.repo.findOneBy({ id });
     if (!trace) throw new NotFoundException(`Trace ${id} not found`);
     const inv = await this.invRepo.findOneBy({ id: trace.investigationId });
     if (!inv) throw new NotFoundException(`Investigation ${trace.investigationId} not found`);
-    await this.caseAccess.assertAccess(principal, inv.caseId);
+    await this.caseAccess.assertRole(principal, inv.caseId, minRole);
     return trace;
   }
 
   async create(investigationId: string, dto: CreateTraceDto, principal: AccessPrincipal) {
     const inv = await this.invRepo.findOneBy({ id: investigationId });
     if (!inv) throw new NotFoundException(`Investigation ${investigationId} not found`);
-    await this.caseAccess.assertAccess(principal, inv.caseId);
+    await this.caseAccess.assertRole(principal, inv.caseId, 'editor');
 
     let data: any = dto.data || {};
     if ('labels' in data) {
@@ -77,7 +78,7 @@ export class TracesService {
   }
 
   async update(id: string, dto: UpdateTraceDto, principal: AccessPrincipal) {
-    const trace = await this.findOne(id, principal);
+    const trace = await this.findOne(id, principal, 'editor');
     if (dto.name !== undefined) trace.name = dto.name;
     if (dto.color !== undefined) trace.color = dto.color;
     if (dto.visible !== undefined) trace.visible = dto.visible;
@@ -97,12 +98,12 @@ export class TracesService {
   }
 
   async remove(id: string, principal: AccessPrincipal) {
-    const trace = await this.findOne(id, principal);
+    const trace = await this.findOne(id, principal, 'editor');
     await this.repo.remove(trace);
   }
 
   async updateNode(traceId: string, nodeId: string, dto: UpdateNodeDto, principal: AccessPrincipal) {
-    const trace = await this.findOne(traceId, principal);
+    const trace = await this.findOne(traceId, principal, 'editor');
     const data = (trace.data || {}) as { nodes?: any[]; edges?: any[] };
     const nodes: any[] = data.nodes || [];
     const idx = nodes.findIndex((n) => n.id === nodeId);
@@ -114,7 +115,7 @@ export class TracesService {
   }
 
   async updateEdge(traceId: string, edgeId: string, dto: UpdateEdgeDto, principal: AccessPrincipal) {
-    const trace = await this.findOne(traceId, principal);
+    const trace = await this.findOne(traceId, principal, 'editor');
     const data = (trace.data || {}) as { nodes?: any[]; edges?: any[] };
     const edges: any[] = data.edges || [];
     const idx = edges.findIndex((e) => e.id === edgeId);
@@ -131,7 +132,7 @@ export class TracesService {
   }
 
   async deleteNode(traceId: string, nodeId: string, principal: AccessPrincipal) {
-    const trace = await this.findOne(traceId, principal);
+    const trace = await this.findOne(traceId, principal, 'editor');
     const data = (trace.data || {}) as { nodes?: any[]; edges?: any[] };
     const nodes: any[] = data.nodes || [];
     const edges: any[] = data.edges || [];
@@ -145,7 +146,7 @@ export class TracesService {
   }
 
   async deleteEdge(traceId: string, edgeId: string, principal: AccessPrincipal) {
-    const trace = await this.findOne(traceId, principal);
+    const trace = await this.findOne(traceId, principal, 'editor');
     const data = (trace.data || {}) as { edges?: any[]; edgeBundles?: any[] };
     const edges: any[] = data.edges || [];
     if (!edges.some((e) => e.id === edgeId)) throw new NotFoundException(`Edge ${edgeId} not found in trace ${traceId}`);
@@ -163,7 +164,7 @@ export class TracesService {
   }
 
   async createGroup(traceId: string, dto: CreateGroupDto, principal: AccessPrincipal) {
-    const trace = await this.findOne(traceId, principal);
+    const trace = await this.findOne(traceId, principal, 'editor');
     const data = (trace.data || {}) as { nodes?: any[]; groups?: any[] };
     const nodes: any[] = data.nodes || [];
     const groups: any[] = data.groups || [];
@@ -245,7 +246,7 @@ export class TracesService {
   }
 
   async updateGroup(traceId: string, groupId: string, dto: UpdateGroupDto, principal: AccessPrincipal) {
-    const trace = await this.findOne(traceId, principal);
+    const trace = await this.findOne(traceId, principal, 'editor');
     const data = (trace.data || {}) as { groups?: any[] };
     const groups: any[] = data.groups || [];
     const idx = groups.findIndex((g) => g.id === groupId);
@@ -257,7 +258,7 @@ export class TracesService {
   }
 
   async deleteGroup(traceId: string, groupId: string, principal: AccessPrincipal) {
-    const trace = await this.findOne(traceId, principal);
+    const trace = await this.findOne(traceId, principal, 'editor');
     const data = (trace.data || {}) as { nodes?: any[]; groups?: any[] };
     const groups: any[] = data.groups || [];
     if (!groups.some((g) => g.id === groupId)) throw new NotFoundException(`Group ${groupId} not found in trace ${traceId}`);
@@ -297,7 +298,7 @@ export class TracesService {
   }
 
   async createEdgeBundle(traceId: string, dto: CreateEdgeBundleDto, principal: AccessPrincipal) {
-    const trace = await this.findOne(traceId, principal);
+    const trace = await this.findOne(traceId, principal, 'editor');
     const data = (trace.data || {}) as { edgeBundles?: any[] };
 
     const { nodeIds, edgeIds } = await this.loadInvestigationGraphIds(trace.investigationId);
@@ -335,7 +336,7 @@ export class TracesService {
     dto: UpdateEdgeBundleDto,
     principal: AccessPrincipal,
   ) {
-    const trace = await this.findOne(traceId, principal);
+    const trace = await this.findOne(traceId, principal, 'editor');
     const data = (trace.data || {}) as { edgeBundles?: any[] };
     const bundles: any[] = data.edgeBundles || [];
     const idx = bundles.findIndex((b) => b.id === bundleId);
@@ -368,7 +369,7 @@ export class TracesService {
   }
 
   async deleteEdgeBundle(traceId: string, bundleId: string, principal: AccessPrincipal) {
-    const trace = await this.findOne(traceId, principal);
+    const trace = await this.findOne(traceId, principal, 'editor');
     const data = (trace.data || {}) as { edgeBundles?: any[] };
     const bundles: any[] = data.edgeBundles || [];
     if (!bundles.some((b) => b.id === bundleId)) throw new NotFoundException(`Edge bundle ${bundleId} not found in trace ${traceId}`);
@@ -430,7 +431,7 @@ export class TracesService {
   }
 
   async importTransactions(id: string, dto: ImportTransactionsDto, principal: AccessPrincipal) {
-    const trace = await this.findOne(id, principal);
+    const trace = await this.findOne(id, principal, 'editor');
 
     const data = (trace.data || {}) as {
       nodes?: any[];

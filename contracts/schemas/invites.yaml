@@ -1,0 +1,92 @@
+InviteRole:
+  type: string
+  enum:
+    - editor
+    - viewer
+
+CaseInvite:
+  type: object
+  required: [id, caseId, email, role, code, createdByUserId, expiresAt, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    caseId:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    role:
+      $ref: '#/InviteRole'
+    code:
+      type: string
+    message:
+      type: string
+      nullable: true
+    createdByUserId:
+      type: string
+      format: uuid
+    expiresAt:
+      type: string
+      format: date-time
+    usedAt:
+      type: string
+      format: date-time
+      nullable: true
+    usedByUserId:
+      type: string
+      format: uuid
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CaseInviteLookup:
+  type: object
+  required: [status]
+  properties:
+    status:
+      type: string
+      enum:
+        - pending
+        - used
+        - expired
+        - revoked
+    caseName:
+      type: string
+    inviterName:
+      type: string
+    role:
+      $ref: '#/InviteRole'
+    email:
+      type: string
+      format: email
+    message:
+      type: string
+      nullable: true
+
+CreateInviteRequest:
+  type: object
+  required: [email, role]
+  properties:
+    email:
+      type: string
+      format: email
+    role:
+      $ref: '#/InviteRole'
+    message:
+      type: string
+
+AcceptInviteResponse:
+  type: object
+  required: [caseId, alreadyMember]
+  properties:
+    caseId:
+      type: string
+      format: uuid
+    alreadyMember:
+      type: boolean

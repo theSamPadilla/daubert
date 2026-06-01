@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { CaseAccessService } from './case-access.service';
+import { CaseRole } from '../../database/entities/case-member.entity';
 
 describe('CaseAccessService.assertAccess', () => {
   let service: CaseAccessService;
@@ -56,5 +57,99 @@ describe('CaseAccessService.assertAccess', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(memberRepo.findOneBy).not.toHaveBeenCalled();
+  });
+});
+
+describe('CaseAccessService.assertRole', () => {
+  let service: CaseAccessService;
+  const memberRepo = { findOneBy: jest.fn() };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new CaseAccessService(memberRepo as any);
+  });
+
+  // ── Script principal ───────────────────────────────────────────────────────
+
+  it('script principal: returns null without checking role', async () => {
+    const result = await service.assertRole(
+      { kind: 'script', caseId: 'c1' },
+      'c1',
+      'editor' as CaseRole,
+    );
+    expect(result).toBeNull();
+    expect(memberRepo.findOneBy).not.toHaveBeenCalled();
+  });
+
+  // ── User principal: sufficient role ───────────────────────────────────────
+
+  it('user principal: returns membership when role meets the minimum (owner >= editor)', async () => {
+    const membership = { userId: 'u1', caseId: 'c1', role: 'owner' as CaseRole };
+    memberRepo.findOneBy.mockResolvedValue(membership);
+
+    const result = await service.assertRole(
+      { kind: 'user', userId: 'u1' },
+      'c1',
+      'editor' as CaseRole,
+    );
+    expect(result).toBe(membership);
+  });
+
+  it('user principal: returns membership when role exactly matches the minimum (editor >= editor)', async () => {
+    const membership = { userId: 'u1', caseId: 'c1', role: 'editor' as CaseRole };
+    memberRepo.findOneBy.mockResolvedValue(membership);
+
+    const result = await service.assertRole(
+      { kind: 'user', userId: 'u1' },
+      'c1',
+      'editor' as CaseRole,
+    );
+    expect(result).toBe(membership);
+  });
+
+  // ── User principal: insufficient role ─────────────────────────────────────
+
+  it('user principal: throws ForbiddenException with correct message when role is below minimum', async () => {
+    const membership = { userId: 'u1', caseId: 'c1', role: 'viewer' as CaseRole };
+    memberRepo.findOneBy.mockResolvedValue(membership);
+
+    await expect(
+      service.assertRole(
+        { kind: 'user', userId: 'u1' },
+        'c1',
+        'editor' as CaseRole,
+      ),
+    ).rejects.toThrow("Requires role 'editor' or higher");
+
+    await expect(
+      service.assertRole(
+        { kind: 'user', userId: 'u1' },
+        'c1',
+        'editor' as CaseRole,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  // ── User principal: not a member ──────────────────────────────────────────
+
+  it('user principal: propagates ForbiddenException from assertAccess when not a member', async () => {
+    memberRepo.findOneBy.mockResolvedValue(null);
+
+    await expect(
+      service.assertRole(
+        { kind: 'user', userId: 'u1' },
+        'c1',
+        'viewer' as CaseRole,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    // The message should be assertAccess's message, not assertRole's
+    await expect(
+      service.assertRole(
+        { kind: 'user', userId: 'u1' },
+        'c1',
+        'viewer' as CaseRole,
+      ),
+    ).rejects.toThrow('You do not have access to this case');
   });
 });

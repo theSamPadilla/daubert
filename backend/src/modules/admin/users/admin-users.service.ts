@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { UserEntity } from '../../../database/entities/user.entity';
+import { OrgRole, UserEntity } from '../../../database/entities/user.entity';
 import { CaseEntity } from '../../../database/entities/case.entity';
 import { CaseMemberEntity, CaseRole } from '../../../database/entities/case-member.entity';
+import { ADMIN_EMAIL_DOMAIN } from '../../auth/admin.constants';
 
 @Injectable()
 export class AdminUsersService {
@@ -19,13 +20,22 @@ export class AdminUsersService {
     role?: CaseRole;
   }): Promise<UserEntity> {
     return this.dataSource.transaction(async (manager) => {
+      const email = input.email.trim().toLowerCase();
+
       if (input.caseId) {
         const exists = await manager.findOneBy(CaseEntity, { id: input.caseId });
         if (!exists) throw new NotFoundException(`Case ${input.caseId} not found`);
       }
 
+      const emailDomain = email.split('@')[1];
+      const orgRole: OrgRole = emailDomain === ADMIN_EMAIL_DOMAIN ? 'admin' : 'guest';
+
       const user = await manager.save(
-        manager.create(UserEntity, { email: input.email, name: input.name }),
+        manager.create(UserEntity, {
+          email,
+          name: input.name,
+          orgRole,
+        }),
       );
 
       if (input.caseId && input.role) {

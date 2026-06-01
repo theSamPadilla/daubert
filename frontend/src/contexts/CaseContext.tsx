@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import type { ReactNode, Dispatch, SetStateAction } from 'react';
-import { apiClient, type Investigation as ApiInvestigation, type ScriptRun, type Production } from '@/lib/api-client';
+import { apiClient, type Investigation as ApiInvestigation, type ScriptRun, type Production, type CaseRole } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
 
 /**
@@ -59,6 +59,9 @@ export interface CaseContextValue {
   openNewPrimary: (defaultType?: 'investigation' | 'production') => void;
   closeNewPrimary: () => void;
 
+  // --- Viewer role ---
+  viewerRole: CaseRole | null;
+
   // --- Chat needs these ---
   activeInvestigationId: string | null;
   onGraphUpdated?: () => void;
@@ -79,6 +82,7 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
   const [newPrimaryDefault, setNewPrimaryDefault] = useState<'investigation' | 'production'>('investigation');
   const [investigationsVersion, setInvestigationsVersion] = useState(0);
   const reloadInvestigations = useCallback(() => setInvestigationsVersion((n) => n + 1), []);
+  const [viewerRole, setViewerRole] = useState<CaseRole | null>(null);
 
   // Store graph callback in a ref so chat doesn't re-render on every callback change
   const graphUpdatedRef = useRef<(() => void) | undefined>(undefined);
@@ -88,6 +92,11 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
   // Fetch productions once on mount — shared across all pages
   useEffect(() => {
     apiClient.listProductions(caseId).then(setProductions).catch(() => setProductions([]));
+  }, [caseId]);
+
+  // Fetch caller's role on this case
+  useEffect(() => {
+    apiClient.getCase(caseId).then(c => setViewerRole(c.role ?? null)).catch(() => setViewerRole(null));
   }, [caseId]);
 
   const updateSidebar = useCallback((partial: Partial<SidebarSlice>) => {
@@ -114,6 +123,7 @@ export function CaseProvider({ caseId, children }: { caseId: string; children: R
 
   const value: CaseContextValue = {
     caseId,
+    viewerRole,
     sidebar,
     updateSidebar,
     productions,

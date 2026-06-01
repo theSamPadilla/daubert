@@ -13,7 +13,7 @@ interface FormState {
   caseRole: CaseRole;
 }
 
-const emptyForm: FormState = { email: '', name: '', caseId: '', caseRole: 'guest' };
+const emptyForm: FormState = { email: '', name: '', caseId: '', caseRole: 'viewer' };
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -150,7 +150,8 @@ export default function AdminUsersPage() {
                 disabled={!form.caseId}
                 className="w-full rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none disabled:opacity-50"
               >
-                <option value="guest">guest</option>
+                <option value="viewer">viewer</option>
+                <option value="editor">editor</option>
                 <option value="owner">owner</option>
               </select>
             </div>

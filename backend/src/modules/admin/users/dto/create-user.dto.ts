@@ -16,6 +16,6 @@ export class CreateUserDto {
 
   /** Required when `caseId` is set, ignored otherwise. */
   @ValidateIf((o) => !!o.caseId)
-  @IsIn(['owner', 'guest'])
+  @IsIn(['owner', 'editor', 'viewer'])
   caseRole?: CaseRole;
 }

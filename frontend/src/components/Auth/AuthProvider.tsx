@@ -3,12 +3,14 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, User as FirebaseUser } from 'firebase/auth';
 import { getFirebaseAuth } from '@/lib/firebase';
+import { type OrgRole } from '@/lib/api-client';
 
 interface DaubertUser {
   id: string;
   name: string;
   email: string;
   avatarUrl: string | null;
+  orgRole: OrgRole;
 }
 
 interface AuthContextValue {

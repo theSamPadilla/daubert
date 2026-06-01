@@ -100,3 +100,131 @@
           application/json:
             schema:
               $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/cases/{caseId}/members:
+  get:
+    summary: List members of a case
+    operationId: listCaseMembers
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Case members
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/admin.yaml#/CaseMember'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/cases/{caseId}/members/{userId}:
+  patch:
+    summary: Change a member's role
+    operationId: updateCaseMemberRole
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/admin.yaml#/UpdateMemberRoleRequest'
+    responses:
+      '200':
+        description: Updated membership
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/admin.yaml#/CaseMember'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    summary: Remove a member from a case
+    operationId: removeCaseMember
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Removed
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/cases/{caseId}/members/me/leave:
+  post:
+    summary: Leave a case (self-leave)
+    operationId: leaveCaseMembership
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Left
+      '409':
+        description: Cannot leave — you are the sole owner
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

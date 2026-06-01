@@ -23,7 +23,7 @@ const mockInvRepo = {
 };
 
 const mockCaseAccess = {
-  assertAccess: jest.fn(),
+  assertRole: jest.fn(),
 };
 
 const mockBlockchainService = {
@@ -91,6 +91,74 @@ describe('TracesService', () => {
     service = module.get<TracesService>(TracesService);
   });
 
+  // ── Editor role enforcement on mutations ─────────────────────────────────
+  // Each mutation method must call assertRole with 'editor'. Verify by
+  // checking the mock after a happy-path invocation.
+
+  describe('editor role enforcement', () => {
+    beforeEach(() => {
+      mockTraceRepo.findOneBy.mockResolvedValue(structuredClone(traceWithData));
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
+      mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
+      mockTraceRepo.remove.mockResolvedValue(undefined);
+      mockTraceRepo.find.mockResolvedValue([structuredClone(traceWithData)]);
+      mockTraceRepo.create.mockImplementation((args) => ({ ...args }));
+    });
+
+    it('create calls assertRole with editor', async () => {
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
+      await service.create(INV_ID, { name: 'T' }, PRINCIPAL);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'editor');
+    });
+
+    it('update calls assertRole with editor', async () => {
+      await service.update('trace-1', { name: 'X' }, PRINCIPAL);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'editor');
+    });
+
+    it('remove calls assertRole with editor', async () => {
+      await service.remove('trace-1', PRINCIPAL);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'editor');
+    });
+
+    it('updateNode calls assertRole with editor', async () => {
+      await service.updateNode('trace-1', 'n1', { label: 'X' }, PRINCIPAL);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'editor');
+    });
+
+    it('updateEdge calls assertRole with editor', async () => {
+      await service.updateEdge('trace-1', 'e1', { label: 'X' }, PRINCIPAL);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'editor');
+    });
+
+    it('deleteNode calls assertRole with editor', async () => {
+      await service.deleteNode('trace-1', 'n1', PRINCIPAL);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'editor');
+    });
+
+    it('deleteEdge calls assertRole with editor', async () => {
+      await service.deleteEdge('trace-1', 'e1', PRINCIPAL);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'editor');
+    });
+
+    it('createEdgeBundle calls assertRole with editor', async () => {
+      // createEdgeBundle validates node/edge ids against investigation graph — wire repo.find
+      mockTraceRepo.find.mockResolvedValue([structuredClone(traceWithData)]);
+      await service.createEdgeBundle('trace-1', {
+        fromNodeId: 'n1',
+        toNodeId: 'n2',
+        token: 'ETH',
+        edgeIds: ['e1'],
+      }, PRINCIPAL);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'editor');
+    });
+
+    it('importTransactions calls assertRole with editor', async () => {
+      await service.importTransactions('trace-1', { transactions: [] }, PRINCIPAL);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'editor');
+    });
+  });
+
   // ── CRUD ─────────────────────────────────────────────────────────────────
 
   describe('findAllForInvestigation', () => {
@@ -117,13 +185,13 @@ describe('TracesService', () => {
       );
     });
 
-    it('checks access via assertAccess with the principal', async () => {
+    it('checks access via assertRole with the principal', async () => {
       mockInvRepo.findOneBy.mockResolvedValue(investigation);
       mockTraceRepo.find.mockResolvedValue([]);
 
       await service.findAllForInvestigation(INV_ID, PRINCIPAL);
 
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(PRINCIPAL, CASE_ID);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'viewer');
     });
   });
 
@@ -144,13 +212,13 @@ describe('TracesService', () => {
       await expect(service.findOne('missing', PRINCIPAL)).rejects.toThrow(NotFoundException);
     });
 
-    it('checks access via assertAccess with the principal', async () => {
+    it('checks access via assertRole with the principal', async () => {
       mockTraceRepo.findOneBy.mockResolvedValue(baseTrace);
       mockInvRepo.findOneBy.mockResolvedValue(investigation);
 
       await service.findOne('trace-1', PRINCIPAL);
 
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(PRINCIPAL, CASE_ID);
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(PRINCIPAL, CASE_ID, 'viewer');
     });
   });
 

@@ -19,7 +19,7 @@ const mockProductionRepo = {
 };
 
 const mockCaseAccess = {
-  assertAccess: jest.fn(),
+  assertRole: jest.fn(),
 };
 
 const USER_PRINCIPAL: AccessPrincipal = { kind: 'user', userId: 'user-1' };
@@ -78,7 +78,7 @@ describe('ProductionsService', () => {
 
       const result = await service.findAllForCase('case-1', USER_PRINCIPAL);
 
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1');
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1', 'viewer');
       expect(mockProductionRepo.find).toHaveBeenCalledWith({
         where: { caseId: 'case-1' },
         order: { createdAt: 'ASC' },
@@ -89,7 +89,7 @@ describe('ProductionsService', () => {
     it('accepts a script principal scoped to the same case', async () => {
       mockProductionRepo.find.mockResolvedValue([]);
       await service.findAllForCase('case-1', SCRIPT_PRINCIPAL);
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(SCRIPT_PRINCIPAL, 'case-1');
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(SCRIPT_PRINCIPAL, 'case-1', 'viewer');
     });
 
     it('filters by type when provided', async () => {
@@ -114,7 +114,7 @@ describe('ProductionsService', () => {
       const result = await service.findOne('prod-1', USER_PRINCIPAL);
 
       expect(mockProductionRepo.findOneBy).toHaveBeenCalledWith({ id: 'prod-1' });
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1');
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1', 'viewer');
       expect(result).toEqual(production);
     });
 
@@ -141,7 +141,7 @@ describe('ProductionsService', () => {
 
       const result = await service.create('case-1', dto, USER_PRINCIPAL);
 
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1');
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1', 'editor');
       expect(mockProductionRepo.create).toHaveBeenCalledWith({
         ...dto,
         caseId: 'case-1',
@@ -156,7 +156,7 @@ describe('ProductionsService', () => {
 
       await service.create('case-1', dto, SCRIPT_PRINCIPAL);
 
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(SCRIPT_PRINCIPAL, 'case-1');
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(SCRIPT_PRINCIPAL, 'case-1', 'editor');
     });
   });
 
@@ -212,7 +212,7 @@ describe('ProductionsService', () => {
 
       const result = await service.update('prod-1', { name: 'Updated Name' }, USER_PRINCIPAL);
 
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1');
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1', 'editor');
       expect(mockProductionRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Updated Name' }),
       );
@@ -338,7 +338,7 @@ describe('ProductionsService', () => {
 
       await service.remove('prod-1', USER_PRINCIPAL);
 
-      expect(mockCaseAccess.assertAccess).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1');
+      expect(mockCaseAccess.assertRole).toHaveBeenCalledWith(USER_PRINCIPAL, 'case-1', 'editor');
       expect(mockProductionRepo.remove).toHaveBeenCalledWith(production);
     });
 

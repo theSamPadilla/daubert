@@ -1,10 +1,10 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Req } from '@nestjs/common';
 import { InvestigationsService } from './investigations.service';
 import { TracesService } from '../traces/traces.service';
 import { CreateInvestigationDto } from './dto/create-investigation.dto';
 import { UpdateInvestigationDto } from './dto/update-investigation.dto';
 import { SearchBetweenDto } from '../traces/dto/search-between.dto';
-import { CaseMemberGuard } from '../auth/case-member.guard';
+import { RequireRole } from '../auth/require-role.decorator';
 import { getPrincipal } from '../auth/access-principal';
 
 @Controller()
@@ -14,13 +14,13 @@ export class InvestigationsController {
     private readonly tracesService: TracesService,
   ) {}
 
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('viewer')
   @Get('cases/:caseId/investigations')
   findAllForCase(@Param('caseId') caseId: string) {
     return this.service.findAllForCase(caseId);
   }
 
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('editor')
   @Post('cases/:caseId/investigations')
   create(
     @Param('caseId') caseId: string,

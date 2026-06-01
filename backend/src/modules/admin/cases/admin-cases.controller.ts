@@ -1,12 +1,12 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
-import { IsAdminGuard } from '../../auth/admin.guard';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { RequireOrgRole } from '../../auth/require-org-role.decorator';
 import { CasesService } from '../../cases/cases.service';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 
 @Controller('admin/cases')
-@UseGuards(IsAdminGuard)
+@RequireOrgRole('admin')
 export class AdminCasesController {
   constructor(private readonly cases: CasesService) {}
 
@@ -26,7 +26,7 @@ export class AdminCasesController {
   }
 
   /**
-   * Admin override delete — bypasses CaseMemberGuard (which gates the public
+   * Admin override delete — bypasses RoleGuard (which gates the public
    * DELETE /cases/:caseId endpoint). Use when an admin needs to delete a case
    * they are not a member of.
    */

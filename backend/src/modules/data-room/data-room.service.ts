@@ -295,7 +295,7 @@ export class DataRoomService {
    *
    * Security: this exposes a short-lived (~1h) Google OAuth access token to
    * the case owner's browser. That's the standard pattern for Picker — the
-   * controller MUST gate this with `requireOwner`.
+   * controller MUST gate this with `requireWriteAccess`.
    */
   async getAccessToken(
     caseId: string,
@@ -461,11 +461,11 @@ export class DataRoomService {
   // ------------------------- Role helpers -------------------------
 
   /**
-   * Throw if `role` is `'guest'`. Centralised here so controllers all enforce
-   * write-access identically.
+   * Throw if `role` is `'viewer'`. Viewers can browse the data room but
+   * cannot connect, disconnect, upload, or manage folder settings.
    */
-  static requireOwner(role: string | undefined): void {
-    if (role === 'guest') {
+  static requireWriteAccess(role: string | undefined): void {
+    if (role === 'viewer') {
       throw new ForbiddenException('write_requires_owner');
     }
   }

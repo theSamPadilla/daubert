@@ -1,8 +1,7 @@
 /**
- * Email domain that grants admin access. The IsAdminGuard rejects any user
- * whose email domain (the part after `@`) doesn't match exactly.
- *
- * MUST be kept in sync with `frontend/src/lib/admin.ts`. If the domain ever
- * changes, update both files in the same commit.
+ * Default admin email domain. Used ONLY during initial user-shell creation in
+ * `AdminUsersService.createWithOptionalMembership` to set the new user's
+ * `orgRole` to `'admin'` automatically. Once a user exists, admin status is
+ * read off the `users.org_role` column.
  */
 export const ADMIN_EMAIL_DOMAIN = 'incite.ventures';

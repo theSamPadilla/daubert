@@ -5,13 +5,19 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { AuthGuard } from '@/components/Auth/AuthGuard';
 import UserMenu from '@/components/Auth/UserMenu';
+import { useAuth } from '@/components/Auth/AuthProvider';
 import { apiClient, type Case } from '@/lib/api-client';
 import { Loader } from '@/components/Common/Loader';
+import { NewCaseModal } from '@/components/Cases/NewCaseModal';
+import { FaGear, FaPlus } from 'react-icons/fa6';
 
 function CaseSelector() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canCreate = user?.orgRole === 'admin' || user?.orgRole === 'member';
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
+  const [newCaseOpen, setNewCaseOpen] = useState(false);
 
   useEffect(() => {
     apiClient.listCases().then((data) => {
@@ -59,37 +65,65 @@ function CaseSelector() {
 
         {loading ? (
           <Loader inline />
-        ) : cases.length === 0 ? (
+        ) : cases.length === 0 && !canCreate ? (
           <div className="text-center py-20">
             <p className="text-ink-muted">No cases assigned to your account yet.</p>
             <p className="text-ink-faint text-sm mt-2">Contact your administrator to get access to a case.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cases.map((c) => (
+            {canCreate && (
               <button
-                key={c.id}
-                onClick={() => router.push(`/cases/${c.id}/investigations`)}
-                className="text-left p-4 bg-surface-panel border border-line-strong rounded-lg hover:border-gray-500 hover:bg-surface-raised/80 transition-colors group"
+                onClick={() => setNewCaseOpen(true)}
+                className="flex flex-col items-center justify-center gap-2 p-4 h-full min-h-[100px] bg-surface-panel border border-dashed border-line-strong rounded-lg hover:border-gray-500 hover:bg-surface-raised/80 transition-colors text-ink-muted hover:text-ink"
               >
-                <h3 className="font-medium text-white group-hover:text-brand transition-colors">
-                  {c.name}
-                </h3>
-                {c.startDate && (
-                  <p className="text-xs text-ink-faint mt-1">
-                    Started {new Date(c.startDate).toLocaleDateString()}
-                  </p>
-                )}
-                {c.role && (
-                  <span className="inline-block mt-2 text-[10px] px-1.5 py-0.5 rounded bg-surface-raised text-ink-muted uppercase tracking-wider">
-                    {c.role}
-                  </span>
-                )}
+                <FaPlus size={22} />
+                <span className="text-sm">New case</span>
               </button>
-            ))}
+            )}
+            {cases.map((c) => {
+              const canAccessSettings = c.role === 'owner' || c.role === 'editor';
+              return (
+                <div key={c.id} className="relative group">
+                  <button
+                    onClick={() => router.push(`/cases/${c.id}/investigations`)}
+                    className="w-full text-left p-4 bg-surface-panel border border-line-strong rounded-lg hover:border-gray-500 hover:bg-surface-raised/80 transition-colors"
+                  >
+                    <h3 className="font-medium text-white group-hover:text-brand transition-colors pr-7">
+                      {c.name}
+                    </h3>
+                    {c.startDate && (
+                      <p className="text-xs text-ink-faint mt-1">
+                        Started {new Date(c.startDate).toLocaleDateString()}
+                      </p>
+                    )}
+                    {c.role && (
+                      <span className="inline-block mt-2 text-[10px] px-1.5 py-0.5 rounded bg-surface-raised text-ink-muted uppercase tracking-wider">
+                        {c.role}
+                      </span>
+                    )}
+                  </button>
+                  {canAccessSettings && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); router.push(`/cases/${c.id}/settings`); }}
+                      title="Case settings"
+                      className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center text-ink-faint hover:text-ink opacity-0 group-hover:opacity-100 transition-all rounded"
+                    >
+                      <FaGear size={13} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </main>
+
+      <NewCaseModal
+        open={newCaseOpen}
+        onClose={() => setNewCaseOpen(false)}
+        onCreated={(created) => router.push(`/cases/${created.id}/investigations`)}
+      />
     </div>
   );
 }

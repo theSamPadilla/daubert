@@ -14,7 +14,7 @@ const CARDS: Array<{ href: string; label: string; description: string; icon: Ico
   {
     href: '/admin/cases',
     label: 'Cases',
-    description: 'Create cases, assign owners and guests, change roles.',
+    description: 'Create cases, assign owners, editors, and viewers, change roles.',
     icon: FaFolderOpen,
   },
   {

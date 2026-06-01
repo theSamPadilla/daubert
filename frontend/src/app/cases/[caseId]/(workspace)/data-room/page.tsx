@@ -17,6 +17,7 @@ import { Loader } from '@/components/Common/Loader';
 import { PageHeader } from '@/components/Common/PageHeader';
 import UserMenu from '@/components/Auth/UserMenu';
 import { openDriveFolderPicker } from '@/lib/google-picker';
+import { useCaseContext } from '@/contexts/CaseContext';
 
 function formatBytes(raw: string | undefined): string {
   if (!raw) return '—';
@@ -59,6 +60,8 @@ function shortMime(mt: string): string {
 export default function DataRoomPage() {
   const params = useParams();
   const caseId = params.caseId as string;
+  const { viewerRole } = useCaseContext();
+  const canMutate = viewerRole === 'owner' || viewerRole === 'editor';
 
   // Browser-key for the Drive Picker SDK. Read once at module evaluation;
   // null/undefined both indicate "unset" (Next inlines `process.env.NEXT_PUBLIC_*` at build).
@@ -246,7 +249,7 @@ export default function DataRoomPage() {
         title="Data Room"
         subtitle={connection?.folderName ? `/ ${connection.folderName}` : undefined}
         actions={
-          state === 'connected' ? (
+          canMutate && state === 'connected' ? (
             <button
               onClick={() => setShowDisconnectModal(true)}
               className="flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium bg-white hover:bg-[#F1F4FA] text-[#5B6473] hover:text-[#0B1220] border border-[#E5E7EB] hover:border-[#CFD4DD] transition-colors"
@@ -285,12 +288,14 @@ export default function DataRoomPage() {
                 Daubert reads and writes case documents directly in your Google Drive. Connect a
                 folder to get started.
               </p>
-              <button
-                onClick={handleConnectClick}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-brand hover:bg-brand/90 text-white text-sm"
-              >
-                <FaPlug className="w-3.5 h-3.5" /> Connect Google Drive
-              </button>
+              {canMutate && (
+                <button
+                  onClick={handleConnectClick}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded bg-brand hover:bg-brand/90 text-white text-sm"
+                >
+                  <FaPlug className="w-3.5 h-3.5" /> Connect Google Drive
+                </button>
+              )}
             </div>
           )}
 
@@ -301,7 +306,7 @@ export default function DataRoomPage() {
                 Pick the Google Drive folder you want to use as this case&apos;s data room.
                 Daubert will only read or modify files in this folder.
               </p>
-              {drivePickerKey ? (
+              {canMutate && (drivePickerKey ? (
                 <button
                   onClick={handlePickFolder}
                   disabled={pickerBusy}
@@ -312,7 +317,7 @@ export default function DataRoomPage() {
                 </button>
               ) : (
                 <PickerNotConfiguredBanner />
-              )}
+              ))}
             </div>
           )}
 
@@ -340,20 +345,22 @@ export default function DataRoomPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleConnectClick}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded bg-brand hover:bg-brand/90 text-white text-sm"
-                >
-                  <FaPlug className="w-3.5 h-3.5" /> Reconnect
-                </button>
-                <button
-                  onClick={() => setShowDisconnectModal(true)}
-                  className="px-3 py-1.5 rounded text-sm bg-surface-panel hover:bg-surface-raised text-ink-muted border border-line-strong"
-                >
-                  Disconnect
-                </button>
-              </div>
+              {canMutate && (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleConnectClick}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded bg-brand hover:bg-brand/90 text-white text-sm"
+                  >
+                    <FaPlug className="w-3.5 h-3.5" /> Reconnect
+                  </button>
+                  <button
+                    onClick={() => setShowDisconnectModal(true)}
+                    className="px-3 py-1.5 rounded text-sm bg-surface-panel hover:bg-surface-raised text-ink-muted border border-line-strong"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -361,19 +368,23 @@ export default function DataRoomPage() {
             <>
               {/* Upload bar */}
               <div className="mb-4 flex items-center gap-3">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleUploadFile}
-                  className="hidden"
-                />
-                <button
-                  onClick={handleUploadClick}
-                  disabled={uploadingName !== null}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                >
-                  <FaCloudArrowUp className="w-3.5 h-3.5" /> Upload file
-                </button>
+                {canMutate && (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      onChange={handleUploadFile}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={handleUploadClick}
+                      disabled={uploadingName !== null}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                    >
+                      <FaCloudArrowUp className="w-3.5 h-3.5" /> Upload file
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={fetchFiles}
                   disabled={filesLoading}
@@ -381,7 +392,7 @@ export default function DataRoomPage() {
                 >
                   {filesLoading ? 'Refreshing...' : 'Refresh'}
                 </button>
-                {drivePickerKey && (
+                {canMutate && drivePickerKey && (
                   <button
                     onClick={handlePickFolder}
                     disabled={pickerBusy}
@@ -392,7 +403,7 @@ export default function DataRoomPage() {
                     {pickerBusy ? 'Opening...' : 'Change folder'}
                   </button>
                 )}
-                <p className="text-xs text-ink-faint ml-auto">Max 50MB per upload.</p>
+                {canMutate && <p className="text-xs text-ink-faint ml-auto">Max 50MB per upload.</p>}
               </div>
 
               {/* Upload progress */}

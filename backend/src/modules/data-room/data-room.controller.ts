@@ -14,11 +14,10 @@ import {
   Req,
   Res,
   StreamableFile,
-  UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import busboy from 'busboy';
-import { CaseMemberGuard } from '../auth/case-member.guard';
+import { RequireRole } from '../auth/require-role.decorator';
 import { Public } from '../auth/public.decorator';
 import { DataRoomService } from './data-room.service';
 import { DriveFile } from './google-drive.service';
@@ -47,7 +46,7 @@ interface PublicDataRoomConnection {
 /**
  * Two prefixes intentionally split on one controller via per-route paths:
  *
- * - `cases/:caseId/data-room/...` — case-scoped, gated by `CaseMemberGuard`.
+ * - `cases/:caseId/data-room/...` — case-scoped, gated by `RoleGuard` (`viewer`+).
  * - `data-room/oauth-callback` — public OAuth landing, gated by HMAC `state`.
  *
  * The OAuth callback can't sit under `cases/:caseId/...` because Google's
@@ -77,15 +76,13 @@ export class DataRoomController {
 
   /**
    * Initiate OAuth — returns the consent URL. The frontend navigates to it.
-   * Owner-only: guests can browse the data room but not connect/disconnect it.
+   * Viewers can browse the data room but not connect/disconnect it.
    */
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('editor')
   @Post('cases/:caseId/data-room/connect')
   connect(
     @Param('caseId', new ParseUUIDPipe()) caseId: string,
-    @Req() req: Request,
   ): { url: string } {
-    DataRoomService.requireOwner((req as any).caseMembership?.role);
     return { url: this.service.getAuthUrl(caseId) };
   }
 
@@ -115,7 +112,7 @@ export class DataRoomController {
    * backend (`stripCredentials` projection). 404-on-absent matches the OpenAPI
    * contract — the frontend api-client maps 404 → `null` for the consumer.
    */
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('viewer')
   @Get('cases/:caseId/data-room')
   async get(@Param('caseId', new ParseUUIDPipe()) caseId: string) {
     const conn = await this.service.getConnection(caseId);
@@ -125,14 +122,12 @@ export class DataRoomController {
     return this.stripCredentials(conn);
   }
 
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('editor')
   @Patch('cases/:caseId/data-room/folder')
   async setFolder(
     @Param('caseId', new ParseUUIDPipe()) caseId: string,
     @Body() dto: SetFolderDto,
-    @Req() req: Request,
   ) {
-    DataRoomService.requireOwner((req as any).caseMembership?.role);
     return this.stripCredentials(await this.service.setFolder(caseId, dto.folderId));
   }
 
@@ -145,30 +140,28 @@ export class DataRoomController {
    * pattern for Google Picker integration. Do not expose this endpoint to
    * non-owners.
    */
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('viewer')
   @Get('cases/:caseId/data-room/access-token')
   async getAccessToken(
     @Param('caseId', new ParseUUIDPipe()) caseId: string,
     @Req() req: Request,
   ): Promise<{ accessToken: string; expiresAt: string }> {
-    DataRoomService.requireOwner((req as any).caseMembership?.role);
+    DataRoomService.requireWriteAccess((req as any).caseMembership?.role);
     return this.service.getAccessToken(caseId);
   }
 
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('editor')
   @Delete('cases/:caseId/data-room')
   @HttpCode(204)
   async disconnect(
     @Param('caseId', new ParseUUIDPipe()) caseId: string,
-    @Req() req: Request,
   ): Promise<void> {
-    DataRoomService.requireOwner((req as any).caseMembership?.role);
     await this.service.disconnect(caseId);
   }
 
   // ----------------------------- Files -----------------------------
 
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('viewer')
   @Get('cases/:caseId/data-room/files')
   async listFiles(
     @Param('caseId', new ParseUUIDPipe()) caseId: string,
@@ -182,7 +175,7 @@ export class DataRoomController {
    * known) `Content-Length` before the stream starts. RFC 5987 fallback for
    * non-ASCII filenames.
    */
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('viewer')
   @Get('cases/:caseId/data-room/files/:fileId/download')
   async download(
     @Param('caseId', new ParseUUIDPipe()) caseId: string,
@@ -215,15 +208,13 @@ export class DataRoomController {
    * fire after partial transmission, so every response path checks
    * `headersSent` first.
    */
-  @UseGuards(CaseMemberGuard)
+  @RequireRole('editor')
   @Post('cases/:caseId/data-room/files')
   async upload(
     @Param('caseId', new ParseUUIDPipe()) caseId: string,
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    DataRoomService.requireOwner((req as any).caseMembership?.role);
-
     const safeRespond = (status: number, body: unknown) => {
       if (res.headersSent) return;
       res.status(status).json(body);

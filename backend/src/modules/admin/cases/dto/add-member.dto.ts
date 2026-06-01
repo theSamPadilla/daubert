@@ -5,6 +5,6 @@ export class AddMemberDto {
   @IsUUID()
   userId: string;
 
-  @IsIn(['owner', 'guest'])
+  @IsIn(['owner', 'editor', 'viewer'])
   role: CaseRole;
 }

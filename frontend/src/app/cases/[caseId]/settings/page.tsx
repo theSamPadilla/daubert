@@ -1,0 +1,569 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { FaArrowLeft, FaPlus, FaTrash, FaCopy, FaCheck, FaXmark } from 'react-icons/fa6';
+import { useCaseContext } from '@/contexts/CaseContext';
+import {
+  apiClient,
+  type CaseMember,
+  type CaseInvite,
+  type CaseRole,
+} from '@/lib/api-client';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function Banner({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 mb-6 rounded border border-red-500/40 bg-red-500/10 text-red-300 text-sm">
+      <span className="flex-1">{message}</span>
+      <button onClick={onClose} className="hover:text-white transition-colors">
+        <FaXmark size={14} />
+      </button>
+    </div>
+  );
+}
+
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-line-strong bg-surface-panel p-6 mb-6">
+      <h2 className="text-base font-semibold text-white mb-4">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Case Info section (owner-only)
+// ---------------------------------------------------------------------------
+
+function CaseInfoSection({ caseId }: { caseId: string }) {
+  const [name, setName] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [links, setLinks] = useState<{ url: string; label: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiClient.getCase(caseId).then((c) => {
+      setName(c.name);
+      setStartDate(c.startDate ?? '');
+      setLinks(c.links ?? []);
+    }).catch((e) => setError(e.message));
+  }, [caseId]);
+
+  const addLink = () => setLinks((prev) => [...prev, { url: '', label: '' }]);
+  const removeLink = (i: number) => setLinks((prev) => prev.filter((_, idx) => idx !== i));
+  const updateLink = (i: number, field: 'url' | 'label', value: string) =>
+    setLinks((prev) => prev.map((l, idx) => (idx === i ? { ...l, [field]: value } : l)));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await apiClient.updateCase(caseId, {
+        name,
+        startDate: startDate || null,
+        links,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SectionCard title="Case info">
+      {error && <Banner message={error} onClose={() => setError(null)} />}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm text-ink-muted mb-1">Case name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-ink-muted mb-1">Start date</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="rounded border border-line-strong bg-surface px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm text-ink-muted">Links</label>
+            <button
+              type="button"
+              onClick={addLink}
+              className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              <FaPlus size={10} /> Add link
+            </button>
+          </div>
+          <div className="space-y-2">
+            {links.map((link, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  value={link.url}
+                  onChange={(e) => updateLink(i, 'url', e.target.value)}
+                  className="flex-1 rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Label"
+                  value={link.label}
+                  onChange={(e) => updateLink(i, 'label', e.target.value)}
+                  className="w-32 rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeLink(i)}
+                  className="text-ink-muted hover:text-red-400 transition-colors"
+                >
+                  <FaTrash size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 pt-1">
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium text-white transition-colors"
+          >
+            {saving ? 'Saving...' : 'Save changes'}
+          </button>
+          {saved && (
+            <span className="flex items-center gap-1.5 text-sm text-green-400">
+              <FaCheck size={12} /> Saved
+            </span>
+          )}
+        </div>
+      </form>
+    </SectionCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Members section (owner + editor)
+// ---------------------------------------------------------------------------
+
+function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: CaseRole }) {
+  const [members, setMembers] = useState<CaseMember[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null); // userId being acted on
+
+  const load = useCallback(() => {
+    apiClient.listCaseMembers(caseId).then(setMembers).catch((e) => setError(e.message));
+  }, [caseId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const ownerCount = members.filter((m) => m.role === 'owner').length;
+
+  const isLastOwner = (m: CaseMember) => m.role === 'owner' && ownerCount === 1;
+
+  const handleRoleChange = async (userId: string, role: CaseRole) => {
+    setBusy(userId);
+    setError(null);
+    try {
+      await apiClient.updateCaseMemberRole(caseId, userId, role);
+      load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to update role');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleRemove = async (userId: string) => {
+    setBusy(userId);
+    setError(null);
+    try {
+      await apiClient.removeCaseMember(caseId, userId);
+      load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to remove member');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const roleLabel = (r: CaseRole) => r.charAt(0).toUpperCase() + r.slice(1);
+
+  return (
+    <SectionCard title="Members">
+      {error && <Banner message={error} onClose={() => setError(null)} />}
+      {members.length === 0 ? (
+        <p className="text-sm text-ink-muted">No members found.</p>
+      ) : (
+        <div className="space-y-2">
+          {members.map((m) => {
+            const canAct = viewerRole === 'owner' && !isLastOwner(m);
+            const isBusy = busy === m.userId;
+            return (
+              <div
+                key={m.userId}
+                className="flex items-center gap-3 px-3 py-2.5 rounded border border-line-strong bg-surface"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white font-medium truncate">
+                    {m.user?.name ?? m.user?.email ?? m.userId}
+                  </p>
+                  {m.user?.email && (
+                    <p className="text-xs text-ink-muted truncate">{m.user.email}</p>
+                  )}
+                </div>
+                {viewerRole === 'owner' ? (
+                  <div
+                    title={isLastOwner(m) ? 'Cannot change — last owner' : undefined}
+                  >
+                    <select
+                      value={m.role}
+                      disabled={isBusy || isLastOwner(m)}
+                      onChange={(e) => handleRoleChange(m.userId, e.target.value as CaseRole)}
+                      className="rounded border border-line-strong bg-surface px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <option value="owner">Owner</option>
+                      <option value="editor">Editor</option>
+                      <option value="viewer">Viewer</option>
+                    </select>
+                  </div>
+                ) : (
+                  <span className="text-xs text-ink-muted">{roleLabel(m.role)}</span>
+                )}
+                {viewerRole === 'owner' && (
+                  <div title={isLastOwner(m) ? 'Cannot remove — last owner' : 'Remove member'}>
+                    <button
+                      disabled={isBusy || isLastOwner(m)}
+                      onClick={() => handleRemove(m.userId)}
+                      className="text-ink-muted hover:text-red-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <FaTrash size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Invites section (owner-only)
+// ---------------------------------------------------------------------------
+
+function InvitesSection({ caseId }: { caseId: string }) {
+  const [invites, setInvites] = useState<CaseInvite[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState<string | null>(null);
+
+  // Create form state
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'editor' | 'viewer'>('viewer');
+  const [message, setMessage] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [newInvite, setNewInvite] = useState<CaseInvite | null>(null);
+
+  const load = useCallback(() => {
+    apiClient.listInvites(caseId).then((all) =>
+      setInvites(all.filter((inv) => !inv.usedAt))
+    ).catch((e) => setError(e.message));
+  }, [caseId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const inviteLink = (code: string) =>
+    `${window.location.origin}/invite/${code}`;
+
+  const copyLink = (code: string, id: string) => {
+    navigator.clipboard.writeText(inviteLink(code)).then(() => {
+      setCopied(id);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  };
+
+  const handleRevoke = async (inviteId: string) => {
+    setRevoking(inviteId);
+    setError(null);
+    try {
+      await apiClient.revokeInvite(caseId, inviteId);
+      setInvites((prev) => prev.filter((i) => i.id !== inviteId));
+      if (newInvite?.id === inviteId) setNewInvite(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to revoke');
+    } finally {
+      setRevoking(null);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    setError(null);
+    try {
+      const inv = await apiClient.createInvite(caseId, {
+        email,
+        role,
+        message: message || undefined,
+      });
+      setInvites((prev) => [inv, ...prev]);
+      setNewInvite(inv);
+      setEmail('');
+      setMessage('');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to create invite');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <SectionCard title="Invites">
+      {error && <Banner message={error} onClose={() => setError(null)} />}
+
+      {/* New invite form */}
+      <form onSubmit={handleCreate} className="space-y-3 mb-5 pb-5 border-b border-line-strong">
+        <p className="text-sm font-medium text-white">Create invite</p>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="flex-1 rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as 'editor' | 'viewer')}
+            className="rounded border border-line-strong bg-surface px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="viewer">Viewer</option>
+            <option value="editor">Editor</option>
+          </select>
+        </div>
+        <textarea
+          placeholder="Optional message to invitee"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={2}
+          className="w-full rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+        />
+        <button
+          type="submit"
+          disabled={creating}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium text-white transition-colors"
+        >
+          <FaPlus size={11} />
+          {creating ? 'Creating...' : 'Create invite'}
+        </button>
+      </form>
+
+      {/* New invite link callout */}
+      {newInvite && (
+        <div className="mb-4 rounded border border-blue-500/30 bg-blue-500/10 px-3 py-2.5">
+          <p className="text-xs text-blue-300 mb-1.5 font-medium">Invite created — share this link:</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-xs text-white break-all">{inviteLink(newInvite.code)}</code>
+            <button
+              onClick={() => copyLink(newInvite.code, newInvite.id)}
+              className="flex-shrink-0 text-ink-muted hover:text-white transition-colors"
+              title="Copy link"
+            >
+              {copied === newInvite.id ? <FaCheck size={13} className="text-green-400" /> : <FaCopy size={13} />}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pending invites list */}
+      {invites.length === 0 ? (
+        <p className="text-sm text-ink-muted">No pending invites.</p>
+      ) : (
+        <div className="space-y-2">
+          {invites.map((inv) => (
+            <div
+              key={inv.id}
+              className="flex items-center gap-3 px-3 py-2.5 rounded border border-line-strong bg-surface"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white truncate">{inv.email}</p>
+                <p className="text-xs text-ink-muted">
+                  {inv.role.charAt(0).toUpperCase() + inv.role.slice(1)} &middot; expires{' '}
+                  {new Date(inv.expiresAt).toLocaleDateString()}
+                </p>
+              </div>
+              <button
+                onClick={() => copyLink(inv.code, inv.id)}
+                className="text-ink-muted hover:text-white transition-colors"
+                title="Copy invite link"
+              >
+                {copied === inv.id ? <FaCheck size={13} className="text-green-400" /> : <FaCopy size={13} />}
+              </button>
+              <button
+                disabled={revoking === inv.id}
+                onClick={() => handleRevoke(inv.id)}
+                className="text-ink-muted hover:text-red-400 disabled:opacity-40 transition-colors"
+                title="Revoke invite"
+              >
+                <FaTrash size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Leave case section (all non-viewer roles)
+// ---------------------------------------------------------------------------
+
+function LeaveCaseSection({
+  caseId,
+  viewerRole,
+  ownerCount,
+}: {
+  caseId: string;
+  viewerRole: CaseRole | null;
+  ownerCount: number;
+}) {
+  const router = useRouter();
+  const [leaving, setLeaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Only owners can be the sole owner — editors/viewers can always leave.
+  const isOnlyOwner = viewerRole === 'owner' && ownerCount === 1;
+
+  const handleLeave = async () => {
+    if (
+      !window.confirm(
+        'Are you sure you want to leave this case? You will lose access immediately.'
+      )
+    )
+      return;
+
+    setLeaving(true);
+    setError(null);
+    try {
+      await apiClient.leaveCase(caseId);
+      router.push('/');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to leave case');
+      setLeaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-red-500/30 bg-surface-panel p-6 mb-6">
+      <h2 className="text-base font-semibold text-red-400 mb-1">Leave this case</h2>
+      <p className="text-sm text-ink-muted mb-4">
+        You will immediately lose access to this case and all its investigations.
+      </p>
+      {error && <Banner message={error} onClose={() => setError(null)} />}
+      <div
+        title={
+          isOnlyOwner
+            ? 'Promote another member to owner before leaving.'
+            : undefined
+        }
+        className="inline-block"
+      >
+        <button
+          onClick={handleLeave}
+          disabled={leaving || isOnlyOwner}
+          className="px-4 py-2 rounded border border-red-500/50 text-red-400 text-sm font-medium hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {leaving ? 'Leaving...' : 'Leave case'}
+        </button>
+      </div>
+      {isOnlyOwner && (
+        <p className="mt-2 text-xs text-ink-muted">
+          Promote another member to owner before leaving.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+export default function CaseSettingsPage() {
+  const { caseId, viewerRole } = useCaseContext();
+  const router = useRouter();
+
+  // Redirect viewers — they have no settings to view
+  useEffect(() => {
+    if (viewerRole === 'viewer') {
+      router.replace(`/cases/${caseId}/investigations`);
+    }
+  }, [viewerRole, caseId, router]);
+
+  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [ownerCount, setOwnerCount] = useState(0);
+
+  useEffect(() => {
+    if (viewerRole && viewerRole !== 'viewer') {
+      apiClient.listCaseMembers(caseId).then((members) => {
+        setOwnerCount(members.filter((m) => m.role === 'owner').length);
+      }).catch(() => {/* non-critical; leave button falls back to enabled */});
+    }
+  }, [caseId, viewerRole]);
+
+  if (viewerRole === 'viewer') return null;
+
+  return (
+    <div className="min-h-screen bg-surface text-white">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-surface border-b border-line-strong px-6 py-4 flex items-center gap-4">
+        <a
+          href={`/cases/${caseId}/investigations`}
+          className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-white transition-colors"
+        >
+          <FaArrowLeft size={12} />
+          Back
+        </a>
+        <h1 className="text-base font-semibold text-white">Case settings</h1>
+      </div>
+
+      {/* Body */}
+      <div className="max-w-2xl mx-auto px-6 py-8">
+        {globalError && <Banner message={globalError} onClose={() => setGlobalError(null)} />}
+
+        {viewerRole === 'owner' && <CaseInfoSection caseId={caseId} />}
+
+        {(viewerRole === 'owner' || viewerRole === 'editor') && (
+          <MembersSection caseId={caseId} viewerRole={viewerRole} />
+        )}
+
+        {viewerRole === 'owner' && <InvitesSection caseId={caseId} />}
+
+        <LeaveCaseSection caseId={caseId} viewerRole={viewerRole} ownerCount={ownerCount} />
+      </div>
+    </div>
+  );
+}

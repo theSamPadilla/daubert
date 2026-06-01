@@ -1,8 +1,9 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CaseMemberEntity } from '../../database/entities/case-member.entity';
+import { CaseMemberEntity, CaseRole } from '../../database/entities/case-member.entity';
 import { AccessPrincipal } from './access-principal';
+import { roleAtLeast } from './require-role.decorator';
 
 @Injectable()
 export class CaseAccessService {
@@ -33,6 +34,28 @@ export class CaseAccessService {
     });
     if (!membership) {
       throw new ForbiddenException('You do not have access to this case');
+    }
+    return membership;
+  }
+
+  /**
+   * Assert that the principal can access the case AND has at least `minRole`.
+   * Script principals are admitted unconditionally (they have no role concept —
+   * the script token's case binding is the access control). User principals
+   * must be members with sufficient role.
+   *
+   * Returns the membership for user principals (so callers can branch on the
+   * role for response shaping); returns null for script principals.
+   */
+  async assertRole(
+    principal: AccessPrincipal,
+    caseId: string,
+    minRole: CaseRole,
+  ): Promise<CaseMemberEntity | null> {
+    const membership = await this.assertAccess(principal, caseId);
+    if (!membership) return null; // script principal
+    if (!roleAtLeast(membership.role, minRole)) {
+      throw new ForbiddenException(`Requires role '${minRole}' or higher`);
     }
     return membership;
   }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
 import {
   FaPen, FaChevronRight, FaChevronDown, FaArrowLeft,
-  FaFileLines, FaChartLine, FaTableList,
+  FaFileLines, FaChartLine, FaTableList, FaGear,
 } from 'react-icons/fa6';
 
 const PRODUCTION_TYPE_ORDER = ['report', 'chart', 'chronology'] as const;
@@ -48,7 +48,9 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
     onEditInvestigation,
   } = ctx.sidebar;
 
-  const { productions, investigationsVersion } = ctx;
+  const { productions, investigationsVersion, viewerRole } = ctx;
+  const canMutate = viewerRole === 'owner' || viewerRole === 'editor';
+  const canManageCase = viewerRole === 'owner';
   const searchParams = useSearchParams();
   const onInvestigationsRoute = !!pathname?.startsWith(`/cases/${caseId}/investigations`);
   const onProductionsRoute = !!pathname?.startsWith(`/cases/${caseId}/productions`);
@@ -117,26 +119,30 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
               {caseName || 'Loading...'}
             </p>
           </div>
-          <button
-            onClick={() => setExhibitOpen(true)}
-            className="shrink-0 text-[10px] font-mono uppercase tracking-[0.12em] px-2 py-0.5 rounded border border-[#D1D5DB] text-[#5B6473] hover:text-[#0B1220] hover:border-[#9CA3AF] transition-colors"
-            title="Create exhibit from investigations and productions"
-          >
-            + Exhibit
-          </button>
+          {canMutate && (
+            <button
+              onClick={() => setExhibitOpen(true)}
+              className="shrink-0 text-[10px] font-mono uppercase tracking-[0.12em] px-2 py-0.5 rounded border border-[#D1D5DB] text-[#5B6473] hover:text-[#0B1220] hover:border-[#9CA3AF] transition-colors"
+              title="Create exhibit from investigations and productions"
+            >
+              + Exhibit
+            </button>
+          )}
         </div>
       </div>
 
       {/* Investigation header */}
       <div className="px-3 py-2 flex items-center justify-between border-b border-line-strong">
         <span className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.14em]">Investigations</span>
-        <button
-          onClick={() => ctx.openNewPrimary('investigation')}
-          className="text-ink-faint hover:text-ink text-xs transition-colors"
-          title="New investigation"
-        >
-          +
-        </button>
+        {canMutate && (
+          <button
+            onClick={() => ctx.openNewPrimary('investigation')}
+            className="text-ink-faint hover:text-ink text-xs transition-colors"
+            title="New investigation"
+          >
+            +
+          </button>
+        )}
       </div>
 
       {/* Investigation list */}
@@ -171,13 +177,15 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                     : <FaChevronRight size={9} />}
                 </button>
                 <span className="truncate flex-1 text-xs font-medium">{inv.name}</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onEditInvestigation?.(inv); }}
-                  className="px-0.5 text-ink-faint hover:text-ink opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Edit investigation"
-                >
-                  <FaPen size={10} />
-                </button>
+                {canMutate && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onEditInvestigation?.(inv); }}
+                    className="px-0.5 text-ink-faint hover:text-ink opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Edit investigation"
+                  >
+                    <FaPen size={10} />
+                  </button>
+                )}
               </div>
 
               {/* Traces under active investigation */}
@@ -207,7 +215,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                       </button>
                     </div>
                   ))}
-                  {onAddTrace && (
+                  {canMutate && onAddTrace && (
                     <button
                       onClick={onAddTrace}
                       className="flex items-center gap-1.5 pl-3 pr-2 py-1 w-full text-left text-ink-faint/60 hover:text-ink-faint transition-colors"
@@ -230,13 +238,15 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
         <div className="mt-2 border-t border-line-strong">
           <div className="px-3 py-2 flex items-center justify-between border-b border-line-strong">
             <span className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.14em]">Productions</span>
-            <button
-              onClick={() => ctx.openNewPrimary('production')}
-              className="text-ink-faint hover:text-ink text-xs transition-colors"
-              title="New production"
-            >
-              +
-            </button>
+            {canMutate && (
+              <button
+                onClick={() => ctx.openNewPrimary('production')}
+                className="text-ink-faint hover:text-ink text-xs transition-colors"
+                title="New production"
+              >
+                +
+              </button>
+            )}
           </div>
           {(() => {
             const list = productions || [];
@@ -334,6 +344,19 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           );
         })()}
       </div>
+
+      {/* Settings link — visible to owners and editors */}
+      {canMutate && (
+        <div className="border-t border-line-strong px-3 py-2 shrink-0">
+          <button
+            onClick={() => router.push(`/cases/${caseId}/settings`)}
+            className="flex items-center gap-2 text-ink-faint hover:text-ink text-xs w-full transition-colors"
+          >
+            <FaGear size={11} />
+            <span>Settings</span>
+          </button>
+        </div>
+      )}
 
       {activeInvestigationId && scriptRuns && onSelectScriptRun && (
         <ScriptsPanel

@@ -1,4 +1,5 @@
 import { CaseEntity } from './case.entity';
+import { CaseInviteEntity } from './case-invite.entity';
 import { CaseMemberEntity } from './case-member.entity';
 import { ConversationEntity } from './conversation.entity';
 import { DataRoomConnectionEntity } from './data-room-connection.entity';
@@ -12,6 +13,7 @@ import { UserEntity } from './user.entity';
 
 export const entities = [
   CaseEntity,
+  CaseInviteEntity,
   CaseMemberEntity,
   ConversationEntity,
   DataRoomConnectionEntity,

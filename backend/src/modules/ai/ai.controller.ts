@@ -26,7 +26,7 @@ export class AiController {
     // Verify case access: script run → investigation → case
     const inv = await this.invRepo.findOneBy({ id: run.investigationId });
     if (!inv) throw new NotFoundException(`Investigation ${run.investigationId} not found`);
-    await this.caseAccess.assertAccess(getPrincipal(req), inv.caseId);
+    await this.caseAccess.assertRole(getPrincipal(req), inv.caseId, 'editor');
 
     const { savedRun } = await this.scriptExecutionService.execute(
       run.investigationId,

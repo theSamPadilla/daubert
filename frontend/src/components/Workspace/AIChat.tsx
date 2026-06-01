@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiClient, type Conversation, type ChatMessage } from '@/lib/api-client';
+import { useCaseContext } from '@/contexts/CaseContext';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
@@ -316,6 +317,9 @@ interface AIChatProps {
 }
 
 export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, onProductionUpdated }: AIChatProps) {
+  const { viewerRole } = useCaseContext();
+  const canMutate = viewerRole === 'owner' || viewerRole === 'editor';
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<LocalMessage[]>([]);
@@ -898,6 +902,13 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
             {/* Error */}
             {fileError && (
               <p className="text-xs text-red-400 mb-1.5 font-medium">{fileError}</p>
+            )}
+
+            {/* Read-only mode note for viewers */}
+            {!canMutate && (
+              <p className="text-[11px] text-ink-faint mb-1.5">
+                Read-only mode — the AI can answer but not modify the case.
+              </p>
             )}
 
             {/* Input row */}

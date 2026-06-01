@@ -36,6 +36,7 @@ interface SelectionDetailsPanelProps {
   onBundleAllInbound: (walletId: string, color: string) => void;
   onDeleteAllInbound: (walletId: string) => void;
   onRefreshScriptRuns: () => Promise<void>;
+  canMutate?: boolean;
 }
 
 export function SelectionDetailsPanel(props: SelectionDetailsPanelProps) {
@@ -46,6 +47,7 @@ export function SelectionDetailsPanel(props: SelectionDetailsPanelProps) {
     toggleEdgeBundle, updateEdgeBundle, deleteEdgeBundle,
     onFetchHistory, onBundleAllOutbound, onDeleteAllOutbound,
     onBundleAllInbound, onDeleteAllInbound, onRefreshScriptRuns,
+    canMutate = true,
   } = props;
 
   const detailsPanelRef = useRef<DetailsPanelHandle>(null);
@@ -61,7 +63,7 @@ export function SelectionDetailsPanel(props: SelectionDetailsPanelProps) {
       onClose={() => { setSelectedItem(null); graphRef.current?.unselectAll(); }}
       className="absolute bottom-4 left-4"
       width="w-[420px]"
-      actions={selectedItem.type === 'wallet' ? (
+      actions={canMutate && selectedItem.type === 'wallet' ? (
         <WalletHeaderActions
           wallet={selectedItem.data as WalletNode}
           onEdit={() => detailsPanelRef.current?.startEdit()}
@@ -73,7 +75,7 @@ export function SelectionDetailsPanel(props: SelectionDetailsPanelProps) {
           }}
           onColorChange={(color) => updateWallet(selectedItem.data.parentTrace, selectedItem.data.id, { color })}
         />
-      ) : selectedItem.type === 'transaction' ? (
+      ) : canMutate && selectedItem.type === 'transaction' ? (
         <TransactionHeaderActions
           transaction={selectedItem.data as TransactionEdge}
           onEdit={() => detailsPanelRef.current?.startEdit()}

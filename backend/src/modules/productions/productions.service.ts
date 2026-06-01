@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ProductionEntity, ProductionType } from '../../database/entities/production.entity';
 import { CaseAccessService } from '../auth/case-access.service';
 import { AccessPrincipal } from '../auth/access-principal';
+import { CaseRole } from '../../database/entities/case-member.entity';
 import { CreateProductionDto } from './dto/create-production.dto';
 import { UpdateProductionDto } from './dto/update-production.dto';
 import { HighlightColor, isHighlightColor } from './chronology-highlights';
@@ -36,21 +37,21 @@ export class ProductionsService {
   ) {}
 
   async findAllForCase(caseId: string, principal: AccessPrincipal, type?: ProductionType) {
-    await this.caseAccess.assertAccess(principal, caseId);
+    await this.caseAccess.assertRole(principal, caseId, 'viewer');
     const where: any = { caseId };
     if (type) where.type = type;
     return this.repo.find({ where, order: { createdAt: 'ASC' } });
   }
 
-  async findOne(id: string, principal: AccessPrincipal) {
+  async findOne(id: string, principal: AccessPrincipal, minRole: CaseRole = 'viewer') {
     const production = await this.repo.findOneBy({ id });
     if (!production) throw new NotFoundException(`Production ${id} not found`);
-    await this.caseAccess.assertAccess(principal, production.caseId);
+    await this.caseAccess.assertRole(principal, production.caseId, minRole);
     return production;
   }
 
   async create(caseId: string, dto: CreateProductionDto, principal: AccessPrincipal) {
-    await this.caseAccess.assertAccess(principal, caseId);
+    await this.caseAccess.assertRole(principal, caseId, 'editor');
     const data: Record<string, unknown> = dto.type === ProductionType.CHRONOLOGY
       ? seedChronologyData(dto.data as Record<string, unknown> | undefined) as unknown as Record<string, unknown>
       : dto.data;
@@ -63,7 +64,7 @@ export class ProductionsService {
       throw new BadRequestException('`data` and `ops` are mutually exclusive');
     }
 
-    const production = await this.findOne(id, principal);
+    const production = await this.findOne(id, principal, 'editor');
 
     if (dto.name !== undefined) production.name = dto.name;
     if (dto.type !== undefined) production.type = dto.type;
@@ -78,7 +79,7 @@ export class ProductionsService {
   }
 
   async remove(id: string, principal: AccessPrincipal) {
-    const production = await this.findOne(id, principal);
+    const production = await this.findOne(id, principal, 'editor');
     await this.repo.remove(production);
   }
 }

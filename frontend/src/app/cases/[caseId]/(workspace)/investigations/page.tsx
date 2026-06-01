@@ -88,7 +88,8 @@ function InvestigationsWorkspace() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
-  const { updateSidebar, reloadInvestigations } = useCaseContext();
+  const { updateSidebar, reloadInvestigations, viewerRole } = useCaseContext();
+  const canMutate = viewerRole === 'owner' || viewerRole === 'editor';
 
   const { loading, scriptRuns, reloadCurrent, refreshScriptRuns } = useInvestigationLoader({
     activeInvestigationId,
@@ -133,7 +134,9 @@ function InvestigationsWorkspace() {
     addTrace, updateNodePosition, updateWallet, updateGroup,
     deleteWallet, deleteTransaction, toggleTraceVisibility, toggleTraceCollapsed,
     addLabel, deleteLabel,
-    setSelectedItem, setSelectedNodeIds, setSelectedEdgeIds, setPanelMode, setContextMenu,
+    setSelectedItem, setSelectedNodeIds, setSelectedEdgeIds, setPanelMode,
+    // Viewers see no context menu — mutation items would always 403
+    setContextMenu: canMutate ? setContextMenu : () => {},
     onFetchHistory: handleFetchHistory,
     resolveFocusItem,
   });
@@ -237,10 +240,10 @@ function InvestigationsWorkspace() {
             {investigation && (
               <CanvasToolPill
                 onRefresh={reloadCurrent}
-                onUndo={undo}
-                canUndo={canUndo}
-                onRedo={redo}
-                canRedo={canRedo}
+                onUndo={canMutate ? undo : () => {}}
+                canUndo={canMutate && canUndo}
+                onRedo={canMutate ? redo : () => {}}
+                canRedo={canMutate && canRedo}
               />
             )}
             {investigation && (
@@ -255,11 +258,13 @@ function InvestigationsWorkspace() {
                     Search
                   </button>
                 )}
-                <QuickAddInput
-                  investigationId={investigation.id}
-                  onResolveAddress={(prefill) => setPanelMode({ type: 'createWallet', prefill })}
-                  onResolveTransaction={(prefill) => setPanelMode({ type: 'createTransaction', prefill })}
-                />
+                {canMutate && (
+                  <QuickAddInput
+                    investigationId={investigation.id}
+                    onResolveAddress={(prefill) => setPanelMode({ type: 'createWallet', prefill })}
+                    onResolveTransaction={(prefill) => setPanelMode({ type: 'createTransaction', prefill })}
+                  />
+                )}
               </div>
             )}
             {loading ? (
@@ -276,7 +281,7 @@ function InvestigationsWorkspace() {
               />
             )}
 
-            {(selectedNodeIds.length >= 2 || selectedEdgeIds.length >= 2) && (
+            {canMutate && (selectedNodeIds.length >= 2 || selectedEdgeIds.length >= 2) && (
               <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-20">
                 {selectedNodeIds.length >= 2 && (
                   <div className="w-80 bg-surface-panel border border-line-strong rounded-lg shadow-2xl max-h-[60vh] flex flex-col">
@@ -320,24 +325,25 @@ function InvestigationsWorkspace() {
                 allWallets={allWallets}
                 graphRef={graphRef}
                 activeInvestigationId={activeInvestigationId}
-                updateWallet={updateWallet}
-                deleteWallet={deleteWallet}
-                updateTransaction={updateTransaction}
-                deleteTransaction={deleteTransaction}
-                updateTrace={updateTrace}
-                deleteTrace={deleteTrace}
-                updateGroup={updateGroup}
-                deleteGroup={deleteGroup}
-                setNodeGroup={setNodeGroup}
-                toggleEdgeBundle={toggleEdgeBundle}
-                updateEdgeBundle={updateEdgeBundle}
-                deleteEdgeBundle={deleteEdgeBundle}
+                updateWallet={canMutate ? updateWallet : () => {}}
+                deleteWallet={canMutate ? deleteWallet : () => {}}
+                updateTransaction={canMutate ? updateTransaction : () => {}}
+                deleteTransaction={canMutate ? deleteTransaction : () => {}}
+                updateTrace={canMutate ? updateTrace : () => {}}
+                deleteTrace={canMutate ? deleteTrace : () => {}}
+                updateGroup={canMutate ? updateGroup : () => {}}
+                deleteGroup={canMutate ? deleteGroup : () => {}}
+                setNodeGroup={canMutate ? setNodeGroup : () => {}}
+                toggleEdgeBundle={canMutate ? toggleEdgeBundle : () => {}}
+                updateEdgeBundle={canMutate ? updateEdgeBundle : () => {}}
+                deleteEdgeBundle={canMutate ? deleteEdgeBundle : () => {}}
                 onFetchHistory={handleFetchHistory}
-                onBundleAllOutbound={handleBundleAllOutbound}
-                onDeleteAllOutbound={handleDeleteAllOutbound}
-                onBundleAllInbound={handleBundleAllInbound}
-                onDeleteAllInbound={handleDeleteAllInbound}
+                onBundleAllOutbound={canMutate ? handleBundleAllOutbound : () => {}}
+                onDeleteAllOutbound={canMutate ? handleDeleteAllOutbound : () => {}}
+                onBundleAllInbound={canMutate ? handleBundleAllInbound : () => {}}
+                onDeleteAllInbound={canMutate ? handleDeleteAllInbound : () => {}}
                 onRefreshScriptRuns={refreshScriptRuns}
+                canMutate={canMutate}
               />
             )}
 
@@ -376,7 +382,7 @@ function InvestigationsWorkspace() {
         />
       )}
 
-      {investigation && (
+      {canMutate && investigation && (
         <CreationPanels
           panelMode={panelMode}
           investigation={investigation}

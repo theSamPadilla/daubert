@@ -10,7 +10,7 @@ import { EncryptionService } from './encryption.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([DataRoomConnectionEntity]),
-    // CaseMemberGuard is provided + exported by AuthModule; importing it here
+    // RoleGuard is provided + exported by AuthModule; importing it here
     // makes the guard usable without re-registering its dependencies.
     AuthModule,
   ],

@@ -4,8 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { firebaseAdminProvider } from './firebase-admin.provider';
 import { AuthGuard } from './auth.guard';
 import { AuthController } from './auth.controller';
-import { CaseMemberGuard } from './case-member.guard';
-import { IsAdminGuard } from './admin.guard';
+import { RoleGuard } from './role.guard';
+import { OrgRoleGuard } from './org-role.guard';
 import { CaseAccessService } from './case-access.service';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
@@ -25,10 +25,10 @@ import { ScriptModule } from '../script/script.module';
       provide: APP_GUARD,
       useClass: AuthGuard,
     },
-    CaseMemberGuard,
-    IsAdminGuard,
+    RoleGuard,
+    OrgRoleGuard,
     CaseAccessService,
   ],
-  exports: [firebaseAdminProvider, CaseMemberGuard, IsAdminGuard, CaseAccessService, TypeOrmModule],
+  exports: [firebaseAdminProvider, RoleGuard, OrgRoleGuard, CaseAccessService, TypeOrmModule],
 })
 export class AuthModule {}

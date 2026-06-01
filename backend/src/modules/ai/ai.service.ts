@@ -19,6 +19,7 @@ import { LabelAnchor } from '../traces/label-schema';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import {
   AGENT_TOOLS,
+  READ_ONLY_AGENT_TOOLS,
   GET_CASE_DATA_TOOL,
   GET_INVESTIGATION_TOOL,
   GET_SKILL_TOOL,
@@ -36,6 +37,8 @@ import {
   SKILL_NAMES,
   getSkillContent,
 } from './tools';
+import { roleAtLeast } from '../auth/require-role.decorator';
+import { CaseRole } from '../../database/entities/case-member.entity';
 import { stripTraceForAgent, filterTraceData } from './investigation-data.utils';
 import { AttachmentDto } from './dto/chat-message.dto';
 import { buildAttachmentBlocks } from './attachment-blocks';
@@ -282,14 +285,20 @@ export class AiService {
     private readonly dataRoomRepo: Repository<DataRoomConnectionEntity>,
   ) {}
 
+  /** Select the tool set appropriate for the caller's role. */
+  pickToolsForRole(viewerRole: CaseRole): typeof AGENT_TOOLS {
+    return roleAtLeast(viewerRole, 'editor') ? AGENT_TOOLS : READ_ONLY_AGENT_TOOLS;
+  }
+
   async *streamChat(
     conversationId: string,
     userId: string,
     userMessage: string | undefined,
-    caseId?: string,
-    investigationId?: string,
-    attachments?: AttachmentDto[],
-    model?: string,
+    caseId: string | undefined,
+    investigationId: string | undefined,
+    attachments: AttachmentDto[] | undefined,
+    model: string | undefined,
+    viewerRole: CaseRole,
   ): AsyncGenerator<SseEvent> {
     await this.conversationsService.findOne(conversationId, userId);
 
@@ -368,6 +377,10 @@ export class AiService {
       void this.generateTitle(conversationId, userId, userMessage);
     }
 
+    // Pick the tool set based on the caller's role.
+    // Viewers get READ_ONLY_AGENT_TOOLS; editors and owners get AGENT_TOOLS.
+    const tools = this.pickToolsForRole(viewerRole);
+
     let prevToolKey = '';
 
     // Container id from the prior iteration. The compact-2026-01-12 beta
@@ -403,7 +416,7 @@ export class AiService {
         for await (const event of this.llm.streamChat({
           system,
           messages,
-          tools: AGENT_TOOLS as Anthropic.Beta.BetaTool[],
+          tools: tools as Anthropic.Beta.BetaTool[],
           model,
           containerId,
         })) {

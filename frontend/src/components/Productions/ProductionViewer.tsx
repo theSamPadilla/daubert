@@ -343,7 +343,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
             Production
           </span>
-          {editingName ? (
+          {onUpdate && editingName ? (
             <input
               autoFocus
               type="text"
@@ -358,9 +358,9 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
             />
           ) : (
             <h2
-              onClick={() => { setNameDraft(production.name); setEditingName(true); }}
-              title="Click to rename"
-              className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate cursor-pointer hover:text-brand transition-colors"
+              onClick={onUpdate ? () => { setNameDraft(production.name); setEditingName(true); } : undefined}
+              title={onUpdate ? 'Click to rename' : undefined}
+              className={`text-[15px] font-semibold tracking-tight text-[#0B1220] truncate ${onUpdate ? 'cursor-pointer hover:text-brand transition-colors' : ''}`}
             >
               {production.name}
             </h2>
@@ -386,7 +386,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
           >
             <FaDownload className="w-3 h-3" /> Export
           </button>
-          {production.type === 'report' && (
+          {onUpdate && production.type === 'report' && (
             <button
               onClick={() => setEditing(!editing)}
               className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"

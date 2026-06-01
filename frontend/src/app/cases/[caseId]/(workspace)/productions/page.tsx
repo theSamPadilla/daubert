@@ -33,7 +33,8 @@ export default function ProductionsPage() {
   const router = useRouter();
   const caseId = params.caseId as string;
   const selectedId = searchParams.get('id');
-  const { productions, setProductions } = useCaseContext();
+  const { productions, setProductions, viewerRole } = useCaseContext();
+  const canMutate = viewerRole === 'owner' || viewerRole === 'editor';
 
   const selected = selectedId ? productions.find((p) => p.id === selectedId) ?? null : null;
 
@@ -52,14 +53,14 @@ export default function ProductionsPage() {
     return (
       <ProductionViewer
         production={selected}
-        onUpdate={(updated) => {
+        onUpdate={canMutate ? (updated) => {
           setProductions((prev) => prev.map((p) => p.id === updated.id ? updated : p));
-        }}
-        onDelete={async () => {
+        } : undefined}
+        onDelete={canMutate ? async () => {
           await apiClient.deleteProduction(selected.id);
           setProductions((prev) => prev.filter((p) => p.id !== selected.id));
           router.replace(`/cases/${caseId}/productions`, { scroll: false });
-        }}
+        } : undefined}
       />
     );
   }

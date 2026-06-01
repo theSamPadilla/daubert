@@ -1,13 +1,13 @@
 import {
-  Body, Controller, Delete, HttpCode, Param, ParseUUIDPipe, Patch, Post, UseGuards,
+  Body, Controller, Delete, HttpCode, Param, ParseUUIDPipe, Patch, Post,
 } from '@nestjs/common';
-import { IsAdminGuard } from '../../auth/admin.guard';
+import { RequireOrgRole } from '../../auth/require-org-role.decorator';
 import { LabeledEntitiesService } from '../../labeled-entities/labeled-entities.service';
 import { CreateLabeledEntityDto } from '../../labeled-entities/dto/create-labeled-entity.dto';
 import { UpdateLabeledEntityDto } from '../../labeled-entities/dto/update-labeled-entity.dto';
 
 @Controller('admin/labeled-entities')
-@UseGuards(IsAdminGuard)
+@RequireOrgRole('admin')
 export class AdminLabeledEntitiesController {
   constructor(private readonly service: LabeledEntitiesService) {}
 

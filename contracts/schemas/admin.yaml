@@ -1,12 +1,18 @@
+OrgRole:
+  type: string
+  enum: [admin, member, guest]
+  description: Org-wide role on the platform. Distinct from case-level roles.
+
 CaseRole:
   type: string
   enum:
     - owner
-    - guest
+    - editor
+    - viewer
 
 AdminUser:
   type: object
-  required: [id, email, name, linked, createdAt, updatedAt]
+  required: [id, email, name, linked, orgRole, createdAt, updatedAt]
   properties:
     id:
       type: string
@@ -22,6 +28,8 @@ AdminUser:
     linked:
       type: boolean
       description: True once the user has signed in to Firebase and the UID has been bound to this row.
+    orgRole:
+      $ref: '#/OrgRole'
     createdAt:
       type: string
       format: date-time

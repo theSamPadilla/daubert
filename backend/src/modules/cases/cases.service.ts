@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { CaseEntity } from '../../database/entities/case.entity';
 import { CaseMemberEntity, CaseRole } from '../../database/entities/case-member.entity';
 import { UserEntity } from '../../database/entities/user.entity';
@@ -28,7 +28,8 @@ export class CasesService {
     }));
   }
 
-  async findOne(id: string) {
+  /** Internal helper — returns the raw entity; never exposed over the wire. */
+  private async fetchOne(id: string): Promise<CaseEntity> {
     const c = await this.repo.findOne({
       where: { id },
       relations: ['investigations'],
@@ -37,8 +38,21 @@ export class CasesService {
     return c;
   }
 
+  async findOne(id: string, viewerRole?: CaseRole) {
+    const c = await this.repo.findOne({
+      where: { id },
+      relations: ['investigations', 'members', 'members.user'],
+    });
+    if (!c) throw new NotFoundException(`Case ${id} not found`);
+    if (viewerRole === 'viewer') {
+      const { members: _, ...rest } = c;
+      return { ...rest, role: viewerRole };
+    }
+    return { ...c, role: viewerRole };
+  }
+
   async update(id: string, dto: UpdateCaseDto) {
-    const c = await this.findOne(id);
+    const c = await this.fetchOne(id);
     if (dto.name !== undefined) c.name = dto.name;
     if (dto.startDate !== undefined) c.startDate = dto.startDate ? new Date(dto.startDate) : null;
     if (dto.links !== undefined) c.links = dto.links;
@@ -46,7 +60,7 @@ export class CasesService {
   }
 
   async remove(id: string) {
-    const c = await this.findOne(id);
+    const c = await this.fetchOne(id);
     await this.repo.remove(c);
   }
 
@@ -85,7 +99,7 @@ export class CasesService {
   }
 
   async listMembers(caseId: string) {
-    await this.findOne(caseId);
+    await this.fetchOne(caseId);
     const memberships = await this.memberRepo.find({
       where: { caseId },
       relations: ['user'],
@@ -103,6 +117,7 @@ export class CasesService {
             name: m.user.name,
             avatarUrl: m.user.avatarUrl,
             linked: !!m.user.firebaseUid,
+            orgRole: m.user.orgRole,
             createdAt: m.user.createdAt,
             updatedAt: m.user.updatedAt,
           }
@@ -113,7 +128,7 @@ export class CasesService {
   }
 
   async addMember(caseId: string, userId: string, role: CaseRole) {
-    await this.findOne(caseId);
+    await this.fetchOne(caseId);
 
     const existing = await this.memberRepo.findOneBy({ caseId, userId });
     if (existing) {
@@ -124,20 +139,54 @@ export class CasesService {
     return this.memberRepo.save(member);
   }
 
-  async updateMemberRole(caseId: string, userId: string, role: CaseRole) {
-    const member = await this.memberRepo.findOneBy({ caseId, userId });
-    if (!member) {
-      throw new NotFoundException(`Membership for user ${userId} on case ${caseId} not found`);
+  private async assertNotLastOwnerOperation(
+    manager: EntityManager,
+    caseId: string,
+    targetUserId: string,
+    intent: 'demote' | 'remove',
+  ): Promise<void> {
+    const target = await manager.findOneBy(CaseMemberEntity, { caseId, userId: targetUserId });
+    if (!target || target.role !== 'owner') return;
+    const ownerCount = await manager.count(CaseMemberEntity, { where: { caseId, role: 'owner' as CaseRole } });
+    if (ownerCount <= 1) {
+      throw new ConflictException(
+        intent === 'demote'
+          ? 'Cannot change role: this case must have at least one owner. Promote another member first.'
+          : 'Cannot remove member: this case must have at least one owner. Promote another member first.',
+      );
     }
-    member.role = role;
-    return this.memberRepo.save(member);
+  }
+
+  async updateMemberRole(caseId: string, userId: string, role: CaseRole) {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.findOne(CaseEntity, { where: { id: caseId }, lock: { mode: 'pessimistic_write' } });
+      if (role !== 'owner') {
+        await this.assertNotLastOwnerOperation(manager, caseId, userId, 'demote');
+      }
+      const member = await manager.findOneBy(CaseMemberEntity, { caseId, userId });
+      if (!member) throw new NotFoundException(`Membership for user ${userId} on case ${caseId} not found`);
+      member.role = role;
+      return manager.save(member);
+    });
   }
 
   async removeMember(caseId: string, userId: string) {
-    const member = await this.memberRepo.findOneBy({ caseId, userId });
-    if (!member) {
-      throw new NotFoundException(`Membership for user ${userId} on case ${caseId} not found`);
-    }
-    await this.memberRepo.remove(member);
+    return this.dataSource.transaction(async (manager) => {
+      await manager.findOne(CaseEntity, { where: { id: caseId }, lock: { mode: 'pessimistic_write' } });
+      await this.assertNotLastOwnerOperation(manager, caseId, userId, 'remove');
+      const member = await manager.findOneBy(CaseMemberEntity, { caseId, userId });
+      if (!member) throw new NotFoundException(`Membership for user ${userId} on case ${caseId} not found`);
+      await manager.remove(member);
+    });
+  }
+
+  async leave(caseId: string, userId: string) {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.findOne(CaseEntity, { where: { id: caseId }, lock: { mode: 'pessimistic_write' } });
+      await this.assertNotLastOwnerOperation(manager, caseId, userId, 'remove');
+      const member = await manager.findOneBy(CaseMemberEntity, { caseId, userId });
+      if (!member) throw new NotFoundException(`You are not a member of case ${caseId}`);
+      await manager.remove(member);
+    });
   }
 }

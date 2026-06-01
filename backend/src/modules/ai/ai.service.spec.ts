@@ -13,6 +13,8 @@ import { InvestigationEntity } from '../../database/entities/investigation.entit
 import { TraceEntity } from '../../database/entities/trace.entity';
 import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { AGENT_TOOLS, READ_ONLY_AGENT_TOOLS } from './tools';
+import { CaseRole } from '../../database/entities/case-member.entity';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -233,5 +235,64 @@ describe('AiService — executeTool label cases', () => {
 
       expect(savedData.labels[0].anchor).toMatchObject({ type: 'node', anchorId: 'n1' });
     });
+  });
+});
+
+// ── Role-based tool registry ───────────────────────────────────────────────
+
+describe('AiService — pickToolsForRole', () => {
+  let aiService: AiService;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AiService,
+        { provide: ConversationsService, useValue: { findOne: jest.fn() } },
+        { provide: ScriptExecutionService, useValue: { execute: jest.fn(), listRuns: jest.fn() } },
+        { provide: LabeledEntitiesService, useValue: { lookupByAddress: jest.fn(), findAll: jest.fn() } },
+        { provide: ProductionsService, useValue: { create: jest.fn(), findOne: jest.fn(), findAllForCase: jest.fn(), update: jest.fn() } },
+        { provide: TracesService, useValue: { findOne: jest.fn(), update: jest.fn() } },
+        { provide: AnthropicProvider, useValue: {} },
+        { provide: getRepositoryToken(MessageEntity), useValue: { find: jest.fn() } },
+        { provide: getRepositoryToken(InvestigationEntity), useValue: { find: jest.fn(), findOneBy: jest.fn() } },
+        { provide: getRepositoryToken(TraceEntity), useValue: { findOneBy: jest.fn(), save: jest.fn() } },
+        { provide: getRepositoryToken(DataRoomConnectionEntity), useValue: { find: jest.fn() } },
+      ],
+    }).compile();
+
+    aiService = module.get<AiService>(AiService);
+  });
+
+  it.each<[CaseRole, typeof AGENT_TOOLS]>([
+    ['viewer', READ_ONLY_AGENT_TOOLS],
+    ['editor', AGENT_TOOLS],
+    ['owner', AGENT_TOOLS],
+  ])('role=%s → %s tool set', (role, expected) => {
+    const result = aiService.pickToolsForRole(role);
+    expect(result).toBe(expected);
+  });
+
+  it('viewer gets fewer tools than editor', () => {
+    const viewerTools = aiService.pickToolsForRole('viewer');
+    const editorTools = aiService.pickToolsForRole('editor');
+    expect(viewerTools.length).toBeLessThan(editorTools.length);
+  });
+
+  it('editor and owner get the same (full) tool set', () => {
+    expect(aiService.pickToolsForRole('editor')).toBe(aiService.pickToolsForRole('owner'));
+  });
+
+  it('viewer tool set does not include execute_script', () => {
+    const viewerTools = aiService.pickToolsForRole('viewer');
+    const names = viewerTools.map((t: any) => t.name);
+    expect(names).not.toContain('execute_script');
+  });
+
+  it('editor tool set includes execute_script', () => {
+    const editorTools = aiService.pickToolsForRole('editor');
+    const names = editorTools.map((t: any) => t.name);
+    expect(names).toContain('execute_script');
   });
 });

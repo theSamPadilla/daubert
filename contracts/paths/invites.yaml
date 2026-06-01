@@ -1,0 +1,160 @@
+/cases/{caseId}/invites:
+  post:
+    summary: Create an invite for a case
+    operationId: createCaseInvite
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/invites.yaml#/CreateInviteRequest'
+    responses:
+      '201':
+        description: Created invite
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/invites.yaml#/CaseInvite'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  get:
+    summary: List invites for a case
+    operationId: listCaseInvites
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Case invites
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/invites.yaml#/CaseInvite'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/cases/{caseId}/invites/{inviteId}:
+  delete:
+    summary: Revoke (delete) an invite
+    operationId: revokeCaseInvite
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: inviteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Revoked
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/invites/{code}:
+  get:
+    summary: Look up an invite by code (public, no auth required)
+    operationId: lookupInvite
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Invite lookup result
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/invites.yaml#/CaseInviteLookup'
+      '404':
+        description: Invite not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/invites/{code}/accept:
+  post:
+    summary: Accept an invite by code
+    operationId: acceptInvite
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Invite accepted
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/invites.yaml#/AcceptInviteResponse'
+      '403':
+        description: Email mismatch — caller is signed in with a different account
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Invite not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '410':
+        description: Invite already used or expired
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

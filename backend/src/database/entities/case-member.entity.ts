@@ -3,7 +3,7 @@ import { BaseEntity } from './base.entity';
 import { UserEntity } from './user.entity';
 import { CaseEntity } from './case.entity';
 
-export type CaseRole = 'owner' | 'guest';
+export type CaseRole = 'owner' | 'editor' | 'viewer';
 
 @Entity('case_members')
 @Unique(['userId', 'caseId'])
@@ -22,6 +22,6 @@ export class CaseMemberEntity extends BaseEntity {
   @JoinColumn({ name: 'case_id' })
   case: CaseEntity;
 
-  @Column({ type: 'varchar', default: 'guest' })
+  @Column({ type: 'varchar', default: 'viewer' })
   role: CaseRole;
 }

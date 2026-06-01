@@ -59,7 +59,7 @@ export default function AdminCasesPage() {
       setExpandedId(caseId);
       if (!members[caseId]) loadMembers(caseId);
       if (!addMemberForm[caseId]) {
-        setAddMemberForm((f) => ({ ...f, [caseId]: { userId: '', role: 'guest' } }));
+        setAddMemberForm((f) => ({ ...f, [caseId]: { userId: '', role: 'viewer' } }));
       }
     }
   };
@@ -97,7 +97,7 @@ export default function AdminCasesPage() {
     if (!f?.userId) return;
     try {
       await apiClient.adminAddCaseMember(caseId, f);
-      setAddMemberForm((s) => ({ ...s, [caseId]: { userId: '', role: 'guest' } }));
+      setAddMemberForm((s) => ({ ...s, [caseId]: { userId: '', role: 'viewer' } }));
       await loadMembers(caseId);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to add member');
@@ -135,7 +135,7 @@ export default function AdminCasesPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">Cases</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Create cases, assign owners, manage guest access.
+            Create cases, assign owners, manage member access.
           </p>
         </div>
         <button
@@ -218,7 +218,7 @@ export default function AdminCasesPage() {
                 const expanded = expandedId === c.id;
                 const caseMembers = members[c.id] ?? [];
                 const candidates = candidateUsers(c.id);
-                const memForm = addMemberForm[c.id] ?? { userId: '', role: 'guest' as CaseRole };
+                const memForm = addMemberForm[c.id] ?? { userId: '', role: 'viewer' as CaseRole };
 
                 return (
                   <Fragment key={c.id}>
@@ -272,7 +272,8 @@ export default function AdminCasesPage() {
                                             className="rounded border border-line-strong bg-surface-panel px-2 py-1 text-xs text-white"
                                           >
                                             <option value="owner">owner</option>
-                                            <option value="guest">guest</option>
+                                            <option value="editor">editor</option>
+                                            <option value="viewer">viewer</option>
                                           </select>
                                         </td>
                                         <td className="py-2 text-right">
@@ -318,7 +319,8 @@ export default function AdminCasesPage() {
                                     onChange={(e) => setAddMemberForm((s) => ({ ...s, [c.id]: { ...memForm, role: e.target.value as CaseRole } }))}
                                     className="rounded border border-line-strong bg-surface-panel px-2 py-1 text-xs text-white"
                                   >
-                                    <option value="guest">guest</option>
+                                    <option value="viewer">viewer</option>
+                                    <option value="editor">editor</option>
                                     <option value="owner">owner</option>
                                   </select>
                                   <button

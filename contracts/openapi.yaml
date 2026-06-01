@@ -56,6 +56,20 @@ paths:
     $ref: './paths/admin-cases.yaml#/~1admin~1cases~1{id}~1members'
   /admin/cases/{id}/members/{userId}:
     $ref: './paths/admin-cases.yaml#/~1admin~1cases~1{id}~1members~1{userId}'
+  /cases/{caseId}/members:
+    $ref: './paths/cases.yaml#/~1cases~1{caseId}~1members'
+  /cases/{caseId}/members/{userId}:
+    $ref: './paths/cases.yaml#/~1cases~1{caseId}~1members~1{userId}'
+  /cases/{caseId}/members/me/leave:
+    $ref: './paths/cases.yaml#/~1cases~1{caseId}~1members~1me~1leave'
+  /cases/{caseId}/invites:
+    $ref: './paths/invites.yaml#/~1cases~1{caseId}~1invites'
+  /cases/{caseId}/invites/{inviteId}:
+    $ref: './paths/invites.yaml#/~1cases~1{caseId}~1invites~1{inviteId}'
+  /invites/{code}:
+    $ref: './paths/invites.yaml#/~1invites~1{code}'
+  /invites/{code}/accept:
+    $ref: './paths/invites.yaml#/~1invites~1{code}~1accept'
   /admin/labeled-entities:
     $ref: './paths/admin-labeled-entities.yaml#/~1admin~1labeled-entities'
   /admin/labeled-entities/{id}:
@@ -139,6 +153,8 @@ components:
       $ref: './schemas/productions.yaml#/CreateProductionRequest'
     UpdateProductionRequest:
       $ref: './schemas/productions.yaml#/UpdateProductionRequest'
+    OrgRole:
+      $ref: './schemas/admin.yaml#/OrgRole'
     CaseRole:
       $ref: './schemas/admin.yaml#/CaseRole'
     AdminUser:
@@ -153,6 +169,16 @@ components:
       $ref: './schemas/admin.yaml#/AddMemberRequest'
     UpdateMemberRoleRequest:
       $ref: './schemas/admin.yaml#/UpdateMemberRoleRequest'
+    InviteRole:
+      $ref: './schemas/invites.yaml#/InviteRole'
+    CaseInvite:
+      $ref: './schemas/invites.yaml#/CaseInvite'
+    CaseInviteLookup:
+      $ref: './schemas/invites.yaml#/CaseInviteLookup'
+    CreateInviteRequest:
+      $ref: './schemas/invites.yaml#/CreateInviteRequest'
+    AcceptInviteResponse:
+      $ref: './schemas/invites.yaml#/AcceptInviteResponse'
     DataRoomStatus:
       $ref: './schemas/data-room.yaml#/DataRoomStatus'
     DataRoomConnection:

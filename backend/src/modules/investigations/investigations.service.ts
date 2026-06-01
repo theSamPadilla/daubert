@@ -8,6 +8,7 @@ import { ScriptRunEntity } from '../../database/entities/script-run.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
 import { CaseAccessService } from '../auth/case-access.service';
 import { AccessPrincipal } from '../auth/access-principal';
+import { CaseRole } from '../../database/entities/case-member.entity';
 import { CreateInvestigationDto } from './dto/create-investigation.dto';
 import { UpdateInvestigationDto } from './dto/update-investigation.dto';
 
@@ -34,13 +35,13 @@ export class InvestigationsService {
     });
   }
 
-  async findOne(id: string, principal: AccessPrincipal) {
+  async findOne(id: string, principal: AccessPrincipal, minRole: CaseRole = 'viewer') {
     const inv = await this.repo.findOne({
       where: { id },
       relations: ['traces'],
     });
     if (!inv) throw new NotFoundException(`Investigation ${id} not found`);
-    await this.caseAccess.assertAccess(principal, inv.caseId);
+    await this.caseAccess.assertRole(principal, inv.caseId, minRole);
     return inv;
   }
 
@@ -57,14 +58,14 @@ export class InvestigationsService {
   }
 
   async update(id: string, dto: UpdateInvestigationDto, principal: AccessPrincipal) {
-    const inv = await this.findOne(id, principal);
+    const inv = await this.findOne(id, principal, 'editor');
     if (dto.name !== undefined) inv.name = dto.name;
     if (dto.notes !== undefined) inv.notes = dto.notes;
     return this.repo.save(inv);
   }
 
   async remove(id: string, principal: AccessPrincipal) {
-    const inv = await this.findOne(id, principal);
+    const inv = await this.findOne(id, principal, 'editor');
     await this.repo.remove(inv);
   }
 
@@ -74,7 +75,7 @@ export class InvestigationsService {
   // references are remapped. Script runs, conversations, and productions are
   // intentionally not copied — they belong to the original.
   async duplicate(id: string, principal: AccessPrincipal) {
-    const source = await this.findOne(id, principal); // loads traces relation
+    const source = await this.findOne(id, principal, 'editor'); // loads traces relation
 
     const newInv = await this.repo.save(
       this.repo.create({

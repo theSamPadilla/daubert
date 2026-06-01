@@ -9,18 +9,19 @@ import {
   Req,
   HttpCode,
   Logger,
-  UseGuards,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { ConversationsService } from './conversations.service';
 import { AiService } from './ai.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
-import { CaseMemberGuard } from '../auth/case-member.guard';
-import { requireUserPrincipal } from '../auth/access-principal';
+import { RequireRole } from '../auth/require-role.decorator';
+import { requireUserPrincipal, getPrincipal } from '../auth/access-principal';
+import { CaseAccessService } from '../auth/case-access.service';
+import { CaseRole } from '../../database/entities/case-member.entity';
 
 @Controller('cases/:caseId/conversations')
-@UseGuards(CaseMemberGuard)
+@RequireRole('viewer')
 export class CaseConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
 
@@ -42,6 +43,7 @@ export class ConversationsController {
   constructor(
     private readonly conversationsService: ConversationsService,
     private readonly aiService: AiService,
+    private readonly caseAccess: CaseAccessService,
   ) {}
 
   @Get(':id/messages')
@@ -66,6 +68,19 @@ export class ConversationsController {
     const userId = requireUserPrincipal(req);
     await this.conversationsService.findOne(id, userId);
 
+    // Resolve the caller's role on the case so we can filter the tool registry.
+    // assertRole at 'viewer' admits all members and throws for non-members.
+    // Script principals are admitted unconditionally and return null — treat
+    // them as 'editor' since script tokens carry implicit write capability.
+    // Default to 'viewer' when no caseId is provided so the tool registry
+    // fails closed rather than open.
+    let viewerRole: CaseRole = 'viewer';
+    if (body.caseId) {
+      const principal = getPrincipal(req);
+      const membership = await this.caseAccess.assertRole(principal, body.caseId, 'viewer');
+      viewerRole = membership?.role ?? 'editor';
+    }
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -79,7 +94,7 @@ export class ConversationsController {
     );
 
     try {
-      for await (const event of this.aiService.streamChat(id, userId, body.message, body.caseId, body.investigationId, body.attachments, body.model)) {
+      for await (const event of this.aiService.streamChat(id, userId, body.message, body.caseId, body.investigationId, body.attachments, body.model, viewerRole)) {
         res.write(
           `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`,
         );

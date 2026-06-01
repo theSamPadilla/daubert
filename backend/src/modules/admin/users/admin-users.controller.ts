@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
-import { IsAdminGuard } from '../../auth/admin.guard';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { RequireOrgRole } from '../../auth/require-org-role.decorator';
 import { UsersService } from '../../users/users.service';
 import { AdminUsersService } from './admin-users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -13,7 +13,7 @@ import { CreateUserDto } from './dto/create-user.dto';
  *      to support this gap.
  */
 @Controller('admin/users')
-@UseGuards(IsAdminGuard)
+@RequireOrgRole('admin')
 export class AdminUsersController {
   constructor(
     private readonly users: UsersService,
@@ -29,6 +29,7 @@ export class AdminUsersController {
       name: u.name,
       avatarUrl: u.avatarUrl,
       linked: !!u.firebaseUid,
+      orgRole: u.orgRole,
       createdAt: u.createdAt,
       updatedAt: u.updatedAt,
     }));

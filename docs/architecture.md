@@ -1,6 +1,6 @@
 # Architecture
 
-Daubert is a The ai platform for tech experts. Monorepo with a Next.js frontend, NestJS backend, and OpenAPI contracts.
+Daubert is a multi-user AI platform for blockchain investigations. Users belong to **organizations**; **cases** live inside an organization; case members get a per-case role. Monorepo with a Next.js frontend, NestJS backend, and OpenAPI contracts.
 
 ## Repository Layout
 
@@ -51,22 +51,36 @@ daubert/
 
 NestJS app on port 8081. CORS enabled. Global `ValidationPipe` with whitelist + transform.
 
-### Module Map (12 modules)
+### Module Map (16 modules)
 
 | Module | Responsibility |
 |--------|---------------|
-| `AuthModule` | Firebase token verification, user identification, CaseMemberGuard, IsAdminGuard |
-| `UsersModule` | User entity |
-| `CasesModule` | Case CRUD, case membership |
+| `AuthModule` | Firebase token verification, user identification, guards (RoleGuard, OrgRoleGuard, SuperAdminGuard), `AccessPrincipal`, `CaseAccessService` |
+| `UsersModule` | User entity, self profile (`/users/me`) |
+| `OrganizationsModule` | Org CRUD, org membership, org invites (`/orgs/:org/*`, `/org-invites/*`) |
+| `CasesModule` | Case CRUD, case membership (scoped under an org via `case.orgId`) |
+| `InvitesModule` | Case invites (`/cases/:caseId/invites`, `/invites/:code`) |
 | `InvestigationsModule` | Investigation CRUD |
 | `TracesModule` | Trace CRUD, graph data, node/edge/group/bundle ops, import-transactions |
 | `BlockchainModule` | Multi-chain tx fetching via provider pattern (Etherscan, Tronscan) |
-| `AiModule` | Agentic chat, LLM provider, tool dispatch, script execution (isolated-vm sandbox) |
-| `LabeledEntitiesModule` | Crypto entity registry (public read, admin CUD) |
+| `AiModule` | Agentic chat, LLM provider, tool dispatch, script execution orchestration |
+| `ScriptModule` | isolated-vm V8 sandbox + signed script token issuance/verification |
+| `ExternalTraceModule` | Script-callable trace import endpoint (`/external/trace/*`), token-authed |
+| `LabeledEntitiesModule` | Crypto entity registry (public read, superadmin CUD) |
 | `ProductionsModule` | Reports (HTML/TipTap), charts (Chart.js), chronologies |
 | `DataRoomModule` | Google Drive integration — OAuth, file list/upload/download, encrypted tokens |
 | `ExportModule` | PDF/HTML export via server-side Puppeteer |
-| `AdminModule` | Admin CRUD for users, cases, members, labeled entities |
+| `SuperadminModule` | Platform-level admin CRUD across orgs, cases, users, labeled entities (`/superadmin/*`) |
+
+### Auth Model
+
+Three role layers, evaluated by `AccessPrincipal`:
+
+1. **Platform** — `user.is_super_admin` (boolean). Gated by `@RequireSuperAdmin()` + `SuperAdminGuard`. Used by `/superadmin/*` routes.
+2. **Organization** — `organization_members.role` ∈ {`admin`, `member`, `guest`}. Gated by `@RequireOrgRole(...)` + `OrgRoleGuard`. Used by `/orgs/:org/*` routes. Org `admin` implies owner access to every case in the org.
+3. **Case** — `case_members.role` ∈ {`owner`, `editor`, `viewer`}. Gated by `@RequireRole(...)` + `RoleGuard`. Used by `/cases/:caseId/*` routes and everything under a case (investigations, traces, productions, conversations, data-room).
+
+Scripts execute under a signed token issued by `ScriptModule` and carry the initiator's case context so loopback calls (e.g., to `/external/trace/*`) remain role-bound.
 
 ### All Endpoints
 
@@ -74,11 +88,45 @@ NestJS app on port 8081. CORS enabled. Global `ValidationPipe` with whitelist + 
 GET    /health
 GET    /auth/me
 
+GET    /users/me
+PATCH  /users/me
+
+# Organizations
+GET    /orgs/:org
+PATCH  /orgs/:org
+GET    /orgs/:org/members
+POST   /orgs/:org/members
+PATCH  /orgs/:org/members/:userId
+DELETE /orgs/:org/members/:userId
+POST   /orgs/:org/members/me/leave
+
+# Organization invites
+POST   /orgs/:org/invites
+GET    /orgs/:org/invites
+DELETE /orgs/:org/invites/:inviteId
+GET    /org-invites/:code               (@Public — preview by code)
+POST   /org-invites/:code/accept
+
+# Cases (scoped to the caller's org membership)
+POST   /cases
 GET    /cases
 GET    /cases/:caseId
 PATCH  /cases/:caseId
 DELETE /cases/:caseId
+GET    /cases/:caseId/members
+POST   /cases/:caseId/members
+PATCH  /cases/:caseId/members/:userId
+DELETE /cases/:caseId/members/:userId
+POST   /cases/:caseId/members/me/leave
 
+# Case invites
+POST   /cases/:caseId/invites
+GET    /cases/:caseId/invites
+DELETE /cases/:caseId/invites/:inviteId
+GET    /invites/:code                   (@Public — preview by code)
+POST   /invites/:code/accept
+
+# Investigations / traces / blockchain (unchanged)
 GET    /cases/:caseId/investigations
 POST   /cases/:caseId/investigations
 GET    /investigations/:id
@@ -106,12 +154,16 @@ POST   /blockchain/fetch-history
 POST   /blockchain/get-transaction
 POST   /blockchain/get-address-info
 
-POST   /conversations
-GET    /conversations
+# Conversations (scoped to a case)
+POST   /cases/:caseId/conversations
+GET    /cases/:caseId/conversations
 GET    /conversations/:id/messages
 DELETE /conversations/:id
 POST   /conversations/:id/chat          (SSE stream)
 POST   /script-runs/:id/rerun
+
+# Script sandbox loopback (token-authed, called by isolated-vm scripts)
+POST   /external/trace/import           (script token)
 
 GET    /labeled-entities
 GET    /labeled-entities/lookup
@@ -124,32 +176,36 @@ PATCH  /productions/:id
 DELETE /productions/:id
 
 POST   /cases/:caseId/data-room/connect
-GET    /data-room/oauth-callback         (@Public — HMAC state auth)
+GET    /data-room/oauth-callback        (@Public — HMAC state auth)
 GET    /cases/:caseId/data-room
 PATCH  /cases/:caseId/data-room/folder
 GET    /cases/:caseId/data-room/access-token
 DELETE /cases/:caseId/data-room
 GET    /cases/:caseId/data-room/files
 GET    /cases/:caseId/data-room/files/:fileId/download
-POST   /cases/:caseId/data-room/files    (streaming upload via busboy)
+POST   /cases/:caseId/data-room/files   (streaming upload via busboy)
 
 POST   /exports/productions/:id
 POST   /exports/graph
 
-GET    /admin/users
-POST   /admin/users
-DELETE /admin/users/:id
-GET    /admin/cases
-POST   /admin/cases
-DELETE /admin/cases/:id
-GET    /admin/cases/:id/members
-POST   /admin/cases/:id/members
-PATCH  /admin/cases/:id/members/:userId
-DELETE /admin/cases/:id/members/:userId
+# Superadmin (gated by @RequireSuperAdmin)
+GET    /superadmin/users
+POST   /superadmin/users
+PATCH  /superadmin/users/:id/super-admin
+DELETE /superadmin/users/:id
 
-POST   /admin/labeled-entities
-PATCH  /admin/labeled-entities/:id
-DELETE /admin/labeled-entities/:id
+GET    /superadmin/cases
+
+GET    /superadmin/orgs
+GET    /superadmin/orgs/trash
+POST   /superadmin/orgs
+DELETE /superadmin/orgs/:id
+POST   /superadmin/orgs/:id/restore
+POST   /superadmin/orgs/:id/purge
+
+POST   /superadmin/labeled-entities
+PATCH  /superadmin/labeled-entities/:id
+DELETE /superadmin/labeled-entities/:id
 ```
 
 ## Frontend
@@ -160,14 +216,21 @@ Next.js 14 with App Router.
 
 | Route | Purpose |
 |-------|---------|
-| `/` | Case list (home) |
+| `/` | Case list across the user's org memberships |
 | `/login` | Google OAuth sign-in |
+| `/orgs/[orgSlug]` | Org dashboard |
+| `/orgs/[orgSlug]/settings` | Org settings, members, invites |
 | `/cases/[caseId]/investigations` | Investigation workspace (graph + productions) |
 | `/cases/[caseId]/data-room` | Google Drive file browser |
-| `/admin` | Admin dashboard |
-| `/admin/users` | User management |
-| `/admin/cases` | Case management |
-| `/admin/entities` | Labeled entity management |
+| `/cases/[caseId]/productions` | Productions viewer |
+| `/cases/[caseId]/settings` | Case settings, members, invites |
+| `/invite/[code]` | Case invite redemption page |
+| `/org-invite/[code]` | Org invite redemption page |
+| `/superadmin` | Superadmin dashboard |
+| `/superadmin/users` | Platform user management |
+| `/superadmin/orgs` | Org management + trash |
+| `/superadmin/cases` | Cross-org case browser |
+| `/superadmin/entities` | Labeled entity management |
 | `/entities` | Public entity browser |
 | `/entities/[id]` | Entity detail |
 
@@ -193,7 +256,7 @@ The three-column layout lives in `cases/[caseId]/layout.tsx` using `CaseProvider
 
 | Category | Components |
 |----------|-----------|
-| Auth | AuthGuard, AuthProvider, AdminGuard, UserMenu |
+| Auth | AuthGuard, AuthProvider, SuperAdminGuard, UserMenu |
 | Layout | InvestigationsSidebar, Header, NewPrimaryModal |
 | Graph | GraphCanvas, DetailsPanel, FloatingPanel, ContextMenu, SidePanel |
 | Forms | WalletForm, TransactionForm, TraceForm, InvestigationForm, LinkInputModal, TagInput, ColorPicker |

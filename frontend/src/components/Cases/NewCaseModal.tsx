@@ -15,6 +15,7 @@ export type AddResult =
 
 interface NewCaseModalProps {
   open: boolean;
+  orgId: string;
   onClose: () => void;
   onCreated?: (created: Case, results: AddResult[]) => void;
 }
@@ -96,7 +97,7 @@ function ResultRow({ result }: { result: AddResult }) {
 // Modal
 // ---------------------------------------------------------------------------
 
-export function NewCaseModal({ open, onClose, onCreated }: NewCaseModalProps) {
+export function NewCaseModal({ open, orgId, onClose, onCreated }: NewCaseModalProps) {
   const [phase, setPhase] = useState<'form' | 'summary'>('form');
   const [name, setName] = useState('');
   const [summary, setSummary] = useState('');
@@ -159,6 +160,7 @@ export function NewCaseModal({ open, onClose, onCreated }: NewCaseModalProps) {
 
       const created = await apiClient.createCase({
         name: name.trim(),
+        orgId,
         summary: summary.trim() || undefined,
       });
 
@@ -330,7 +332,7 @@ export function NewCaseModal({ open, onClose, onCreated }: NewCaseModalProps) {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={!name.trim() || submitting}
+                disabled={!name.trim() || !orgId || submitting}
                 className="px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Creating...' : 'Create case'}

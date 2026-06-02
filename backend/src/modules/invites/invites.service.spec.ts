@@ -6,6 +6,7 @@ import { InvitesService } from './invites.service';
 import { CaseInviteEntity } from '../../database/entities/case-invite.entity';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { UserEntity } from '../../database/entities/user.entity';
+import { OrganizationMemberEntity } from '../../database/entities/organization-member.entity';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -383,6 +384,28 @@ describe('InvitesService', () => {
       await expect(
         service.accept('bad-code', INVITE_EMAIL, ACCEPTOR_FIREBASE_ID),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('regression: case invite accept does NOT create an organization_members row', async () => {
+      // Case belongs to an org (org-uuid). User accepts a case invite.
+      // No OrganizationMemberEntity row must be created — case membership is
+      // independent of org membership (product decision #4).
+      const invite = makeInvite();
+      const mockManager = setupTransaction(invite, null);
+
+      await service.accept(INVITE_CODE, INVITE_EMAIL, ACCEPTOR_FIREBASE_ID);
+
+      // Verify that manager.create was never called with OrganizationMemberEntity
+      const createCallsWithOrgMember = mockManager.create.mock.calls.filter(
+        (call) => call[0] === OrganizationMemberEntity,
+      );
+      expect(createCallsWithOrgMember).toHaveLength(0);
+
+      // Verify only the CaseMemberEntity row was created
+      const caseMemCreateCalls = mockManager.create.mock.calls.filter(
+        (call) => call[0] === CaseMemberEntity,
+      );
+      expect(caseMemCreateCalls).toHaveLength(1);
     });
   });
 });

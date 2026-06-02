@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as ivm from 'isolated-vm';
 import { ScriptRunEntity } from '../../../database/entities/script-run.entity';
+import { CaseRole } from '../../../database/entities/case-member.entity';
 import { ScriptTokenService } from '../../script/script-token.service';
 
 const TIMEOUT_MS = 30_000;
@@ -94,8 +95,9 @@ export class ScriptExecutionService {
     caseId: string,
     name: string,
     code: string,
+    role: CaseRole,
   ): Promise<ScriptResult & { savedRun: ScriptRunEntity }> {
-    const token = this.scriptToken.sign(caseId);
+    const token = this.scriptToken.sign(caseId, role);
     const result = await this.runInIsolate(code, token);
 
     const savedRun = await this.scriptRunRepo.save(

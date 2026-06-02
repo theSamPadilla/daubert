@@ -1,8 +1,9 @@
 import { ForbiddenException } from '@nestjs/common';
+import { CaseRole } from '../../database/entities/case-member.entity';
 
 export type AccessPrincipal =
   | { kind: 'user'; userId: string }
-  | { kind: 'script'; caseId: string };
+  | { kind: 'script'; caseId: string; role: CaseRole };
 
 /**
  * Read the principal off a request. Throws if neither auth path attached one

@@ -70,15 +70,16 @@ export class ConversationsController {
 
     // Resolve the caller's role on the case so we can filter the tool registry.
     // assertRole at 'viewer' admits all members and throws for non-members.
-    // Script principals are admitted unconditionally and return null — treat
-    // them as 'editor' since script tokens carry implicit write capability.
     // Default to 'viewer' when no caseId is provided so the tool registry
     // fails closed rather than open.
     let viewerRole: CaseRole = 'viewer';
     if (body.caseId) {
       const principal = getPrincipal(req);
       const membership = await this.caseAccess.assertRole(principal, body.caseId, 'viewer');
-      viewerRole = membership?.role ?? 'editor';
+      // membership is non-null here: requireUserPrincipal above already rejected
+      // script principals, so this code path only runs for user principals whose
+      // assertRole call returns the membership row.
+      viewerRole = membership!.role;
     }
 
     res.setHeader('Content-Type', 'text/event-stream');

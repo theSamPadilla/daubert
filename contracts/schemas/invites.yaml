@@ -1,6 +1,7 @@
 InviteRole:
   type: string
   enum:
+    - owner
     - editor
     - viewer
 
@@ -78,6 +79,9 @@ CreateInviteRequest:
       format: email
     role:
       $ref: '#/InviteRole'
+    name:
+      type: string
+      description: Optional display name for the invitee. Used to seed the user shell when the invite is created.
     message:
       type: string
 

@@ -1,0 +1,101 @@
+OrgSummary:
+  type: object
+  required: [id, name, slug, memberCount, caseCount, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    slug:
+      type: string
+    memberCount:
+      type: integer
+    caseCount:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+    deletedAt:
+      type: string
+      format: date-time
+      nullable: true
+
+UserSummary:
+  type: object
+  required: [id, email, name, linked, isSuperAdmin, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    name:
+      type: string
+    avatarUrl:
+      type: string
+      nullable: true
+    linked:
+      type: boolean
+      description: True once the user has signed in to Firebase and the UID has been bound to this row.
+    isSuperAdmin:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateOrgRequest:
+  type: object
+  required: [name, firstAdminEmail]
+  properties:
+    name:
+      type: string
+    slug:
+      type: string
+      pattern: '^[a-z0-9-]+$'
+      description: Optional. Auto-derived from name if omitted (collision-suffixed as needed).
+    firstAdminEmail:
+      type: string
+      format: email
+      description: Email of the initial org admin. If the user exists they are promoted; otherwise a shell user is created.
+
+CreateSuperadminUserRequest:
+  type: object
+  required: [email, name]
+  properties:
+    email:
+      type: string
+      format: email
+    name:
+      type: string
+
+SetSuperAdminRequest:
+  type: object
+  required: [value]
+  properties:
+    value:
+      type: boolean
+
+CaseSummary:
+  type: object
+  required: [id, name, orgId, orgName, memberCount, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    orgId:
+      type: string
+      format: uuid
+    orgName:
+      type: string
+    memberCount:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time

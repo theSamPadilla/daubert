@@ -6,6 +6,7 @@ import { InvestigationEntity } from '../../database/entities/investigation.entit
 import { ScriptExecutionService } from './services/script-execution.service';
 import { CaseAccessService } from '../auth/case-access.service';
 import { getPrincipal } from '../auth/access-principal';
+import { CaseRole } from '../../database/entities/case-member.entity';
 
 @Controller()
 export class AiController {
@@ -23,16 +24,22 @@ export class AiController {
     const run = await this.scriptRunRepo.findOneBy({ id });
     if (!run) throw new NotFoundException(`Script run ${id} not found`);
 
-    // Verify case access: script run → investigation → case
     const inv = await this.invRepo.findOneBy({ id: run.investigationId });
     if (!inv) throw new NotFoundException(`Investigation ${run.investigationId} not found`);
-    await this.caseAccess.assertRole(getPrincipal(req), inv.caseId, 'editor');
+
+    const principal = getPrincipal(req);
+    const membership = await this.caseAccess.assertRole(principal, inv.caseId, 'editor');
+    // For user principals, assertRole returned the membership; for script
+    // principals it returned null and the role lives on the principal itself.
+    const role: CaseRole =
+      principal.kind === 'script' ? principal.role : membership!.role;
 
     const { savedRun } = await this.scriptExecutionService.execute(
       run.investigationId,
       inv.caseId,
       run.name,
       run.code,
+      role,
     );
     return savedRun;
   }

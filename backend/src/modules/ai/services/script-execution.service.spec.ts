@@ -1,4 +1,4 @@
-import { Test } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ScriptExecutionService } from './script-execution.service';
@@ -28,11 +28,12 @@ const mockConfig = {
 
 describe('ScriptExecutionService (sandbox)', () => {
   let service: ScriptExecutionService;
+  let module: TestingModule;
 
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    const module = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         ScriptExecutionService,
         { provide: getRepositoryToken(ScriptRunEntity), useValue: mockRepo },
@@ -41,7 +42,7 @@ describe('ScriptExecutionService (sandbox)', () => {
           provide: ScriptTokenService,
           useValue: {
             sign: jest.fn(() => 'mock-token'),
-            verify: jest.fn(() => ({ caseId: 'case-1' })),
+            verify: jest.fn(() => ({ caseId: 'case-1', role: 'viewer' })),
           },
         },
       ],
@@ -53,7 +54,7 @@ describe('ScriptExecutionService (sandbox)', () => {
   // --- Basic execution ---
 
   it('runs simple console.log and captures output', async () => {
-    const { status, output } = await service.execute('inv-1', 'case-1', 'test','console.log("hello world");');
+    const { status, output } = await service.execute('inv-1', 'case-1', 'test','console.log("hello world");', 'viewer');
     expect(status).toBe('success');
     expect(output).toContain('hello world');
   });
@@ -64,7 +65,7 @@ describe('ScriptExecutionService (sandbox)', () => {
       console.log("line 2");
       console.log("line 3");
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).toContain('line 1');
     expect(output).toContain('line 2');
     expect(output).toContain('line 3');
@@ -76,6 +77,7 @@ describe('ScriptExecutionService (sandbox)', () => {
       'case-1',
       'test',
       'throw new Error("boom");',
+      'viewer',
     );
     expect(status).toBe('error');
     expect(output).toContain('boom');
@@ -92,7 +94,7 @@ describe('ScriptExecutionService (sandbox)', () => {
         console.log("BLOCKED: " + e.message);
       }
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).not.toContain('ESCAPED');
     expect(output).toContain('BLOCKED');
   });
@@ -106,7 +108,7 @@ describe('ScriptExecutionService (sandbox)', () => {
         console.log("BLOCKED: " + e.message);
       }
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).not.toContain('ESCAPED');
     expect(output).toContain('BLOCKED');
   });
@@ -120,7 +122,7 @@ describe('ScriptExecutionService (sandbox)', () => {
         console.log("BLOCKED: " + e.message);
       }
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).not.toContain('ESCAPED');
     expect(output).toContain('BLOCKED');
   });
@@ -134,7 +136,7 @@ describe('ScriptExecutionService (sandbox)', () => {
         console.log("BLOCKED: " + e.message);
       }
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).not.toContain('ESCAPED');
     expect(output).toContain('BLOCKED');
   });
@@ -148,7 +150,7 @@ describe('ScriptExecutionService (sandbox)', () => {
         console.log("BLOCKED: " + e.message);
       }
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).not.toContain('ESCAPED');
     expect(output).toContain('BLOCKED');
   });
@@ -161,7 +163,7 @@ describe('ScriptExecutionService (sandbox)', () => {
       console.log("ETH:" + (process.env.ETHERSCAN_API_KEY || "undefined"));
       console.log("TRON:" + (process.env.TRONSCAN_API_KEY || "undefined"));
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).toContain('API:http://localhost:8081');
     expect(output).toContain('ETH:undefined');
     expect(output).toContain('TRON:undefined');
@@ -174,7 +176,7 @@ describe('ScriptExecutionService (sandbox)', () => {
       console.log("DATABASE_URL:" + (process.env.DATABASE_URL || "undefined"));
       console.log("ANTHROPIC_API_KEY:" + (process.env.ANTHROPIC_API_KEY || "undefined"));
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).toContain('HOME:undefined');
     expect(output).toContain('PATH:undefined');
     expect(output).toContain('DATABASE_URL:undefined');
@@ -190,7 +192,7 @@ describe('ScriptExecutionService (sandbox)', () => {
         console.log("FROZEN: " + e.message);
       }
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).toContain('FROZEN');
     expect(output).not.toContain('MUTATED');
   });
@@ -204,7 +206,7 @@ describe('ScriptExecutionService (sandbox)', () => {
       console.log("status:" + res.status);
       console.log("body:" + body);
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).toContain('status:403');
     expect(output).toContain('Blocked');
   });
@@ -214,7 +216,7 @@ describe('ScriptExecutionService (sandbox)', () => {
       const res = await fetch("http://169.254.169.254/latest/meta-data/");
       console.log("status:" + res.status);
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).toContain('status:403');
   });
 
@@ -224,7 +226,7 @@ describe('ScriptExecutionService (sandbox)', () => {
       console.log("status:" + res.status);
       console.log("body:" + await res.text());
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).toContain('status:403');
     expect(output).toContain('Only https');
   });
@@ -234,7 +236,7 @@ describe('ScriptExecutionService (sandbox)', () => {
       const res = await fetch("file:///etc/passwd");
       console.log("status:" + res.status);
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).toContain('status:403');
   });
 
@@ -246,7 +248,7 @@ describe('ScriptExecutionService (sandbox)', () => {
         // infinite CPU loop
       }
     `;
-    const { status } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { status } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(status).toBe('timeout');
   }, 35_000);
 
@@ -256,7 +258,7 @@ describe('ScriptExecutionService (sandbox)', () => {
         // never resolves — simulates a hung fetch or infinite sleep
       });
     `;
-    const { status } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { status } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(status).toBe('timeout');
   }, 35_000);
 
@@ -268,7 +270,7 @@ describe('ScriptExecutionService (sandbox)', () => {
         console.log("x".repeat(100));
       }
     `;
-    const { output } = await service.execute('inv-1', 'case-1', 'test',code);
+    const { output } = await service.execute('inv-1', 'case-1', 'test', code, 'viewer');
     expect(output).toContain('[truncated at 100KB]');
     expect(Buffer.byteLength(output)).toBeLessThanOrEqual(MAX_OUTPUT_BYTES + 200);
   });
@@ -307,7 +309,7 @@ describe('ScriptExecutionService (sandbox)', () => {
   // --- DB persistence ---
 
   it('saves script run to database', async () => {
-    await service.execute('inv-1', 'case-1', 'my-script', 'console.log("saved");');
+    await service.execute('inv-1', 'case-1', 'my-script', 'console.log("saved");', 'editor');
     expect(mockRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         investigationId: 'inv-1',
@@ -317,5 +319,16 @@ describe('ScriptExecutionService (sandbox)', () => {
       }),
     );
     expect(mockRepo.save).toHaveBeenCalled();
+  });
+
+  // --- Role forwarding ---
+
+  describe('execute — role forwarding', () => {
+    it('signs the loopback token with the caller role', async () => {
+      const scriptTokenService = module.get(ScriptTokenService);
+      const signSpy = jest.spyOn(scriptTokenService, 'sign');
+      await service.execute('inv-1', 'case-1', 'demo', 'console.log(1);', 'viewer');
+      expect(signSpy).toHaveBeenCalledWith('case-1', 'viewer');
+    });
   });
 });

@@ -99,6 +99,8 @@ describe('AiService — executeTool label cases', () => {
       const result = await (aiService as any).executeTool(
         toolUse('add_label', { traceId: TRACE_ID, text: 'OFAC SDN', anchor: { type: 'free', x: 100, y: 50 } }),
         CASE_ID,
+        undefined,
+        'editor',
       );
 
       expect(result).toHaveProperty('id');
@@ -111,6 +113,8 @@ describe('AiService — executeTool label cases', () => {
       const result = await (aiService as any).executeTool(
         toolUse('add_label', { traceId: 'irrelevant', text: 'x', anchor: { type: 'free', x: 0, y: 0 } }),
         undefined,
+        undefined,
+        'editor',
       );
       expect(result).toEqual({ error: expect.stringMatching(/case context/i) });
     });
@@ -121,6 +125,8 @@ describe('AiService — executeTool label cases', () => {
       const result = await (aiService as any).executeTool(
         toolUse('add_label', { traceId: OTHER_TRACE_ID, text: 'x', anchor: { type: 'free', x: 0, y: 0 } }),
         CASE_ID,
+        undefined,
+        'editor',
       );
       expect(result).toMatchObject({ error: expect.any(String) });
     });
@@ -142,6 +148,8 @@ describe('AiService — executeTool label cases', () => {
       await (aiService as any).executeTool(
         toolUse('update_label', { traceId: TRACE_ID, labelId: 'l1', text: 'new' }),
         CASE_ID,
+        undefined,
+        'editor',
       );
 
       expect(savedData.labels[0].text).toBe('new');
@@ -154,6 +162,8 @@ describe('AiService — executeTool label cases', () => {
       const result = await (aiService as any).executeTool(
         toolUse('update_label', { traceId: TRACE_ID, labelId: 'nope', text: 'x' }),
         CASE_ID,
+        undefined,
+        'editor',
       );
       expect(result).toMatchObject({ error: expect.stringMatching(/not found/i) });
     });
@@ -175,6 +185,8 @@ describe('AiService — executeTool label cases', () => {
       await (aiService as any).executeTool(
         toolUse('delete_label', { traceId: TRACE_ID, labelId: 'l1' }),
         CASE_ID,
+        undefined,
+        'editor',
       );
 
       expect(savedData.labels).toEqual([]);
@@ -197,6 +209,8 @@ describe('AiService — executeTool label cases', () => {
       await (aiService as any).executeTool(
         toolUse('move_label', { traceId: TRACE_ID, labelId: 'l1', position: { x: 100, y: 200 } }),
         CASE_ID,
+        undefined,
+        'editor',
       );
 
       expect(savedData.labels[0].anchor).toEqual({ type: 'free', x: 100, y: 200 });
@@ -209,6 +223,8 @@ describe('AiService — executeTool label cases', () => {
       const result = await (aiService as any).executeTool(
         toolUse('move_label', { traceId: TRACE_ID, labelId: 'l1', position: { t: 0.5, perpOffset: 0 } }),
         CASE_ID,
+        undefined,
+        'editor',
       );
 
       expect(result).toMatchObject({ error: expect.stringMatching(/free anchor/i) });
@@ -231,6 +247,8 @@ describe('AiService — executeTool label cases', () => {
       await (aiService as any).executeTool(
         toolUse('tether_label', { traceId: TRACE_ID, labelId: 'l1', anchor: { type: 'node', anchorId: 'n1', dx: 10, dy: 0 } }),
         CASE_ID,
+        undefined,
+        'editor',
       );
 
       expect(savedData.labels[0].anchor).toMatchObject({ type: 'node', anchorId: 'n1' });
@@ -284,15 +302,23 @@ describe('AiService — pickToolsForRole', () => {
     expect(aiService.pickToolsForRole('editor')).toBe(aiService.pickToolsForRole('owner'));
   });
 
-  it('viewer tool set does not include execute_script', () => {
+  it('viewer tool set includes execute_script (read-only scripts allowed)', () => {
     const viewerTools = aiService.pickToolsForRole('viewer');
     const names = viewerTools.map((t: any) => t.name);
-    expect(names).not.toContain('execute_script');
+    expect(names).toContain('execute_script');
   });
 
   it('editor tool set includes execute_script', () => {
     const editorTools = aiService.pickToolsForRole('editor');
     const names = editorTools.map((t: any) => t.name);
     expect(names).toContain('execute_script');
+  });
+
+  it('viewer tool set does not include mutating tools', () => {
+    const viewerTools = aiService.pickToolsForRole('viewer');
+    const names = viewerTools.map((t: any) => t.name);
+    for (const mutateName of ['create_production', 'update_production', 'add_label', 'update_label', 'delete_label']) {
+      expect(names).not.toContain(mutateName);
+    }
   });
 });

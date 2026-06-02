@@ -5,6 +5,7 @@ import { ConversationsService } from './conversations.service';
 import { ConversationEntity } from '../../database/entities/conversation.entity';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
+import { CaseAccessService } from '../auth/case-access.service';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,19 @@ const mockMessageRepo = {
 
 const mockMemberRepo = {
   findOneBy: jest.fn(),
+};
+
+// CaseAccessService delegate — internally uses mockMemberRepo so existing
+// test assertions on mockMemberRepo.findOneBy keep working.
+const mockCaseAccess = {
+  assertAccess: jest.fn(async ({ userId }: { userId: string }, caseId: string) => {
+    const membership = await mockMemberRepo.findOneBy({ userId, caseId });
+    if (!membership) {
+      const { ForbiddenException } = await import('@nestjs/common');
+      throw new ForbiddenException('You do not have access to this case');
+    }
+    return membership;
+  }),
 };
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -56,6 +70,10 @@ describe('ConversationsService', () => {
         {
           provide: getRepositoryToken(CaseMemberEntity),
           useValue: mockMemberRepo,
+        },
+        {
+          provide: CaseAccessService,
+          useValue: mockCaseAccess,
         },
       ],
     }).compile();

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { OrgRole, UserEntity } from '../../database/entities/user.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 
 @Injectable()
 export class UsersService {
@@ -51,8 +51,8 @@ export class UsersService {
     await this.repo.remove(user);
   }
 
-  async setOrgRole(userId: string, role: OrgRole): Promise<UserEntity> {
-    await this.repo.update(userId, { orgRole: role });
+  async setSuperAdmin(userId: string, value: boolean): Promise<UserEntity> {
+    await this.repo.update(userId, { isSuperAdmin: value });
     return this.repo.findOneByOrFail({ id: userId });
   }
 }

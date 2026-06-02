@@ -1,0 +1,67 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { SuperAdminGuard } from '@/components/Auth/SuperAdminGuard';
+import { FaUsers, FaFolderOpen, FaTags, FaArrowLeft, FaBuilding } from 'react-icons/fa6';
+
+const NAV = [
+  { href: '/superadmin/orgs', label: 'Orgs', icon: FaBuilding, exact: false },
+  { href: '/superadmin/users', label: 'Users', icon: FaUsers, exact: false },
+  { href: '/superadmin/cases', label: 'Cases', icon: FaFolderOpen, exact: false },
+  { href: '/superadmin/entities', label: 'Entities', icon: FaTags, exact: false },
+];
+
+function Sidebar() {
+  const pathname = usePathname();
+
+  return (
+    <nav className="flex w-56 shrink-0 flex-col border-r border-line-strong bg-surface px-3 py-6">
+      <Link
+        href="/"
+        className="mb-6 flex items-center gap-2 rounded px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-surface-panel hover:text-gray-200"
+      >
+        <FaArrowLeft className="h-3.5 w-3.5" />
+        Back to Cases
+      </Link>
+
+      <h2 className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-ink-faint">
+        Superadmin
+      </h2>
+      <ul className="space-y-1">
+        {NAV.map((item) => {
+          const Icon = item.icon;
+          const active = item.exact
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(item.href + '/');
+          return (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                className={`flex items-center gap-2 rounded px-3 py-2 text-sm transition-colors ${
+                  active
+                    ? 'bg-blue-900/40 text-blue-200'
+                    : 'text-ink-muted hover:bg-surface-panel hover:text-gray-200'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {item.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+export default function SuperadminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <SuperAdminGuard>
+      <div className="flex min-h-screen bg-surface">
+        <Sidebar />
+        <div className="flex-1">{children}</div>
+      </div>
+    </SuperAdminGuard>
+  );
+}

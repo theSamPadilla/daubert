@@ -1,0 +1,419 @@
+/orgs/{org}:
+  get:
+    summary: Get an organization by slug
+    operationId: getOrganization
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    responses:
+      '200':
+        description: Organization
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/organizations.yaml#/Organization'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  patch:
+    summary: Update organization settings (name, slug)
+    operationId: updateOrganization
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/organizations.yaml#/UpdateOrgRequest'
+    responses:
+      '200':
+        description: Updated organization
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/organizations.yaml#/Organization'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '409':
+        description: Slug already in use
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/orgs/{org}/members:
+  get:
+    summary: List members of an organization
+    operationId: listOrganizationMembers
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    responses:
+      '200':
+        description: Organization members
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/organizations.yaml#/OrganizationMember'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    summary: Directly add a user to an organization by email (admin only)
+    operationId: addOrganizationMember
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/organizations.yaml#/AddOrgMemberRequest'
+    responses:
+      '201':
+        description: Membership created
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/organizations.yaml#/OrganizationMember'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '409':
+        description: User is already a member
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/orgs/{org}/members/{userId}:
+  patch:
+    summary: Change a member's org role (admin only)
+    operationId: updateOrganizationMemberRole
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/organizations.yaml#/UpdateOrgMemberRoleRequest'
+    responses:
+      '200':
+        description: Updated membership
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/organizations.yaml#/OrganizationMember'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '409':
+        description: Cannot demote — would leave org with no admins
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    summary: Remove a member from an organization (admin only)
+    operationId: removeOrganizationMember
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Removed
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '409':
+        description: Cannot remove — would leave org with no admins
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/orgs/{org}/members/me/leave:
+  post:
+    summary: Leave an organization (self-leave)
+    operationId: leaveOrganization
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    responses:
+      '204':
+        description: Left
+      '409':
+        description: Cannot leave — you are the last admin
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/orgs/{org}/invites:
+  get:
+    summary: List invites for an organization
+    operationId: listOrganizationInvites
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    responses:
+      '200':
+        description: Organization invites
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/organizations.yaml#/OrganizationInvite'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    summary: Create an org invite
+    operationId: createOrganizationInvite
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/organizations.yaml#/CreateOrgInviteRequest'
+    responses:
+      '201':
+        description: Created invite
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/organizations.yaml#/OrganizationInvite'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/orgs/{org}/invites/{inviteId}:
+  delete:
+    summary: Revoke an org invite
+    operationId: revokeOrganizationInvite
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+      - name: inviteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Revoked
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/org-invites/{code}:
+  get:
+    summary: Look up an org invite by code (public, no auth required)
+    operationId: lookupOrgInvite
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Org invite lookup result
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/organizations.yaml#/OrganizationInviteLookup'
+      '404':
+        description: Invite not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/org-invites/{code}/accept:
+  post:
+    summary: Accept an org invite by code
+    operationId: acceptOrgInvite
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Invite accepted
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/organizations.yaml#/AcceptOrgInviteResponse'
+      '403':
+        description: Email mismatch — caller is signed in with a different account
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Invite not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '410':
+        description: Invite already used or expired
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

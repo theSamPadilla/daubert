@@ -39,6 +39,7 @@ import {
 } from './tools';
 import { roleAtLeast } from '../auth/require-role.decorator';
 import { CaseRole } from '../../database/entities/case-member.entity';
+import { AccessPrincipal } from '../auth/access-principal';
 import { stripTraceForAgent, filterTraceData } from './investigation-data.utils';
 import { AttachmentDto } from './dto/chat-message.dto';
 import { buildAttachmentBlocks } from './attachment-blocks';
@@ -495,7 +496,7 @@ export class AiService {
         for (const toolUse of toolUseBlocks) {
           yield { type: 'tool_start', data: { name: toolUse.name, input: toolUse.input } };
 
-          const result = await this.executeTool(toolUse, caseId, investigationId);
+          const result = await this.executeTool(toolUse, caseId, investigationId, viewerRole);
 
           yield { type: 'tool_done', data: { name: toolUse.name } };
 
@@ -584,15 +585,16 @@ export class AiService {
 
   private async executeTool(
     toolUse: Anthropic.ToolUseBlock,
-    caseId?: string,
-    investigationId?: string,
+    caseId: string | undefined,
+    investigationId: string | undefined,
+    viewerRole: CaseRole,
   ): Promise<unknown> {
     switch (toolUse.name) {
       case GET_CASE_DATA_TOOL.name: {
         if (!caseId) {
           return { error: 'No case context. Ask the user to select an investigation.' };
         }
-        return this.executeCaseDataTool(caseId);
+        return this.executeCaseDataTool(caseId, viewerRole);
       }
 
       case GET_INVESTIGATION_TOOL.name: {
@@ -617,7 +619,7 @@ export class AiService {
           return { error: 'No investigation context. Ask the user to select an investigation.' };
         }
         const { name, code } = toolUse.input as { name: string; code: string };
-        return this.scriptExecutionService.execute(investigationId, caseId, name, code);
+        return this.scriptExecutionService.execute(investigationId, caseId, name, code, viewerRole);
       }
 
       case LIST_SCRIPT_RUNS_TOOL.name: {
@@ -661,7 +663,7 @@ export class AiService {
         return this.productionsService.create(
           caseId,
           { name: input.name, type: input.type as ProductionType, data: input.data },
-          { kind: 'script', caseId },
+          { kind: 'script', caseId, role: viewerRole },
         );
       }
 
@@ -671,13 +673,13 @@ export class AiService {
           return { error: 'No case context. Ask the user to open a case.' };
         }
         if (input.productionId) {
-          return this.productionsService.findOne(input.productionId, { kind: 'script', caseId });
+          return this.productionsService.findOne(input.productionId, { kind: 'script', caseId, role: viewerRole });
         }
         const validTypes = new Set(Object.values(ProductionType));
         const type = input.type && validTypes.has(input.type as ProductionType)
           ? (input.type as ProductionType)
           : undefined;
-        return this.productionsService.findAllForCase(caseId, { kind: 'script', caseId }, type);
+        return this.productionsService.findAllForCase(caseId, { kind: 'script', caseId, role: viewerRole }, type);
       }
 
       case UPDATE_PRODUCTION_TOOL.name: {
@@ -696,7 +698,7 @@ export class AiService {
         return this.productionsService.update(
           input.productionId,
           { name: input.name, data: input.data, ops: input.ops },
-          { kind: 'script', caseId },
+          { kind: 'script', caseId, role: viewerRole },
         );
       }
 
@@ -704,7 +706,7 @@ export class AiService {
         if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
         const input = toolUse.input as { traceId: string; text: string; anchor: LabelAnchor; color?: string; fontSize?: 'sm' | 'md' | 'lg' };
         if (!input.traceId) return { error: 'traceId is required' };
-        const principal = { kind: 'script' as const, caseId };
+        const principal: AccessPrincipal = { kind: 'script', caseId, role: viewerRole };
         try {
           const trace = await this.tracesService.findOne(input.traceId, principal);
           const labels = Array.isArray((trace.data as any)?.labels) ? [...(trace.data as any).labels] : [];
@@ -724,7 +726,7 @@ export class AiService {
         if (input.text === undefined && input.color === undefined && input.fontSize === undefined) {
           return { error: 'At least one of text, color, or fontSize must be provided' };
         }
-        const principal = { kind: 'script' as const, caseId };
+        const principal: AccessPrincipal = { kind: 'script', caseId, role: viewerRole };
         try {
           const trace = await this.tracesService.findOne(input.traceId, principal);
           const labels = Array.isArray((trace.data as any)?.labels) ? [...(trace.data as any).labels] : [];
@@ -743,7 +745,7 @@ export class AiService {
       case DELETE_LABEL_TOOL.name: {
         if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
         const input = toolUse.input as { traceId: string; labelId: string };
-        const principal = { kind: 'script' as const, caseId };
+        const principal: AccessPrincipal = { kind: 'script', caseId, role: viewerRole };
         try {
           const trace = await this.tracesService.findOne(input.traceId, principal);
           const labels = Array.isArray((trace.data as any)?.labels) ? (trace.data as any).labels : [];
@@ -757,7 +759,7 @@ export class AiService {
       case MOVE_LABEL_TOOL.name: {
         if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
         const input = toolUse.input as { traceId: string; labelId: string; position: Record<string, unknown> };
-        const principal = { kind: 'script' as const, caseId };
+        const principal: AccessPrincipal = { kind: 'script', caseId, role: viewerRole };
         try {
           const trace = await this.tracesService.findOne(input.traceId, principal);
           const labels = Array.isArray((trace.data as any)?.labels) ? [...(trace.data as any).labels] : [];
@@ -797,7 +799,7 @@ export class AiService {
       case TETHER_LABEL_TOOL.name: {
         if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
         const input = toolUse.input as { traceId: string; labelId: string; anchor: LabelAnchor };
-        const principal = { kind: 'script' as const, caseId };
+        const principal: AccessPrincipal = { kind: 'script', caseId, role: viewerRole };
         try {
           const trace = await this.tracesService.findOne(input.traceId, principal);
           const labels = Array.isArray((trace.data as any)?.labels) ? [...(trace.data as any).labels] : [];
@@ -816,7 +818,7 @@ export class AiService {
 
   // ---- Tool implementations ----
 
-  private async executeCaseDataTool(caseId: string): Promise<unknown> {
+  private async executeCaseDataTool(caseId: string, viewerRole: CaseRole): Promise<unknown> {
     const investigations = await this.investigationRepo.find({
       where: { caseId },
       relations: ['traces'],
@@ -839,7 +841,7 @@ export class AiService {
     // bounded to this caseId — assertAccess just checks principal.caseId === caseId.
     const productions = await this.productionsService.findAllForCase(
       caseId,
-      { kind: 'script', caseId },
+      { kind: 'script', caseId, role: viewerRole },
     );
     const productionSummaries = (productions as any[]).map((p) => ({
       id: p.id,

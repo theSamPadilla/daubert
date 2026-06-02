@@ -11,12 +11,15 @@ import { BlockchainModule } from './modules/blockchain/blockchain.module';
 import { AiModule } from './modules/ai/ai.module';
 import { LabeledEntitiesModule } from './modules/labeled-entities/labeled-entities.module';
 import { ProductionsModule } from './modules/productions/productions.module';
-import { AdminModule } from './modules/admin/admin.module';
+import { SuperadminModule } from './modules/superadmin/superadmin.module';
 import { ExportModule } from './modules/export/export.module';
 import { DataRoomModule } from './modules/data-room/data-room.module';
 import { ExternalTraceModule } from './modules/external-trace/external-trace.module';
 import { InvitesModule } from './modules/invites/invites.module';
 import { ScriptModule } from './modules/script/script.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { EmailModule } from './modules/email/email.module';
+import { AuthEmailModule } from './modules/auth-email/auth-email.module';
 
 @Module({
   imports: [
@@ -31,12 +34,15 @@ import { ScriptModule } from './modules/script/script.module';
     AiModule,
     LabeledEntitiesModule,
     ProductionsModule,
-    AdminModule,
+    SuperadminModule,
     ExportModule,
     DataRoomModule,
     ExternalTraceModule,
     InvitesModule,
     ScriptModule,
+    OrganizationsModule,
+    EmailModule,
+    AuthEmailModule,
   ],
   controllers: [AppController],
 })

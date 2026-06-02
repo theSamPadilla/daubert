@@ -10,6 +10,8 @@ import {
   type CaseInvite,
   type CaseRole,
 } from '@/lib/api-client';
+import { InviteCreatedModal } from '@/components/Common/InviteCreatedModal';
+import { useConfirm } from '@/components/Common/ConfirmProvider';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -164,6 +166,16 @@ function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: Ca
   return (
     <SectionCard title="Members">
       {error && <Banner message={error} onClose={() => setError(null)} />}
+      <div className="mb-4 rounded-md border-l-2 border-brand/70 bg-brand/[0.06] px-4 py-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-wider text-brand font-semibold">
+          Who sees this case
+        </p>
+        <p className="text-sm text-ink-muted leading-relaxed">
+          Only the people listed below — plus any{' '}
+          <span className="text-white font-medium">org admins</span> of the org this case belongs
+          to, who have implicit owner access on every case in their org.
+        </p>
+      </div>
       {members.length === 0 ? (
         <p className="text-sm text-ink-muted">No members found.</p>
       ) : (
@@ -234,7 +246,8 @@ function InvitesSection({ caseId }: { caseId: string }) {
 
   // Create form state
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'editor' | 'viewer'>('viewer');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState<'owner' | 'editor' | 'viewer'>('viewer');
   const [message, setMessage] = useState('');
   const [creating, setCreating] = useState(false);
   const [newInvite, setNewInvite] = useState<CaseInvite | null>(null);
@@ -271,7 +284,7 @@ function InvitesSection({ caseId }: { caseId: string }) {
     }
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
     setError(null);
@@ -279,14 +292,16 @@ function InvitesSection({ caseId }: { caseId: string }) {
       const inv = await apiClient.createInvite(caseId, {
         email,
         role,
+        name: name.trim() || undefined,
         message: message || undefined,
       });
       setInvites((prev) => [inv, ...prev]);
       setNewInvite(inv);
       setEmail('');
+      setName('');
       setMessage('');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to create invite');
+      setError(e instanceof Error ? e.message : 'Failed to generate invite');
     } finally {
       setCreating(false);
     }
@@ -297,8 +312,8 @@ function InvitesSection({ caseId }: { caseId: string }) {
       {error && <Banner message={error} onClose={() => setError(null)} />}
 
       {/* New invite form */}
-      <form onSubmit={handleCreate} className="space-y-3 mb-5 pb-5 border-b border-line-strong">
-        <p className="text-sm font-medium text-white">Create invite</p>
+      <form onSubmit={handleGenerate} className="space-y-3 mb-5 pb-5 border-b border-line-strong">
+        <p className="text-sm font-medium text-white">Generate invite</p>
         <div className="flex gap-2">
           <input
             type="email"
@@ -310,13 +325,22 @@ function InvitesSection({ caseId }: { caseId: string }) {
           />
           <select
             value={role}
-            onChange={(e) => setRole(e.target.value as 'editor' | 'viewer')}
+            onChange={(e) => setRole(e.target.value as 'owner' | 'editor' | 'viewer')}
             className="rounded border border-line-strong bg-surface px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="viewer">Viewer</option>
             <option value="editor">Editor</option>
+            <option value="owner">Owner</option>
           </select>
         </div>
+        <input
+          type="text"
+          placeholder="Name (optional) — e.g. Jane Doe"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={120}
+          className="w-full rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
         <textarea
           placeholder="Optional message to invitee"
           value={message}
@@ -327,28 +351,20 @@ function InvitesSection({ caseId }: { caseId: string }) {
         <button
           type="submit"
           disabled={creating}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium text-white transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-brand hover:bg-brand/90 disabled:opacity-50 text-sm font-medium text-white transition-colors"
         >
           <FaPlus size={11} />
-          {creating ? 'Creating...' : 'Create invite'}
+          {creating ? 'Generating…' : 'Generate invite'}
         </button>
       </form>
 
-      {/* New invite link callout */}
+      {/* Post-generation modal */}
       {newInvite && (
-        <div className="mb-4 rounded border border-blue-500/30 bg-blue-500/10 px-3 py-2.5">
-          <p className="text-xs text-blue-300 mb-1.5 font-medium">Invite created — share this link:</p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 text-xs text-white break-all">{inviteLink(newInvite.code)}</code>
-            <button
-              onClick={() => copyLink(newInvite.code, newInvite.id)}
-              className="flex-shrink-0 text-ink-muted hover:text-white transition-colors"
-              title="Copy link"
-            >
-              {copied === newInvite.id ? <FaCheck size={13} className="text-green-400" /> : <FaCopy size={13} />}
-            </button>
-          </div>
-        </div>
+        <InviteCreatedModal
+          email={newInvite.email}
+          link={inviteLink(newInvite.code)}
+          onClose={() => setNewInvite(null)}
+        />
       )}
 
       {/* Pending invites list */}
@@ -370,10 +386,20 @@ function InvitesSection({ caseId }: { caseId: string }) {
               </div>
               <button
                 onClick={() => copyLink(inv.code, inv.id)}
-                className="text-ink-muted hover:text-white transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-brand/30 bg-brand/5 text-brand hover:border-brand/60 hover:bg-brand/10 transition-colors text-xs font-medium"
                 title="Copy invite link"
               >
-                {copied === inv.id ? <FaCheck size={13} className="text-green-400" /> : <FaCopy size={13} />}
+                {copied === inv.id ? (
+                  <>
+                    <FaCheck size={11} className="text-green-400" />
+                    <span className="text-green-400">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <FaCopy size={11} />
+                    <span>Copy link</span>
+                  </>
+                )}
               </button>
               <button
                 disabled={revoking === inv.id}
@@ -405,6 +431,7 @@ function LeaveCaseSection({
   ownerCount: number;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -412,12 +439,13 @@ function LeaveCaseSection({
   const isOnlyOwner = viewerRole === 'owner' && ownerCount === 1;
 
   const handleLeave = async () => {
-    if (
-      !window.confirm(
-        'Are you sure you want to leave this case? You will lose access immediately.'
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: 'Leave this case?',
+      message: 'You will lose access to this case and all its investigations immediately.',
+      confirmLabel: 'Leave case',
+      destructive: true,
+    });
+    if (!ok) return;
 
     setLeaving(true);
     setError(null);

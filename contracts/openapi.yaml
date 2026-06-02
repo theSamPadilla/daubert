@@ -8,6 +8,55 @@ servers:
   - url: http://localhost:8081
 
 paths:
+  /auth/me:
+    get:
+      summary: Get the current authenticated user
+      operationId: getMe
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/UserSelf'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ErrorResponse'
+    patch:
+      summary: Update the current authenticated user
+      operationId: updateMe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas/common.yaml#/UpdateMeRequest'
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/UserSelf'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ErrorResponse'
+  /auth/email/otp/send:
+    $ref: './paths/auth-email.yaml#/~1auth~1email~1otp~1send'
+  /auth/email/otp/verify:
+    $ref: './paths/auth-email.yaml#/~1auth~1email~1otp~1verify'
   /cases:
     $ref: './paths/cases.yaml#/~1cases'
   /cases/{id}:
@@ -44,18 +93,6 @@ paths:
     $ref: './paths/productions.yaml#/~1cases~1{caseId}~1productions'
   /productions/{id}:
     $ref: './paths/productions.yaml#/~1productions~1{id}'
-  /admin/users:
-    $ref: './paths/admin-users.yaml#/~1admin~1users'
-  /admin/users/{id}:
-    $ref: './paths/admin-users.yaml#/~1admin~1users~1{id}'
-  /admin/cases:
-    $ref: './paths/admin-cases.yaml#/~1admin~1cases'
-  /admin/cases/{id}:
-    $ref: './paths/admin-cases.yaml#/~1admin~1cases~1{id}'
-  /admin/cases/{id}/members:
-    $ref: './paths/admin-cases.yaml#/~1admin~1cases~1{id}~1members'
-  /admin/cases/{id}/members/{userId}:
-    $ref: './paths/admin-cases.yaml#/~1admin~1cases~1{id}~1members~1{userId}'
   /cases/{caseId}/members:
     $ref: './paths/cases.yaml#/~1cases~1{caseId}~1members'
   /cases/{caseId}/members/{userId}:
@@ -70,10 +107,6 @@ paths:
     $ref: './paths/invites.yaml#/~1invites~1{code}'
   /invites/{code}/accept:
     $ref: './paths/invites.yaml#/~1invites~1{code}~1accept'
-  /admin/labeled-entities:
-    $ref: './paths/admin-labeled-entities.yaml#/~1admin~1labeled-entities'
-  /admin/labeled-entities/{id}:
-    $ref: './paths/admin-labeled-entities.yaml#/~1admin~1labeled-entities~1{id}'
   /exports/productions/{id}:
     $ref: './paths/export.yaml#/~1exports~1productions~1{id}'
   /exports/graph:
@@ -94,17 +127,67 @@ paths:
     $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1files~1{fileId}~1download'
   /cases/{caseId}/data-room/access-token:
     $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1access-token'
+  /orgs/{org}:
+    $ref: './paths/organizations.yaml#/~1orgs~1{org}'
+  /orgs/{org}/members:
+    $ref: './paths/organizations.yaml#/~1orgs~1{org}~1members'
+  /orgs/{org}/members/{userId}:
+    $ref: './paths/organizations.yaml#/~1orgs~1{org}~1members~1{userId}'
+  /orgs/{org}/members/me/leave:
+    $ref: './paths/organizations.yaml#/~1orgs~1{org}~1members~1me~1leave'
+  /orgs/{org}/invites:
+    $ref: './paths/organizations.yaml#/~1orgs~1{org}~1invites'
+  /orgs/{org}/invites/{inviteId}:
+    $ref: './paths/organizations.yaml#/~1orgs~1{org}~1invites~1{inviteId}'
+  /org-invites/{code}:
+    $ref: './paths/organizations.yaml#/~1org-invites~1{code}'
+  /org-invites/{code}/accept:
+    $ref: './paths/organizations.yaml#/~1org-invites~1{code}~1accept'
+  /superadmin/orgs:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1orgs'
+  /superadmin/orgs/trash:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1orgs~1trash'
+  /superadmin/orgs/{id}:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1orgs~1{id}'
+  /superadmin/orgs/{id}/restore:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1orgs~1{id}~1restore'
+  /superadmin/orgs/{id}/purge:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1orgs~1{id}~1purge'
+  /superadmin/users:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1users'
+  /superadmin/users/{id}:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1users~1{id}'
+  /superadmin/users/{id}/super-admin:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1users~1{id}~1super-admin'
+  /superadmin/cases:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1cases'
+  /superadmin/labeled-entities:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1labeled-entities'
+  /superadmin/labeled-entities/{id}:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1labeled-entities~1{id}'
 
 components:
   schemas:
     ErrorResponse:
       $ref: './schemas/common.yaml#/ErrorResponse'
+    UserSelf:
+      $ref: './schemas/common.yaml#/UserSelf'
+    UpdateMeRequest:
+      $ref: './schemas/common.yaml#/UpdateMeRequest'
     Case:
       $ref: './schemas/cases.yaml#/Case'
+    CaseRole:
+      $ref: './schemas/cases.yaml#/CaseRole'
+    CaseMember:
+      $ref: './schemas/cases.yaml#/CaseMember'
     CreateCaseRequest:
       $ref: './schemas/cases.yaml#/CreateCaseRequest'
     UpdateCaseRequest:
       $ref: './schemas/cases.yaml#/UpdateCaseRequest'
+    AddCaseMemberRequest:
+      $ref: './schemas/cases.yaml#/AddCaseMemberRequest'
+    UpdateCaseMemberRoleRequest:
+      $ref: './schemas/cases.yaml#/UpdateCaseMemberRoleRequest'
     Investigation:
       $ref: './schemas/investigations.yaml#/Investigation'
     CreateInvestigationRequest:
@@ -153,24 +236,6 @@ components:
       $ref: './schemas/productions.yaml#/CreateProductionRequest'
     UpdateProductionRequest:
       $ref: './schemas/productions.yaml#/UpdateProductionRequest'
-    OrgRole:
-      $ref: './schemas/admin.yaml#/OrgRole'
-    CaseRole:
-      $ref: './schemas/admin.yaml#/CaseRole'
-    AdminUser:
-      $ref: './schemas/admin.yaml#/AdminUser'
-    CreateUserRequest:
-      $ref: './schemas/admin.yaml#/CreateUserRequest'
-    AdminCreateCaseRequest:
-      $ref: './schemas/admin.yaml#/AdminCreateCaseRequest'
-    CaseMember:
-      $ref: './schemas/admin.yaml#/CaseMember'
-    AddMemberRequest:
-      $ref: './schemas/admin.yaml#/AddMemberRequest'
-    AddCaseMemberRequest:
-      $ref: './schemas/cases.yaml#/AddCaseMemberRequest'
-    UpdateMemberRoleRequest:
-      $ref: './schemas/admin.yaml#/UpdateMemberRoleRequest'
     InviteRole:
       $ref: './schemas/invites.yaml#/InviteRole'
     CaseInvite:
@@ -181,6 +246,14 @@ components:
       $ref: './schemas/invites.yaml#/CreateInviteRequest'
     AcceptInviteResponse:
       $ref: './schemas/invites.yaml#/AcceptInviteResponse'
+    SendOtpRequest:
+      $ref: './schemas/auth-email.yaml#/SendOtpRequest'
+    SendOtpResponse:
+      $ref: './schemas/auth-email.yaml#/SendOtpResponse'
+    VerifyOtpRequest:
+      $ref: './schemas/auth-email.yaml#/VerifyOtpRequest'
+    VerifyOtpResponse:
+      $ref: './schemas/auth-email.yaml#/VerifyOtpResponse'
     DataRoomStatus:
       $ref: './schemas/data-room.yaml#/DataRoomStatus'
     DataRoomConnection:
@@ -193,3 +266,37 @@ components:
       $ref: './schemas/data-room.yaml#/SetFolderRequest'
     AccessTokenResponse:
       $ref: './schemas/data-room.yaml#/AccessTokenResponse'
+    OrgMemberRole:
+      $ref: './schemas/organizations.yaml#/OrgMemberRole'
+    OrgInviteRole:
+      $ref: './schemas/organizations.yaml#/OrgInviteRole'
+    Organization:
+      $ref: './schemas/organizations.yaml#/Organization'
+    OrganizationMember:
+      $ref: './schemas/organizations.yaml#/OrganizationMember'
+    OrganizationInvite:
+      $ref: './schemas/organizations.yaml#/OrganizationInvite'
+    OrganizationInviteLookup:
+      $ref: './schemas/organizations.yaml#/OrganizationInviteLookup'
+    UpdateOrgRequest:
+      $ref: './schemas/organizations.yaml#/UpdateOrgRequest'
+    AddOrgMemberRequest:
+      $ref: './schemas/organizations.yaml#/AddOrgMemberRequest'
+    UpdateOrgMemberRoleRequest:
+      $ref: './schemas/organizations.yaml#/UpdateOrgMemberRoleRequest'
+    CreateOrgInviteRequest:
+      $ref: './schemas/organizations.yaml#/CreateOrgInviteRequest'
+    AcceptOrgInviteResponse:
+      $ref: './schemas/organizations.yaml#/AcceptOrgInviteResponse'
+    OrgSummary:
+      $ref: './schemas/superadmin.yaml#/OrgSummary'
+    UserSummary:
+      $ref: './schemas/superadmin.yaml#/UserSummary'
+    CreateOrgRequest:
+      $ref: './schemas/superadmin.yaml#/CreateOrgRequest'
+    CreateSuperadminUserRequest:
+      $ref: './schemas/superadmin.yaml#/CreateSuperadminUserRequest'
+    SetSuperAdminRequest:
+      $ref: './schemas/superadmin.yaml#/SetSuperAdminRequest'
+    CaseSummary:
+      $ref: './schemas/superadmin.yaml#/CaseSummary'

@@ -1,0 +1,212 @@
+OrgMemberRole:
+  type: string
+  enum: [admin, member, guest]
+  description: Per-org role for a user in an organization.
+
+OrgInviteRole:
+  type: string
+  enum: [member, guest]
+  description: Role granted when an org invite is accepted. Admin cannot be granted via invite.
+
+Organization:
+  type: object
+  required: [id, name, slug, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    slug:
+      type: string
+      pattern: '^[a-z0-9-]+$'
+      description: URL-friendly unique identifier. Editable by org admins.
+    deletedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Soft-delete timestamp. Null when org is active. Exposed on superadmin endpoints only.
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+OrganizationMember:
+  type: object
+  required: [id, userId, organizationId, role, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    userId:
+      type: string
+      format: uuid
+    organizationId:
+      type: string
+      format: uuid
+    role:
+      $ref: '#/OrgMemberRole'
+    user:
+      type: object
+      required: [id, email, name, linked, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        linked:
+          type: boolean
+          description: True once the user has signed in to Firebase and the UID has been bound to this row.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+OrganizationInvite:
+  type: object
+  required: [id, organizationId, email, role, code, createdByUserId, expiresAt, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    role:
+      $ref: '#/OrgInviteRole'
+    code:
+      type: string
+    message:
+      type: string
+      nullable: true
+    createdByUserId:
+      type: string
+      format: uuid
+    expiresAt:
+      type: string
+      format: date-time
+    usedAt:
+      type: string
+      format: date-time
+      nullable: true
+    usedByUserId:
+      type: string
+      format: uuid
+      nullable: true
+    createdBy:
+      type: object
+      required: [id, email, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+OrganizationInviteLookup:
+  type: object
+  required: [status]
+  properties:
+    status:
+      type: string
+      enum:
+        - pending
+        - used
+        - expired
+        - revoked
+    orgSlug:
+      type: string
+    orgName:
+      type: string
+    inviterName:
+      type: string
+    role:
+      $ref: '#/OrgInviteRole'
+    email:
+      type: string
+      format: email
+    message:
+      type: string
+      nullable: true
+
+UpdateOrgRequest:
+  type: object
+  properties:
+    name:
+      type: string
+    slug:
+      type: string
+      pattern: '^[a-z0-9-]+$'
+
+AddOrgMemberRequest:
+  type: object
+  required: [email, role]
+  properties:
+    email:
+      type: string
+      format: email
+    role:
+      $ref: '#/OrgMemberRole'
+
+UpdateOrgMemberRoleRequest:
+  type: object
+  required: [role]
+  properties:
+    role:
+      $ref: '#/OrgMemberRole'
+
+CreateOrgInviteRequest:
+  type: object
+  required: [email, role]
+  properties:
+    email:
+      type: string
+      format: email
+    role:
+      $ref: '#/OrgInviteRole'
+    name:
+      type: string
+      description: Optional display name for the invitee. Used to seed the user shell when the invite is created.
+    message:
+      type: string
+
+AcceptOrgInviteResponse:
+  type: object
+  required: [orgSlug, alreadyMember]
+  properties:
+    orgSlug:
+      type: string
+    alreadyMember:
+      type: boolean

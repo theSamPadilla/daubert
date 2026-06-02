@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ConversationEntity } from '../../database/entities/conversation.entity';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
+import { CaseAccessService } from '../auth/case-access.service';
 
 @Injectable()
 export class ConversationsService {
@@ -14,12 +15,12 @@ export class ConversationsService {
     private readonly messageRepo: Repository<MessageEntity>,
     @InjectRepository(CaseMemberEntity)
     private readonly memberRepo: Repository<CaseMemberEntity>,
+    private readonly caseAccess: CaseAccessService,
   ) {}
 
-  /** Throws if the user is not a member of the case. */
+  /** Throws if the user has no access to the case (member OR implicit org admin). */
   private async assertCaseMembership(userId: string, caseId: string): Promise<void> {
-    const membership = await this.memberRepo.findOneBy({ userId, caseId });
-    if (!membership) throw new ForbiddenException('You do not have access to this case');
+    await this.caseAccess.assertAccess({ kind: 'user', userId }, caseId);
   }
 
   async create(caseId: string, userId: string): Promise<ConversationEntity> {

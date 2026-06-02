@@ -43,12 +43,16 @@ export class AuthGuard implements CanActivate {
         Array.isArray(scriptHeader) ? scriptHeader[0] : scriptHeader,
       );
       if (!result) throw new UnauthorizedException('invalid_script_token');
-      const principal: AccessPrincipal = { kind: 'script', caseId: result.caseId };
+      const principal: AccessPrincipal = {
+        kind: 'script',
+        caseId: result.caseId,
+        role: result.role,
+      };
       request.principal = principal;
       // NOTE: do NOT set request.user — keeps IsAdminGuard / CaseMemberGuard
       // (which both read request.user) impervious to script tokens.
       this.logger.debug(
-        `[script-auth] ${request.method} ${request.url} caseId=${result.caseId}`,
+        `[script-auth] ${request.method} ${request.url} caseId=${result.caseId} role=${result.role}`,
       );
       return true;
     }

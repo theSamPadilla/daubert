@@ -41,3 +41,12 @@ UserSelf:
             type: string
           role:
             $ref: './organizations.yaml#/OrgMemberRole'
+
+UpdateMeRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 120

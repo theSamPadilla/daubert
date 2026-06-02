@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { signInWithPopup, type AuthProvider } from 'firebase/auth';
 import { getFirebaseAuth, googleProvider, microsoftProvider } from '@/lib/firebase';
 import { useAuth } from '@/components/Auth/AuthProvider';
+import { EmailLoginForm } from '@/components/Auth/EmailLoginForm';
 
 function friendlyAuthError(err: any): string {
   switch (err?.code) {
@@ -71,22 +72,22 @@ function HeroLogo() {
 
 function GoogleMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+    <svg viewBox="0 0 48 48" className={className} aria-hidden>
       <path
-        fill="currentColor"
-        d="M21.6 12.227c0-.703-.063-1.379-.18-2.027H12v3.838h5.382a4.6 4.6 0 0 1-1.997 3.018v2.51h3.229c1.889-1.738 2.986-4.297 2.986-7.34Z"
+        fill="#FFC107"
+        d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
       />
       <path
-        fill="currentColor"
-        d="M12 22c2.7 0 4.963-.895 6.614-2.434l-3.229-2.51c-.894.6-2.038.955-3.385.955-2.604 0-4.81-1.756-5.598-4.122H3.067v2.59A9.997 9.997 0 0 0 12 22Z"
+        fill="#FF3D00"
+        d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
       />
       <path
-        fill="currentColor"
-        d="M6.402 13.89A6.018 6.018 0 0 1 6.09 12c0-.658.114-1.297.311-1.89v-2.59H3.067A9.99 9.99 0 0 0 2 12c0 1.614.387 3.14 1.067 4.48l3.335-2.59Z"
+        fill="#4CAF50"
+        d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
       />
       <path
-        fill="currentColor"
-        d="M12 5.988c1.469 0 2.786.505 3.823 1.497l2.864-2.866C16.957 2.99 14.695 2 12 2A9.997 9.997 0 0 0 3.067 7.52L6.402 10.11C7.19 7.744 9.396 5.988 12 5.988Z"
+        fill="#1976D2"
+        d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
       />
     </svg>
   );
@@ -95,10 +96,10 @@ function GoogleMark({ className }: { className?: string }) {
 function MicrosoftMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path fill="currentColor" d="M3 3h8.5v8.5H3V3Z" />
-      <path fill="currentColor" d="M12.5 3H21v8.5h-8.5V3Z" />
-      <path fill="currentColor" d="M3 12.5h8.5V21H3v-8.5Z" />
-      <path fill="currentColor" d="M12.5 12.5H21V21h-8.5v-8.5Z" />
+      <path fill="#F25022" d="M3 3h8.5v8.5H3V3Z" />
+      <path fill="#7FBA00" d="M12.5 3H21v8.5h-8.5V3Z" />
+      <path fill="#00A4EF" d="M3 12.5h8.5V21H3v-8.5Z" />
+      <path fill="#FFB900" d="M12.5 12.5H21V21h-8.5v-8.5Z" />
     </svg>
   );
 }
@@ -152,7 +153,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="w-full max-w-sm space-y-3">
+        <div className="w-full max-w-sm space-y-6">
           {noAccount ? (
             <div className="bg-red-900/30 border border-red-700/60 rounded-lg p-5 text-center">
               <p className="text-red-300 text-base">
@@ -173,25 +174,47 @@ export default function LoginPage() {
             </div>
           ) : (
             <>
-              <button
-                onClick={() => handleSignIn(googleProvider, 'google')}
-                disabled={busy}
-                className="w-full flex items-center justify-center gap-3 px-5 py-3.5 bg-white text-gray-900 rounded-lg text-base font-medium shadow-[0_10px_40px_-10px_rgba(84,104,198,0.4)] hover:bg-gray-100 hover:shadow-[0_15px_50px_-10px_rgba(84,104,198,0.5)] disabled:opacity-50 transition-all"
-              >
-                <GoogleMark className="w-5 h-5" />
-                {signingIn === 'google' ? 'Signing in...' : 'Continue with Google'}
-              </button>
-              <button
-                onClick={() => handleSignIn(microsoftProvider, 'microsoft')}
-                disabled={busy}
-                className="w-full flex items-center justify-center gap-3 px-5 py-3.5 bg-surface-panel border border-line-strong text-white rounded-lg text-base font-medium hover:bg-surface-raised disabled:opacity-50 transition-colors"
-              >
-                <MicrosoftMark className="w-5 h-5" />
-                {signingIn === 'microsoft' ? 'Signing in...' : 'Continue with Microsoft'}
-              </button>
-              <p className="text-ink-faint text-xs text-center pt-1">
-                Microsoft sign-in requires a work account.
-              </p>
+              <EmailLoginForm />
+
+              <div className="flex items-center gap-3 pt-1">
+                <div className="h-px flex-1 bg-line-strong" />
+                <span className="text-ink-faint text-xs">or continue with</span>
+                <div className="h-px flex-1 bg-line-strong" />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={() => handleSignIn(googleProvider, 'google')}
+                    disabled={busy}
+                    aria-label="Continue with Google"
+                    title="Continue with Google"
+                    className="flex items-center justify-center w-12 h-12 bg-surface-panel border border-line-strong rounded-lg hover:bg-surface-raised disabled:opacity-50 transition-colors"
+                  >
+                    {signingIn === 'google' ? (
+                      <span className="text-xs text-ink-muted">…</span>
+                    ) : (
+                      <GoogleMark className="w-5 h-5" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleSignIn(microsoftProvider, 'microsoft')}
+                    disabled={busy}
+                    aria-label="Continue with Microsoft (work account)"
+                    title="Continue with Microsoft (work account)"
+                    className="flex items-center justify-center w-12 h-12 bg-surface-panel border border-line-strong rounded-lg hover:bg-surface-raised disabled:opacity-50 transition-colors"
+                  >
+                    {signingIn === 'microsoft' ? (
+                      <span className="text-xs text-ink-muted">…</span>
+                    ) : (
+                      <MicrosoftMark className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+                <p className="text-ink-faint text-xs text-center">
+                  Microsoft requires a work account
+                </p>
+              </div>
             </>
           )}
 

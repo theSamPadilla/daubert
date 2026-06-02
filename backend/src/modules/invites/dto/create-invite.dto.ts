@@ -5,8 +5,13 @@ export class CreateInviteDto {
   @IsEmail()
   email: string;
 
-  @IsIn(['editor', 'viewer'])
+  @IsIn(['owner', 'editor', 'viewer'])
   role: InviteRole;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
 
   @IsOptional()
   @IsString()

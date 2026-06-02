@@ -6,11 +6,13 @@ import { signInWithPopup, signOut as firebaseSignOut, GoogleAuthProvider, OAuthP
 import { getFirebaseAuth } from '@/lib/firebase';
 import { apiClient, ApiError, type CaseInviteLookup } from '@/lib/api-client';
 import { Loader } from '@/components/Common/Loader';
+import { EmailLoginForm } from '@/components/Auth/EmailLoginForm';
 import Image from 'next/image';
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
-  viewer: 'Read-only access to this case.',
-  editor: 'Can edit investigations, traces, and files.',
+  viewer: 'You have read-only access to this case.',
+  editor: 'You can edit investigations, traces, and files.',
+  owner: 'You have full control of this case, including settings, members, and deletion.',
 };
 
 function GoogleLogo({ className }: { className?: string }) {
@@ -39,10 +41,10 @@ function GoogleLogo({ className }: { className?: string }) {
 function MicrosoftMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path fill="currentColor" d="M3 3h8.5v8.5H3V3Z" />
-      <path fill="currentColor" d="M12.5 3H21v8.5h-8.5V3Z" />
-      <path fill="currentColor" d="M3 12.5h8.5V21H3v-8.5Z" />
-      <path fill="currentColor" d="M12.5 12.5H21V21h-8.5v-8.5Z" />
+      <path fill="#F25022" d="M3 3h8.5v8.5H3V3Z" />
+      <path fill="#7FBA00" d="M12.5 3H21v8.5h-8.5V3Z" />
+      <path fill="#00A4EF" d="M3 12.5h8.5V21H3v-8.5Z" />
+      <path fill="#FFB900" d="M12.5 12.5H21V21h-8.5v-8.5Z" />
     </svg>
   );
 }
@@ -87,6 +89,36 @@ export default function InvitePage() {
       );
   }, [code]);
 
+  async function acceptAfterSignIn() {
+    // Capture current invite for error fallbacks (state may be 'ready' or 'signing-in')
+    const currentInvite = state.phase === 'ready' ? state.invite : null;
+    try {
+      const result = await apiClient.acceptInvite(code);
+      setState({ phase: 'done' });
+      router.push(`/cases/${result.caseId}`);
+    } catch (err: any) {
+      const status = err instanceof ApiError ? err.status : 0;
+      // 403 = email mismatch
+      if (status === 403) {
+        setState({ phase: 'mismatch', inviteEmail: currentInvite?.email ?? '' });
+        return;
+      }
+      // 410 = used or expired — re-fetch to show correct status card
+      if (status === 410) {
+        try {
+          const refreshed = await apiClient.lookupInvite(code);
+          setState({ phase: 'ready', invite: refreshed });
+        } catch {
+          if (currentInvite) {
+            setState({ phase: 'ready', invite: { ...currentInvite, status: 'used' } });
+          }
+        }
+        return;
+      }
+      setState({ phase: 'error', message: err.message || 'Failed to accept invite.' });
+    }
+  }
+
   async function handleSignIn(kind: 'google' | 'microsoft') {
     if (state.phase !== 'ready') return;
     const { invite } = state;
@@ -111,29 +143,7 @@ export default function InvitePage() {
     }
 
     // Sign-in succeeded — call accept
-    try {
-      const result = await apiClient.acceptInvite(code);
-      setState({ phase: 'done' });
-      router.push(`/cases/${result.caseId}`);
-    } catch (err: any) {
-      const status = err instanceof ApiError ? err.status : 0;
-      // 403 = email mismatch
-      if (status === 403) {
-        setState({ phase: 'mismatch', inviteEmail: invite.email ?? '' });
-        return;
-      }
-      // 410 = used or expired — re-fetch to show correct status card
-      if (status === 410) {
-        try {
-          const refreshed = await apiClient.lookupInvite(code);
-          setState({ phase: 'ready', invite: refreshed });
-        } catch {
-          setState({ phase: 'ready', invite: { ...invite, status: 'used' } });
-        }
-        return;
-      }
-      setState({ phase: 'error', message: err.message || 'Failed to accept invite.' });
-    }
+    await acceptAfterSignIn();
   }
 
   async function handleSignOut() {
@@ -285,45 +295,64 @@ export default function InvitePage() {
 
         {/* Role row */}
         {invite.role && (
-          <p className="text-center text-sm">
-            <span className="text-brand font-semibold">
-              {invite.role === 'editor' ? 'Editor' : 'Viewer'}
+          <div className="text-center space-y-2">
+            <span className="inline-block px-3 py-1 rounded-full bg-white text-gray-900 text-xs font-semibold capitalize">
+              {invite.role}
             </span>
-            <span className="text-ink-muted"> &middot; {ROLE_DESCRIPTIONS[invite.role] ?? ''}</span>
-          </p>
-        )}
-
-        {/* Message (only if present) */}
-        {invite.message && (
-          <div className="border border-line-strong rounded-lg px-4 py-3">
-            <p className="text-ink text-sm whitespace-pre-wrap">{invite.message}</p>
+            <p className="text-ink-muted text-sm">
+              {ROLE_DESCRIPTIONS[invite.role] ?? ''}
+            </p>
           </div>
         )}
 
-        {/* Sign-in buttons + email helper */}
-        <div className="space-y-2">
-          <button
-            onClick={() => handleSignIn('google')}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-gray-900 rounded-lg font-medium hover:bg-gray-100 transition-colors"
-          >
-            <GoogleLogo className="w-5 h-5" />
-            Sign in with Google
-          </button>
-          <button
-            onClick={() => handleSignIn('microsoft')}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-surface-panel border border-line-strong text-white rounded-lg font-medium hover:bg-surface-raised transition-colors"
-          >
-            <MicrosoftMark className="w-5 h-5" />
-            Sign in with Microsoft
-          </button>
-          <p className="text-ink-faint text-xs text-center pt-1">
-            Microsoft sign-in requires a work account.
-          </p>
-          {invite.email && (
-            <p className="text-ink-faint text-xs text-center">
-              Sign in as <span className="font-mono text-ink-muted">{invite.email}</span>
+        {/* Personal note from the inviter */}
+        {invite.message && (
+          <div className="border-l-2 border-brand/70 bg-brand/[0.06] rounded-r-md px-4 py-3 space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-brand font-semibold">
+              A note from {invite.inviterName ?? 'them'}
             </p>
-          )}
+            <p className="text-ink text-sm whitespace-pre-wrap italic leading-relaxed">
+              &ldquo;{invite.message}&rdquo;
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <EmailLoginForm
+            defaultEmail={invite.email ?? undefined}
+            lockEmail={!!invite.email}
+            onVerified={async () => { await acceptAfterSignIn(); }}
+          />
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-line-strong" />
+            <span className="text-ink-faint text-xs">or continue with</span>
+            <div className="h-px flex-1 bg-line-strong" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => handleSignIn('google')}
+                aria-label="Continue with Google"
+                title="Continue with Google"
+                className="flex items-center justify-center w-12 h-12 bg-surface-panel border border-line-strong rounded-lg hover:bg-surface-raised transition-colors"
+              >
+                <GoogleLogo className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleSignIn('microsoft')}
+                aria-label="Continue with Microsoft (work account)"
+                title="Continue with Microsoft (work account)"
+                className="flex items-center justify-center w-12 h-12 bg-surface-panel border border-line-strong rounded-lg hover:bg-surface-raised transition-colors"
+              >
+                <MicrosoftMark className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-ink-faint text-xs text-center">
+              Microsoft requires a work account
+            </p>
+          </div>
         </div>
       </Card>
     </Shell>

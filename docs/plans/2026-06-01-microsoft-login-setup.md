@@ -4,7 +4,9 @@
 
 > **Auth mode:** The frontend uses `signInWithPopup` (not redirect). All Microsoft OAuth happens in a popup window that posts the result back to the opener — no cross-site iframe storage, no custom auth domain needed. The redirect URI you'll register in Entra below is the Firebase auth handler URL Firebase uses inside that popup. Background and rationale: `docs/plans/2026-06-01-firebase-auth-domain-setup.md`.
 
-> **Tenant restriction:** The Microsoft provider is configured with `tenant: 'organizations'` (see `frontend/src/lib/firebase.ts`), which accepts **work/school accounts only** (any Entra-backed tenant). Personal Microsoft accounts (hotmail/outlook/live/msn) are intentionally NOT supported. This is a B2B product, customers use org-issued Microsoft accounts. The `common` tenant — which would accept both personal and work/school — hangs the popup flow because Microsoft's account-type-detection interstitial severs `window.opener`, breaking the postMessage handshake Firebase relies on. If you ever need to support personal accounts, the workaround is two separate "Continue with Microsoft" buttons (one per tenant: 'consumers', one per 'organizations') or an email-first routing modal. Neither is in scope today.
+> **Tenant restriction:** The Microsoft provider is configured with `tenant: 'organizations'` (see `frontend/src/lib/firebase.ts`), which accepts **work/school accounts only** (any Entra-backed tenant). Personal Microsoft accounts (hotmail/outlook/live/msn) are intentionally NOT supported. This is a B2B product, customers use org-issued Microsoft accounts. The `common` tenant — which would accept both personal and work/school — hangs the popup flow because Microsoft's account-type-detection interstitial severs `window.opener`, breaking the postMessage handshake Firebase relies on. Researched alternatives (BroadcastChannel, `same-origin-allow-popups`, redirect-mode-with-custom-auth-domain) either aren't viable in Firebase SDK as-shipped, don't fix the Microsoft-side issue, or require custom auth domain wiring we've opted out of. If you ever need to support personal accounts, the cleanest path is an email-domain detection flow (route `outlook.com`/`hotmail.com`/`live.com`/etc. to `tenant: 'consumers'`) — implementation is straightforward but adds UX complexity (modal or inline email field). Not in scope today.
+
+> **Manifest tightening for prod (recommended):** Set `signInAudience: "AzureADMultipleOrgs"` on the prod Entra app — not the broader `AzureADandPersonalMicrosoftAccount` used in dev. Defense in depth: matches the client-side `tenant: 'organizations'` restriction so personal accounts get rejected server-side too. Dev can stay broader (it works because the client param restricts further), prod should be strict.
 
 **Goal:** Enable "Sign in with Microsoft" on the login + invite pages, with a clean, verified consent screen that accepts both work/school AND personal Microsoft accounts.
 
@@ -60,7 +62,9 @@ Repeat this whole part once for `Daubert AI (dev)` (paired with the dev Firebase
 3. Left nav → **Applications** → **App registrations** → **+ New registration**.
 4. Fill in:
    - **Name**: `Daubert AI (dev)` for the dev app, `Daubert AI` for prod.
-   - **Supported account types**: select **"Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)"** — the BROADEST option. Critical: anything else blocks personal hotmail/outlook accounts.
+   - **Supported account types**:
+     - **Dev app**: select **"Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)"** — broader audience kept around in case we ever need to test personal-account flows.
+     - **Prod app (recommended)**: select **"Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant)"** — work/school only. Matches our client-side `tenant: 'organizations'` policy. Personal accounts get rejected at Microsoft's end with a clean message instead of going through OAuth and failing.
    - **Redirect URI**: dropdown → **Web**, value: `https://<firebase-project-id>.firebaseapp.com/__/auth/handler`.
      - Find the project id in Firebase Console → Project Settings → General.
      - The `firebaseapp.com` URL is Firebase's hosted OAuth callback — Firebase handles the round-trip server-side.
@@ -68,12 +72,14 @@ Repeat this whole part once for `Daubert AI (dev)` (paired with the dev Firebase
 
 **Copy the Application (client) ID** from the app's Overview tab. Save it for Part 4.
 
-### Part 3a: Verify the manifest is set for personal accounts
+### Part 3a: Verify the manifest
 
-If you picked the right account-types option in step 4, this is usually already correct — but verify, because the wrong values silently block personal accounts at sign-in time.
+Confirm the manifest values match the account-types choice you made in step 4.
 
 1. Left nav of the app → **Manifest** (you may need to scroll).
-2. Confirm these two values in the JSON:
+2. Expected values:
+
+   **Dev app:**
    ```json
    "signInAudience": "AzureADandPersonalMicrosoftAccount",
    "api": {
@@ -82,9 +88,20 @@ If you picked the right account-types option in step 4, this is usually already 
      ...
    }
    ```
-3. If either is wrong (e.g., `signInAudience: "AzureADMultipleOrgs"` or `requestedAccessTokenVersion: null`), edit both in the manifest JSON and click **Save** at the top. They must change atomically — the Authentication blade refuses to flip one without the other, but the manifest editor commits both at once.
 
-A working reference copy of the full manifest is in `docs/scratch/misc.md` under "Microsoft Entra app manifest — 'Daubert AI (dev)' working version".
+   **Prod app:**
+   ```json
+   "signInAudience": "AzureADMultipleOrgs",
+   "api": {
+     ...
+     "requestedAccessTokenVersion": 2,
+     ...
+   }
+   ```
+
+3. If wrong, edit in the manifest JSON and **Save** at the top. The Authentication blade may refuse to flip `signInAudience` alone (it expects `requestedAccessTokenVersion` to change with it), but the manifest editor commits both atomically.
+
+A working reference copy of the dev manifest is in `docs/scratch/misc.md`.
 
 ### Part 3b: Create a client secret
 
@@ -214,7 +231,7 @@ If a customer's IT admin has strict Entra policies — "block non-verified-publi
 
 ## Gotchas to remember
 
-- **`signInAudience` + `requestedAccessTokenVersion`**: must be `AzureADandPersonalMicrosoftAccount` and `2` together. The Authentication blade won't let you flip one without the other — edit both in the Manifest in a single save.
+- **`signInAudience` + `requestedAccessTokenVersion`**: dev is `AzureADandPersonalMicrosoftAccount`, prod is `AzureADMultipleOrgs`, both pair with `requestedAccessTokenVersion: 2`. The Authentication blade won't let you flip one without the other — edit both in the Manifest in a single save.
 - **Email shape**: Microsoft accounts can have an email hosted by Google (like the one you used in Part 1). Firebase uses whatever email Microsoft returns in the ID token — usually the `preferred_username` claim. Backend's `findByEmail` already lowercases on read, so case differences are fine.
 - **Secret rotation**: 24-month expiry. Set a calendar reminder ~1 month before. Rotation: create a new secret in Entra → paste into Firebase Console → delete the old one. Zero downtime.
 - **Publisher verification scope**: tenant-wide. One verification covers all apps in the tenant — including future ones.

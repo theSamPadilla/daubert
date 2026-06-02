@@ -8,6 +8,8 @@ import { useAuth } from '@/components/Auth/AuthProvider';
 import { apiClient, type OrgMemberRole } from '@/lib/api-client';
 import type { components } from '@/generated/api-types';
 import { Loader } from '@/components/Common/Loader';
+import { InviteCreatedModal } from '@/components/Common/InviteCreatedModal';
+import { useConfirm } from '@/components/Common/ConfirmProvider';
 
 type OrgMember = components['schemas']['OrganizationMember'];
 type OrgInvite = components['schemas']['OrganizationInvite'];
@@ -142,6 +144,7 @@ function MembersSection({
   currentUserId: string;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [members, setMembers] = useState<OrgMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -170,7 +173,13 @@ function MembersSection({
   };
 
   const handleRemove = async (userId: string, email: string) => {
-    if (!window.confirm(`Remove ${email} from this organization?`)) return;
+    const ok = await confirm({
+      title: 'Remove member?',
+      message: <>Remove <span className="text-white">{email}</span> from this organization?</>,
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await apiClient.removeOrgMember(orgSlug, userId);
       await load();
@@ -180,7 +189,14 @@ function MembersSection({
   };
 
   const handleLeave = async () => {
-    if (!window.confirm('Leave this organization? You will lose access to all cases in this org unless you are also a case member.')) return;
+    const ok = await confirm({
+      title: 'Leave this organization?',
+      message:
+        'You will lose access to all cases in this org unless you are also a case member.',
+      confirmLabel: 'Leave',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await apiClient.leaveOrg(orgSlug);
       router.replace('/');
@@ -192,6 +208,18 @@ function MembersSection({
   return (
     <SectionCard title="Members">
       {error && <Banner message={error} onClose={() => setError(null)} />}
+      <div className="mb-4 rounded-md border-l-2 border-brand/70 bg-brand/[0.06] px-4 py-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-wider text-brand font-semibold">
+          Who sees what
+        </p>
+        <p className="text-sm text-ink-muted leading-relaxed">
+          <span className="text-white font-medium">Admins</span> see every case in this org and can manage
+          settings, members, and invites.{' '}
+          <span className="text-white font-medium">Members</span> and{' '}
+          <span className="text-white font-medium">guests</span> only see cases they&apos;re individually
+          added to as case members.
+        </p>
+      </div>
       {loading ? (
         <Loader inline />
       ) : members.length === 0 ? (
@@ -262,17 +290,20 @@ function MembersSection({
 }
 
 function InvitesSection({ orgSlug }: { orgSlug: string }) {
+  const confirm = useConfirm();
   const [invites, setInvites] = useState<OrgInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [role, setRole] = useState<OrgInviteRole>('member');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
 
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [createdInvite, setCreatedInvite] = useState<OrgInvite | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -288,29 +319,38 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleSendInvite = async (e: React.FormEvent) => {
+  const handleGenerateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
     setSending(true);
     try {
-      await apiClient.createOrgInvite(orgSlug, {
+      const inv = await apiClient.createOrgInvite(orgSlug, {
         email: email.trim(),
         role,
+        name: name.trim() || undefined,
         message: message.trim() || undefined,
       });
       setEmail('');
+      setName('');
       setMessage('');
       setShowForm(false);
       await load();
+      setCreatedInvite(inv);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to send invite');
+      setError(e instanceof Error ? e.message : 'Failed to generate invite');
     } finally {
       setSending(false);
     }
   };
 
   const handleRevoke = async (inviteId: string) => {
-    if (!window.confirm('Revoke this invite? The invite link will no longer work.')) return;
+    const ok = await confirm({
+      title: 'Revoke this invite?',
+      message: 'The invite link will no longer work. The recipient will need a new invite.',
+      confirmLabel: 'Revoke',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await apiClient.revokeOrgInvite(orgSlug, inviteId);
       await load();
@@ -342,12 +382,12 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
           className="mb-4 flex items-center gap-1.5 text-xs text-ink-muted hover:text-white transition-colors"
         >
           <FaPlus size={10} />
-          Send invite
+          Generate invite
         </button>
       )}
 
       {showForm && (
-        <form onSubmit={handleSendInvite} className="mb-6 p-4 rounded border border-line-strong space-y-3">
+        <form onSubmit={handleGenerateInvite} className="mb-6 p-4 rounded border border-line-strong space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-ink-muted mb-1">Email</label>
@@ -373,6 +413,20 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
             </div>
           </div>
           <div>
+            <label className="block text-xs text-ink-muted mb-1">Name (optional)</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={120}
+              className="w-full bg-surface border border-line-strong rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-brand"
+              placeholder="Jane Doe"
+            />
+            <p className="mt-1 text-xs text-ink-faint">
+              Used as the placeholder name in the member list until they sign in and update it.
+            </p>
+          </div>
+          <div>
             <label className="block text-xs text-ink-muted mb-1">Message (optional)</label>
             <textarea
               value={message}
@@ -388,11 +442,11 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
               disabled={sending || !email.trim()}
               className="px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {sending ? 'Sending...' : 'Send invite'}
+              {sending ? 'Generating…' : 'Generate invite'}
             </button>
             <button
               type="button"
-              onClick={() => { setShowForm(false); setEmail(''); setMessage(''); }}
+              onClick={() => { setShowForm(false); setEmail(''); setName(''); setMessage(''); }}
               className="px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted transition-colors"
             >
               Cancel
@@ -449,6 +503,14 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {createdInvite && (
+        <InviteCreatedModal
+          email={createdInvite.email}
+          link={`${window.location.origin}/org-invite/${createdInvite.code}`}
+          onClose={() => setCreatedInvite(null)}
+        />
       )}
     </SectionCard>
   );

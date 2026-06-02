@@ -6,14 +6,15 @@ import { signInWithPopup, signOut as firebaseSignOut, GoogleAuthProvider, OAuthP
 import { getFirebaseAuth } from '@/lib/firebase';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { Loader } from '@/components/Common/Loader';
+import { EmailLoginForm } from '@/components/Auth/EmailLoginForm';
 import Image from 'next/image';
 import type { components } from '@/generated/api-types';
 
 type OrgInviteLookup = components['schemas']['OrganizationInviteLookup'];
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
-  member: 'Can view and work within cases in this organization.',
-  guest: 'Limited access to assigned cases only.',
+  member: 'You can view and work within cases in this organization.',
+  guest: 'You have limited access to assigned cases only.',
 };
 
 function GoogleLogo({ className }: { className?: string }) {
@@ -42,10 +43,10 @@ function GoogleLogo({ className }: { className?: string }) {
 function MicrosoftMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path fill="currentColor" d="M3 3h8.5v8.5H3V3Z" />
-      <path fill="currentColor" d="M12.5 3H21v8.5h-8.5V3Z" />
-      <path fill="currentColor" d="M3 12.5h8.5V21H3v-8.5Z" />
-      <path fill="currentColor" d="M12.5 12.5H21V21h-8.5v-8.5Z" />
+      <path fill="#F25022" d="M3 3h8.5v8.5H3V3Z" />
+      <path fill="#7FBA00" d="M12.5 3H21v8.5h-8.5V3Z" />
+      <path fill="#00A4EF" d="M3 12.5h8.5V21H3v-8.5Z" />
+      <path fill="#FFB900" d="M12.5 12.5H21V21h-8.5v-8.5Z" />
     </svg>
   );
 }
@@ -95,9 +96,15 @@ export default function OrgInvitePage() {
     try {
       const result = await apiClient.acceptOrgInvite(code);
       setState({ phase: 'done' });
+      // Persist the newly-joined org as the active one BEFORE hard nav, so OrgProvider
+      // picks it up on reload instead of keeping a stale localStorage entry from a
+      // previously-active org. Matches the LS_KEY in OrgContext.tsx.
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('daubert-active-org-slug', result.orgSlug);
+      }
       // Hard navigation forces AuthProvider to refetch /auth/me (which now succeeds
       // because the user shell was just created/linked by acceptOrgInvite).
-      window.location.href = result.alreadyMember ? '/' : `/orgs/${result.orgSlug}/settings`;
+      window.location.href = '/';
     } catch (err: any) {
       const status = err instanceof ApiError ? err.status : 0;
       if (status === 403) {
@@ -289,10 +296,10 @@ export default function OrgInvitePage() {
         </div>
 
         {invite.role && (
-          <div className="text-center space-y-1">
-            <p className="text-brand font-semibold text-sm">
+          <div className="text-center space-y-2">
+            <span className="inline-block px-3 py-1 rounded-full bg-white text-gray-900 text-xs font-semibold">
               {invite.role === 'member' ? 'Member' : 'Guest'}
-            </p>
+            </span>
             <p className="text-ink-muted text-sm">
               {ROLE_DESCRIPTIONS[invite.role] ?? ''}
             </p>
@@ -300,34 +307,52 @@ export default function OrgInvitePage() {
         )}
 
         {invite.message && (
-          <div className="border border-line-strong rounded-lg px-4 py-3">
-            <p className="text-ink text-sm whitespace-pre-wrap">{invite.message}</p>
+          <div className="border-l-2 border-brand/70 bg-brand/[0.06] rounded-r-md px-4 py-3 space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-brand font-semibold">
+              A note from {invite.inviterName ?? 'them'}
+            </p>
+            <p className="text-ink text-sm whitespace-pre-wrap italic leading-relaxed">
+              &ldquo;{invite.message}&rdquo;
+            </p>
           </div>
         )}
 
-        <div className="space-y-2">
-          <button
-            onClick={() => handleSignIn('google')}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-gray-900 rounded-lg font-medium hover:bg-gray-100 transition-colors"
-          >
-            <GoogleLogo className="w-5 h-5" />
-            Sign in with Google
-          </button>
-          <button
-            onClick={() => handleSignIn('microsoft')}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-surface-panel border border-line-strong text-white rounded-lg font-medium hover:bg-surface-raised transition-colors"
-          >
-            <MicrosoftMark className="w-5 h-5" />
-            Sign in with Microsoft
-          </button>
-          <p className="text-ink-faint text-xs text-center pt-1">
-            Microsoft sign-in requires a work account.
-          </p>
-          {invite.email && (
+        <div className="space-y-6">
+          <EmailLoginForm
+            defaultEmail={invite.email ?? undefined}
+            lockEmail={!!invite.email}
+            onVerified={async () => { await acceptAfterSignIn(); }}
+          />
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-line-strong" />
+            <span className="text-ink-faint text-xs">or continue with</span>
+            <div className="h-px flex-1 bg-line-strong" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => handleSignIn('google')}
+                aria-label="Continue with Google"
+                title="Continue with Google"
+                className="flex items-center justify-center w-12 h-12 bg-surface-panel border border-line-strong rounded-lg hover:bg-surface-raised transition-colors"
+              >
+                <GoogleLogo className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleSignIn('microsoft')}
+                aria-label="Continue with Microsoft (work account)"
+                title="Continue with Microsoft (work account)"
+                className="flex items-center justify-center w-12 h-12 bg-surface-panel border border-line-strong rounded-lg hover:bg-surface-raised transition-colors"
+              >
+                <MicrosoftMark className="w-5 h-5" />
+              </button>
+            </div>
             <p className="text-ink-faint text-xs text-center">
-              Sign in as <span className="font-mono text-ink-muted">{invite.email}</span>
+              Microsoft requires a work account
             </p>
-          )}
+          </div>
         </div>
       </Card>
     </Shell>

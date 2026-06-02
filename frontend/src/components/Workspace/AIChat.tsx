@@ -907,7 +907,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
             {/* Read-only mode note for viewers */}
             {!canMutate && (
               <p className="text-[11px] text-ink-faint mb-1.5">
-                Read-only mode — the AI can answer but not modify the case.
+                Read-only mode. Daubert can answer but not modify the case.
               </p>
             )}
 

@@ -6,6 +6,7 @@ import { CATEGORIES, CATEGORY_COLORS, type Category } from '@/lib/labeled-entiti
 import { FaPenToSquare, FaTrash, FaPlus, FaMinus, FaChevronDown, FaChevronRight } from 'react-icons/fa6';
 import { Loader } from '@/components/Common/Loader';
 import { ErrorModal } from '@/components/Common/ErrorModal';
+import { useConfirm } from '@/components/Common/ConfirmProvider';
 
 interface EntityFormData {
   name: string;
@@ -22,6 +23,7 @@ const emptyForm: EntityFormData = {
 };
 
 export default function AdminEntitiesPage() {
+  const confirm = useConfirm();
   const [entities, setEntities] = useState<LabeledEntity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +83,17 @@ export default function AdminEntitiesPage() {
   };
 
   const handleDelete = async (entity: LabeledEntity) => {
-    if (!window.confirm(`Delete entity "${entity.name}"? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: 'Delete entity?',
+      message: (
+        <>
+          Delete entity <span className="text-white">&ldquo;{entity.name}&rdquo;</span>. This cannot
+          be undone.
+        </>
+      ),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await apiClient.superadminDeleteLabeledEntity(entity.id);
       await fetchEntities();

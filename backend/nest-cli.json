@@ -4,6 +4,9 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "assets": [{ "include": "skills/**/*.md", "watchAssets": true }]
+    "assets": [
+      { "include": "skills/**/*.md", "watchAssets": true },
+      { "include": "modules/email/templates/**/*.html", "watchAssets": true }
+    ]
   }
 }

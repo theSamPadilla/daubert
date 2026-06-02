@@ -22,6 +22,7 @@ interface AuthContextValue {
   noAccount: boolean;
   signOut: () => Promise<void>;
   getToken: () => Promise<string | null>;
+  refreshMe: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -32,6 +33,7 @@ const AuthContext = createContext<AuthContextValue>({
   noAccount: false,
   signOut: async () => {},
   getToken: async () => null,
+  refreshMe: async () => {},
 });
 
 export function useAuth() {
@@ -63,6 +65,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
   }, []);
 
+  const fetchMe = useCallback(async (fbUser: FirebaseUser) => {
+    try {
+      const token = await fbUser.getIdToken();
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const userData = await res.json();
+        setUser(userData);
+        setNoAccount(false);
+        setError(null);
+      } else if (res.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        if (body.code === 'NO_ACCOUNT') {
+          setNoAccount(true);
+          setUser(null);
+        } else {
+          setError('Access denied');
+        }
+      } else {
+        setError('Failed to verify account');
+      }
+    } catch {
+      setError('Could not connect to server');
+    }
+  }, []);
+
+  const refreshMe = useCallback(async () => {
+    const fbUser = getFirebaseAuth().currentUser;
+    if (!fbUser) return;
+    await fetchMe(fbUser);
+  }, [fetchMe]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (fbUser) => {
       setFirebaseUser(fbUser);
@@ -75,40 +111,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        const token = await fbUser.getIdToken();
-        const res = await fetch(`${API_BASE}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (res.ok) {
-          const userData = await res.json();
-          setUser(userData);
-          setNoAccount(false);
-          setError(null);
-        } else if (res.status === 403) {
-          const body = await res.json().catch(() => ({}));
-          if (body.code === 'NO_ACCOUNT') {
-            setNoAccount(true);
-            setUser(null);
-          } else {
-            setError('Access denied');
-          }
-        } else {
-          setError('Failed to verify account');
-        }
-      } catch {
-        setError('Could not connect to server');
-      }
-
+      await fetchMe(fbUser);
       setLoading(false);
     });
 
     return unsubscribe;
-  }, []);
+  }, [fetchMe]);
 
   return (
-    <AuthContext.Provider value={{ firebaseUser, user, loading, error, noAccount, signOut, getToken }}>
+    <AuthContext.Provider value={{ firebaseUser, user, loading, error, noAccount, signOut, getToken, refreshMe }}>
       {children}
     </AuthContext.Provider>
   );

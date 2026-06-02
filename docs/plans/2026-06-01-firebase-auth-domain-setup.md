@@ -1,6 +1,8 @@
 # Firebase OAuth: Cross-Site Sign-In Setup (Dev → Prod)
 
 > **Operational runbook.** Code-side already done (`signInWithPopup` everywhere); this doc covers the per-environment Firebase / OAuth client config so login works in dev and prod.
+>
+> **See also:** [`docs/plans/2026-06-02-email-otp-auth.md`](./2026-06-02-email-otp-auth.md) — email + OTP is now a third sign-in option alongside Google and Microsoft, for users without a work account on either provider.
 
 ## TL;DR — what you actually need to do for prod
 

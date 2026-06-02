@@ -61,6 +61,7 @@ export const microsoftProvider = new OAuthProvider('microsoft.com');
 // tenant=organizations restricts to work/school Microsoft accounts (any Entra-backed
 // tenant) and skips Microsoft's account-type-detection interstitial. The default
 // 'common' tenant hangs in popup mode — the extra interstitial hop severs the
-// popup's window.opener, so Firebase can't postMessage the result back.
+// popup's window.opener under COOP, so Firebase can't postMessage the result back.
 // Personal MSAs (hotmail/outlook/live) are intentionally not supported.
+// See `docs/plans/2026-06-01-microsoft-login-setup.md`.
 microsoftProvider.setCustomParameters({ prompt: 'select_account', tenant: 'organizations' });

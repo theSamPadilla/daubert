@@ -18,6 +18,8 @@ import { ExternalTraceModule } from './modules/external-trace/external-trace.mod
 import { InvitesModule } from './modules/invites/invites.module';
 import { ScriptModule } from './modules/script/script.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { EmailModule } from './modules/email/email.module';
+import { AuthEmailModule } from './modules/auth-email/auth-email.module';
 
 @Module({
   imports: [
@@ -39,6 +41,8 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
     InvitesModule,
     ScriptModule,
     OrganizationsModule,
+    EmailModule,
+    AuthEmailModule,
   ],
   controllers: [AppController],
 })

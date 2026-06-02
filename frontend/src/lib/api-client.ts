@@ -10,21 +10,25 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+type RequestOptions = RequestInit & { unauthed?: boolean };
+
+async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options?.headers as Record<string, string>),
   };
 
-  // Attach Firebase auth token if signed in
-  try {
-    const currentUser = getFirebaseAuth().currentUser;
-    if (currentUser) {
-      const token = await currentUser.getIdToken();
-      headers['Authorization'] = `Bearer ${token}`;
+  // Attach Firebase auth token if signed in (skip for unauthenticated endpoints)
+  if (!options?.unauthed) {
+    try {
+      const currentUser = getFirebaseAuth().currentUser;
+      if (currentUser) {
+        const token = await currentUser.getIdToken();
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    } catch {
+      // Firebase not initialized or token refresh failed — proceed without auth
     }
-  } catch {
-    // Firebase not initialized or token refresh failed — proceed without auth
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -268,6 +272,22 @@ export interface CaseMember {
 export const apiClient = {
   // Auth
   getMe: () => request<UserSelf>('/auth/me'),
+  updateMe: (dto: components['schemas']['UpdateMeRequest']) =>
+    request<UserSelf>('/auth/me', { method: 'PATCH', body: JSON.stringify(dto) }),
+
+  // Email auth
+  sendEmailOtp: (dto: components['schemas']['SendOtpRequest']) =>
+    request<components['schemas']['SendOtpResponse']>('/auth/email/otp/send', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+      unauthed: true,
+    }),
+  verifyEmailOtp: (dto: components['schemas']['VerifyOtpRequest']) =>
+    request<components['schemas']['VerifyOtpResponse']>('/auth/email/otp/verify', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+      unauthed: true,
+    }),
 
   // Cases
   listCases: () => request<Case[]>('/cases'),
@@ -291,7 +311,7 @@ export const apiClient = {
     request<void>(`/cases/${caseId}/members/me/leave`, { method: 'POST' }),
 
   // Invites
-  createInvite: (caseId: string, dto: { email: string; role: 'editor' | 'viewer'; message?: string }) =>
+  createInvite: (caseId: string, dto: { email: string; role: 'owner' | 'editor' | 'viewer'; name?: string; message?: string }) =>
     request<CaseInvite>(`/cases/${caseId}/invites`, { method: 'POST', body: JSON.stringify(dto) }),
   listInvites: (caseId: string) =>
     request<CaseInvite[]>(`/cases/${caseId}/invites`),

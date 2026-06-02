@@ -29,18 +29,23 @@ export class OrgInvitesService {
   async create(
     orgId: string,
     createdByUserId: string,
-    dto: { email: string; role: OrgInviteRole; message?: string },
+    dto: { email: string; role: OrgInviteRole; name?: string; message?: string },
   ) {
     const email = dto.email.trim().toLowerCase();
+    const providedName = dto.name?.trim() || undefined;
 
     let existingUser = await this.userRepo.findOneBy({ email });
     if (!existingUser) {
       try {
-        const shell = this.userRepo.create({ email, name: email, firebaseUid: null, avatarUrl: null });
+        const shell = this.userRepo.create({ email, name: providedName ?? email, firebaseUid: null, avatarUrl: null });
         await this.userRepo.save(shell);
       } catch {
         existingUser = await this.userRepo.findOneBy({ email });
       }
+    } else if (providedName && existingUser.firebaseUid === null && existingUser.name === email) {
+      // Existing row is still a shell (never claimed) with a placeholder name — update.
+      existingUser.name = providedName;
+      await this.userRepo.save(existingUser);
     }
 
     const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);

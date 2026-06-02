@@ -12,6 +12,7 @@ import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
 import { OrganizationMemberEntity } from '../../database/entities/organization-member.entity';
 import { OrganizationEntity } from '../../database/entities/organization.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 import { ScriptModule } from '../script/script.module';
 
@@ -22,6 +23,7 @@ import { ScriptModule } from '../script/script.module';
       CaseEntity,
       OrganizationMemberEntity,
       OrganizationEntity,
+      UserEntity,
     ]),
     UsersModule,
     ScriptModule,

@@ -18,6 +18,41 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /** Update the current authenticated user */
+        patch: operations["updateMe"];
+        trace?: never;
+    };
+    "/auth/email/otp/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a one-time passcode to the given email address */
+        post: operations["sendEmailOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/email/otp/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify an OTP code and receive an auth token */
+        post: operations["verifyEmailOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -1029,6 +1064,9 @@ export interface components {
                 role: components["schemas"]["OrgMemberRole"];
             }[];
         };
+        UpdateMeRequest: {
+            name: string;
+        };
         Case: {
             /** Format: uuid */
             id: string;
@@ -1317,7 +1355,7 @@ export interface components {
             };
         };
         /** @enum {string} */
-        InviteRole: "editor" | "viewer";
+        InviteRole: "owner" | "editor" | "viewer";
         CaseInvite: {
             /** Format: uuid */
             id: string;
@@ -1355,12 +1393,30 @@ export interface components {
             /** Format: email */
             email: string;
             role: components["schemas"]["InviteRole"];
+            /** @description Optional display name for the invitee. Used to seed the user shell when the invite is created. */
+            name?: string;
             message?: string;
         };
         AcceptInviteResponse: {
             /** Format: uuid */
             caseId: string;
             alreadyMember: boolean;
+        };
+        SendOtpRequest: {
+            /** Format: email */
+            email: string;
+        };
+        SendOtpResponse: {
+            success: boolean;
+        };
+        VerifyOtpRequest: {
+            /** Format: email */
+            email: string;
+            code: string;
+        };
+        VerifyOtpResponse: {
+            success: boolean;
+            token: string;
         };
         /** @enum {string} */
         DataRoomStatus: "active" | "broken";
@@ -1530,6 +1586,8 @@ export interface components {
             /** Format: email */
             email: string;
             role: components["schemas"]["OrgInviteRole"];
+            /** @description Optional display name for the invitee. Used to seed the user shell when the invite is created. */
+            name?: string;
             message?: string;
         };
         AcceptOrgInviteResponse: {
@@ -1646,6 +1704,141 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSelf"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sendEmailOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendOtpRequest"];
+            };
+        };
+        responses: {
+            /** @description OTP sent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendOtpResponse"];
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Email send failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    verifyEmailOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyOtpRequest"];
+            };
+        };
+        responses: {
+            /** @description OTP verified, token returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifyOtpResponse"];
+                };
+            };
+            /** @description Invalid, expired, or wrong code */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

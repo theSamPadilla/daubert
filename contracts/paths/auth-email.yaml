@@ -1,0 +1,69 @@
+/auth/email/otp/send:
+  post:
+    summary: Send a one-time passcode to the given email address
+    operationId: sendEmailOtp
+    tags: [Auth]
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/auth-email.yaml#/SendOtpRequest'
+    responses:
+      '200':
+        description: OTP sent
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/auth-email.yaml#/SendOtpResponse'
+      '400':
+        description: Validation error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '429':
+        description: Rate limited
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '502':
+        description: Email send failed
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/auth/email/otp/verify:
+  post:
+    summary: Verify an OTP code and receive an auth token
+    operationId: verifyEmailOtp
+    tags: [Auth]
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/auth-email.yaml#/VerifyOtpRequest'
+    responses:
+      '200':
+        description: OTP verified, token returned
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/auth-email.yaml#/VerifyOtpResponse'
+      '400':
+        description: Invalid, expired, or wrong code
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '429':
+        description: Rate limited
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

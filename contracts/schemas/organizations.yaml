@@ -196,6 +196,9 @@ CreateOrgInviteRequest:
       format: email
     role:
       $ref: '#/OrgInviteRole'
+    name:
+      type: string
+      description: Optional display name for the invitee. Used to seed the user shell when the invite is created.
     message:
       type: string
 

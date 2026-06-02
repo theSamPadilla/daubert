@@ -6,12 +6,14 @@ import type { components } from '@/generated/api-types';
 import { FaTrash, FaPlus, FaCircleCheck, FaCircleExclamation, FaShield } from 'react-icons/fa6';
 import { Loader } from '@/components/Common/Loader';
 import { ErrorModal } from '@/components/Common/ErrorModal';
+import { useConfirm } from '@/components/Common/ConfirmProvider';
 
 type UserSummary = components['schemas']['UserSummary'];
 
 const emptyForm = { email: '', name: '' };
 
 export default function SuperadminUsersPage() {
+  const confirm = useConfirm();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -58,8 +60,16 @@ export default function SuperadminUsersPage() {
   };
 
   const handleToggleSuperAdmin = async (user: UserSummary) => {
-    const action = user.isSuperAdmin ? 'Remove superadmin from' : 'Grant superadmin to';
-    if (!window.confirm(`${action} ${user.email}?`)) return;
+    const adding = !user.isSuperAdmin;
+    const ok = await confirm({
+      title: adding ? 'Grant superadmin?' : 'Remove superadmin?',
+      message: adding
+        ? <>Grant superadmin privileges to <span className="text-white">{user.email}</span>?</>
+        : <>Remove superadmin privileges from <span className="text-white">{user.email}</span>?</>,
+      confirmLabel: adding ? 'Grant' : 'Remove',
+      destructive: !adding,
+    });
+    if (!ok) return;
     try {
       await apiClient.superadminSetSuperAdmin(user.id, !user.isSuperAdmin);
       await load();
@@ -69,7 +79,18 @@ export default function SuperadminUsersPage() {
   };
 
   const handleDelete = async (user: UserSummary) => {
-    if (!window.confirm(`Hard-delete ${user.email}? This cascades through all memberships and cannot be undone.`)) return;
+    const ok = await confirm({
+      title: 'Hard-delete user?',
+      message: (
+        <>
+          Delete <span className="text-white">{user.email}</span> permanently. This cascades through
+          all memberships and cannot be undone.
+        </>
+      ),
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await apiClient.superadminDeleteUser(user.id);
       await load();

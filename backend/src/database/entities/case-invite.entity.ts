@@ -3,7 +3,7 @@ import { BaseEntity } from './base.entity';
 import { CaseEntity } from './case.entity';
 import { UserEntity } from './user.entity';
 
-export type InviteRole = 'editor' | 'viewer';
+export type InviteRole = 'owner' | 'editor' | 'viewer';
 
 @Entity('case_invites')
 export class CaseInviteEntity extends BaseEntity {

@@ -23,20 +23,25 @@ export class InvitesService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async create(caseId: string, createdByUserId: string, dto: { email: string; role: InviteRole; message?: string }) {
+  async create(caseId: string, createdByUserId: string, dto: { email: string; role: InviteRole; name?: string; message?: string }) {
     const email = dto.email.trim().toLowerCase();
+    const providedName = dto.name?.trim() || undefined;
 
     // Ensure a user record exists so AuthGuard's email-lookup branch can link
     // the Firebase UID on first sign-in. New users have no firebase UID yet.
     let existingUser = await this.userRepo.findOneBy({ email });
     if (!existingUser) {
       try {
-        const shell = this.userRepo.create({ email, name: email, firebaseUid: null, avatarUrl: null });
+        const shell = this.userRepo.create({ email, name: providedName ?? email, firebaseUid: null, avatarUrl: null });
         await this.userRepo.save(shell);
       } catch {
         // Unique-constraint violation from a concurrent create — re-fetch and proceed.
         existingUser = await this.userRepo.findOneBy({ email });
       }
+    } else if (providedName && existingUser.firebaseUid === null && existingUser.name === email) {
+      // Existing row is still a shell (never claimed) with a placeholder name — update.
+      existingUser.name = providedName;
+      await this.userRepo.save(existingUser);
     }
 
     const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);

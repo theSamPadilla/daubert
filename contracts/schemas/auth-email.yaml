@@ -1,0 +1,34 @@
+SendOtpRequest:
+  type: object
+  required: [email]
+  properties:
+    email:
+      type: string
+      format: email
+
+SendOtpResponse:
+  type: object
+  required: [success]
+  properties:
+    success:
+      type: boolean
+
+VerifyOtpRequest:
+  type: object
+  required: [email, code]
+  properties:
+    email:
+      type: string
+      format: email
+    code:
+      type: string
+      pattern: '^\d{6}$'
+
+VerifyOtpResponse:
+  type: object
+  required: [success, token]
+  properties:
+    success:
+      type: boolean
+    token:
+      type: string

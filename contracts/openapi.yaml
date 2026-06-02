@@ -25,6 +25,38 @@ paths:
             application/json:
               schema:
                 $ref: './schemas/common.yaml#/ErrorResponse'
+    patch:
+      summary: Update the current authenticated user
+      operationId: updateMe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas/common.yaml#/UpdateMeRequest'
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/UserSelf'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ErrorResponse'
+  /auth/email/otp/send:
+    $ref: './paths/auth-email.yaml#/~1auth~1email~1otp~1send'
+  /auth/email/otp/verify:
+    $ref: './paths/auth-email.yaml#/~1auth~1email~1otp~1verify'
   /cases:
     $ref: './paths/cases.yaml#/~1cases'
   /cases/{id}:
@@ -140,6 +172,8 @@ components:
       $ref: './schemas/common.yaml#/ErrorResponse'
     UserSelf:
       $ref: './schemas/common.yaml#/UserSelf'
+    UpdateMeRequest:
+      $ref: './schemas/common.yaml#/UpdateMeRequest'
     Case:
       $ref: './schemas/cases.yaml#/Case'
     CaseRole:
@@ -212,6 +246,14 @@ components:
       $ref: './schemas/invites.yaml#/CreateInviteRequest'
     AcceptInviteResponse:
       $ref: './schemas/invites.yaml#/AcceptInviteResponse'
+    SendOtpRequest:
+      $ref: './schemas/auth-email.yaml#/SendOtpRequest'
+    SendOtpResponse:
+      $ref: './schemas/auth-email.yaml#/SendOtpResponse'
+    VerifyOtpRequest:
+      $ref: './schemas/auth-email.yaml#/VerifyOtpRequest'
+    VerifyOtpResponse:
+      $ref: './schemas/auth-email.yaml#/VerifyOtpResponse'
     DataRoomStatus:
       $ref: './schemas/data-room.yaml#/DataRoomStatus'
     DataRoomConnection:

@@ -115,11 +115,13 @@ Scripts can call the local Daubert backend to read and mutate investigation data
 
 **How auth works:** Before each script run, `ScriptExecutionService` signs an HMAC token scoped to the conversation's `caseId` (per-process random key, 60s TTL, base64url-encoded). The fetch bridge injects this as `X-Script-Token: <token>` on every request to `localhost`/`127.0.0.1`. The script code never sees the token.
 
-The global `AuthGuard` accepts either `X-Script-Token` (script path) or `Authorization: Bearer ...` (Firebase user path). Script-path requests get an `AccessPrincipal` of `{ kind: 'script', caseId }` attached to the request. They do **not** get `req.user` — this is intentional, so guards that read `req.user` (`IsAdminGuard`, `CaseMemberGuard`) automatically reject scripts.
+The global `AuthGuard` accepts either `X-Script-Token` (script path) or `Authorization: Bearer ...` (Firebase user path). Script-path requests get an `AccessPrincipal` of `{ kind: 'script', caseId }` attached to the request as `req.principal`, and user-path requests get `{ kind: 'user', userId }` plus a populated `req.user`. Script requests do **not** get `req.user` — this is intentional, so any guard that reads `req.user` (`SuperAdminGuard`, `OrgRoleGuard`, `RoleGuard`) automatically rejects scripts.
 
 **Cross-case enforcement:** Every case-scoped service method calls `caseAccess.assertAccess(principal, resource.caseId)`. For a script principal, this checks `principal.caseId === resource.caseId` — a script can only touch resources within the case it was signed for.
 
-**What scripts can reach:** the existing trace/investigation/production endpoints (`/traces/:id`, `/traces/:id/import-transactions`, `/traces/:id/edges/:edgeId`, etc.). Conversations, admin routes, and case-administration routes (`/cases/:caseId/...` guarded by `CaseMemberGuard`) reject scripts.
+**Role binding:** The signed token also encodes the initiator's case role (`owner` / `editor` / `viewer`). The script principal is `{ kind: 'script', caseId, role }`, and `CaseAccessService.assertRole` enforces the same role hierarchy on scripts that it does on user principals. A script issued by a viewer therefore cannot drive a mutation tool even if it crafts the HTTP request directly.
+
+**What scripts can reach today:** trace/investigation/production endpoints that delegate to the service-layer `assertAccess(principal, caseId)` / `assertRole(principal, caseId, role)` checks (`/traces/:id`, `/traces/:id/import-transactions`, `/traces/:id/edges/:edgeId`, the script-only `/external/trace/import`, etc.). Conversations, `/superadmin/*`, `/orgs/:org/*`, and case-administration routes (`/cases/:caseId/...` guarded by `RoleGuard`) all reject scripts because they require `req.user`.
 
 **Loopback gating:** `LOOPBACK_DOMAINS = ['localhost', '127.0.0.1']` is enabled by default in dev. In production, requires `SCRIPT_ALLOW_LOOPBACK=true`. When disabled, scripts cannot reach the local API at all.
 
@@ -169,15 +171,15 @@ Only these domains can be reached via `fetch()`:
 3. Token encodes the `caseId` it was issued for. `assertAccess({ kind: 'script', caseId }, resource.caseId)` rejects when they differ.
 4. Token is scoped to localhost only — the bridge injects it on `localhost`/`127.0.0.1` and nowhere else. Outbound to Etherscan/Tronscan does not include it.
 
-### Admin endpoint reachability via script token
-**Attack:** Script tries `fetch('${API_URL}/admin/cases')` to escalate to admin operations.
+### Superadmin / case-admin endpoint reachability via script token
+**Attack:** Script tries `fetch('${API_URL}/superadmin/cases')` or `fetch('${API_URL}/cases/:caseId/members')` to escalate to admin or membership operations.
 
 **Mitigations:**
-1. `IsAdminGuard` reads `req.user`. Script tokens never set `req.user` — only `req.principal = { kind: 'script', ... }`. Admin routes 403.
-2. `CaseMemberGuard` (used on `/cases/:caseId/...` routes) also reads `req.user` — script tokens are rejected there too.
-3. Conversations endpoints have an explicit `requireUser(req)` check that throws on script principals.
+1. `SuperAdminGuard` reads `req.user.isSuperAdmin`. Script tokens never set `req.user` — only `req.principal = { kind: 'script', ... }`. `/superadmin/*` routes 403.
+2. `OrgRoleGuard` (used on `/orgs/:org/*` routes) and `RoleGuard` (used on `/cases/:caseId/*` routes) both read `req.user` — script tokens are rejected there too.
+3. Conversations endpoints call `requireUserPrincipal(req)`, which throws on script principals.
 
-The script-callable surface is bounded to: trace/investigation/production endpoints that use the principal-based service-layer `assertAccess(principal, caseId)`.
+The script-callable surface is bounded to endpoints that delegate to the service-layer `assertAccess(principal, caseId)` check — currently trace, investigation, production, and the `/external/trace/*` loopback routes.
 
 ### SSRF (Server-Side Request Forgery)
 **Attack:** Script fetches `http://169.254.169.254/latest/meta-data/` (cloud metadata) or internal services.

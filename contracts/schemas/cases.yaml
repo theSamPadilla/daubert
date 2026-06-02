@@ -1,18 +1,21 @@
 Case:
   type: object
-  required: [id, name, createdAt, updatedAt]
+  required: [id, name, orgId, createdAt, updatedAt]
   properties:
     id:
       type: string
       format: uuid
     name:
       type: string
+    orgId:
+      type: string
+      format: uuid
     summary:
       type: string
       nullable: true
       description: Free-form description of the matter under investigation.
     role:
-      $ref: '../schemas/admin.yaml#/CaseRole'
+      $ref: '../schemas/cases.yaml#/CaseRole'
       description: The caller's role in this case. Present when the case is fetched in user context.
     createdAt:
       type: string
@@ -24,6 +27,13 @@ Case:
       type: array
       items:
         $ref: '../schemas/investigations.yaml#/InvestigationSummary'
+
+CaseRole:
+  type: string
+  enum:
+    - owner
+    - editor
+    - viewer
 
 InvestigationSummary:
   type: object
@@ -37,10 +47,13 @@ InvestigationSummary:
 
 CreateCaseRequest:
   type: object
-  required: [name]
+  required: [name, orgId]
   properties:
     name:
       type: string
+    orgId:
+      type: string
+      format: uuid
     summary:
       type: string
 
@@ -53,6 +66,52 @@ UpdateCaseRequest:
       type: string
       nullable: true
 
+CaseMember:
+  type: object
+  required: [id, userId, caseId, role, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    userId:
+      type: string
+      format: uuid
+    caseId:
+      type: string
+      format: uuid
+    role:
+      $ref: '#/CaseRole'
+    user:
+      type: object
+      required: [id, email, name, linked, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        linked:
+          type: boolean
+          description: True once the user has signed in to Firebase and the UID has been bound to this row.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
 AddCaseMemberRequest:
   type: object
   required: [email, role]
@@ -61,4 +120,11 @@ AddCaseMemberRequest:
       type: string
       format: email
     role:
-      $ref: '../schemas/admin.yaml#/CaseRole'
+      $ref: '#/CaseRole'
+
+UpdateCaseMemberRoleRequest:
+  type: object
+  required: [role]
+  properties:
+    role:
+      $ref: '#/CaseRole'

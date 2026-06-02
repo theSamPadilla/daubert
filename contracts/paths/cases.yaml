@@ -120,7 +120,7 @@
             schema:
               type: array
               items:
-                $ref: '../schemas/admin.yaml#/CaseMember'
+                $ref: '../schemas/cases.yaml#/CaseMember'
       '404':
         description: Not found
         content:
@@ -150,7 +150,7 @@
         content:
           application/json:
             schema:
-              $ref: '../schemas/admin.yaml#/CaseMember'
+              $ref: '../schemas/cases.yaml#/CaseMember'
       '404':
         description: No user with that email
       '409':
@@ -178,14 +178,14 @@
       content:
         application/json:
           schema:
-            $ref: '../schemas/admin.yaml#/UpdateMemberRoleRequest'
+            $ref: '../schemas/cases.yaml#/UpdateCaseMemberRoleRequest'
     responses:
       '200':
         description: Updated membership
         content:
           application/json:
             schema:
-              $ref: '../schemas/admin.yaml#/CaseMember'
+              $ref: '../schemas/cases.yaml#/CaseMember'
       '403':
         description: Forbidden
         content:

@@ -1,0 +1,376 @@
+/superadmin/orgs:
+  get:
+    summary: List all active organizations (superadmin only)
+    operationId: listOrgs
+    responses:
+      '200':
+        description: All active organizations
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/superadmin.yaml#/OrgSummary'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    summary: Create a new organization (superadmin only)
+    operationId: createOrg
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/superadmin.yaml#/CreateOrgRequest'
+    responses:
+      '201':
+        description: Created organization
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/organizations.yaml#/Organization'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '409':
+        description: Slug already in use
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/orgs/trash:
+  get:
+    summary: List soft-deleted organizations (superadmin only)
+    operationId: listTrashedOrgs
+    responses:
+      '200':
+        description: Soft-deleted organizations
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/superadmin.yaml#/OrgSummary'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/orgs/{id}:
+  delete:
+    summary: Soft-delete an organization (superadmin only)
+    operationId: deleteOrg
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Soft-deleted
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/orgs/{id}/restore:
+  post:
+    summary: Restore a soft-deleted organization (superadmin only)
+    operationId: restoreOrg
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Restored organization
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/organizations.yaml#/Organization'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/orgs/{id}/purge:
+  post:
+    summary: Hard-purge a soft-deleted organization (superadmin only)
+    description: Permanently deletes the organization and all its data. Only available after 30 days post-deletion.
+    operationId: purgeOrg
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Purged
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '409':
+        description: Org not yet eligible for purge (less than 30 days since deletion)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/users:
+  get:
+    summary: List all users (superadmin only)
+    operationId: listSuperadminUsers
+    responses:
+      '200':
+        description: All users
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/superadmin.yaml#/UserSummary'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    summary: Create a user shell (superadmin only)
+    description: |
+      Creates a UserEntity with no Firebase UID. The next time the real person
+      signs in to Firebase with the matching email, the global AuthGuard will
+      bind their UID to this row.
+    operationId: createSuperadminUser
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/superadmin.yaml#/CreateSuperadminUserRequest'
+    responses:
+      '201':
+        description: Created user
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/superadmin.yaml#/UserSummary'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/users/{id}:
+  delete:
+    summary: Hard delete a user (superadmin only)
+    description: Cascades through case memberships, org memberships, and conversations.
+    operationId: deleteSuperadminUser
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Deleted
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/users/{id}/super-admin:
+  patch:
+    summary: Set or unset the superadmin flag for a user (superadmin only)
+    operationId: setSuperAdmin
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/superadmin.yaml#/SetSuperAdminRequest'
+    responses:
+      '200':
+        description: Updated user
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/superadmin.yaml#/UserSummary'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/cases:
+  get:
+    summary: List all cases with aggregate metadata (superadmin only)
+    operationId: listSuperadminCases
+    responses:
+      '200':
+        description: All cases (aggregate metadata only — no case content)
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/superadmin.yaml#/CaseSummary'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/labeled-entities:
+  post:
+    summary: Create a labeled entity (superadmin only)
+    operationId: superadminCreateLabeledEntity
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/labeled-entities.yaml#/CreateLabeledEntityRequest'
+    responses:
+      '201':
+        description: Created labeled entity
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/labeled-entities.yaml#/LabeledEntity'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/labeled-entities/{id}:
+  patch:
+    summary: Update a labeled entity (superadmin only)
+    operationId: superadminUpdateLabeledEntity
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/labeled-entities.yaml#/UpdateLabeledEntityRequest'
+    responses:
+      '200':
+        description: Updated labeled entity
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/labeled-entities.yaml#/LabeledEntity'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    summary: Delete a labeled entity (superadmin only)
+    operationId: superadminDeleteLabeledEntity
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Deleted
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

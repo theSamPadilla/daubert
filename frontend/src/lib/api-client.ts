@@ -97,15 +97,19 @@ async function downloadFile(path: string, filename: string, options?: RequestIni
 }
 
 // Types matching the backend entities
-export type OrgRole = 'admin' | 'member' | 'guest';
+export type OrgMemberRole = components['schemas']['OrgMemberRole'];
 
-export interface User {
+export interface UserSelf {
   id: string;
   name: string;
   email: string;
-  avatarUrl: string | null;
-  orgRole: OrgRole;
+  avatarUrl?: string | null;
+  isSuperAdmin: boolean;
+  orgs: Array<{ id: string; slug: string; name: string; role: OrgMemberRole }>;
 }
+
+/** @deprecated Use UserSelf */
+export type User = UserSelf;
 
 export interface Case {
   id: string;
@@ -246,7 +250,7 @@ export interface AdminUser {
   name: string;
   avatarUrl: string | null;
   linked: boolean;
-  orgRole: OrgRole;
+  isSuperAdmin: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -263,11 +267,11 @@ export interface CaseMember {
 
 export const apiClient = {
   // Auth
-  getMe: () => request<User>('/auth/me'),
+  getMe: () => request<UserSelf>('/auth/me'),
 
   // Cases
   listCases: () => request<Case[]>('/cases'),
-  createCase: (dto: { name: string; summary?: string }) =>
+  createCase: (dto: { name: string; orgId: string; summary?: string }) =>
     request<Case>('/cases', { method: 'POST', body: JSON.stringify(dto) }),
   getCase: (id: string) => request<Case>(`/cases/${id}`),
   updateCase: (id: string, body: Partial<{ name: string; summary: string | null }>) =>
@@ -415,37 +419,69 @@ export const apiClient = {
     request<LabeledEntity>(`/labeled-entities/${id}`),
   lookupLabeledEntity: (address: string) =>
     request<LabeledEntity[]>(`/labeled-entities/lookup?address=${encodeURIComponent(address)}`),
-  // (CUD has moved to /admin/labeled-entities/* — see adminCreateLabeledEntity below)
+  // (CUD has moved to /superadmin/labeled-entities/* — see superadminCreateLabeledEntity below)
 
-  // Admin — Users
-  adminListUsers: () => request<AdminUser[]>('/admin/users'),
-  adminCreateUser: (body: { email: string; name: string; caseId?: string; caseRole?: CaseRole }) =>
-    request<AdminUser>('/admin/users', { method: 'POST', body: JSON.stringify(body) }),
-  adminDeleteUser: (id: string) =>
-    request<void>(`/admin/users/${id}`, { method: 'DELETE' }),
+  // Organizations
+  getOrg: (slug: string) =>
+    request<components['schemas']['Organization']>(`/orgs/${slug}`),
+  updateOrg: (slug: string, dto: components['schemas']['UpdateOrgRequest']) =>
+    request<components['schemas']['Organization']>(`/orgs/${slug}`, { method: 'PATCH', body: JSON.stringify(dto) }),
+  listOrgMembers: (slug: string) =>
+    request<components['schemas']['OrganizationMember'][]>(`/orgs/${slug}/members`),
+  addOrgMember: (slug: string, dto: components['schemas']['AddOrgMemberRequest']) =>
+    request<components['schemas']['OrganizationMember']>(`/orgs/${slug}/members`, { method: 'POST', body: JSON.stringify(dto) }),
+  updateOrgMemberRole: (slug: string, userId: string, dto: components['schemas']['UpdateOrgMemberRoleRequest']) =>
+    request<components['schemas']['OrganizationMember']>(`/orgs/${slug}/members/${userId}`, { method: 'PATCH', body: JSON.stringify(dto) }),
+  removeOrgMember: (slug: string, userId: string) =>
+    request<void>(`/orgs/${slug}/members/${userId}`, { method: 'DELETE' }),
+  leaveOrg: (slug: string) =>
+    request<void>(`/orgs/${slug}/members/me/leave`, { method: 'POST' }),
+  listOrgInvites: (slug: string) =>
+    request<components['schemas']['OrganizationInvite'][]>(`/orgs/${slug}/invites`),
+  createOrgInvite: (slug: string, dto: components['schemas']['CreateOrgInviteRequest']) =>
+    request<components['schemas']['OrganizationInvite']>(`/orgs/${slug}/invites`, { method: 'POST', body: JSON.stringify(dto) }),
+  revokeOrgInvite: (slug: string, inviteId: string) =>
+    request<void>(`/orgs/${slug}/invites/${inviteId}`, { method: 'DELETE' }),
+  lookupOrgInvite: (code: string) =>
+    request<components['schemas']['OrganizationInviteLookup']>(`/org-invites/${code}`),
+  acceptOrgInvite: (code: string) =>
+    request<components['schemas']['AcceptOrgInviteResponse']>(`/org-invites/${code}/accept`, { method: 'POST' }),
 
-  // Admin — Cases
-  adminListCases: () => request<Case[]>('/admin/cases'),
-  adminCreateCase: (body: { name: string; ownerUserId: string; summary?: string }) =>
-    request<Case>('/admin/cases', { method: 'POST', body: JSON.stringify(body) }),
-  adminDeleteCase: (id: string) =>
-    request<void>(`/admin/cases/${id}`, { method: 'DELETE' }),
-  adminListCaseMembers: (caseId: string) =>
-    request<CaseMember[]>(`/admin/cases/${caseId}/members`),
-  adminAddCaseMember: (caseId: string, body: { userId: string; role: CaseRole }) =>
-    request<CaseMember>(`/admin/cases/${caseId}/members`, { method: 'POST', body: JSON.stringify(body) }),
-  adminUpdateCaseMemberRole: (caseId: string, userId: string, role: CaseRole) =>
-    request<CaseMember>(`/admin/cases/${caseId}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
-  adminRemoveCaseMember: (caseId: string, userId: string) =>
-    request<void>(`/admin/cases/${caseId}/members/${userId}`, { method: 'DELETE' }),
+  // Superadmin — Orgs
+  superadminListOrgs: () =>
+    request<components['schemas']['OrgSummary'][]>('/superadmin/orgs'),
+  superadminListTrashedOrgs: () =>
+    request<components['schemas']['OrgSummary'][]>('/superadmin/orgs/trash'),
+  superadminCreateOrg: (dto: components['schemas']['CreateOrgRequest']) =>
+    request<components['schemas']['Organization']>('/superadmin/orgs', { method: 'POST', body: JSON.stringify(dto) }),
+  superadminDeleteOrg: (id: string) =>
+    request<void>(`/superadmin/orgs/${id}`, { method: 'DELETE' }),
+  superadminRestoreOrg: (id: string) =>
+    request<components['schemas']['Organization']>(`/superadmin/orgs/${id}/restore`, { method: 'POST' }),
+  superadminPurgeOrg: (id: string) =>
+    request<void>(`/superadmin/orgs/${id}/purge`, { method: 'DELETE' }),
 
-  // Admin — Labeled Entities (CUD only; reads stay on /labeled-entities)
-  adminCreateLabeledEntity: (body: { name: string; category: string; wallets: string[]; description?: string; metadata?: Record<string, unknown> }) =>
-    request<LabeledEntity>('/admin/labeled-entities', { method: 'POST', body: JSON.stringify(body) }),
-  adminUpdateLabeledEntity: (id: string, body: Partial<{ name: string; category: string; description: string; wallets: string[]; metadata: Record<string, unknown> }>) =>
-    request<LabeledEntity>(`/admin/labeled-entities/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  adminDeleteLabeledEntity: (id: string) =>
-    request<void>(`/admin/labeled-entities/${id}`, { method: 'DELETE' }),
+  // Superadmin — Users
+  superadminListUsers: () =>
+    request<components['schemas']['UserSummary'][]>('/superadmin/users'),
+  superadminCreateUser: (dto: components['schemas']['CreateSuperadminUserRequest']) =>
+    request<components['schemas']['UserSummary']>('/superadmin/users', { method: 'POST', body: JSON.stringify(dto) }),
+  superadminDeleteUser: (id: string) =>
+    request<void>(`/superadmin/users/${id}`, { method: 'DELETE' }),
+  superadminSetSuperAdmin: (id: string, value: boolean) =>
+    request<components['schemas']['UserSummary']>(`/superadmin/users/${id}/superadmin`, { method: 'PATCH', body: JSON.stringify({ value }) }),
+
+  // Superadmin — Cases
+  superadminListCases: () =>
+    request<components['schemas']['CaseSummary'][]>('/superadmin/cases'),
+
+  // Superadmin — Labeled Entities (CUD only; reads stay on /labeled-entities)
+  superadminCreateLabeledEntity: (body: { name: string; category: string; wallets: string[]; description?: string; metadata?: Record<string, unknown> }) =>
+    request<LabeledEntity>('/superadmin/labeled-entities', { method: 'POST', body: JSON.stringify(body) }),
+  superadminUpdateLabeledEntity: (id: string, body: Partial<{ name: string; category: string; description: string; wallets: string[]; metadata: Record<string, unknown> }>) =>
+    request<LabeledEntity>(`/superadmin/labeled-entities/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  superadminDeleteLabeledEntity: (id: string) =>
+    request<void>(`/superadmin/labeled-entities/${id}`, { method: 'DELETE' }),
 
   // Productions
   listProductions: (caseId: string, type?: string) => {

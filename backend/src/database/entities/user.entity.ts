@@ -2,8 +2,7 @@ import { Entity, Column, OneToMany } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { CaseEntity } from './case.entity';
 import { CaseMemberEntity } from './case-member.entity';
-
-export type OrgRole = 'admin' | 'member' | 'guest';
+import { OrganizationMemberEntity } from './organization-member.entity';
 
 @Entity('users')
 export class UserEntity extends BaseEntity {
@@ -26,6 +25,9 @@ export class UserEntity extends BaseEntity {
   @OneToMany(() => CaseMemberEntity, (m) => m.user)
   memberships: CaseMemberEntity[];
 
-  @Column({ name: 'org_role', type: 'varchar', default: 'guest' })
-  orgRole: OrgRole;
+  @Column({ name: 'is_super_admin', type: 'boolean', default: false })
+  isSuperAdmin: boolean;
+
+  @OneToMany(() => OrganizationMemberEntity, (m) => m.user)
+  organizationMemberships: OrganizationMemberEntity[];
 }

@@ -10,7 +10,7 @@ export default function UserMenu({ variant = 'dark' }: { variant?: 'dark' | 'lig
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const isAdmin = user?.orgRole === 'admin';
+  const isSuperAdmin = user?.isSuperAdmin === true;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -63,13 +63,13 @@ export default function UserMenu({ variant = 'dark' }: { variant?: 'dark' | 'lig
             <p className="text-sm font-medium text-ink truncate">{user.name}</p>
             <p className="text-xs text-ink-muted truncate">{user.email}</p>
           </div>
-          {isAdmin && (
+          {isSuperAdmin && (
             <button
-              onClick={() => { setOpen(false); router.push('/admin/entities'); }}
+              onClick={() => { setOpen(false); router.push('/superadmin/orgs'); }}
               className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-raised transition-colors flex items-center gap-2"
             >
               <FaGear className="w-3 h-3 text-ink-faint" />
-              Admin
+              Superadmin
             </button>
           )}
           <button

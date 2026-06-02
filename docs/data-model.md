@@ -6,22 +6,30 @@ TypeORM entities with Postgres. `synchronize: true` in dev (auto-creates/updates
 
 ```
 User
-CaseMember (join table: userId + caseId, unique constraint)
+├── OrganizationMember[]   (org-level role)
+└── CaseMember[]           (case-level role)
+
+Organization
+├── OrganizationMember[]   (join: userId + organizationId, unique)
+├── OrganizationInvite[]   (pending email invites with code)
+└── Case[]                 (every case belongs to exactly one org)
+
 Case
-├── CaseMember[]         (onDelete: CASCADE)
-├── Investigation[]      (cascade: true)
-│   ├── Trace[]          (cascade: true)
-│   └── ScriptRun[]      (onDelete: CASCADE)
-├── Production[]         (onDelete: CASCADE)
-└── DataRoomConnection   (onDelete: CASCADE, 1:1 via unique caseId)
+├── CaseMember[]           (join: userId + caseId, unique; onDelete: CASCADE)
+├── CaseInvite[]           (pending email invites with code; onDelete: CASCADE)
+├── Investigation[]        (cascade: true)
+│   ├── Trace[]            (cascade: true)
+│   └── ScriptRun[]        (onDelete: CASCADE)
+├── Production[]           (onDelete: CASCADE)
+└── DataRoomConnection     (onDelete: CASCADE, 1:1 via unique caseId)
 
-Conversation             (independent)
-└── Message[]            (cascade: true)
+Conversation               (scoped to a case via caseId)
+└── Message[]              (cascade: true)
 
-LabeledEntity            (independent)
+LabeledEntity              (independent — global registry)
 ```
 
-Deleting a case cascades through case members, investigations, traces, script runs, productions, and the data room connection. Conversations and labeled entities are independent.
+Deleting an organization cascades through its members, invites, and cases (and everything beneath each case). Deleting a case cascades through case members, case invites, investigations, traces, script runs, productions, and the data room connection. Labeled entities are independent.
 
 ## Base Entity
 
@@ -39,10 +47,63 @@ All entities inherit these fields:
 
 | Column | Type | Constraints |
 |--------|------|------------|
+| `firebase_uid` | varchar | nullable, unique |
 | `name` | varchar | not null |
 | `email` | varchar | not null, unique |
+| `avatar_url` | varchar | nullable |
+| `is_super_admin` | boolean | default `false` -- platform-wide superadmin flag |
 
-**Relations**: One-to-many -> `case_members`
+**Relations**:
+- One-to-many -> `organization_members`
+- One-to-many -> `case_members`
+- One-to-many -> `cases` (LEGACY relation via `cases.user_id`)
+
+---
+
+### `organizations`
+
+| Column | Type | Constraints |
+|--------|------|------------|
+| `name` | varchar | not null |
+| `slug` | varchar | not null, unique |
+| `deleted_at` | timestamptz | nullable -- soft delete (superadmin trash) |
+
+**Relations**:
+- One-to-many -> `organization_members` (cascade)
+- One-to-many -> `cases`
+
+---
+
+### `organization_members`
+
+| Column | Type | Constraints |
+|--------|------|------------|
+| `user_id` | uuid | FK -> users (onDelete: CASCADE) |
+| `organization_id` | uuid | FK -> organizations (onDelete: CASCADE) |
+| `role` | varchar | default `'guest'` -- `'admin'`, `'member'`, or `'guest'` |
+
+**Unique constraint** on `(userId, organizationId)`.
+
+Role semantics:
+- `admin` — full org access, implicit owner of every case in the org
+- `member` — can be invited to cases inside the org
+- `guest` — placeholder for users that exist only because they were case-invited; no org-level capabilities
+
+---
+
+### `organization_invites`
+
+| Column | Type | Constraints |
+|--------|------|------------|
+| `organization_id` | uuid | FK -> organizations (onDelete: CASCADE) |
+| `email` | varchar | indexed, lowercased |
+| `role` | varchar | `'member'` or `'guest'` |
+| `code` | varchar | not null, unique -- the invite token shared via URL |
+| `message` | text | nullable -- optional note from the inviter |
+| `created_by_user_id` | uuid | FK -> users |
+| `expires_at` | timestamptz | not null |
+| `used_at` | timestamptz | nullable -- set when redeemed |
+| `used_by_user_id` | uuid | nullable, FK -> users -- who accepted |
 
 ---
 
@@ -50,15 +111,34 @@ All entities inherit these fields:
 
 | Column | Type | Constraints |
 |--------|------|------------|
-| `userId` | varchar | FK -> users |
-| `caseId` | varchar | FK -> cases |
-| `role` | varchar | default `'guest'` -- `'owner'` or `'guest'` |
+| `user_id` | uuid | FK -> users (onDelete: CASCADE) |
+| `case_id` | uuid | FK -> cases (onDelete: CASCADE) |
+| `role` | varchar | default `'viewer'` -- `'owner'`, `'editor'`, or `'viewer'` |
 
 **Unique constraint** on `(userId, caseId)`.
 
-**Relations**:
-- Many-to-one -> `users` (onDelete: CASCADE)
-- Many-to-one -> `cases` (onDelete: CASCADE)
+Role semantics:
+- `owner` — full control of the case, including membership management
+- `editor` — read + write graph data, productions, conversations
+- `viewer` — read-only
+
+Org admins have implicit owner access to every case in their org without an explicit `case_members` row.
+
+---
+
+### `case_invites`
+
+| Column | Type | Constraints |
+|--------|------|------------|
+| `case_id` | uuid | FK -> cases (onDelete: CASCADE) |
+| `email` | varchar | indexed, lowercased |
+| `role` | varchar | `'editor'` or `'viewer'` (owners cannot be invited) |
+| `code` | varchar | not null, unique |
+| `message` | text | nullable |
+| `created_by_user_id` | uuid | FK -> users |
+| `expires_at` | timestamptz | not null |
+| `used_at` | timestamptz | nullable |
+| `used_by_user_id` | uuid | nullable, FK -> users |
 
 ---
 
@@ -67,14 +147,16 @@ All entities inherit these fields:
 | Column | Type | Constraints |
 |--------|------|------------|
 | `name` | varchar | not null |
-| `start_date` | timestamp | nullable |
-| `links` | jsonb | default `[]` |
-| `user_id` | varchar | nullable, LEGACY -- new code uses `case_members` |
+| `summary` | text | nullable |
+| `organization_id` | uuid | FK -> organizations, NOT NULL (every case belongs to an org) |
+| `user_id` | uuid | nullable, LEGACY -- predates `case_members`, kept until phase 4 cleanup |
 
 **Relations**:
+- Many-to-one -> `organizations` (onDelete: CASCADE)
 - One-to-many -> `investigations` (cascade: true)
-- One-to-many -> `case_members`
-- One-to-many -> `productions`
+- One-to-many -> `case_members` (cascade: true)
+- One-to-many -> `case_invites` (cascade)
+- One-to-many -> `productions` (cascade)
 
 ---
 
@@ -219,7 +301,7 @@ No relations. Independent entity.
 | `name` | varchar | not null |
 | `type` | varchar | `'report'`, `'chart'`, or `'chronology'` |
 | `data` | jsonb | default `{}` |
-| `case_id` | varchar | FK -> cases, not null |
+| `case_id` | uuid | FK -> cases, not null |
 
 **Relations**: Many-to-one -> `cases` (onDelete: CASCADE)
 
@@ -243,14 +325,24 @@ No relations. Independent entity.
 ## ER Diagram
 
 ```
-┌──────────┐     ┌──────────────┐     ┌──────────────┐
-│  users   │────<│ case_members │>────│    cases     │
-│          │ 1:N │              │ N:1 │              │
-│ name     │     │ userId (FK)  │     │ name         │
-│ email    │     │ caseId (FK)  │     │ start_date   │
-└──────────┘     │ role         │     │ links[]      │
-                 └──────────────┘     │ user_id (LEG)│
-                                      └──────┬───────┘
+┌──────────┐    ┌─────────────────────┐    ┌──────────────┐
+│  users   │───<│ organization_members│>───│organizations │
+│ firebase │ 1:N│ userId, orgId, role │ N:1│ name, slug   │
+│ name     │    └─────────────────────┘    │ deleted_at   │
+│ email    │    ┌─────────────────────┐    │              │
+│ avatar   │    │ organization_invites│>───│              │
+│ super    │    │ email, role, code   │    └──────┬───────┘
+└────┬─────┘    └─────────────────────┘           │ 1:N
+     │ 1:N                                        v
+┌────┴─────────┐                           ┌──────────────┐
+│ case_members │>──────────────────────────│    cases     │
+│ userId, caseId, role                     │ name         │
+│  ('owner'/'editor'/'viewer')             │ summary      │
+└──────────────┘                           │ org_id (FK)  │
+┌──────────────┐                           │ user_id (LEG)│
+│ case_invites │>─────────────────────────>│              │
+│ email, role, code                        └──────┬───────┘
+└──────────────┘                                  │
                           ┌───────────────────┼───────────────────┐
                           │ 1:N               │ 1:N               │ 1:1
                    ┌──────┴───────┐    ┌──────┴───────┐    ┌─────┴──────────────┐
@@ -304,5 +396,9 @@ The frontend uses different type names than the backend entities:
 | `DataRoomConnection` (api-client) | `DataRoomConnectionEntity` | Credentials stripped on read |
 | `LabeledEntity` (api-client) | `LabeledEntityEntity` | 1:1 mapping |
 | `CaseMember` (api-client) | `CaseMemberEntity` | 1:1 mapping |
+| `CaseInvite` (api-client) | `CaseInviteEntity` | `code` only exposed to the inviter and the redeemer |
+| `Organization` (api-client) | `OrganizationEntity` | 1:1 mapping |
+| `OrganizationMember` (api-client) | `OrganizationMemberEntity` | 1:1 mapping |
+| `OrganizationInvite` (api-client) | `OrganizationInviteEntity` | `code` only exposed to the inviter and the redeemer |
 
 Wallet nodes, transaction edges, groups, and edge bundles are **not** separate database tables -- they live inside the trace's `data` JSONB column. This keeps the graph structure atomic per trace and avoids complex join queries.

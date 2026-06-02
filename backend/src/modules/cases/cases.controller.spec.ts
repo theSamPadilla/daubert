@@ -7,6 +7,8 @@ import { CasesService } from './cases.service';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
+import { OrganizationEntity } from '../../database/entities/organization.entity';
+import { OrganizationMemberEntity } from '../../database/entities/organization-member.entity';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +45,8 @@ describe('CasesController', () => {
     // provide the repos it needs so the DI graph resolves.
     const mockMemberRepo = { findOneBy: jest.fn() };
     const mockCaseRepo = { findOneBy: jest.fn() };
+    const mockOrgMemberRepo = { findOneBy: jest.fn() };
+    const mockOrgRepo = { findOneBy: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CasesController],
@@ -51,6 +55,8 @@ describe('CasesController', () => {
         { provide: Reflector, useValue: { getAllAndOverride: jest.fn().mockReturnValue(null) } },
         { provide: getRepositoryToken(CaseMemberEntity), useValue: mockMemberRepo },
         { provide: getRepositoryToken(CaseEntity), useValue: mockCaseRepo },
+        { provide: getRepositoryToken(OrganizationMemberEntity), useValue: mockOrgMemberRepo },
+        { provide: getRepositoryToken(OrganizationEntity), useValue: mockOrgRepo },
       ],
     }).compile();
 
@@ -128,7 +134,7 @@ describe('CasesController', () => {
   // ── create (POST /cases) ──────────────────────────────────────────────────
 
   it('create: member — calls createWithOwner with ownerUserId from req.user.id and DTO fields', async () => {
-    const dto: CreateCaseDto = { name: 'New Case', summary: 'Embezzlement at FTX' };
+    const dto: CreateCaseDto = { name: 'New Case', summary: 'Embezzlement at FTX', orgId: 'org-1' };
     const saved = { ...BASE_CASE, name: dto.name };
     service.createWithOwner!.mockResolvedValue(saved as any);
 
@@ -138,13 +144,14 @@ describe('CasesController', () => {
     expect(service.createWithOwner).toHaveBeenCalledWith({
       name: 'New Case',
       ownerUserId: 'member-user-1',
+      orgId: 'org-1',
       summary: 'Embezzlement at FTX',
     });
     expect(result).toEqual(saved);
   });
 
   it('create: admin — calls createWithOwner with ownerUserId from req.user.id and DTO fields', async () => {
-    const dto: CreateCaseDto = { name: 'Admin Case' };
+    const dto: CreateCaseDto = { name: 'Admin Case', orgId: 'org-1' };
     const saved = { ...BASE_CASE, name: dto.name };
     service.createWithOwner!.mockResolvedValue(saved as any);
 
@@ -154,6 +161,7 @@ describe('CasesController', () => {
     expect(service.createWithOwner).toHaveBeenCalledWith({
       name: 'Admin Case',
       ownerUserId: 'admin-user-1',
+      orgId: 'org-1',
       summary: null,
     });
     expect(result).toEqual(saved);

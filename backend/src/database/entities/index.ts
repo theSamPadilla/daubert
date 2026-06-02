@@ -6,6 +6,9 @@ import { DataRoomConnectionEntity } from './data-room-connection.entity';
 import { InvestigationEntity } from './investigation.entity';
 import { LabeledEntityEntity } from './labeled-entity.entity';
 import { MessageEntity } from './message.entity';
+import { OrganizationEntity } from './organization.entity';
+import { OrganizationInviteEntity } from './organization-invite.entity';
+import { OrganizationMemberEntity } from './organization-member.entity';
 import { ProductionEntity } from './production.entity';
 import { ScriptRunEntity } from './script-run.entity';
 import { TraceEntity } from './trace.entity';
@@ -20,6 +23,9 @@ export const entities = [
   InvestigationEntity,
   LabeledEntityEntity,
   MessageEntity,
+  OrganizationEntity,
+  OrganizationInviteEntity,
+  OrganizationMemberEntity,
   ProductionEntity,
   ScriptRunEntity,
   TraceEntity,

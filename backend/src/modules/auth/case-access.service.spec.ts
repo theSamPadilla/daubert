@@ -8,7 +8,12 @@ describe('CaseAccessService.assertAccess', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new CaseAccessService(memberRepo as any);
+    service = new CaseAccessService(
+      memberRepo as any,
+      { findOneBy: jest.fn().mockResolvedValue(null) } as any,
+      { findOneBy: jest.fn().mockResolvedValue(null) } as any,
+      { findOneBy: jest.fn().mockResolvedValue(null) } as any,
+    );
   });
 
   // ── User principal ─────────────────────────────────────────────────────────
@@ -40,7 +45,7 @@ describe('CaseAccessService.assertAccess', () => {
 
   it('script principal: passes when caseId matches (returns null)', async () => {
     const result = await service.assertAccess(
-      { kind: 'script', caseId: 'c1' },
+      { kind: 'script', caseId: 'c1', role: 'editor' },
       'c1',
     );
     expect(result).toBeNull();
@@ -49,11 +54,11 @@ describe('CaseAccessService.assertAccess', () => {
 
   it('script principal: throws ForbiddenException with cross_case_access on mismatch', async () => {
     await expect(
-      service.assertAccess({ kind: 'script', caseId: 'c1' }, 'c2'),
+      service.assertAccess({ kind: 'script', caseId: 'c1', role: 'editor' }, 'c2'),
     ).rejects.toThrow('cross_case_access');
 
     await expect(
-      service.assertAccess({ kind: 'script', caseId: 'c1' }, 'c2'),
+      service.assertAccess({ kind: 'script', caseId: 'c1', role: 'editor' }, 'c2'),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(memberRepo.findOneBy).not.toHaveBeenCalled();
@@ -66,19 +71,12 @@ describe('CaseAccessService.assertRole', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new CaseAccessService(memberRepo as any);
-  });
-
-  // ── Script principal ───────────────────────────────────────────────────────
-
-  it('script principal: returns null without checking role', async () => {
-    const result = await service.assertRole(
-      { kind: 'script', caseId: 'c1' },
-      'c1',
-      'editor' as CaseRole,
+    service = new CaseAccessService(
+      memberRepo as any,
+      { findOneBy: jest.fn().mockResolvedValue(null) } as any,
+      { findOneBy: jest.fn().mockResolvedValue(null) } as any,
+      { findOneBy: jest.fn().mockResolvedValue(null) } as any,
     );
-    expect(result).toBeNull();
-    expect(memberRepo.findOneBy).not.toHaveBeenCalled();
   });
 
   // ── User principal: sufficient role ───────────────────────────────────────
@@ -151,5 +149,79 @@ describe('CaseAccessService.assertRole', () => {
         'viewer' as CaseRole,
       ),
     ).rejects.toThrow('You do not have access to this case');
+  });
+});
+
+describe('CaseAccessService.assertRole — script principal role enforcement', () => {
+  let service: CaseAccessService;
+  const memberRepo = { findOneBy: jest.fn() };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new CaseAccessService(
+      memberRepo as any,
+      { findOneBy: jest.fn().mockResolvedValue(null) } as any,
+      { findOneBy: jest.fn().mockResolvedValue(null) } as any,
+      { findOneBy: jest.fn().mockResolvedValue(null) } as any,
+    );
+  });
+
+  it('script viewer: admitted for minRole=viewer', async () => {
+    const result = await service.assertRole(
+      { kind: 'script', caseId: 'c1', role: 'viewer' },
+      'c1',
+      'viewer' as CaseRole,
+    );
+    expect(result).toBeNull();
+  });
+
+  it('script viewer: forbidden for minRole=editor', async () => {
+    await expect(
+      service.assertRole(
+        { kind: 'script', caseId: 'c1', role: 'viewer' },
+        'c1',
+        'editor' as CaseRole,
+      ),
+    ).rejects.toThrow("Requires role 'editor' or higher");
+  });
+
+  it('script editor: admitted for minRole=editor', async () => {
+    const result = await service.assertRole(
+      { kind: 'script', caseId: 'c1', role: 'editor' },
+      'c1',
+      'editor' as CaseRole,
+    );
+    expect(result).toBeNull();
+  });
+
+  it('script editor: forbidden for minRole=owner', async () => {
+    await expect(
+      service.assertRole(
+        { kind: 'script', caseId: 'c1', role: 'editor' },
+        'c1',
+        'owner' as CaseRole,
+      ),
+    ).rejects.toThrow("Requires role 'owner' or higher");
+  });
+
+  it('script owner: admitted for all roles', async () => {
+    for (const min of ['viewer', 'editor', 'owner'] as CaseRole[]) {
+      const r = await service.assertRole(
+        { kind: 'script', caseId: 'c1', role: 'owner' },
+        'c1',
+        min,
+      );
+      expect(r).toBeNull();
+    }
+  });
+
+  it('script principal: cross-case still forbidden regardless of role', async () => {
+    await expect(
+      service.assertRole(
+        { kind: 'script', caseId: 'c1', role: 'owner' },
+        'c2',
+        'viewer' as CaseRole,
+      ),
+    ).rejects.toThrow('cross_case_access');
   });
 });

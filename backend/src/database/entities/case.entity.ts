@@ -1,6 +1,7 @@
 import { Entity, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { InvestigationEntity } from './investigation.entity';
+import { OrganizationEntity } from './organization.entity';
 import { ProductionEntity } from './production.entity';
 import { UserEntity } from './user.entity';
 import { CaseMemberEntity } from './case-member.entity';
@@ -29,4 +30,11 @@ export class CaseEntity extends BaseEntity {
 
   @OneToMany(() => ProductionEntity, (p) => p.case, { cascade: true })
   productions: ProductionEntity[];
+
+  @Column({ name: 'organization_id' })
+  orgId: string;
+
+  @ManyToOne(() => OrganizationEntity, (o) => o.cases, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organization_id' })
+  organization: OrganizationEntity;
 }

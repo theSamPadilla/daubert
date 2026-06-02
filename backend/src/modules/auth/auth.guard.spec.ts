@@ -103,7 +103,7 @@ describe('AuthGuard (dual-auth)', () => {
   // ── Script-token path ──────────────────────────────────────────────────────
 
   it('valid X-Script-Token attaches script principal and does NOT set req.user', async () => {
-    const token = scriptToken.sign('case-42');
+    const token = scriptToken.sign('case-42', 'editor');
     const req: FakeRequest = {
       headers: { 'x-script-token': token },
       method: 'GET',
@@ -112,7 +112,7 @@ describe('AuthGuard (dual-auth)', () => {
     const ctx = makeContext(req);
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
-    expect(req.principal).toEqual({ kind: 'script', caseId: 'case-42' });
+    expect(req.principal).toEqual({ kind: 'script', caseId: 'case-42', role: 'editor' });
     expect(req.user).toBeUndefined();
     // Firebase path was not invoked
     expect(verifyIdToken).not.toHaveBeenCalled();

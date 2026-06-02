@@ -5,18 +5,17 @@ import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { RequireRole } from '../auth/require-role.decorator';
-import { RequireOrgRole } from '../auth/require-org-role.decorator';
 
 @Controller('cases')
 export class CasesController {
   constructor(private readonly service: CasesService) {}
 
-  @RequireOrgRole('member')
   @Post()
   create(@Body() dto: CreateCaseDto, @Req() req: any) {
     return this.service.createWithOwner({
       name: dto.name,
       ownerUserId: req.user.id,
+      orgId: dto.orgId,
       summary: dto.summary ?? null,
     });
   }

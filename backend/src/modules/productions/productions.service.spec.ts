@@ -23,7 +23,7 @@ const mockCaseAccess = {
 };
 
 const USER_PRINCIPAL: AccessPrincipal = { kind: 'user', userId: 'user-1' };
-const SCRIPT_PRINCIPAL: AccessPrincipal = { kind: 'script', caseId: 'case-1' };
+const SCRIPT_PRINCIPAL: AccessPrincipal = { kind: 'script', caseId: 'case-1', role: 'editor' };
 const principal = USER_PRINCIPAL;
 
 const makeProduction = (overrides: Partial<ProductionEntity> = {}): ProductionEntity =>

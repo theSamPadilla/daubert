@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { CaseEntity } from '../../database/entities/case.entity';
 import { CaseMemberEntity, CaseRole } from '../../database/entities/case-member.entity';
+import { OrganizationEntity } from '../../database/entities/organization.entity';
+import { OrganizationMemberEntity } from '../../database/entities/organization-member.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UpdateCaseDto } from './dto/update-case.dto';
 import { UsersService } from '../users/users.service';
@@ -14,20 +16,51 @@ export class CasesService {
     private readonly repo: Repository<CaseEntity>,
     @InjectRepository(CaseMemberEntity)
     private readonly memberRepo: Repository<CaseMemberEntity>,
+    @InjectRepository(OrganizationMemberEntity)
+    private readonly orgMemberRepo: Repository<OrganizationMemberEntity>,
     private readonly dataSource: DataSource,
     private readonly usersService: UsersService,
   ) {}
 
   async findAllForUser(user: UserEntity) {
+    // Cases where user has an explicit case_members row
     const memberships = await this.memberRepo.find({
       where: { userId: user.id },
       relations: ['case'],
       order: { case: { createdAt: 'DESC' } },
     });
-    return memberships.map((m) => ({
-      ...m.case,
-      role: m.role,
-    }));
+    const memberCases = memberships.map((m) => ({ ...m.case, role: m.role }));
+
+    // Cases in orgs where user is org admin (implicit owner-equivalent).
+    // Soft-deleted orgs filtered out via the join.
+    const adminMemberships = await this.orgMemberRepo
+      .createQueryBuilder('m')
+      .innerJoin('organizations', 'o', 'o.id = m.organization_id AND o.deleted_at IS NULL')
+      .where('m.user_id = :userId AND m.role = :role', { userId: user.id, role: 'admin' })
+      .getMany();
+    const adminOrgIds = adminMemberships.map((m) => m.organizationId);
+
+    let adminImplicitCases: Array<CaseEntity & { role: CaseRole }> = [];
+    if (adminOrgIds.length > 0) {
+      const orgCases = await this.repo
+        .createQueryBuilder('c')
+        .where('c.orgId IN (:...orgIds)', { orgIds: adminOrgIds })
+        .orderBy('c.createdAt', 'DESC')
+        .getMany();
+      adminImplicitCases = orgCases.map((c) => ({ ...c, role: 'owner' as CaseRole }));
+    }
+
+    // Dedupe: explicit membership wins over implicit (in case user is both member and org admin)
+    const seen = new Set(memberCases.map((c) => c.id));
+    const deduped = [...memberCases];
+    for (const c of adminImplicitCases) {
+      if (!seen.has(c.id)) {
+        seen.add(c.id);
+        deduped.push(c);
+      }
+    }
+
+    return deduped.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   /** Internal helper — returns the raw entity; never exposed over the wire. */
@@ -74,15 +107,32 @@ export class CasesService {
 
   /**
    * Create a case and atomically add the supplied user as the owner.
-   * Used by the admin panel to provision a new case for a specific user.
+   * Checks org membership: guests cannot create cases.
    */
-  async createWithOwner(input: { name: string; ownerUserId: string; summary?: string | null }) {
+  async createWithOwner(input: { name: string; ownerUserId: string; orgId: string; summary?: string | null }) {
     return this.dataSource.transaction(async (manager) => {
       const owner = await manager.findOneBy(UserEntity, { id: input.ownerUserId });
       if (!owner) throw new NotFoundException(`User ${input.ownerUserId} not found`);
 
+      const org = await manager.findOneBy(OrganizationEntity, { id: input.orgId });
+      if (!org || org.deletedAt !== null) {
+        throw new NotFoundException(`Organization ${input.orgId} not found`);
+      }
+
+      const membership = await manager.findOneBy(OrganizationMemberEntity, {
+        userId: owner.id,
+        organizationId: input.orgId,
+      });
+      if (!membership) {
+        throw new ForbiddenException('Not a member of this organization');
+      }
+      if (membership.role === 'guest') {
+        throw new ForbiddenException('Guests cannot create cases');
+      }
+
       const caseEntity = manager.create(CaseEntity, {
         name: input.name,
+        orgId: input.orgId,
         summary: input.summary ?? null,
       });
       const saved = await manager.save(caseEntity);
@@ -117,7 +167,6 @@ export class CasesService {
             name: m.user.name,
             avatarUrl: m.user.avatarUrl,
             linked: !!m.user.firebaseUid,
-            orgRole: m.user.orgRole,
             createdAt: m.user.createdAt,
             updatedAt: m.user.updatedAt,
           }

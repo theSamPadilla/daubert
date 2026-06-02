@@ -8,3 +8,36 @@ ErrorResponse:
       type: string
     error:
       type: string
+
+UserSelf:
+  type: object
+  required: [id, name, email, isSuperAdmin, orgs]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    email:
+      type: string
+      format: email
+    avatarUrl:
+      type: string
+      nullable: true
+    isSuperAdmin:
+      type: boolean
+    orgs:
+      type: array
+      items:
+        type: object
+        required: [id, slug, name, role]
+        properties:
+          id:
+            type: string
+            format: uuid
+          slug:
+            type: string
+          name:
+            type: string
+          role:
+            $ref: './organizations.yaml#/OrgMemberRole'

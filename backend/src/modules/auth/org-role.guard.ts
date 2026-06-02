@@ -3,37 +3,50 @@ import {
   ExecutionContext,
   Injectable,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserEntity, OrgRole } from '../../database/entities/user.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Repository } from 'typeorm';
+import { OrganizationEntity } from '../../database/entities/organization.entity';
+import { OrganizationMemberEntity, OrgRole } from '../../database/entities/organization-member.entity';
 import { REQUIRED_ORG_ROLE_KEY, orgRoleAtLeast } from './require-org-role.decorator';
 
-/**
- * Org-wide role gate. Reads `req.user.orgRole` and compares to the route's
- * declared minimum via `@RequireOrgRole(minRole)`. Script-token requests have
- * no `req.user`, so any route gated by this guard 403s for scripts. That's
- * intentional — org-wide routes are user-only.
- */
 @Injectable()
 export class OrgRoleGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    @InjectRepository(OrganizationMemberEntity)
+    private readonly memberRepo: Repository<OrganizationMemberEntity>,
+    @InjectRepository(OrganizationEntity)
+    private readonly orgRepo: Repository<OrganizationEntity>,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const user: UserEntity | undefined = request.user;
+    const user = request.user;
     if (!user) throw new ForbiddenException('Authentication required');
+
+    const orgSlug: string | undefined = request.params?.org;
+    if (!orgSlug) throw new ForbiddenException('OrgRoleGuard applied to a non-org route');
 
     const minRole = this.reflector.getAllAndOverride<OrgRole>(REQUIRED_ORG_ROLE_KEY, [
       context.getHandler(),
       context.getClass(),
-    ]);
-    if (!minRole) {
-      throw new Error('OrgRoleGuard used without @RequireOrgRole — declare a minimum role');
-    }
+    ]) ?? 'guest';
 
-    if (!orgRoleAtLeast(user.orgRole, minRole)) {
+    const org = await this.orgRepo.findOneBy({ slug: orgSlug, deletedAt: IsNull() });
+    if (!org) throw new NotFoundException(`Organization ${orgSlug} not found`);
+
+    const membership = await this.memberRepo.findOneBy({ userId: user.id, organizationId: org.id });
+    if (!membership) throw new ForbiddenException('You do not have access to this organization');
+
+    if (!orgRoleAtLeast(membership.role, minRole)) {
       throw new ForbiddenException(`Requires org role '${minRole}' or higher`);
     }
+
+    request.organization = org;
+    request.orgMembership = membership;
     return true;
   }
 }

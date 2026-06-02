@@ -1,5 +1,5 @@
 import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
-import { OrgRole } from '../../database/entities/user.entity';
+import { OrgRole } from '../../database/entities/organization-member.entity';
 import { OrgRoleGuard } from './org-role.guard';
 
 export const REQUIRED_ORG_ROLE_KEY = 'requiredOrgRole';

@@ -1,4 +1,4 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsUUID } from 'class-validator';
 
 export class CreateCaseDto {
   @IsString()
@@ -7,4 +7,7 @@ export class CreateCaseDto {
   @IsOptional()
   @IsString()
   summary?: string;
+
+  @IsUUID()
+  orgId: string;
 }

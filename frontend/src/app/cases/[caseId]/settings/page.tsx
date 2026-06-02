@@ -370,10 +370,20 @@ function InvitesSection({ caseId }: { caseId: string }) {
               </div>
               <button
                 onClick={() => copyLink(inv.code, inv.id)}
-                className="text-ink-muted hover:text-white transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-brand/30 bg-brand/5 text-brand hover:border-brand/60 hover:bg-brand/10 transition-colors text-xs font-medium"
                 title="Copy invite link"
               >
-                {copied === inv.id ? <FaCheck size={13} className="text-green-400" /> : <FaCopy size={13} />}
+                {copied === inv.id ? (
+                  <>
+                    <FaCheck size={11} className="text-green-400" />
+                    <span className="text-green-400">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <FaCopy size={11} />
+                    <span>Copy link</span>
+                  </>
+                )}
               </button>
               <button
                 disabled={revoking === inv.id}

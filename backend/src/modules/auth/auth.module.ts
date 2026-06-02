@@ -6,15 +6,23 @@ import { AuthGuard } from './auth.guard';
 import { AuthController } from './auth.controller';
 import { RoleGuard } from './role.guard';
 import { OrgRoleGuard } from './org-role.guard';
+import { SuperAdminGuard } from './super-admin.guard';
 import { CaseAccessService } from './case-access.service';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
+import { OrganizationMemberEntity } from '../../database/entities/organization-member.entity';
+import { OrganizationEntity } from '../../database/entities/organization.entity';
 import { UsersModule } from '../users/users.module';
 import { ScriptModule } from '../script/script.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CaseMemberEntity, CaseEntity]),
+    TypeOrmModule.forFeature([
+      CaseMemberEntity,
+      CaseEntity,
+      OrganizationMemberEntity,
+      OrganizationEntity,
+    ]),
     UsersModule,
     ScriptModule,
   ],
@@ -27,8 +35,16 @@ import { ScriptModule } from '../script/script.module';
     },
     RoleGuard,
     OrgRoleGuard,
+    SuperAdminGuard,
     CaseAccessService,
   ],
-  exports: [firebaseAdminProvider, RoleGuard, OrgRoleGuard, CaseAccessService, TypeOrmModule],
+  exports: [
+    firebaseAdminProvider,
+    RoleGuard,
+    OrgRoleGuard,
+    SuperAdminGuard,
+    CaseAccessService,
+    TypeOrmModule,
+  ],
 })
 export class AuthModule {}

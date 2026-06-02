@@ -1,5 +1,5 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, OAuthProvider, type Auth } from 'firebase/auth';
 import {
   initializeAppCheck,
   ReCaptchaEnterpriseProvider,
@@ -52,5 +52,15 @@ export function getFirebaseAuth(): Auth {
 
 export const appCheck = _appCheck;
 
-// Convenience export — safe to import at module level since it's a class, not an instance
+// Convenience exports — safe to instantiate at module load (they're plain provider objects).
 export const googleProvider = new GoogleAuthProvider();
+// Force Google to show the account picker every time, not the last-used account.
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+export const microsoftProvider = new OAuthProvider('microsoft.com');
+// tenant=organizations restricts to work/school Microsoft accounts (any Entra-backed
+// tenant) and skips Microsoft's account-type-detection interstitial. The default
+// 'common' tenant hangs in popup mode — the extra interstitial hop severs the
+// popup's window.opener, so Firebase can't postMessage the result back.
+// Personal MSAs (hotmail/outlook/live) are intentionally not supported.
+microsoftProvider.setCustomParameters({ prompt: 'select_account', tenant: 'organizations' });

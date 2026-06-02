@@ -44,6 +44,21 @@
   40%           { opacity: 1; }
 }
 
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-8px); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes spin-reverse {
+  from { transform: rotate(360deg); }
+  to   { transform: rotate(0deg); }
+}
+
 @layer utilities {
   .bg-hero-dark {
     background:
@@ -51,10 +66,4 @@
       radial-gradient(700px 400px at 0% 10%, rgba(31, 181, 176, 0.10), transparent 60%);
   }
 
-  .bg-grid-dark {
-    background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-    background-size: 56px 56px;
-  }
 }

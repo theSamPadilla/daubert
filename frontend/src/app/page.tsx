@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import { AuthGuard } from '@/components/Auth/AuthGuard';
 import UserMenu from '@/components/Auth/UserMenu';
-import { useAuth } from '@/components/Auth/AuthProvider';
+import { useOrgContext } from '@/contexts/OrgContext';
+import { OrgSwitcher } from '@/components/Layout/OrgSwitcher';
 import { apiClient, type Case } from '@/lib/api-client';
 import { Loader } from '@/components/Common/Loader';
 import { NewCaseModal } from '@/components/Cases/NewCaseModal';
@@ -13,21 +15,26 @@ import { FaGear, FaPlus } from 'react-icons/fa6';
 
 function CaseSelector() {
   const router = useRouter();
-  const { user } = useAuth();
-  const canCreate = user?.orgRole === 'admin' || user?.orgRole === 'member';
-  const [cases, setCases] = useState<Case[]>([]);
+  const { activeOrg, activeOrgSlug } = useOrgContext();
+  const canCreate = activeOrg?.role === 'admin' || activeOrg?.role === 'member';
+  const [allCases, setAllCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
   const [newCaseOpen, setNewCaseOpen] = useState(false);
 
   useEffect(() => {
     apiClient.listCases().then((data) => {
-      setCases(data);
+      setAllCases(data);
       setLoading(false);
     }).catch((err) => {
       console.error('Failed to load cases:', err);
       setLoading(false);
     });
   }, []);
+
+  const cases =
+    activeOrgSlug !== null && activeOrg
+      ? allCases.filter((c) => (c as any).orgId === activeOrg.id)
+      : allCases;
 
   return (
     <div className="relative min-h-screen bg-surface bg-hero-dark text-white overflow-hidden">
@@ -36,19 +43,21 @@ function CaseSelector() {
       </div>
 
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-line">
+      <header className="bg-[#F7F8FB] border-b border-[#E5E7EB] h-12 px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
-          <Image
-            src="/logo-light.png"
-            alt="Daubert"
-            width={28}
-            height={28}
-            priority
-            className="opacity-90"
-          />
-          <h1 className="text-lg font-bold tracking-tight">Daubert</h1>
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <Image
+              src="/logo.png"
+              alt="Daubert"
+              width={22}
+              height={22}
+              priority
+            />
+            <h1 className="text-[15px] font-semibold tracking-tight text-[#0B1220]">Daubert</h1>
+          </Link>
+          <OrgSwitcher variant="light" />
         </div>
-        <UserMenu />
+        <UserMenu variant="light" />
       </header>
 
       {/* Case grid */}
@@ -129,7 +138,8 @@ function CaseSelector() {
       </main>
 
       <NewCaseModal
-        open={newCaseOpen}
+        open={newCaseOpen && !!activeOrg}
+        orgId={activeOrg?.id ?? ''}
         onClose={() => setNewCaseOpen(false)}
         onCreated={(created /*, results */) => router.push(`/cases/${created.id}/investigations`)}
       />

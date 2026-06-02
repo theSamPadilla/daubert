@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
 import {
   FaPen, FaChevronRight, FaChevronDown, FaArrowLeft,
-  FaFileLines, FaChartLine, FaTableList, FaGear,
+  FaFileLines, FaChartLine, FaTableList, FaGear, FaPlus,
 } from 'react-icons/fa6';
 
 const PRODUCTION_TYPE_ORDER = ['report', 'chart', 'chronology'] as const;
@@ -110,24 +110,13 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
         >
           <FaArrowLeft size={12} />
         </button>
-        <div className="flex items-center justify-between gap-2 min-w-0 flex-1">
-          <div className="flex items-baseline gap-2 min-w-0">
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
-              Case
-            </span>
-            <p className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate">
-              {caseName || 'Loading...'}
-            </p>
-          </div>
-          {canMutate && (
-            <button
-              onClick={() => setExhibitOpen(true)}
-              className="shrink-0 text-[10px] font-mono uppercase tracking-[0.12em] px-2 py-0.5 rounded border border-[#D1D5DB] text-[#5B6473] hover:text-[#0B1220] hover:border-[#9CA3AF] transition-colors"
-              title="Create exhibit from investigations and productions"
-            >
-              + Exhibit
-            </button>
-          )}
+        <div className="flex items-baseline gap-2 min-w-0 flex-1">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
+            Case
+          </span>
+          <p className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate">
+            {caseName || 'Loading...'}
+          </p>
         </div>
       </div>
 
@@ -343,16 +332,31 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
             </div>
           );
         })()}
+
+        {/* Exhibit CTA — case-level action, bottom of main content */}
+        {canMutate && (
+          <div className="mt-3 px-3 pb-3">
+            <button
+              onClick={() => setExhibitOpen(true)}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-brand-soft text-ink shadow-[inset_0_0_0_1px_var(--brand)] hover:bg-brand hover:text-white transition-colors"
+              title="Create exhibit from investigations and productions"
+            >
+              <FaPlus size={10} />
+              <span>Exhibit</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Settings link — visible to owners and editors */}
+      {/* Footer actions — visible to owners and editors */}
       {canMutate && (
-        <div className="border-t border-line-strong px-3 py-2 shrink-0">
+        <div className="border-t border-line-strong px-3 py-2.5 shrink-0">
           <button
             onClick={() => router.push(`/cases/${caseId}/settings`)}
             className="flex items-center gap-2 text-ink-faint hover:text-ink text-xs w-full transition-colors"
+            title="Case settings"
           >
-            <FaGear size={11} />
+            <FaGear size={14} />
             <span>Settings</span>
           </button>
         </div>

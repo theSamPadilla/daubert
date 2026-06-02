@@ -1,21 +1,49 @@
 # Roles & Permissions
 
-Daubert has two independent role namespaces:
+Daubert has three independent role namespaces:
 
 | Layer | Property of | Roles | Source of truth |
 |---|---|---|---|
-| **Org role** | the user | `admin` > `member` > `guest` | `users.org_role` column |
-| **Case role** | the (user, case) pair | `owner` > `editor` > `viewer` | `case_members.role` column |
+| **Superadmin** | the user (platform-level) | `is_super_admin: boolean` | `users.is_super_admin` column |
+| **Org role** | the `(user, org)` pair | `admin` > `member` > `guest` | `organization_members.role` column |
+| **Case role** | the `(user, case)` pair | `owner` > `editor` > `viewer` | `case_members.role` column |
 
-They never collide because they answer different questions: "Can this user create new cases?" (org role) vs "Can this user mutate this specific case?" (case role).
+The three answer different questions:
+- "Is this person an Incite operator who can administer the platform itself?" → superadmin
+- "What can this user do inside organization X?" → org role
+- "What can this user do inside case Y?" → case role
+
+A user can be all three (e.g., an Incite engineer who is also an admin of the Incite org and owner of a specific case), independent of any pair.
+
+## Superadmin
+
+The platform-level flag. There is no hierarchy — `is_super_admin` is binary. Superadmins are Incite staff. They:
+
+- Can create new organizations and assign their first admin.
+- Can soft-delete, restore, and purge organizations.
+- Can manage labeled entities (the platform-global wallet label list consumed by the AI tools).
+- Can list every user on the platform and toggle the superadmin flag on others.
+- **Cannot** read case contents, investigations, traces, AI chat, data room, productions, or org-internal membership rosters for orgs they do not personally belong to. The superadmin panel surfaces aggregate metadata only (counts, names, slugs, timestamps).
+
+### Initial assignment
+
+Superadmin is set at user-shell creation by `SuperadminUsersService.createUserShell`. If the email's domain matches `ADMIN_EMAIL_DOMAIN` (`incite.ventures`), the shell is created with `is_super_admin = true`. Otherwise `false`. Once a user exists, superadmin status is read off the column — `ADMIN_EMAIL_DOMAIN` is consulted only during shell creation.
+
+A superadmin can flip another user's flag via `PATCH /superadmin/users/:id/super-admin`.
+
+### Guard
+
+`@RequireSuperAdmin()` decorator + `SuperAdminGuard`. Reads `req.user.isSuperAdmin`. 403s otherwise.
 
 ## Org-level roles
 
+Per-org. Stored on `organization_members.role`. Every membership has exactly one role.
+
 | Role | Intent |
 |---|---|
-| `admin` | Platform operator. Can do everything `member` can, plus the `/admin/*` surface (manage users, cross-user case ops, etc.). Default for new `@incite.ventures` accounts. |
-| `member` | Can create their own cases via `POST /cases` and the dashboard "+" tile. Default tier for trusted collaborators promoted by an admin. |
-| `guest` | Cannot create cases. Can be invited into cases by an owner and act there per their case-level role. Default for all other new signups. |
+| `admin` | Governs the org: members, invites, settings, slug. Also has **implicit owner-equivalent access to every case in the org** (see [Org admin → case access](#org-admin--case-access)). |
+| `member` | Can create new cases in the org via `POST /cases` with this `orgId`. Cannot manage org-level settings or other members. |
+| `guest` | Cannot create cases. Can be invited into specific cases by their owner and act there per their case-level role. |
 
 ### Hierarchy
 
@@ -27,36 +55,40 @@ const ORG_ROLE_HIERARCHY = { guest: 0, member: 1, admin: 2 };
 
 A route declared `@RequireOrgRole('member')` admits both `member` and `admin`.
 
+### Guard
+
+`@RequireOrgRole(minRole)` reads `:org` from the route (the org slug), resolves it to an `OrganizationEntity` (refusing soft-deleted orgs with a 404), looks up the requester's `organization_members` row, and:
+
+- 404s if the org slug doesn't resolve to an active (non-soft-deleted) org;
+- 403s if there is no membership row;
+- 403s if the membership's role is below `minRole`.
+
+On success, attaches `req.organization` (resolved entity) and `req.orgMembership` so handlers can read the role without re-querying.
+
 ### Initial role assignment
 
-User shells are created in two places:
+Org membership is created in three places:
 
-1. `AdminUsersService.createWithOptionalMembership` (admin panel) — assigns `admin` if the email domain is `@incite.ventures`, otherwise `guest`.
-2. `scripts/add-member.ts` (CLI) — assigns `member` explicitly, regardless of email domain.
+1. **At org creation.** `POST /superadmin/orgs` accepts `{ name, slug?, firstAdminEmail }`. The first admin gets `role: 'admin'` automatically. If the email doesn't match an existing user, a shell is created (`firebaseUid: null`) and they become admin pending sign-in. The new user's `is_super_admin` is NOT changed by this operation.
+2. **At org-invite accept.** `POST /org-invites/:code/accept` creates an `organization_members` row with the role embedded in the invite.
+3. **By an existing org admin.** `POST /orgs/:org/members` (direct-add by email) and `PATCH /orgs/:org/members/:userId` (change role).
 
-Once a shell exists, admin status is read off the `users.org_role` column, NOT the email domain. `ADMIN_EMAIL_DOMAIN` is consulted ONLY during shell creation.
+### Org admin → case access
+
+An org admin has **implicit owner-equivalent access to every case in their org**, regardless of whether they hold a `case_members` row for that case. This is enforced in `RoleGuard`: after resolving the case, the guard checks for an org-admin membership for `(user.id, cases.organization_id)`. If present, it synthesizes a `req.caseMembership` with `role: 'owner'` and `source: 'org-admin-implicit'` and returns true without checking `case_members`. The synthetic shape lets every handler that reads `req.caseMembership.role` behave identically to a real owner — no per-handler branching.
+
+Practical consequences:
+- An org admin can edit, govern, and delete any case in their org from day one, without needing to be invited or to self-promote.
+- The org admin does NOT appear in the case's `members` list (only real `case_members` rows do). This is a known UX gap; the panel is the source of truth for explicit membership.
+- A case-only collaborator (no `organization_members` row in the host org) is unaffected. They see only the case they were invited to.
 
 ### Promotion
 
-Today, `guest → member` happens via the CLI:
-
-```bash
-npm run scripts:add-member -- --email user@example.com
-```
-
-Behavior:
-- Existing admin: no-op (admin > member; preserve).
-- Existing member: no-op.
-- Existing guest: promoted to member.
-- No user: created as a member shell. They'll be linked to Firebase on first sign-in.
-
-There is no in-app admin UI for org-role changes yet (out of scope).
+Org-internal promotion (`member → admin`, `guest → member`, etc.) happens via `PATCH /orgs/:org/members/:userId` by an existing org admin. There is no CLI for this.
 
 ## Case-level roles
 
-Daubert cases are multi-member. Every membership has exactly one role. This document is the source of truth for what each role can do and how the backend enforces it.
-
-### Roles
+Per-`(user, case)`. Stored on `case_members.role`. Every membership has exactly one role.
 
 | Role | Intent |
 |------|--------|
@@ -68,155 +100,241 @@ Role hierarchy (used by the access guard): `owner > editor > viewer`. A route th
 
 ## Capability matrix
 
-| Capability | Owner | Editor | Viewer |
-|---|:---:|:---:|:---:|
-| View case, investigations, traces, data room, productions | yes | yes | yes |
-| AI chat — full tools (read + write) | yes | yes | no |
-| AI chat — read-only tools | yes | yes | yes |
-| See member list | yes | yes | no |
-| Create / edit / delete investigations | yes | yes | no |
-| Create / edit / delete traces | yes | yes | no |
-| Manage data room (upload, link, delete) | yes | yes | no |
-| Manage productions | yes | yes | no |
-| Edit case fields (name, dates, links) | yes | no | no |
-| Add / remove members, change member roles | yes | no | no |
-| Generate / revoke invite links | yes | no | no |
-| Delete case | yes | no | no |
-| Leave the case (self-remove) | yes (unless last owner) | yes | yes |
+The superadmin column shows what a superadmin can do *as superadmin*, i.e., on platform routes. Inside an org or case they do NOT belong to, they have no access. Inside an org they DO belong to, their effective rights are the union of their org role and (if applicable) their case role plus whatever superadmin powers apply at the platform level.
+
+| Capability | Superadmin | Org admin | Org member | Org guest | Case owner | Case editor | Case viewer |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Create new orgs | yes | no | no | no | — | — | — |
+| Soft-delete / restore / purge orgs | yes | no | no | no | — | — | — |
+| Edit own org (name, slug) | no¹ | yes | no | no | — | — | — |
+| Manage org members & invites | no¹ | yes | no | no | — | — | — |
+| Create new cases (in an org you belong to) | no¹ | yes | yes | no | — | — | — |
+| Manage labeled entities (platform-global) | yes | no | no | no | — | — | — |
+| Toggle `is_super_admin` on other users | yes | no | no | no | — | — | — |
+| View case, investigations, traces, data room, productions | no² | yes³ | no⁴ | no⁴ | yes | yes | yes |
+| AI chat — read-only tools (incl. `execute_script` for blockchain & loopback reads) | no² | yes³ | no⁴ | no⁴ | yes | yes | yes |
+| AI chat — mutating tools (productions, traces, labels) | no² | yes³ | no⁴ | no⁴ | yes | yes | no |
+| See member list | no² | yes³ | no⁴ | no⁴ | yes | yes | no |
+| Create / edit / delete investigations | no² | yes³ | no⁴ | no⁴ | yes | yes | no |
+| Create / edit / delete traces | no² | yes³ | no⁴ | no⁴ | yes | yes | no |
+| Manage data room (upload, link, delete) | no² | yes³ | no⁴ | no⁴ | yes | yes | no |
+| Manage productions | no² | yes³ | no⁴ | no⁴ | yes | yes | no |
+| Edit case fields (name, summary) | no² | yes³ | no⁴ | no⁴ | yes | no | no |
+| Add / remove members, change member roles | no² | yes³ | no⁴ | no⁴ | yes | no | no |
+| Generate / revoke invite links | no² | yes³ | no⁴ | no⁴ | yes | no | no |
+| Delete case | no² | yes³ | no⁴ | no⁴ | yes | no | no |
+| Leave the case (self-remove) | — | n/a (implicit) | — | — | yes (unless last owner) | yes | yes |
+
+¹ Superadmin powers are about platform operations, not per-org content; org self-management is the org admin's job.
+² Superadmin has no special access to case contents in orgs they're not a member of.
+³ Org admin gets implicit owner-equivalent access to every case in their org (see [Org admin → case access](#org-admin--case-access)).
+⁴ Org members and guests are NOT case members by default. They access cases through explicit `case_members` rows (added by a case owner) or through case invites.
 
 ## Invariants
 
-1. **A case always has at least one owner.** The system refuses any operation that would leave the case with zero owners — including the last owner downgrading themselves to editor/viewer, removing themselves, or being removed by another owner. The error is explicit: "transfer ownership before leaving."
-2. **A user has at most one membership per case.** Enforced by the `(user_id, case_id)` unique constraint on `case_members`.
-3. **Viewers never see member data.** Backend handlers strip the `members` field from responses when the requester's role is `viewer`. The AI chat surface gets the same treatment — no member-listing tool is exposed to a viewer's tool registry.
-4. **AI tool exposure is gated at the registry, not the tool.** When the AI endpoint builds the tool set for a request, it reads the caller's role and includes only tools that role can use. Each tool's handler also re-checks the caller's role as defense in depth, but the registry filter is the primary boundary.
+1. **An org always has at least one admin.** The system refuses any operation that would leave the org with zero admins — including the last admin downgrading themselves to member/guest, removing themselves, or being removed by another admin. Error: "transfer admin role before leaving."
+2. **A case always has at least one owner.** Same shape as the org invariant. Error: "transfer ownership before leaving." Note: org admins do NOT count toward the owner count — they hold *implicit* owner access but are not in `case_members`. The invariant tracks the explicit `case_members` rows.
+3. **A user has at most one membership per org** (unique `(user_id, organization_id)`) and **at most one membership per case** (unique `(user_id, case_id)`).
+4. **Soft-deleted orgs disappear from every read path.** `GET /orgs/:org`, `OrgRoleGuard` resolution, `findAllForUser`'s org-admin branch, `/auth/me`'s orgs list — all filter by `deleted_at IS NULL`. Members of a soft-deleted org get 404 on org-scoped routes until restored.
+5. **Case membership is independent of org membership.** A case-only collaborator (e.g., an external lawyer) can be a member of a case without any `organization_members` row in the host org. They see only the case they were invited to: their `/cases` listing returns only `case_members` rows; they have no access to org-scoped routes; they don't appear in any org member directory.
+6. **Viewers never see member data.** Backend handlers strip the `members` field from responses when the requester's role is `viewer`. The AI chat surface gets the same treatment — no member-listing tool is exposed to a viewer's tool registry.
+7. **AI tool exposure is gated at the registry, not the tool.** When the AI endpoint builds the tool set for a request, it reads the caller's role and includes only tools that role can use. Each tool's handler also re-checks the caller's role as defense in depth, but the registry filter is the primary boundary.
 
 ## Backend enforcement
 
-A single guard, `@RequireRole(minRole)`, replaces the old `CaseMemberGuard`. It reads `:caseId` from the route, looks up the requesting user's `CaseMemberEntity`, and:
+Three guards stack atop the shared `AuthGuard` (which resolves the Firebase token → `req.user` and/or script tokens → `req.principal`):
 
-- 403s if there is no membership row;
-- 403s if the membership's role is below `minRole` in the hierarchy;
-- attaches the membership to `req.caseMembership` so handlers can branch on role when shaping responses.
+- `@RequireSuperAdmin()` — `SuperAdminGuard`. Checks `req.user.isSuperAdmin`. 403s otherwise.
+- `@RequireOrgRole(minRole)` — `OrgRoleGuard`. Resolves `:org` slug → org → membership. Filters out soft-deleted orgs. 404/403 as described above.
+- `@RequireRole(minRole)` — `RoleGuard`. Reads `:caseId` from the route, short-circuits with implicit `owner` for org admins of the case's host org, else looks up the requesting user's `case_members` row.
 
 ```ts
-@RequireRole('owner')   // owner only
-@RequireRole('editor')  // owner or editor
-@RequireRole('viewer')  // any member (replaces old CaseMemberGuard semantics)
+@RequireRole('owner')   // owner only (or org admin of case's org)
+@RequireRole('editor')  // owner or editor (or org admin)
+@RequireRole('viewer')  // any case member (or org admin)
 ```
 
-Script-token requests (`AccessPrincipal` of kind `'script'`) never have `req.user`, so they bypass this guard entirely and use `CaseAccessService.assertAccess(principal, caseId)` at the service layer. Scripts have no role — they have a token scoped to a single case.
+Script-token requests (`AccessPrincipal` of kind `'script'`) never have `req.user`, so they bypass both `OrgRoleGuard` and `RoleGuard` entirely and use `CaseAccessService.assertRole(principal, caseId, minRole)` at the service layer. Scripts carry the initiator's case role inside the signed token; a script initiated by a viewer is admitted on viewer-or-lower routes and rejected on editor/owner routes, identical to the user-principal path.
 
 ### Route audit (target state)
 
+#### Platform (superadmin-gated)
+
 | Method + path | Required role |
 |---|---|
-| `GET /cases` | (auth only — lists the caller's memberships) |
+| `GET /superadmin/orgs` | superadmin |
+| `GET /superadmin/orgs/trash` | superadmin |
+| `POST /superadmin/orgs` | superadmin (body: `{ name, slug?, firstAdminEmail }`) |
+| `DELETE /superadmin/orgs/:id` | superadmin (soft delete) |
+| `POST /superadmin/orgs/:id/restore` | superadmin |
+| `POST /superadmin/orgs/:id/purge` | superadmin (only if `deleted_at < NOW() - 30 days`) |
+| `GET /superadmin/users` | superadmin |
+| `POST /superadmin/users` | superadmin (body: `{ email, name }` — creates a shell) |
+| `DELETE /superadmin/users/:id` | superadmin |
+| `PATCH /superadmin/users/:id/super-admin` | superadmin (body: `{ value: boolean }`) |
+| `GET /superadmin/cases` | superadmin (aggregate metadata only) |
+| `POST /superadmin/labeled-entities` | superadmin |
+| `PATCH /superadmin/labeled-entities/:id` | superadmin |
+| `DELETE /superadmin/labeled-entities/:id` | superadmin |
+
+#### Per-org (org-role-gated)
+
+URL param `:org` is the slug.
+
+| Method + path | Required org role |
+|---|---|
+| `GET /orgs/:org` | `member` |
+| `PATCH /orgs/:org` | `admin` (body: `{ name?, slug? }`) |
+| `GET /orgs/:org/members` | `member` |
+| `POST /orgs/:org/members` | `admin` (direct-add by email) |
+| `PATCH /orgs/:org/members/:userId` | `admin` |
+| `DELETE /orgs/:org/members/:userId` | `admin` |
+| `POST /orgs/:org/members/me/leave` | `guest` (any member; refused if last admin) |
+| `POST /orgs/:org/invites` | `admin` (body: `{ email, role: member|guest, message? }`) |
+| `GET /orgs/:org/invites` | `admin` |
+| `DELETE /orgs/:org/invites/:inviteId` | `admin` |
+| `GET /org-invites/:code` | public |
+| `POST /org-invites/:code/accept` | auth (Firebase token); email match check |
+
+#### Cases (auth + case-role-gated)
+
+| Method + path | Required role |
+|---|---|
+| `GET /cases` | (auth only — lists the caller's accessible cases: explicit `case_members` rows + org-admin-implicit cases) |
+| `POST /cases` | (body includes `orgId`; service-layer check refuses if caller is not at least `member` in that org) |
 | `GET /cases/:caseId` | `viewer` |
 | `PATCH /cases/:caseId` | `owner` |
 | `DELETE /cases/:caseId` | `owner` |
 | `GET /cases/:caseId/members` | `editor` (viewers blocked) |
-| `POST /cases/:caseId/members` (invite-link accept) | (token-gated, not role-gated) |
 | `POST /cases/:caseId/members` | `owner` (direct-add an existing platform user by email) |
 | `PATCH /cases/:caseId/members/:userId` | `owner` |
-| `DELETE /cases/:caseId/members/:userId` | `owner` (admin-style removal of another member) |
-| `POST /cases/:caseId/members/me/leave` | any member (self-remove); refused if caller is the last owner |
-| `POST /cases/:caseId/invites` (generate link) | `owner` |
+| `DELETE /cases/:caseId/members/:userId` | `owner` |
+| `POST /cases/:caseId/members/me/leave` | any member; refused if caller is the last owner |
+| `POST /cases/:caseId/invites` | `owner` |
+| `GET /cases/:caseId/invites` | `owner` |
 | `DELETE /cases/:caseId/invites/:inviteId` | `owner` |
+| `GET /invites/:code` | public |
+| `POST /invites/:code/accept` | auth (Firebase token); email match check |
 | Investigation / trace / data-room / production mutations | `editor` |
 | Investigation / trace / data-room / production reads | `viewer` |
 | AI chat | `viewer` minimum; tool set is filtered by role inside the handler |
 
-The admin module's `/admin/cases/*` endpoints (gated by `IsAdminGuard` via email domain) remain as an admin override for cross-user case operations. They are not part of the role system; they exist to let admins act on cases they are not members of.
-
 ## Frontend implications
 
-The viewer's role for the current case is exposed through `useCaseContext()` (added alongside this work). UI surfaces that mutate must check role before rendering action chrome:
-
-- Owner-only chrome: case settings (name/dates/links editor), member management, invite-link generator, delete case.
-- Editor-or-higher chrome: every "new" / "edit" / "delete" button on investigations, traces, data-room, productions.
-- Viewer chrome: read-only views only. No member list. AI chat input remains, but the system prompt and tool registry sent from the backend reflect the read-only constraint.
-
-The role badge already shown on the case-grid card (`/`) stays as-is.
+- **Active-org context.** `OrgContext` (in `frontend/src/contexts/OrgContext.tsx`) exposes `orgs[]` (from `/auth/me`) and the active org slug. URL routes use the slug (`/orgs/:orgSlug/settings`), and the home page's case list is filtered by active org.
+- **Org switcher.** Top-nav `OrgSwitcher` lists every org the user belongs to. Returns `null` (no switcher rendered) for case-only collaborators with `orgs.length === 0`.
+- **Org settings.** `/orgs/[orgSlug]/settings` — three sections (info, members, invites). Members + invites sections gate admin-only chrome.
+- **Case settings.** `/cases/[caseId]/settings` — owner-only chrome for case fields, member management, invite generation, delete. Org admins viewing a case they're not a member of see the same owner chrome (per implicit-owner access).
+- **Superadmin panel.** `/superadmin/*` — gated by `SuperAdminGuard` (`user.isSuperAdmin === true`). Aggregate-only views of orgs (with delete/restore/purge), users (with super-admin toggle), cases (read-only telemetry), and labeled entities (CRUD).
+- **Case-only collaborators** see a stripped home: no `OrgSwitcher`, no "+ New case" tile, no Superadmin link in `UserMenu`. Their case list shows only the case(s) they were invited to.
 
 ## Data model
 
-`case_members.role` is a string column with three valid values: `owner`, `editor`, `viewer`. Default is `viewer` (was `guest`). Rename and default change land in a single migration:
+### `users.is_super_admin`
+Boolean, default `false`. Replaces the legacy `users.org_role` column (which conflated platform-staff status with the implicit single-org role).
 
-1. Rename existing `'guest'` rows to `'viewer'`.
-2. Change column default to `'viewer'`.
-3. No enum type change is needed (the column is `varchar`); the new value `'editor'` is accepted immediately by existing rows that adopt it later.
+### `organizations`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | PK |
+| `name` | varchar | Display name |
+| `slug` | varchar | Unique. URL-addressable identifier (lowercase, hyphens, regex `^[a-z0-9-]+$`). |
+| `deleted_at` | timestamptz | Nullable. NULL = active. NOT NULL = soft-deleted. |
+| `created_at`, `updated_at` | timestamptz | from `BaseEntity` |
 
-Generated through `./migrations.sh --dev --generate RenameGuestToViewer`, applied to prod via `./migrations.sh --prod --run` by the user.
+### `organization_members`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | PK |
+| `user_id` | uuid | FK → `users.id`, cascade |
+| `organization_id` | uuid | FK → `organizations.id`, cascade |
+| `role` | varchar | `admin`, `member`, `guest`. Default `guest`. |
+| `created_at`, `updated_at` | timestamptz | |
+| | | Unique constraint on `(user_id, organization_id)`. |
+
+### `organization_invites`
+Mirror of `case_invites`. See `backend/src/database/entities/organization-invite.entity.ts`. Role is `member|guest` (admin invites are rejected at the DTO layer).
+
+### `cases.organization_id`
+UUID, NOT NULL, FK → `organizations.id`, cascade-delete. Every case belongs to exactly one org.
+
+### `case_members.role`
+Unchanged. String column, three valid values: `owner`, `editor`, `viewer`.
+
+## Migration from the pre-org model
+
+A single migration (`OrganizationsAndSuperadmin`) carries the working tree from the single-implicit-org world to the multi-org world. On prod, ordered, idempotent steps:
+
+1. Create `organizations`, `organization_members`, `organization_invites` tables.
+2. Add `users.is_super_admin` column (default `false`).
+3. Add `cases.organization_id` column (nullable initially).
+4. Seed an "Incite" organization with slug `incite`.
+5. Backfill `organization_members` from `users.org_role` 1:1 — every existing user becomes a member of the Incite org with their existing role mapped (`admin → admin`, `member → member`, `guest → guest`).
+6. Promote `@incite.ventures` users to `is_super_admin = true`.
+7. Backfill `cases.organization_id` to the Incite org for every existing case.
+8. `ALTER TABLE cases ALTER COLUMN organization_id SET NOT NULL` + FK constraint.
+9. Drop the legacy `users.org_role` column.
+
+Every step is guarded against re-run (CREATE TABLE IF NOT EXISTS, ADD COLUMN IF NOT EXISTS, WHERE NOT EXISTS, ON CONFLICT DO NOTHING, EXCEPTION WHEN duplicate_object).
+
+Dev does not need the migration applied — `synchronize: true` creates the new tables/columns from the entity files at backend start. A fresh dev DB has no users or cases to backfill; an Incite org is created manually via the superadmin UI.
 
 ## Invitations
 
-Owners add members through email-gated invite links. There is no email delivery — the owner copies the link and sends it out-of-band (Slack, email, whatever they use). The link is single-use, expires in 14 days, and only the recipient's exact email address can accept.
+There are two invitation surfaces, structurally identical, semantically scoped to different layers.
 
-### Invite shape
-
-| Field | Required | Notes |
-|---|---|---|
-| `caseId` | yes | The case being joined. |
-| `role` | yes | `editor` or `viewer`. Owners cannot be added by invite — promotion to owner is an explicit owner action after the user is a member. |
-| `email` | yes | Gates sign-in. Only this email can accept. |
-| `message` | no | Free text shown to the invitee on the welcome page. |
-| `code` | yes | URL-safe, unguessable (nanoid, ~16 chars). Indexed unique. |
-| `expiresAt` | yes | Now + 14 days. |
-| `createdByUserId` | yes | Used to show "X invited you" on the welcome page. |
-| `usedAt`, `usedByUserId` | nullable | Set on successful accept. |
-
-The invitee's name is **not** stored on the invite — it is derived from the Firebase user profile after sign-in.
-
-### Invariants
-
-1. **Single-use.** Once `usedAt` is set, the code is dead. Subsequent visits to `/invite/<code>` show "this invite has already been used" and offer a link to the case if the viewer's signed-in email matches `usedByUserId`'s email.
-2. **Email-bound.** The accept endpoint refuses if `firebaseUser.email !== invite.email`, regardless of case-insensitive match — emails are normalized to lowercase at both write (invite creation) and read (Firebase token) time.
-3. **Expiry is hard.** Expired invites cannot be accepted and cannot be extended. Owner regenerates if needed.
-4. **No owner invites.** `role` is restricted to `editor` or `viewer` at the DTO layer. Promoting an existing member to owner happens via the members panel.
-5. **Idempotent re-acceptance is disallowed.** If the signed-in user is already a member of the case, the invite is not consumed; the welcome page redirects them to the case with a "you're already a member" notice. Existing role wins — invites never change an existing member's role.
-
-### Flow
-
-1. **Owner creates invite** in case settings → enters email, picks role, optional message → server returns `{ code, url }`. Owner copies and sends.
-2. **Invitee opens `/invite/<code>`** (public route, no auth required). Welcome page renders inviter name, case name, role, message, and the gated email. "Sign in with Google" button uses `loginHint=invite.email` to pre-select the right account.
-3. **Firebase auth completes** → frontend posts to `POST /invites/<code>/accept` with the Firebase ID token.
-4. **Server validates:** invite exists, not used, not expired, `firebaseUser.email === invite.email`. If any check fails, return a typed error and the welcome page renders the appropriate message ("expired", "already used", "wrong account", etc.).
-5. **On success:** create `case_members` row, set `invite.usedAt` + `usedByUserId` in the same transaction, redirect to `/cases/<caseId>`.
-
-### Owner-side management
-
-In the case settings panel, owners see:
-- Pending invites (email, role, created date, expires date, "copy link", "revoke")
-- Used invites are not listed — the resulting member appears in the members list instead.
-- Revoke deletes the row outright (no soft-delete; the code becomes invalid).
-
-### Routes
-
-| Method + path | Auth | Notes |
-|---|---|---|
-| `POST /cases/:caseId/invites` | `@RequireRole('owner')` | Body: `{ email, role, message? }`. Returns `{ code, url, expiresAt }`. |
-| `GET /cases/:caseId/invites` | `@RequireRole('owner')` | Lists pending (unused, unexpired) invites for the case. |
-| `DELETE /cases/:caseId/invites/:inviteId` | `@RequireRole('owner')` | Revoke. |
-| `GET /invites/:code` | public | Returns inviter name, case name, role, message, email, status (`pending` / `used` / `expired` / `revoked`). No `caseId` leaked until accept succeeds. |
-| `POST /invites/:code/accept` | Firebase token in header | Server-side email match check. Creates membership + marks invite used in one transaction. |
-
-### Data model
-
-New table `case_invites`:
+### Case invites
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | uuid | PK |
-| `case_id` | uuid | FK → `cases.id`, cascade delete |
+| `case_id` | uuid | FK → `cases.id`, cascade |
 | `email` | varchar (lowercased) | Indexed |
-| `role` | varchar | `'editor'` or `'viewer'` — never `'owner'` |
-| `code` | varchar | Unique index |
+| `role` | varchar | `editor` or `viewer` — never `owner` |
+| `code` | varchar | Unique index, nanoid ~16 chars |
 | `message` | text | nullable |
 | `created_by_user_id` | uuid | FK → `users.id` |
-| `expires_at` | timestamptz | |
-| `used_at` | timestamptz | nullable |
-| `used_by_user_id` | uuid | nullable, FK → `users.id` |
-| `created_at`, `updated_at` | timestamptz | from `BaseEntity` |
+| `expires_at` | timestamptz | Now + 14 days |
+| `used_at`, `used_by_user_id` | nullable | Set on successful accept |
 
-No partial unique index on `(case_id, email)` — owners may legitimately need to regenerate after a typo or a lost link. Stale invites for the same email are harmless because of the single-use + expiry guarantees.
+### Org invites
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | PK |
+| `organization_id` | uuid | FK → `organizations.id`, cascade |
+| `email` | varchar (lowercased) | Indexed |
+| `role` | varchar | `member` or `guest` — never `admin` |
+| `code` | varchar | Unique index, nanoid ~16 chars |
+| `message` | text | nullable |
+| `created_by_user_id` | uuid | FK → `users.id` |
+| `expires_at` | timestamptz | Now + 14 days |
+| `used_at`, `used_by_user_id` | nullable | Set on successful accept |
+
+### Shared invariants
+
+1. **Single-use.** Once `used_at` is set, the code is dead. Re-visits to the welcome page show "already used."
+2. **Email-bound.** The accept endpoint refuses if the Firebase user's email doesn't match the invite's email. Emails are normalized to lowercase at both write and read.
+3. **Expiry is hard.** Expired invites cannot be accepted or extended. The inviter regenerates if needed.
+4. **No top-tier invites.** Case invites cannot grant `owner`; org invites cannot grant `admin`. Both are restricted at the DTO layer. Promotion to the top tier is an explicit action by an existing top-tier holder.
+5. **Idempotent re-acceptance is disallowed.** If the signed-in user is already a member, the invite is not consumed; the welcome page redirects them with an "already a member" notice. Existing role wins.
+
+### Case-invite isolation
+
+A case invite creates ONLY a `case_members` row. It does NOT create an `organization_members` row in the case's host org. The invitee (e.g., an external lawyer) is sandboxed to the case they were invited to and sees nothing else of the host org. This is a hard invariant of the accept flow — there is a regression test in `invites.service.spec.ts` asserting no `OrganizationMemberEntity` is created during case-invite accept.
+
+### Flow (case invite)
+
+1. **Owner creates invite** in case settings → enters email, picks role, optional message → server returns `{ code, url }`. Owner copies and sends.
+2. **Invitee opens `/invite/<code>`** (public route). Welcome page renders inviter name, case name, role, message, and the gated email. "Sign in with Google" uses `login_hint = invite.email`.
+3. **Firebase auth completes** → frontend POSTs `/invites/<code>/accept` with the Firebase ID token.
+4. **Server validates** invite exists, not used, not expired, `firebaseUser.email === invite.email`. Typed errors render the appropriate welcome-page message.
+5. **On success:** create `case_members` row, mark invite used, redirect to `/cases/<caseId>`.
+
+### Flow (org invite)
+
+Same shape, different surface: welcome page at `/org-invite/<code>`, lookup returns org slug + name (not case), accept creates `organization_members`, redirect to `/orgs/<orgSlug>/settings`.
+
+### Owner / admin management
+
+In the case settings panel, owners see pending invites (email, role, created, expires, copy link, revoke). Used invites are not listed — the resulting member appears in the members list instead. Same shape on the org settings page for org invites.

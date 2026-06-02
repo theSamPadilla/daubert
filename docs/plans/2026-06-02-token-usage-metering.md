@@ -21,7 +21,7 @@
 | 5 | `backend/src/modules/superadmin/token-usage/pricing.spec.ts` | Create | Unit tests for `calculateCost()` across known + unknown models. |
 | 6 | `backend/src/modules/superadmin/token-usage/token-usage.service.ts` | Create | Write path (`record()`) + read aggregates (`overview`, `byOrg`, `byUser`, `byCase`, `byConversation`, `orgModelMatrix`, `cacheEffectiveness`). |
 | 7 | `backend/src/modules/superadmin/token-usage/token-usage.service.spec.ts` | Create | Unit tests with a real in-memory SQLite test DB (the `record()` upsert requires actual SQL execution — `ai.service.spec.ts` uses pure mocks and is NOT a fit). |
-| 8 | `backend/src/modules/superadmin/token-usage/token-usage.controller.ts` | Create | 6 GET endpoints under `superadmin/token-usage`, all gated by `@RequireSuperAdmin()`. |
+| 8 | `backend/src/modules/superadmin/token-usage/token-usage.controller.ts` | Create | 7 GET endpoints under `superadmin/token-usage`, all gated by `@RequireSuperAdmin()`. |
 | 9 | `backend/src/modules/superadmin/token-usage/token-usage.controller.spec.ts` | Create | Controller-level smoke tests with mocked service. |
 | 10 | `backend/src/modules/superadmin/token-usage/token-usage.module.ts` | Create | NestJS module wiring entities + service + controller. Exports `TokenUsageService` for `AiModule` to consume. |
 | 11 | `backend/src/modules/superadmin/superadmin.module.ts` | Modify | Import `TokenUsageModule`. |
@@ -30,7 +30,7 @@
 | 14 | `backend/src/modules/ai/ai.service.ts` | Modify | Resolve `{orgId, userId, caseId}` once per stream; helper `recordUsage(response, messageId)` called at all three response-exit points (end-turn save, tool-use save, repeat-tool guard). |
 | 15 | `backend/src/modules/ai/ai.module.ts` | Modify | Import `TokenUsageModule` for DI. |
 | 16 | `contracts/schemas/superadmin.yaml` | Modify | Add `TokenUsageOverview`, `TokenUsageByOrgRow`, `TokenUsageByUserRow`, `TokenUsageByCaseRow`, `TokenUsageByConversationRow`, `TokenUsageOrgModelMatrixRow`, `TokenUsageCacheEffectiveness` schemas. |
-| 17 | `contracts/paths/superadmin.yaml` | Modify | Add the six new GET paths under `/superadmin/token-usage/*`. |
+| 17 | `contracts/paths/superadmin.yaml` | Modify | Add the seven new GET paths under `/superadmin/token-usage/*`. |
 | 18 | `contracts/openapi.yaml` | Modify | Add path `$ref` entries and `components.schemas` entries for all new paths/schemas — NOT auto-included; required. |
 | 19 | `backend/src/generated/api-types.ts` | Regenerate | Via `npm run gen`. |
 | 20 | `frontend/src/generated/api-types.ts` | Regenerate | Via `npm run gen`. |
@@ -174,7 +174,7 @@ await this.dataSource.query(
      (id, created_at, updated_at, org_id, user_id, period, model,
       call_count, input_tokens, output_tokens, cache_read_input_tokens,
       cache_creation_5m_input_tokens, cache_creation_1h_input_tokens)
-   VALUES (gen_random_uuid(), NOW(), NOW(), $1, $2, $3, $4,
+   VALUES (uuid_generate_v4(), NOW(), NOW(), $1, $2, $3, $4,
            1, $5, $6, $7, $8, $9)
    ON CONFLICT (org_id, user_id, period, model)
    DO UPDATE SET
@@ -190,6 +190,8 @@ await this.dataSource.query(
 ```
 
 Period is computed in UTC: `new Date().toISOString().slice(0, 7)` → `'2026-06'`.
+
+`uuid_generate_v4()` matches the existing migration convention (uuid-ossp). Don't use `gen_random_uuid()` here even though it works on PG13+ — keep the project consistent.
 
 ### Why the per-request insert AND the rollup
 
@@ -223,6 +225,12 @@ Per-conversation cost (used by `byConversation` endpoint) requires summing `toke
 7. **Top conversations table:** title, case, user, turns, cost.
 
 All tables show "—" for `cost: null` (unknown model) — pricing drift never blanks the page.
+
+### Known limitations (accepted at daubert scale)
+
+- **`monthly_usage` is keyed `(orgId, userId, period, model)` — no `caseId`.** Per-case aggregation (`byCase` endpoint) therefore always scans `token_usage` over the time window. Fine at current scale (covered by the `(case_id, created_at DESC)` index). If per-case rollups ever become hot, add a parallel `monthly_usage_by_case` table — don't bolt `caseId` into the existing rollup (would explode row counts and break the existing unique key).
+- **Title generation adds one extra query per call** (the `conversationRepo.findOne` to resolve `orgId`). Negligible — title gen runs at most once per conversation.
+- **`response.usage` is consumed via type assertion** (`as Anthropic.Beta.BetaUsage`). Before writing the helper, sanity-check that the SDK version pinned in `backend/package.json` actually exposes `cache_creation.ephemeral_5m_input_tokens` on the Beta usage type. If not, fall back to the flat `cache_creation_input_tokens` field (already handled by the helper's `??` chain).
 
 ### What we are NOT doing (out of scope)
 
@@ -264,7 +272,8 @@ Each task = one focused unit of work. Steps inside are 2–5 min each. Pattern p
 - Create: `backend/src/database/entities/token-usage.entity.ts`
 - Create: `backend/src/database/entities/monthly-usage.entity.ts`
 - Modify: `backend/src/database/entities/index.ts`
-- Modify: `backend/src/app.module.ts` (register entities in TypeORM root config)
+
+(No change to `app.module.ts` — entities flow through `entities/index.ts` → `database.config.ts`.)
 
 **Step 1 — Write the entities.**
 
@@ -524,31 +533,30 @@ git commit -m "feat(metering): pricing constants and cost calculator"
 
 **Step 1 — Write the failing test for `record()`.**
 
-The upsert assertions require a real SQL execution path — `ai.service.spec.ts` is pure-mocks and is NOT a suitable harness for this. Instead set up a Jest module with a real in-memory database:
+The project has no sqlite test driver in `backend/package.json` (only `pg`). Spinning one up just for this test would either (a) test a different SQL engine than prod, or (b) require testcontainers + Postgres — heavyweight for what this test needs to prove. Instead, use pure mocks on the repo and on `DataSource.query`, asserting the SQL string + params shape. This catches the things a real DB would catch in this code path (typos, column-name drift, parameter order) without the infrastructure cost. The actual `ON CONFLICT` upsert behavior is exercised end-to-end in dev via Task 5's smoke test.
 
 ```ts
+const tokenUsageRepo = {
+  create: jest.fn((p) => p),
+  save: jest.fn(),
+};
+const dataSource = { query: jest.fn() };
+
 const moduleRef = await Test.createTestingModule({
-  imports: [
-    TypeOrmModule.forRoot({
-      type: 'better-sqlite3',  // already a transitive dep via TypeORM; if not, use 'sqljs' or 'sqlite'
-      database: ':memory:',
-      entities: [TokenUsageEntity, MonthlyUsageEntity, OrganizationEntity, UserEntity, /* ... transitive entities needed by the unique constraint */],
-      synchronize: true,
-    }),
-    TypeOrmModule.forFeature([TokenUsageEntity, MonthlyUsageEntity]),
+  providers: [
+    TokenUsageService,
+    { provide: getRepositoryToken(TokenUsageEntity), useValue: tokenUsageRepo },
+    { provide: DataSource, useValue: dataSource },
   ],
-  providers: [TokenUsageService],
 }).compile();
 ```
 
-Caveat: the production upsert uses Postgres-specific `INSERT ... ON CONFLICT ... DO UPDATE` syntax. SQLite supports the same syntax (since 3.24), so the test exercises real upsert behavior. If you find a syntax mismatch during implementation, fall back to a real disposable Postgres instance via testcontainers — but try SQLite first.
-
 Key test cases:
-1. `record()` inserts a `token_usage` row with the exact fields provided.
-2. `record()` upserts the corresponding `monthly_usage` row, incrementing `call_count` by 1 and summing token columns.
-3. Second `record()` call with the same `(orgId, userId, period, model)` increments the existing rollup row — no second monthly_usage row created.
-4. `record()` with `surface: 'title-generation'` accepts `messageId: null` and `caseId: null` without error.
-5. `record()` swallows DB errors and logs (test by mocking the repo `save` to throw — assert no exception escapes).
+1. `record()` calls `tokenUsageRepo.save` with the exact fields provided.
+2. `record()` calls `dataSource.query` with an SQL string containing `INSERT INTO monthly_usage`, `ON CONFLICT (org_id, user_id, period, model)`, and `DO UPDATE`; assert the params array is `[orgId, userId, period, model, inputTokens, outputTokens, cacheReadInputTokens, cacheCreation5mInputTokens, cacheCreation1hInputTokens]` in that order.
+3. `record()` skips the rollup when `orgId` is null OR `userId` is null (assert `dataSource.query` not called).
+4. `record()` with `surface: 'title-generation'` and `messageId: null` / `caseId: null` does not throw.
+5. `record()` swallows DB errors — make `tokenUsageRepo.save` throw, assert no exception escapes and `logger.error` is called.
 
 **Step 2 — Run, verify failures.**
 
@@ -614,7 +622,7 @@ export class TokenUsageService {
          (id, created_at, updated_at, org_id, user_id, period, model,
           call_count, input_tokens, output_tokens, cache_read_input_tokens,
           cache_creation_5m_input_tokens, cache_creation_1h_input_tokens)
-       VALUES (gen_random_uuid(), NOW(), NOW(), $1, $2, $3, $4,
+       VALUES (uuid_generate_v4(), NOW(), NOW(), $1, $2, $3, $4,
                1, $5, $6, $7, $8, $9)
        ON CONFLICT (org_id, user_id, period, model)
        DO UPDATE SET
@@ -783,17 +791,17 @@ private async recordUsage(
 
 Then place a call at **each** of the three response-exit points:
 
-1. **End-turn branch** (around line 449, immediately after the new `savedAssistant = ...`):
+1. **End-turn branch** (around line 447, immediately after the new `savedAssistant = ...`):
    ```ts
    await this.recordUsage(response, { orgId, userId, caseId, conversationId, messageId: savedAssistant.id });
    ```
 
-2. **Repeat-tool guard exit** (around line 487, before `yield { type: 'done' }`): the API call DID happen and tokens WERE billed; we just didn't save a message because the tools repeated. Record with `messageId: null`:
+2. **Repeat-tool guard exit** (line 487, before `yield { type: 'done' }`): the API call DID happen and tokens WERE billed; we just didn't save a message because the tools repeated. Record with `messageId: null`:
    ```ts
    await this.recordUsage(response, { orgId, userId, caseId, conversationId, messageId: null });
    ```
 
-3. **Tool-use branch** (around line 538, immediately after the new `savedAssistant = ...` for the assistant message — NOT the slim `tool_result` save):
+3. **Tool-use branch** (around line 532, immediately after the new `savedAssistant = ...` for the assistant message — NOT the slim `tool_result` save at line 541):
    ```ts
    await this.recordUsage(response, { orgId, userId, caseId, conversationId, messageId: savedAssistant.id });
    ```
@@ -1014,7 +1022,7 @@ TokenUsageCacheEffectiveness:
 
 **Step 3 — Wire the new paths and schemas into `openapi.yaml`.**
 
-Add 6 path `$ref` entries under `paths:` and 7 schema entries under `components.schemas`. Use existing superadmin paths as a template (find them by grepping for `superadmin/orgs:` in `openapi.yaml`). These additions are required — `openapi.yaml` does not auto-include refs from sub-files.
+Add 7 path `$ref` entries under `paths:` and 7 schema entries under `components.schemas`. Use existing superadmin paths as a template (find them by grepping for `superadmin/orgs:` in `openapi.yaml`). These additions are required — `openapi.yaml` does not auto-include refs from sub-files.
 
 **Step 4 — Regenerate types.**
 

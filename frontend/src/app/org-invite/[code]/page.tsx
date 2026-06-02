@@ -340,18 +340,22 @@ export default function OrgInvitePage() {
               >
                 <GoogleLogo className="w-5 h-5" />
               </button>
-              <button
-                onClick={() => handleSignIn('microsoft')}
-                aria-label="Continue with Microsoft (work account)"
-                title="Continue with Microsoft (work account)"
-                className="flex items-center justify-center w-12 h-12 bg-surface-panel border border-line-strong rounded-lg hover:bg-surface-raised transition-colors"
-              >
-                <MicrosoftMark className="w-5 h-5" />
-              </button>
+              <div className="relative group">
+                <button
+                  onClick={() => handleSignIn('microsoft')}
+                  aria-label="Continue with Microsoft (work account)"
+                  className="flex items-center justify-center w-12 h-12 bg-surface-panel border border-line-strong rounded-lg hover:bg-surface-raised transition-colors"
+                >
+                  <MicrosoftMark className="w-5 h-5" />
+                </button>
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 whitespace-nowrap rounded-md bg-surface-raised border border-line-strong px-2 py-1 text-[11px] text-ink-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shadow-sm"
+                >
+                  Microsoft requires a work account
+                </span>
+              </div>
             </div>
-            <p className="text-ink-faint text-xs text-center">
-              Microsoft requires a work account
-            </p>
           </div>
         </div>
       </Card>

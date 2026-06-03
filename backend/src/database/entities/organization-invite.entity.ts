@@ -3,7 +3,7 @@ import { BaseEntity } from './base.entity';
 import { OrganizationEntity } from './organization.entity';
 import { UserEntity } from './user.entity';
 
-export type OrgInviteRole = 'member' | 'guest';
+export type OrgInviteRole = 'admin' | 'member' | 'guest';
 
 @Entity('organization_invites')
 export class OrganizationInviteEntity extends BaseEntity {

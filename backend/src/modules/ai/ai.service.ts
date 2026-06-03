@@ -7,6 +7,8 @@ import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
 import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
+import { ConversationEntity } from '../../database/entities/conversation.entity';
+import { TokenUsageService } from '../superadmin/token-usage/token-usage.service';
 import { INVESTIGATOR_PROMPT } from '../../prompts/investigator';
 import { ConversationsService } from './conversations.service';
 import { ScriptExecutionService } from './services/script-execution.service';
@@ -276,6 +278,7 @@ export class AiService {
     private readonly labeledEntitiesService: LabeledEntitiesService,
     private readonly productionsService: ProductionsService,
     private readonly tracesService: TracesService,
+    private readonly tokenUsageService: TokenUsageService,
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
     @InjectRepository(InvestigationEntity)
@@ -284,6 +287,8 @@ export class AiService {
     private readonly traceRepo: Repository<TraceEntity>,
     @InjectRepository(DataRoomConnectionEntity)
     private readonly dataRoomRepo: Repository<DataRoomConnectionEntity>,
+    @InjectRepository(ConversationEntity)
+    private readonly conversationRepo: Repository<ConversationEntity>,
   ) {}
 
   /** Select the tool set appropriate for the caller's role. */
@@ -302,6 +307,15 @@ export class AiService {
     viewerRole: CaseRole,
   ): AsyncGenerator<SseEvent> {
     await this.conversationsService.findOne(conversationId, userId);
+
+    // Resolve orgId and caseId once per stream for token usage metering.
+    // One extra query per request — negligible. Falls back to null gracefully.
+    const convWithCase = await this.conversationRepo.findOne({
+      where: { id: conversationId },
+      relations: ['case'],
+    });
+    const resolvedCaseId = convWithCase?.caseId ?? null;
+    const resolvedOrgId = convWithCase?.case?.orgId ?? null;
 
     // Load history and reconstruct MessageParam[] verbatim.
     // The Anthropic provider strips server-side and thinking blocks at the
@@ -444,7 +458,7 @@ export class AiService {
         ) as Anthropic.ToolUseBlock[];
 
         if (response.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
-          await this.messageRepo.save(
+          const savedAssistant = await this.messageRepo.save(
             this.messageRepo.create({
               conversationId,
               role: 'assistant',
@@ -452,6 +466,13 @@ export class AiService {
             }),
           );
           lastPersistedWasToolResult = false;
+          await this.recordUsage(response, {
+            orgId: resolvedOrgId,
+            userId,
+            caseId: resolvedCaseId,
+            conversationId,
+            messageId: savedAssistant.id,
+          });
 
           // Surface non-end_turn terminations so the user knows the agent
           // didn't finish naturally. The loop is exiting because either:
@@ -485,6 +506,15 @@ export class AiService {
           .map((b) => `${b.name}:${JSON.stringify(b.input)}`)
           .join('|');
         if (toolKey === prevToolKey) {
+          // API call DID happen and tokens WERE billed — record usage before exiting.
+          // No message was saved in this branch, so messageId is null.
+          await this.recordUsage(response, {
+            orgId: resolvedOrgId,
+            userId,
+            caseId: resolvedCaseId,
+            conversationId,
+            messageId: null,
+          });
           yield { type: 'done', data: { conversationId } };
           return;
         }
@@ -529,7 +559,7 @@ export class AiService {
         // inside one transaction gives them the same PostgreSQL NOW() value,
         // making the ORDER BY created_at ASC retrieval non-deterministic and
         // causing orphaned tool_result errors on the next request.
-        await this.messageRepo.save(
+        const savedAssistant = await this.messageRepo.save(
           this.messageRepo.create({
             conversationId,
             role: 'assistant',
@@ -537,6 +567,13 @@ export class AiService {
           }),
         );
         lastPersistedWasToolResult = false;
+        await this.recordUsage(response, {
+          orgId: resolvedOrgId,
+          userId,
+          caseId: resolvedCaseId,
+          conversationId,
+          messageId: savedAssistant.id,
+        });
         if (slimResults.length > 0) {
           await this.messageRepo.save(
             this.messageRepo.create({
@@ -906,6 +943,33 @@ export class AiService {
     return { content };
   }
 
+  private async recordUsage(
+    response: Anthropic.Beta.BetaMessage,
+    context: {
+      orgId: string | null;
+      userId: string;
+      caseId: string | null;
+      conversationId: string;
+      messageId: string | null;
+    },
+  ): Promise<void> {
+    const u = response.usage as Anthropic.Beta.BetaUsage;
+    // BetaCacheCreation: { ephemeral_5m_input_tokens; ephemeral_1h_input_tokens } | null
+    // The flat `cache_creation_input_tokens` is the legacy aggregate field.
+    // Prefer the split when present.
+    const cache = u.cache_creation ?? null;
+    await this.tokenUsageService.record({
+      ...context,
+      surface: 'chat',
+      model: response.model,
+      inputTokens: u.input_tokens ?? 0,
+      outputTokens: u.output_tokens ?? 0,
+      cacheReadInputTokens: u.cache_read_input_tokens ?? 0,
+      cacheCreation5mInputTokens: cache?.ephemeral_5m_input_tokens ?? u.cache_creation_input_tokens ?? 0,
+      cacheCreation1hInputTokens: cache?.ephemeral_1h_input_tokens ?? 0,
+    });
+  }
+
   private async generateTitle(
     conversationId: string,
     userId: string,
@@ -914,7 +978,7 @@ export class AiService {
     try {
       const userPart = userMessage?.trim() || '(attachment)';
       if (userPart === '(attachment)') return; // nothing useful to title
-      const title = await this.llm.generateText({
+      const { text: title, usage, model } = await this.llm.generateText({
         maxTokens: 20,
         messages: [
           {
@@ -928,6 +992,26 @@ export class AiService {
         const truncated = title.length > 30 ? title.slice(0, 27) + '...' : title;
         await this.conversationsService.updateTitle(conversationId, userId, truncated);
       }
+
+      // Resolve orgId via the conversation for metering.
+      const convWithCase = await this.conversationRepo.findOne({
+        where: { id: conversationId },
+        relations: ['case'],
+      });
+      await this.tokenUsageService.record({
+        orgId: convWithCase?.case?.orgId ?? null,
+        userId,
+        caseId: convWithCase?.caseId ?? null,
+        conversationId,
+        messageId: null,
+        surface: 'title-generation',
+        model,
+        inputTokens: usage.input_tokens ?? 0,
+        outputTokens: usage.output_tokens ?? 0,
+        cacheReadInputTokens: usage.cache_read_input_tokens ?? 0,
+        cacheCreation5mInputTokens: 0,
+        cacheCreation1hInputTokens: 0,
+      });
     } catch {
       // Best-effort — title generation failure is non-fatal
     }

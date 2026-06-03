@@ -12,6 +12,15 @@ type UserSummary = components['schemas']['UserSummary'];
 
 const emptyForm = { email: '', name: '' };
 
+const inputClass =
+  'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-brand transition-colors';
+
+const primaryBtn =
+  'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-brand hover:bg-brand/90 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] disabled:opacity-50 disabled:cursor-not-allowed transition-colors';
+
+const secondaryBtn =
+  'px-4 py-2 rounded-lg text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted hover:text-white transition-colors';
+
 export default function SuperadminUsersPage() {
   const confirm = useConfirm();
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -100,29 +109,40 @@ export default function SuperadminUsersPage() {
   };
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
+    <main className="relative max-w-5xl mx-auto px-6 py-12">
+      <div className="mb-10 flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Users</h1>
-          <p className="mt-1 text-sm text-ink-muted">
+          <div className="flex items-center gap-3">
+            <span className="h-px w-8 bg-gradient-to-r from-brand to-transparent" />
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+              Superadmin
+            </span>
+          </div>
+          <h2 className="mt-3 text-4xl font-bold tracking-tight text-white">
+            Users
+          </h2>
+          <p className="mt-2 text-sm text-ink-muted">
             Create user shells and manage superadmin access. Users bind to Firebase on first sign-in.
           </p>
         </div>
-        <button
-          onClick={() => setShowForm((s) => !s)}
-          className="flex items-center gap-2 rounded bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand/90"
-        >
+        <button onClick={() => setShowForm((s) => !s)} className={`${primaryBtn} shrink-0 mt-1`}>
           <FaPlus className="h-3 w-3" /> Add user
         </button>
       </div>
 
       {loadError && (
-        <div className="mb-4 rounded bg-red-900/50 p-3 text-sm text-red-300">{loadError}</div>
+        <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+          {loadError}
+        </div>
       )}
 
       {showForm && (
-        <form onSubmit={handleCreate} className="mb-6 rounded-lg border border-line-strong bg-surface-panel p-4">
-          <h2 className="mb-4 text-lg font-semibold text-white">New user</h2>
+        <form
+          onSubmit={handleCreate}
+          className="relative mb-6 p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden"
+        >
+          <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+          <h3 className="mb-5 text-base font-semibold text-white">New user</h3>
           <div className="mb-4 grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm text-ink-muted">Email</label>
@@ -131,7 +151,7 @@ export default function SuperadminUsersPage() {
                 value={form.email}
                 onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
                 required
-                className="w-full rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                className={inputClass}
                 placeholder="user@example.com"
               />
             </div>
@@ -142,23 +162,19 @@ export default function SuperadminUsersPage() {
                 value={form.name}
                 onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
                 required
-                className="w-full rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                className={inputClass}
                 placeholder="Jane Doe"
               />
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand/90 disabled:opacity-50"
-            >
+          <div className="flex items-center gap-2 pt-1">
+            <button type="submit" disabled={saving} className={primaryBtn}>
               {saving ? 'Creating...' : 'Create'}
             </button>
             <button
               type="button"
               onClick={() => { setShowForm(false); setForm(emptyForm); }}
-              className="rounded bg-surface-raised px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-raised/80"
+              className={secondaryBtn}
             >
               Cancel
             </button>
@@ -169,12 +185,15 @@ export default function SuperadminUsersPage() {
       {loading ? (
         <Loader inline />
       ) : users.length === 0 ? (
-        <p className="py-12 text-center text-ink-muted">No users yet.</p>
+        <div className="rounded-xl border border-line-strong/60 bg-surface-panel/50 py-16 text-center">
+          <p className="text-sm text-ink-muted">No users yet.</p>
+        </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line-strong">
+        <div className="relative overflow-hidden rounded-xl border border-line-strong/60 bg-surface-panel shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
+          <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
           <table className="w-full">
             <thead>
-              <tr className="bg-surface-panel/50 text-left text-sm text-ink-muted">
+              <tr className="bg-surface/40 text-left text-xs text-ink-faint uppercase tracking-wider">
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Linked</th>
@@ -185,23 +204,23 @@ export default function SuperadminUsersPage() {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-line-strong/50">
+                <tr key={u.id} className="border-t border-line-strong/40 hover:bg-white/[0.02] transition-colors">
                   <td className="px-4 py-3 text-sm text-white">{u.email}</td>
                   <td className="px-4 py-3 text-sm text-ink-muted">{u.name}</td>
                   <td className="px-4 py-3 text-sm">
                     {u.linked ? (
-                      <span className="inline-flex items-center gap-1 text-green-400">
+                      <span className="inline-flex items-center gap-1 text-emerald-400">
                         <FaCircleCheck className="h-3 w-3" /> Yes
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-yellow-400" title="User has not signed in to Firebase yet">
+                      <span className="inline-flex items-center gap-1 text-amber-400" title="User has not signed in to Firebase yet">
                         <FaCircleExclamation className="h-3 w-3" /> Pending
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {u.isSuperAdmin ? (
-                      <span className="inline-flex items-center gap-1 text-blue-400">
+                      <span className="inline-flex items-center gap-1 text-brand">
                         <FaShield className="h-3 w-3" /> Yes
                       </span>
                     ) : (
@@ -215,14 +234,14 @@ export default function SuperadminUsersPage() {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => handleToggleSuperAdmin(u)}
-                        className={`p-1.5 transition-colors ${u.isSuperAdmin ? 'text-blue-400 hover:text-blue-200' : 'text-ink-faint hover:text-blue-400'}`}
+                        className={`p-1.5 transition-colors ${u.isSuperAdmin ? 'text-brand hover:text-white' : 'text-ink-faint hover:text-brand'}`}
                         title={u.isSuperAdmin ? 'Revoke superadmin' : 'Grant superadmin'}
                       >
                         <FaShield className="h-3.5 w-3.5" />
                       </button>
                       <button
                         onClick={() => handleDelete(u)}
-                        className="p-1.5 text-ink-faint hover:text-red-400"
+                        className="p-1.5 text-ink-faint hover:text-red-400 transition-colors"
                         title="Delete user"
                       >
                         <FaTrash className="h-3.5 w-3.5" />
@@ -241,6 +260,6 @@ export default function SuperadminUsersPage() {
         message={errorMessage ?? ''}
         onClose={() => setErrorMessage(null)}
       />
-    </div>
+    </main>
   );
 }

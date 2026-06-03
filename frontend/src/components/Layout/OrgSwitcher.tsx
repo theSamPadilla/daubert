@@ -28,12 +28,15 @@ export function OrgSwitcher({ variant = 'dark' }: { variant?: 'dark' | 'light' }
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-2 px-2 py-1 rounded transition-colors ${
-          isLight ? 'hover:bg-[#F1F4FA]' : 'hover:bg-surface-raised'
+        title={activeOrg?.name ?? 'Select organization'}
+        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors ${
+          isLight
+            ? 'border-[#E5E7EB] bg-white hover:bg-[#F7F8FB]'
+            : 'border-line-strong/60 bg-surface-panel/60 hover:bg-surface-raised hover:border-line-strong'
         }`}
       >
-        <FaBuilding className={`w-3.5 h-3.5 ${isLight ? 'text-[#5B6473]' : 'text-ink-muted'}`} />
-        <span className={`text-sm truncate max-w-[160px] ${isLight ? 'text-[#0B1220]' : 'text-ink'}`}>
+        <FaBuilding className={`w-3.5 h-3.5 ${isLight ? 'text-[#5468C6]' : 'text-brand'}`} />
+        <span className={`text-sm font-medium truncate max-w-[180px] ${isLight ? 'text-[#0B1220]' : 'text-white'}`}>
           {activeOrg?.name ?? 'Select org'}
         </span>
         <FaChevronDown className={`w-3 h-3 ${isLight ? 'text-[#5B6473]' : 'text-ink-muted'}`} />

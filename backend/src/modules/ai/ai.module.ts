@@ -18,6 +18,7 @@ import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.modu
 import { ProductionsModule } from '../productions/productions.module';
 import { ScriptModule } from '../script/script.module';
 import { TracesModule } from '../traces/traces.module';
+import { TokenUsageModule } from '../superadmin/token-usage/token-usage.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { TracesModule } from '../traces/traces.module';
     ProductionsModule,
     ScriptModule,
     TracesModule,
+    TokenUsageModule,
   ],
   controllers: [AiController, ConversationsController, CaseConversationsController],
   providers: [

@@ -369,18 +369,25 @@ describe('CasesService — findAllForUser', () => {
     service = makeService();
   });
 
-  function mockOrgAdminQuery(adminships: any[]) {
+  function mockOrgMemberships(rows: Array<{ organizationId: string; role: 'admin' | 'member' | 'guest' }>) {
     mockOrgMemberRepo.createQueryBuilder = jest.fn().mockReturnValue({
       innerJoin: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
-      getMany: jest.fn().mockResolvedValue(adminships),
+      getMany: jest.fn().mockResolvedValue(rows.map((r) => ({ userId: USER_ID, ...r }))),
     });
   }
 
-  it('returns cases from case_members for non-admin users', async () => {
-    const cases = [{ id: 'c1', name: 'Case 1', createdAt: new Date(), organizationId: ORG_ID }];
-    mockMemberRepo.find.mockResolvedValue(cases.map((c) => ({ case: c, role: 'viewer', userId: USER_ID })));
-    mockOrgAdminQuery([]);
+  function mockOrgCases(orgCases: any[]) {
+    mockRepo.createQueryBuilder = jest.fn().mockReturnValue({
+      where: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue(orgCases),
+    });
+  }
+
+  it('returns explicit case_members rows even when user has no current org memberships', async () => {
+    const c1 = { id: 'c1', name: 'Case 1', createdAt: new Date(), orgId: ORG_ID };
+    mockMemberRepo.find.mockResolvedValue([{ case: c1, role: 'viewer', userId: USER_ID }]);
+    mockOrgMemberships([]);
 
     const result = await service.findAllForUser({ id: USER_ID } as any);
 
@@ -389,15 +396,11 @@ describe('CasesService — findAllForUser', () => {
     expect(result[0].role).toBe('viewer');
   });
 
-  it('returns org admin cases with synthesized owner role', async () => {
+  it('synthesizes implicit owner role on every org case for org admins', async () => {
     mockMemberRepo.find.mockResolvedValue([]);
-    mockOrgAdminQuery([{ userId: USER_ID, organizationId: ORG_ID, role: 'admin' }]);
-    const orgCase = { id: 'c2', name: 'Org Case', createdAt: new Date(), organizationId: ORG_ID };
-    mockRepo.createQueryBuilder = jest.fn().mockReturnValue({
-      where: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      getMany: jest.fn().mockResolvedValue([orgCase]),
-    });
+    mockOrgMemberships([{ organizationId: ORG_ID, role: 'admin' }]);
+    const c1 = { id: 'c1', name: 'Org Case', createdAt: new Date(), orgId: ORG_ID };
+    mockOrgCases([c1]);
 
     const result = await service.findAllForUser({ id: USER_ID } as any);
 
@@ -405,19 +408,55 @@ describe('CasesService — findAllForUser', () => {
     expect(result[0].role).toBe('owner');
   });
 
-  it('deduplicates when user has both case_members row and is org admin', async () => {
-    const sharedCase = { id: 'c1', name: 'Shared', createdAt: new Date(), organizationId: ORG_ID };
-    mockMemberRepo.find.mockResolvedValue([{ case: sharedCase, role: 'editor', userId: USER_ID }]);
-    mockOrgAdminQuery([{ userId: USER_ID, organizationId: ORG_ID, role: 'admin' }]);
-    mockRepo.createQueryBuilder = jest.fn().mockReturnValue({
-      where: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      getMany: jest.fn().mockResolvedValue([sharedCase]),
-    });
+  it('synthesizes implicit editor role on every org case for org members', async () => {
+    mockMemberRepo.find.mockResolvedValue([]);
+    mockOrgMemberships([{ organizationId: ORG_ID, role: 'member' }]);
+    const c1 = { id: 'c1', name: 'Org Case', createdAt: new Date(), orgId: ORG_ID };
+    mockOrgCases([c1]);
 
     const result = await service.findAllForUser({ id: USER_ID } as any);
 
     expect(result).toHaveLength(1);
     expect(result[0].role).toBe('editor');
+  });
+
+  it('lists org cases for guests but leaves role undefined when no explicit membership exists', async () => {
+    mockMemberRepo.find.mockResolvedValue([]);
+    mockOrgMemberships([{ organizationId: ORG_ID, role: 'guest' }]);
+    const c1 = { id: 'c1', name: 'Ghosted Case', createdAt: new Date(), orgId: ORG_ID };
+    mockOrgCases([c1]);
+
+    const result = await service.findAllForUser({ id: USER_ID } as any);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('c1');
+    expect(result[0].role).toBeUndefined();
+  });
+
+  it('guests with explicit case_members rows get the explicit role on those cases', async () => {
+    const c1 = { id: 'c1', name: 'Invited Case', createdAt: new Date(), orgId: ORG_ID };
+    const c2 = { id: 'c2', name: 'Ghost Case', createdAt: new Date(), orgId: ORG_ID };
+    mockMemberRepo.find.mockResolvedValue([{ case: c1, role: 'viewer', userId: USER_ID }]);
+    mockOrgMemberships([{ organizationId: ORG_ID, role: 'guest' }]);
+    mockOrgCases([c1, c2]);
+
+    const result = await service.findAllForUser({ id: USER_ID } as any);
+
+    expect(result).toHaveLength(2);
+    const byId = Object.fromEntries(result.map((r) => [r.id, r.role]));
+    expect(byId.c1).toBe('viewer');
+    expect(byId.c2).toBeUndefined();
+  });
+
+  it('explicit case_members role wins over implicit org role', async () => {
+    const c1 = { id: 'c1', name: 'Shared', createdAt: new Date(), orgId: ORG_ID };
+    mockMemberRepo.find.mockResolvedValue([{ case: c1, role: 'viewer', userId: USER_ID }]);
+    mockOrgMemberships([{ organizationId: ORG_ID, role: 'admin' }]);
+    mockOrgCases([c1]);
+
+    const result = await service.findAllForUser({ id: USER_ID } as any);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].role).toBe('viewer');
   });
 });

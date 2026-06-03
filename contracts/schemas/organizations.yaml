@@ -5,8 +5,8 @@ OrgMemberRole:
 
 OrgInviteRole:
   type: string
-  enum: [member, guest]
-  description: Role granted when an org invite is accepted. Admin cannot be granted via invite.
+  enum: [admin, member, guest]
+  description: Role granted when an org invite is accepted.
 
 Organization:
   type: object

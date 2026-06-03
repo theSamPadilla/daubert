@@ -374,3 +374,219 @@
           application/json:
             schema:
               $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/token-usage/overview:
+  get:
+    summary: Token usage overview KPIs (superadmin only)
+    operationId: getTokenUsageOverview
+    parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 30
+          enum: [7, 30, 90]
+    responses:
+      '200':
+        description: Token usage overview
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/superadmin.yaml#/TokenUsageOverview'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/token-usage/by-org:
+  get:
+    summary: Token usage ranked by organization (superadmin only)
+    operationId: getTokenUsageByOrg
+    parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 30
+          enum: [7, 30, 90]
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 10
+    responses:
+      '200':
+        description: Token usage by organization
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/superadmin.yaml#/TokenUsageByOrgRow'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/token-usage/by-user:
+  get:
+    summary: Token usage ranked by user (superadmin only)
+    operationId: getTokenUsageByUser
+    parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 30
+          enum: [7, 30, 90]
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 10
+    responses:
+      '200':
+        description: Token usage by user
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/superadmin.yaml#/TokenUsageByUserRow'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/token-usage/by-case:
+  get:
+    summary: Token usage ranked by case (superadmin only)
+    operationId: getTokenUsageByCase
+    parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 30
+          enum: [7, 30, 90]
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 10
+    responses:
+      '200':
+        description: Token usage by case
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/superadmin.yaml#/TokenUsageByCaseRow'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/token-usage/by-conversation:
+  get:
+    summary: Token usage ranked by conversation (superadmin only)
+    operationId: getTokenUsageByConversation
+    parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 30
+          enum: [7, 30, 90]
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 10
+    responses:
+      '200':
+        description: Token usage by conversation
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/superadmin.yaml#/TokenUsageByConversationRow'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/token-usage/org-model-matrix:
+  get:
+    summary: Token usage org × model matrix (superadmin only)
+    operationId: getTokenUsageOrgModelMatrix
+    parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 30
+          enum: [7, 30, 90]
+    responses:
+      '200':
+        description: Token usage org × model matrix rows
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/superadmin.yaml#/TokenUsageOrgModelMatrixRow'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/superadmin/token-usage/cache-effectiveness:
+  get:
+    summary: Cache effectiveness breakdown (superadmin only)
+    operationId: getTokenUsageCacheEffectiveness
+    parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 30
+          enum: [7, 30, 90]
+    responses:
+      '200':
+        description: Cache effectiveness data
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/superadmin.yaml#/TokenUsageCacheEffectiveness'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

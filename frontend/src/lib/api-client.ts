@@ -495,6 +495,22 @@ export const apiClient = {
   superadminListCases: () =>
     request<components['schemas']['CaseSummary'][]>('/superadmin/cases'),
 
+  // Superadmin — Token Usage
+  superadminTokenUsageOverview: (days: 7 | 30 | 90 = 30) =>
+    request<components['schemas']['TokenUsageOverview']>(`/superadmin/token-usage/overview?days=${days}`),
+  superadminTokenUsageByOrg: (days: 7 | 30 | 90 = 30, limit = 10) =>
+    request<components['schemas']['TokenUsageByOrgRow'][]>(`/superadmin/token-usage/by-org?days=${days}&limit=${limit}`),
+  superadminTokenUsageByUser: (days: 7 | 30 | 90 = 30, limit = 10) =>
+    request<components['schemas']['TokenUsageByUserRow'][]>(`/superadmin/token-usage/by-user?days=${days}&limit=${limit}`),
+  superadminTokenUsageByCase: (days: 7 | 30 | 90 = 30, limit = 10) =>
+    request<components['schemas']['TokenUsageByCaseRow'][]>(`/superadmin/token-usage/by-case?days=${days}&limit=${limit}`),
+  superadminTokenUsageByConversation: (days: 7 | 30 | 90 = 30, limit = 10) =>
+    request<components['schemas']['TokenUsageByConversationRow'][]>(`/superadmin/token-usage/by-conversation?days=${days}&limit=${limit}`),
+  superadminTokenUsageOrgModelMatrix: (days: 7 | 30 | 90 = 30) =>
+    request<components['schemas']['TokenUsageOrgModelMatrixRow'][]>(`/superadmin/token-usage/org-model-matrix?days=${days}`),
+  superadminTokenUsageCacheEffectiveness: (days: 7 | 30 | 90 = 30) =>
+    request<components['schemas']['TokenUsageCacheEffectiveness']>(`/superadmin/token-usage/cache-effectiveness?days=${days}`),
+
   // Superadmin — Labeled Entities (CUD only; reads stay on /labeled-entities)
   superadminCreateLabeledEntity: (body: { name: string; category: string; wallets: string[]; description?: string; metadata?: Record<string, unknown> }) =>
     request<LabeledEntity>('/superadmin/labeled-entities', { method: 'POST', body: JSON.stringify(body) }),

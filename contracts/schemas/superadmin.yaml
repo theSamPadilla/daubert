@@ -99,3 +99,168 @@ CaseSummary:
     createdAt:
       type: string
       format: date-time
+
+TokenUsageOverview:
+  type: object
+  required: [days, totalCost, totalTokens, totalCalls, cacheHitRate]
+  properties:
+    days:
+      type: integer
+    totalCost:
+      type: number
+      format: float
+      nullable: true
+    totalTokens:
+      type: integer
+      format: int64
+    totalCalls:
+      type: integer
+      format: int64
+    cacheHitRate:
+      type: number
+      format: float
+      description: "0.0–1.0"
+
+TokenUsageByOrgRow:
+  type: object
+  required: [orgId, orgName, calls, totalTokens]
+  properties:
+    orgId:
+      type: string
+      format: uuid
+    orgName:
+      type: string
+    calls:
+      type: integer
+      format: int64
+    totalTokens:
+      type: integer
+      format: int64
+    cost:
+      type: number
+      format: float
+      nullable: true
+
+TokenUsageByUserRow:
+  type: object
+  required: [userId, email, calls, totalTokens]
+  properties:
+    userId:
+      type: string
+      format: uuid
+    email:
+      type: string
+    orgName:
+      type: string
+      nullable: true
+    calls:
+      type: integer
+      format: int64
+    totalTokens:
+      type: integer
+      format: int64
+    cost:
+      type: number
+      format: float
+      nullable: true
+
+TokenUsageByCaseRow:
+  type: object
+  required: [caseId, caseName, calls, totalTokens]
+  properties:
+    caseId:
+      type: string
+      format: uuid
+    caseName:
+      type: string
+    orgName:
+      type: string
+      nullable: true
+    calls:
+      type: integer
+      format: int64
+    totalTokens:
+      type: integer
+      format: int64
+    cost:
+      type: number
+      format: float
+      nullable: true
+
+TokenUsageByConversationRow:
+  type: object
+  required: [conversationId, calls, totalTokens]
+  properties:
+    conversationId:
+      type: string
+      format: uuid
+    title:
+      type: string
+      nullable: true
+    caseName:
+      type: string
+      nullable: true
+    userEmail:
+      type: string
+      nullable: true
+    calls:
+      type: integer
+      format: int64
+    totalTokens:
+      type: integer
+      format: int64
+    cost:
+      type: number
+      format: float
+      nullable: true
+
+TokenUsageOrgModelMatrixRow:
+  type: object
+  required: [orgId, orgName, model, calls, totalTokens]
+  properties:
+    orgId:
+      type: string
+      format: uuid
+    orgName:
+      type: string
+    model:
+      type: string
+    calls:
+      type: integer
+      format: int64
+    totalTokens:
+      type: integer
+      format: int64
+    cost:
+      type: number
+      format: float
+      nullable: true
+
+TokenUsageCacheEffectiveness:
+  type: object
+  required: [days, cacheHitRate, breakdown]
+  properties:
+    days:
+      type: integer
+    cacheHitRate:
+      type: number
+      format: float
+    breakdown:
+      type: object
+      required: [cacheReadTokens, cacheCreation5mTokens, cacheCreation1hTokens, uncachedInputTokens, outputTokens]
+      properties:
+        cacheReadTokens:
+          type: integer
+          format: int64
+        cacheCreation5mTokens:
+          type: integer
+          format: int64
+        cacheCreation1hTokens:
+          type: integer
+          format: int64
+        uncachedInputTokens:
+          type: integer
+          format: int64
+        outputTokens:
+          type: integer
+          format: int64

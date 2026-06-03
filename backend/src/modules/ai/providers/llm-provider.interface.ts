@@ -5,6 +5,12 @@ export type StreamEvent =
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'end_turn'; response: Anthropic.Beta.BetaMessage };
 
+export type GeneratedText = {
+  text: string | null;
+  usage: Anthropic.Usage;
+  model: string;
+};
+
 export interface LlmProvider {
   streamChat(params: {
     system: Anthropic.Beta.BetaTextBlockParam[];
@@ -18,5 +24,5 @@ export interface LlmProvider {
     model?: string;
     maxTokens: number;
     messages: Anthropic.MessageParam[];
-  }): Promise<string | null>;
+  }): Promise<GeneratedText>;
 }

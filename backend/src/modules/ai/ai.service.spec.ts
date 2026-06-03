@@ -12,22 +12,26 @@ import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
 import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
+import { ConversationEntity } from '../../database/entities/conversation.entity';
+import { TokenUsageService } from '../superadmin/token-usage/token-usage.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { AGENT_TOOLS, READ_ONLY_AGENT_TOOLS } from './tools';
 import { CaseRole } from '../../database/entities/case-member.entity';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockConversationsService = { findOne: jest.fn() };
+const mockConversationsService = { findOne: jest.fn(), getMessages: jest.fn(), updateTitle: jest.fn() };
 const mockScriptExecutionService = { execute: jest.fn(), listRuns: jest.fn() };
 const mockLabeledEntitiesService = { lookupByAddress: jest.fn(), findAll: jest.fn() };
 const mockProductionsService = { create: jest.fn(), findOne: jest.fn(), findAllForCase: jest.fn(), update: jest.fn() };
 const mockTracesService = { findOne: jest.fn(), update: jest.fn() };
-const mockAnthropicProvider = {};
-const mockMessageRepo = { find: jest.fn() };
+const mockAnthropicProvider = { streamChat: jest.fn(), generateText: jest.fn() };
+const mockMessageRepo = { find: jest.fn(), save: jest.fn((e: any) => Promise.resolve({ id: 'msg-saved-id', ...e })), create: jest.fn((e: any) => e) };
 const mockInvestigationRepo = { find: jest.fn(), findOneBy: jest.fn() };
 const mockTraceRepo = { findOneBy: jest.fn(), save: jest.fn() };
 const mockDataRoomRepo = { find: jest.fn() };
+const mockConversationRepo = { findOne: jest.fn() };
+const mockTokenUsageService = { record: jest.fn() };
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -68,10 +72,12 @@ describe('AiService — executeTool label cases', () => {
         { provide: ProductionsService, useValue: mockProductionsService },
         { provide: TracesService, useValue: mockTracesService },
         { provide: AnthropicProvider, useValue: mockAnthropicProvider },
+        { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
         { provide: getRepositoryToken(DataRoomConnectionEntity), useValue: mockDataRoomRepo },
+        { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
       ],
     }).compile();
 
@@ -273,10 +279,12 @@ describe('AiService — pickToolsForRole', () => {
         { provide: ProductionsService, useValue: { create: jest.fn(), findOne: jest.fn(), findAllForCase: jest.fn(), update: jest.fn() } },
         { provide: TracesService, useValue: { findOne: jest.fn(), update: jest.fn() } },
         { provide: AnthropicProvider, useValue: {} },
+        { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: getRepositoryToken(MessageEntity), useValue: { find: jest.fn() } },
         { provide: getRepositoryToken(InvestigationEntity), useValue: { find: jest.fn(), findOneBy: jest.fn() } },
         { provide: getRepositoryToken(TraceEntity), useValue: { findOneBy: jest.fn(), save: jest.fn() } },
         { provide: getRepositoryToken(DataRoomConnectionEntity), useValue: { find: jest.fn() } },
+        { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
       ],
     }).compile();
 
@@ -320,5 +328,174 @@ describe('AiService — pickToolsForRole', () => {
     for (const mutateName of ['create_production', 'update_production', 'add_label', 'update_label', 'delete_label']) {
       expect(names).not.toContain(mutateName);
     }
+  });
+});
+
+// ── Token usage metering ──────────────────────────────────────────────────────
+
+describe('AiService — token usage metering', () => {
+  let aiService: AiService;
+
+  const ORG_ID = 'org-uuid-1';
+  const CONV_ID = 'conv-uuid-1';
+  const USER_ID = 'user-uuid-1';
+  const CHAT_CASE_ID = 'case-uuid-1';
+  const SAVED_MSG_ID = 'msg-saved-id';
+
+  /** Minimal BetaMessage fixture for end_turn */
+  function makeBetaMessage(overrides: Partial<Anthropic.Beta.BetaMessage> = {}): Anthropic.Beta.BetaMessage {
+    return {
+      id: 'msg_test',
+      type: 'message',
+      role: 'assistant',
+      content: [{ type: 'text', text: 'Hello' }],
+      model: 'claude-opus-4-6',
+      stop_reason: 'end_turn',
+      stop_sequence: null,
+      usage: {
+        input_tokens: 100,
+        output_tokens: 50,
+        cache_read_input_tokens: 20,
+        cache_creation_input_tokens: 0,
+        cache_creation: null,
+        inference_geo: null,
+        iterations: null,
+      } as Anthropic.Beta.BetaUsage,
+      container: null,
+      ...overrides,
+    } as unknown as Anthropic.Beta.BetaMessage;
+  }
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AiService,
+        { provide: ConversationsService, useValue: mockConversationsService },
+        { provide: ScriptExecutionService, useValue: mockScriptExecutionService },
+        { provide: LabeledEntitiesService, useValue: mockLabeledEntitiesService },
+        { provide: ProductionsService, useValue: mockProductionsService },
+        { provide: TracesService, useValue: mockTracesService },
+        { provide: AnthropicProvider, useValue: mockAnthropicProvider },
+        { provide: TokenUsageService, useValue: mockTokenUsageService },
+        { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
+        { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
+        { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
+        { provide: getRepositoryToken(DataRoomConnectionEntity), useValue: mockDataRoomRepo },
+        { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
+      ],
+    }).compile();
+
+    aiService = module.get<AiService>(AiService);
+  });
+
+  it('streamChat: calls tokenUsageService.record with surface=chat and correct fields after end_turn', async () => {
+    const betaMessage = makeBetaMessage();
+
+    // conversationRepo.findOne resolves orgId + caseId
+    mockConversationRepo.findOne.mockResolvedValue({
+      id: CONV_ID,
+      caseId: CHAT_CASE_ID,
+      case: { orgId: ORG_ID },
+    });
+
+    // ConversationsService.findOne (access check) + getMessages (history)
+    mockConversationsService.findOne.mockResolvedValue({ id: CONV_ID, caseId: CHAT_CASE_ID, userId: USER_ID });
+    mockConversationsService.getMessages.mockResolvedValue([]);
+
+    // messageRepo.save returns entity with id; create is identity
+    mockMessageRepo.create.mockImplementation((e: any) => e);
+    mockMessageRepo.save.mockResolvedValue({ id: SAVED_MSG_ID });
+
+    // Provider yields text_delta then end_turn
+    mockAnthropicProvider.streamChat.mockReturnValue(
+      (async function* () {
+        yield { type: 'text', content: 'Hello' };
+        yield { type: 'end_turn', response: betaMessage };
+      })(),
+    );
+
+    mockTokenUsageService.record.mockResolvedValue(undefined);
+
+    const events: any[] = [];
+    for await (const ev of aiService.streamChat(
+      CONV_ID,
+      USER_ID,
+      'Hello AI',
+      CHAT_CASE_ID,
+      undefined,
+      undefined,
+      undefined,
+      'editor',
+    )) {
+      events.push(ev);
+    }
+
+    // Should have finished
+    expect(events.some((e) => e.type === 'done')).toBe(true);
+
+    // tokenUsageService.record should be called exactly once with chat surface
+    expect(mockTokenUsageService.record).toHaveBeenCalledTimes(1);
+    expect(mockTokenUsageService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surface: 'chat',
+        orgId: ORG_ID,
+        userId: USER_ID,
+        caseId: CHAT_CASE_ID,
+        conversationId: CONV_ID,
+        messageId: SAVED_MSG_ID,
+        model: 'claude-opus-4-6',
+        inputTokens: 100,
+        outputTokens: 50,
+        cacheReadInputTokens: 20,
+        cacheCreation5mInputTokens: 0,
+        cacheCreation1hInputTokens: 0,
+      }),
+    );
+  });
+
+  it('generateTitle: calls tokenUsageService.record with surface=title-generation and messageId=null', async () => {
+    mockConversationRepo.findOne.mockResolvedValue({
+      id: CONV_ID,
+      caseId: CHAT_CASE_ID,
+      case: { orgId: ORG_ID },
+    });
+    mockConversationsService.findOne.mockResolvedValue({ id: CONV_ID, caseId: CHAT_CASE_ID, userId: USER_ID });
+    mockConversationsService.updateTitle.mockResolvedValue(undefined);
+
+    mockAnthropicProvider.generateText.mockResolvedValue({
+      text: 'Wallet Analysis',
+      usage: {
+        input_tokens: 200,
+        output_tokens: 10,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+      model: 'claude-haiku-4-5',
+    });
+
+    mockTokenUsageService.record.mockResolvedValue(undefined);
+
+    // Call the private method directly
+    await (aiService as any).generateTitle(CONV_ID, USER_ID, 'Analyze this wallet');
+
+    expect(mockTokenUsageService.record).toHaveBeenCalledTimes(1);
+    expect(mockTokenUsageService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surface: 'title-generation',
+        orgId: ORG_ID,
+        userId: USER_ID,
+        caseId: CHAT_CASE_ID,
+        conversationId: CONV_ID,
+        messageId: null,
+        model: 'claude-haiku-4-5',
+        inputTokens: 200,
+        outputTokens: 10,
+        cacheReadInputTokens: 0,
+        cacheCreation5mInputTokens: 0,
+        cacheCreation1hInputTokens: 0,
+      }),
+    );
   });
 });

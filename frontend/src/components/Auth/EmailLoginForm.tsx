@@ -11,6 +11,10 @@ export interface EmailLoginFormProps {
   lockEmail?: boolean;
   onVerified?: () => Promise<void>;
   onBack?: () => void;
+  // When set, the email-phase error block renders a "Request access" button if
+  // the backend rejected the email as having no account. The callback receives
+  // the email the user attempted so the parent can pre-fill the modal.
+  onRequestAccess?: (email: string) => void;
 }
 
 type State =
@@ -36,7 +40,7 @@ function waitForFirebaseUser(timeoutMs = 15000): Promise<void> {
   });
 }
 
-export function EmailLoginForm({ defaultEmail = '', lockEmail = false, onVerified, onBack }: EmailLoginFormProps) {
+export function EmailLoginForm({ defaultEmail = '', lockEmail = false, onVerified, onBack, onRequestAccess }: EmailLoginFormProps) {
   const [state, setState] = useState<State>({ phase: 'email' });
   const [emailInput, setEmailInput] = useState(defaultEmail);
   const [code, setCode] = useState('');
@@ -109,6 +113,15 @@ export function EmailLoginForm({ defaultEmail = '', lockEmail = false, onVerifie
         {errorMessage && (
           <div className="bg-red-900/30 border border-red-700/60 rounded-lg p-4 text-center">
             <p className="text-red-300 text-sm leading-relaxed">{errorMessage}</p>
+            {onRequestAccess && /no account found/i.test(errorMessage) && (
+              <button
+                type="button"
+                onClick={() => onRequestAccess(emailInput.trim())}
+                className="mt-3 inline-flex items-center justify-center px-4 py-2 bg-brand hover:bg-brand/90 rounded text-sm text-white font-medium transition-colors"
+              >
+                Request access
+              </button>
+            )}
           </div>
         )}
         {onBack && (

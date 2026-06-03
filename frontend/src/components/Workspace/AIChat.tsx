@@ -336,6 +336,8 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const dragCounterRef = useRef(0);
+  const createInFlightRef = useRef(false);
+  const skipNextLoadRef = useRef<string | null>(null);
 
   useEffect(() => {
     setConversations([]);
@@ -355,6 +357,14 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
 
   useEffect(() => {
     if (!activeConvId) { setMessages([]); return; }
+
+    // Skip the server load when we just created this conv locally. Without
+    // this, the empty result would wipe the optimistic user+assistant rows
+    // and any in-flight stream content.
+    if (skipNextLoadRef.current === activeConvId) {
+      skipNextLoadRef.current = null;
+      return;
+    }
 
     let cancelled = false;
     apiClient.getConversationMessages(activeConvId).then((msgs) => {
@@ -469,15 +479,19 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   };
 
   const handleNewConversation = async () => {
-    if (!activeCaseId) return;
+    if (!activeCaseId || createInFlightRef.current) return;
+    createInFlightRef.current = true;
     try {
       const conv = await apiClient.createConversation(activeCaseId);
+      skipNextLoadRef.current = conv.id;
       setConversations((prev) => [conv, ...prev]);
       setActiveConvId(conv.id);
       setMessages([]);
       setShowHistory(false);
     } catch {
       // ignore
+    } finally {
+      createInFlightRef.current = false;
     }
   };
 
@@ -504,16 +518,23 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
     const hasAttachments = attachments.length > 0;
     if ((!hasText && !hasAttachments) || streaming) return;
 
-    // Auto-create conversation if none exists
+    // Auto-create conversation if none exists. Guarded against re-entry so
+    // rapid sends or React double-invocation can't create multiple shells.
     let convId = activeConvId;
     if (!convId) {
-      if (!activeCaseId) return;
+      if (!activeCaseId || createInFlightRef.current) return;
+      createInFlightRef.current = true;
       try {
         const conv = await apiClient.createConversation(activeCaseId);
+        skipNextLoadRef.current = conv.id;
         setConversations((prev) => [conv, ...prev]);
         setActiveConvId(conv.id);
         convId = conv.id;
-      } catch { return; }
+      } catch {
+        createInFlightRef.current = false;
+        return;
+      }
+      createInFlightRef.current = false;
     }
 
     const userText = input.trim();

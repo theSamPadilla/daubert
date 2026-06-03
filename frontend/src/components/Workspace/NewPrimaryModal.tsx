@@ -10,7 +10,7 @@ type ProductionType = 'report' | 'chart' | 'chronology';
 
 export function NewPrimaryModal() {
   const router = useRouter();
-  const { caseId, newPrimaryDefault, closeNewPrimary, setProductions } = useCaseContext();
+  const { caseId, newPrimaryDefault, closeNewPrimary, setProductions, reloadInvestigations } = useCaseContext();
 
   const [tab, setTab] = useState<PrimaryType>(newPrimaryDefault);
   const [name, setName] = useState('');
@@ -27,6 +27,7 @@ export function NewPrimaryModal() {
     try {
       if (tab === 'investigation') {
         const inv = await apiClient.createInvestigation(caseId, { name: trimmed });
+        reloadInvestigations();
         closeNewPrimary();
         router.push(`/cases/${caseId}/investigations?inv=${inv.id}`);
       } else {

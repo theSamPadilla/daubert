@@ -30,7 +30,12 @@ export function GroupColorPicker({ color, onChange }: { color?: string; onChange
       ))}
       <button
         onClick={() => customRef.current?.click()}
-        className="w-5 h-5 rounded-full border-2 border-dashed border-line-strong hover:border-line-strong flex items-center justify-center text-ink-muted hover:text-ink text-xs transition-colors"
+        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs transition-colors ${
+          color && !GROUP_COLORS.includes(color)
+            ? 'border-white text-transparent'
+            : 'border-dashed border-line-strong hover:border-line-strong text-ink-muted hover:text-ink'
+        }`}
+        style={color && !GROUP_COLORS.includes(color) ? { backgroundColor: color } : undefined}
         title="Custom color"
       >
         +

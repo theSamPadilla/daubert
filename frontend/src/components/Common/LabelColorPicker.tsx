@@ -2,7 +2,7 @@
  * LabelColorPicker — compact swatch button that opens a preset palette popover.
  * Used in the label editor toolbar. Supports a "none" option to clear the color.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export const LABEL_PRESET_COLORS = [
   '#3b82f6', '#06b6d4', '#10b981', '#22c55e',
@@ -13,15 +13,25 @@ export const LABEL_PRESET_COLORS = [
 ];
 
 interface LabelColorPickerProps {
-  /** Current color (hex). Empty string = no color (use default). */
+  /** Current color (hex). Empty string = no explicit selection (renders fallback). */
   color: string;
   onChange: (c: string) => void;
+  /** Visual fallback for the trigger swatch when `color` is empty. Treated as a non-custom default. */
+  fallback?: string;
 }
 
-export function LabelColorPicker({ color, onChange }: LabelColorPickerProps) {
+export function LabelColorPicker({ color, onChange, fallback }: LabelColorPickerProps) {
   const [open, setOpen] = useState(false);
   const customRef = useRef<HTMLInputElement>(null);
-  const swatchBg = color || '#9ca3af';
+  const swatchBg = color || fallback || '#9ca3af';
+  const isCustom = !!color && !LABEL_PRESET_COLORS.includes(color) && color !== fallback;
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
 
   return (
     <div className="relative">
@@ -42,8 +52,8 @@ export function LabelColorPicker({ color, onChange }: LabelColorPickerProps) {
             {/* "No color" option */}
             <button
               type="button"
-              onClick={() => { onChange(''); setOpen(false); }}
-              className="w-full text-left text-xs text-ink-muted hover:text-white mb-2 px-1"
+              onClick={() => onChange('')}
+              className={`w-full text-left text-xs mb-2 px-1 ${color === '' ? 'text-white' : 'text-ink-muted hover:text-white'}`}
             >
               No color
             </button>
@@ -52,7 +62,7 @@ export function LabelColorPicker({ color, onChange }: LabelColorPickerProps) {
                 <button
                   key={c}
                   type="button"
-                  onClick={() => { onChange(c); setOpen(false); }}
+                  onClick={() => onChange(c)}
                   className="w-6 h-6 rounded-full border-2 transition-all hover:scale-110"
                   style={{
                     backgroundColor: c,
@@ -63,7 +73,12 @@ export function LabelColorPicker({ color, onChange }: LabelColorPickerProps) {
               <button
                 type="button"
                 onClick={() => customRef.current?.click()}
-                className="w-6 h-6 rounded-full border-2 border-dashed border-line-strong hover:border-gray-400 flex items-center justify-center text-ink-muted hover:text-white text-xs transition-colors"
+                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs transition-colors ${
+                  isCustom
+                    ? 'border-white text-transparent'
+                    : 'border-dashed border-line-strong hover:border-gray-400 text-ink-muted hover:text-white'
+                }`}
+                style={isCustom ? { backgroundColor: color } : undefined}
                 title="Custom color"
               >
                 +
@@ -73,7 +88,7 @@ export function LabelColorPicker({ color, onChange }: LabelColorPickerProps) {
               ref={customRef}
               type="color"
               value={color || '#3b82f6'}
-              onChange={(e) => { onChange(e.target.value); setOpen(false); }}
+              onChange={(e) => onChange(e.target.value)}
               className="sr-only"
             />
           </div>

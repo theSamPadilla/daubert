@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { GeneratedText, LlmProvider, StreamEvent } from './llm-provider.interface';
 
-const DEFAULT_MODEL = 'claude-opus-4-6';
+const DEFAULT_MODEL = 'claude-opus-4-7';
 // Output budget for one streaming turn. Includes thinking, tool_use inputs,
 // and visible text — all share the same cap. With `thinking: adaptive`, the
 // model routinely burns 2-4k tokens on reasoning before emitting anything,

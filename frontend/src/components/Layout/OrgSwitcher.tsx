@@ -4,13 +4,21 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaChevronDown, FaBuilding, FaGear } from 'react-icons/fa6';
 import { useOrgContext } from '@/contexts/OrgContext';
+import { useAuth } from '@/components/Auth/AuthProvider';
 
 export function OrgSwitcher({ variant = 'dark' }: { variant?: 'dark' | 'light' } = {}) {
   const { orgs, activeOrg, setActiveOrgSlug } = useOrgContext();
+  const { refreshMe } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const isLight = variant === 'light';
+
+  const handleToggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next) void refreshMe();
+  };
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -27,7 +35,7 @@ export function OrgSwitcher({ variant = 'dark' }: { variant?: 'dark' | 'light' }
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={handleToggle}
         title={activeOrg?.name ?? 'Select organization'}
         className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors ${
           isLight

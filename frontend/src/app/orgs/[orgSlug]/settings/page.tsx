@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { FaXmark, FaTrash, FaPlus, FaCopy, FaCheck } from 'react-icons/fa6';
+import { FaXmark, FaTrash, FaPlus, FaCopy, FaCheck, FaArrowLeft } from 'react-icons/fa6';
 import { useOrgContext } from '@/contexts/OrgContext';
 import { useAuth } from '@/components/Auth/AuthProvider';
 import { apiClient, type OrgMemberRole } from '@/lib/api-client';
@@ -15,9 +16,18 @@ type OrgMember = components['schemas']['OrganizationMember'];
 type OrgInvite = components['schemas']['OrganizationInvite'];
 type OrgInviteRole = components['schemas']['OrgInviteRole'];
 
+const inputClass =
+  'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-brand disabled:opacity-60 transition-colors';
+
+const primaryBtn =
+  'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-brand hover:bg-brand/90 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] disabled:opacity-50 disabled:cursor-not-allowed transition-colors';
+
+const secondaryBtn =
+  'px-4 py-2 rounded-lg text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted hover:text-white transition-colors';
+
 function Banner({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 mb-6 rounded border border-red-500/40 bg-red-500/10 text-red-300 text-sm">
+    <div className="flex items-center gap-3 px-4 py-3 mb-6 rounded-lg border border-red-500/40 bg-red-500/10 text-red-300 text-sm">
       <span className="flex-1">{message}</span>
       <button onClick={onClose} className="hover:text-white transition-colors">
         <FaXmark size={14} />
@@ -28,7 +38,9 @@ function Banner({ message, onClose }: { message: string; onClose: () => void }) 
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-line-strong bg-surface-panel p-6 mb-6">
+    <div className="relative mb-6 p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden">
+      {/* subtle top inner-highlight to give the card a raised edge */}
+      <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
       <h2 className="text-base font-semibold text-white mb-4">{title}</h2>
       {children}
     </div>
@@ -37,12 +49,14 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 function RolePill({ role }: { role: OrgMemberRole }) {
   const colors: Record<OrgMemberRole, string> = {
-    admin: 'bg-blue-900/40 text-blue-300',
-    member: 'bg-emerald-900/40 text-emerald-300',
-    guest: 'bg-surface-raised text-ink-muted',
+    admin: 'bg-brand text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]',
+    member: 'bg-emerald-900/40 text-emerald-300 border border-emerald-500/30',
+    guest: 'bg-surface text-ink-muted border border-line-strong',
   };
   return (
-    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${colors[role]}`}>
+    <span
+      className={`inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-semibold ${colors[role]}`}
+    >
       {role}
     </span>
   );
@@ -100,7 +114,7 @@ function OrgInfoSection({
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={!isAdmin}
-            className="w-full bg-surface border border-line-strong rounded px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-brand disabled:opacity-60"
+            className={inputClass}
           />
         </div>
         <div>
@@ -110,7 +124,7 @@ function OrgInfoSection({
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             disabled={!isAdmin}
-            className="w-full bg-surface border border-line-strong rounded px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-brand disabled:opacity-60 font-mono"
+            className={`${inputClass} font-mono`}
           />
           {isAdmin && (
             <p className="mt-1 text-xs text-ink-faint">
@@ -119,11 +133,11 @@ function OrgInfoSection({
           )}
         </div>
         {isAdmin && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pt-1">
             <button
               type="submit"
               disabled={saving || !name.trim() || !slug.trim()}
-              className="px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={primaryBtn}
             >
               {saving ? 'Saving...' : saved ? 'Saved' : 'Save changes'}
             </button>
@@ -208,16 +222,15 @@ function MembersSection({
   return (
     <SectionCard title="Members">
       {error && <Banner message={error} onClose={() => setError(null)} />}
-      <div className="mb-4 rounded-md border-l-2 border-brand/70 bg-brand/[0.06] px-4 py-3 space-y-1">
-        <p className="text-[10px] uppercase tracking-wider text-brand font-semibold">
+      <div className="mb-4 rounded-lg border-l-2 border-brand/70 bg-brand/[0.06] px-4 py-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-brand font-semibold">
           Who sees what
         </p>
         <p className="text-sm text-ink-muted leading-relaxed">
-          <span className="text-white font-medium">Admins</span> see every case in this org and can manage
-          settings, members, and invites.{' '}
-          <span className="text-white font-medium">Members</span> and{' '}
-          <span className="text-white font-medium">guests</span> only see cases they&apos;re individually
-          added to as case members.
+          <span className="text-white font-medium">Admins</span> are implicit owners on every case.{' '}
+          <span className="text-white font-medium">Members</span> join every case as editors by default.{' '}
+          <span className="text-white font-medium">Guests</span> can browse every case but need an
+          explicit case invite to open one.
         </p>
       </div>
       {loading ? (
@@ -225,13 +238,13 @@ function MembersSection({
       ) : members.length === 0 ? (
         <p className="text-sm text-ink-muted">No members.</p>
       ) : (
-        <div className="overflow-hidden rounded border border-line-strong">
+        <div className="overflow-hidden rounded-lg border border-line-strong">
           <table className="w-full">
             <thead>
               <tr className="bg-surface/60 text-left text-xs text-ink-faint uppercase tracking-wider">
-                <th className="px-4 py-2">Member</th>
-                <th className="px-4 py-2">Role</th>
-                <th className="w-16 px-4 py-2"></th>
+                <th className="px-4 py-2.5">Member</th>
+                <th className="px-4 py-2.5">Role</th>
+                <th className="w-16 px-4 py-2.5"></th>
               </tr>
             </thead>
             <tbody>
@@ -250,7 +263,7 @@ function MembersSection({
                         <select
                           value={m.role}
                           onChange={(e) => handleRoleChange(m.userId, e.target.value as OrgMemberRole)}
-                          className="rounded border border-line-strong bg-surface px-2 py-1 text-xs text-white focus:outline-none focus:border-brand"
+                          className="rounded-lg border border-line-strong bg-surface px-2 py-1 text-xs text-white focus:outline-none focus:border-brand"
                         >
                           <option value="admin">admin</option>
                           <option value="member">member</option>
@@ -286,6 +299,38 @@ function MembersSection({
         </div>
       )}
     </SectionCard>
+  );
+}
+
+const ROLE_BLURBS: Record<OrgInviteRole, { headline: string; can: string; cant: string }> = {
+  admin: {
+    headline: 'Full org control.',
+    can: 'Implicit owner on every case. Can manage org settings, members, and invites.',
+    cant: 'Treat with care — admins can remove other admins and rename the org.',
+  },
+  member: {
+    headline: 'Belongs to every case by default.',
+    can: 'Joins every case in the org as an editor automatically. Can create new cases.',
+    cant: 'Cannot manage org settings, members, or invites. Admins can override their role on a specific case.',
+  },
+  guest: {
+    headline: 'Browse-only by default.',
+    can: 'Can see every case in the org listed on the home page.',
+    cant: 'Cannot open a case until an admin or owner explicitly adds them as a case member.',
+  },
+};
+
+function RoleExplainer({ role }: { role: OrgInviteRole }) {
+  const blurb = ROLE_BLURBS[role];
+  return (
+    <div className="rounded-lg border-l-2 border-brand/70 bg-brand/[0.06] px-4 py-3 space-y-1">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-brand font-semibold">
+        {role} can do
+      </p>
+      <p className="text-sm text-white font-medium">{blurb.headline}</p>
+      <p className="text-sm text-ink-muted leading-relaxed">{blurb.can}</p>
+      <p className="text-xs text-ink-faint leading-relaxed">{blurb.cant}</p>
+    </div>
   );
 }
 
@@ -379,7 +424,7 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
       {!showForm && (
         <button
           onClick={() => setShowForm(true)}
-          className="mb-4 flex items-center gap-1.5 text-xs text-ink-muted hover:text-white transition-colors"
+          className="mb-4 inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-white transition-colors"
         >
           <FaPlus size={10} />
           Generate invite
@@ -387,7 +432,10 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
       )}
 
       {showForm && (
-        <form onSubmit={handleGenerateInvite} className="mb-6 p-4 rounded border border-line-strong space-y-3">
+        <form
+          onSubmit={handleGenerateInvite}
+          className="mb-6 p-4 rounded-xl border border-line-strong/60 bg-surface/40 space-y-3"
+        >
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-ink-muted mb-1">Email</label>
@@ -396,7 +444,7 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full bg-surface border border-line-strong rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-brand"
+                className={inputClass}
                 placeholder="user@example.com"
               />
             </div>
@@ -405,13 +453,15 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as OrgInviteRole)}
-                className="w-full bg-surface border border-line-strong rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-brand"
+                className={inputClass}
               >
+                <option value="admin">admin</option>
                 <option value="member">member</option>
                 <option value="guest">guest</option>
               </select>
             </div>
           </div>
+          <RoleExplainer role={role} />
           <div>
             <label className="block text-xs text-ink-muted mb-1">Name (optional)</label>
             <input
@@ -419,7 +469,7 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={120}
-              className="w-full bg-surface border border-line-strong rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-brand"
+              className={inputClass}
               placeholder="Jane Doe"
             />
             <p className="mt-1 text-xs text-ink-faint">
@@ -432,22 +482,18 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={2}
-              className="w-full bg-surface border border-line-strong rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-brand resize-y"
+              className={`${inputClass} resize-y`}
               placeholder="Optional personal note"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              disabled={sending || !email.trim()}
-              className="px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
+          <div className="flex items-center gap-2 pt-1">
+            <button type="submit" disabled={sending || !email.trim()} className={primaryBtn}>
               {sending ? 'Generating…' : 'Generate invite'}
             </button>
             <button
               type="button"
               onClick={() => { setShowForm(false); setEmail(''); setName(''); setMessage(''); }}
-              className="px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted transition-colors"
+              className={secondaryBtn}
             >
               Cancel
             </button>
@@ -460,14 +506,14 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
       ) : pendingInvites.length === 0 ? (
         <p className="text-sm text-ink-muted">No pending invites.</p>
       ) : (
-        <div className="overflow-hidden rounded border border-line-strong">
+        <div className="overflow-hidden rounded-lg border border-line-strong">
           <table className="w-full">
             <thead>
               <tr className="bg-surface/60 text-left text-xs text-ink-faint uppercase tracking-wider">
-                <th className="px-4 py-2">Email</th>
-                <th className="px-4 py-2">Role</th>
-                <th className="px-4 py-2">Expires</th>
-                <th className="w-24 px-4 py-2"></th>
+                <th className="px-4 py-2.5">Email</th>
+                <th className="px-4 py-2.5">Role</th>
+                <th className="px-4 py-2.5">Expires</th>
+                <th className="w-24 px-4 py-2.5"></th>
               </tr>
             </thead>
             <tbody>
@@ -523,17 +569,37 @@ export default function OrgSettingsPage() {
   const orgForThisPage = user?.orgs.find((o) => o.slug === orgSlug);
   const isAdmin = orgForThisPage?.role === 'admin';
   const currentUserId = user?.id ?? '';
+  const orgName = orgForThisPage?.name;
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
-      <h1 className="text-base font-semibold text-white mb-1">Organization settings</h1>
-      <p className="text-sm text-ink-muted mb-8">
-        Manage your organization&apos;s profile, members, and invitations.
-      </p>
+    <main className="relative max-w-3xl mx-auto px-6 py-12">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-white transition-colors mb-8"
+      >
+        <FaArrowLeft size={10} />
+        Back to cases
+      </Link>
+
+      <div className="mb-10">
+        <div className="flex items-center gap-3">
+          <span className="h-px w-8 bg-gradient-to-r from-brand to-transparent" />
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+            Organization
+          </span>
+        </div>
+        <h2 className="mt-3 text-4xl font-bold tracking-tight text-white">
+          Settings
+        </h2>
+        <p className="mt-2 text-sm text-ink-muted">
+          Manage {orgName ? <span className="text-white font-medium">{orgName}</span> : 'your organization'}
+          &apos;s profile, members, and invitations.
+        </p>
+      </div>
 
       <OrgInfoSection orgSlug={orgSlug} isAdmin={isAdmin} />
       <MembersSection orgSlug={orgSlug} isAdmin={isAdmin} currentUserId={currentUserId} />
       {isAdmin && <InvitesSection orgSlug={orgSlug} />}
-    </div>
+    </main>
   );
 }

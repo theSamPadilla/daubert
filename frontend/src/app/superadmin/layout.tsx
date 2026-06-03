@@ -1,31 +1,34 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { SuperAdminGuard } from '@/components/Auth/SuperAdminGuard';
-import { FaUsers, FaFolderOpen, FaTags, FaArrowLeft, FaBuilding } from 'react-icons/fa6';
+import UserMenu from '@/components/Auth/UserMenu';
+import { FaUsers, FaFolderOpen, FaTags, FaArrowLeft, FaBuilding, FaChartLine } from 'react-icons/fa6';
 
 const NAV = [
   { href: '/superadmin/orgs', label: 'Orgs', icon: FaBuilding, exact: false },
   { href: '/superadmin/users', label: 'Users', icon: FaUsers, exact: false },
   { href: '/superadmin/cases', label: 'Cases', icon: FaFolderOpen, exact: false },
   { href: '/superadmin/entities', label: 'Entities', icon: FaTags, exact: false },
+  { href: '/superadmin/token-usage', label: 'Token Usage', icon: FaChartLine, exact: false },
 ];
 
 function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex w-56 shrink-0 flex-col border-r border-line-strong bg-surface px-3 py-6">
+    <nav className="relative z-10 flex w-56 shrink-0 flex-col bg-surface-panel/40 backdrop-blur-md border-r border-line/60 px-3 py-6">
       <Link
         href="/"
-        className="mb-6 flex items-center gap-2 rounded px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-surface-panel hover:text-gray-200"
+        className="mb-6 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-white/5 hover:text-white"
       >
-        <FaArrowLeft className="h-3.5 w-3.5" />
+        <FaArrowLeft className="h-3 w-3" />
         Back to Cases
       </Link>
 
-      <h2 className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-ink-faint">
+      <h2 className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand">
         Superadmin
       </h2>
       <ul className="space-y-1">
@@ -38,10 +41,10 @@ function Sidebar() {
             <li key={item.href}>
               <Link
                 href={item.href}
-                className={`flex items-center gap-2 rounded px-3 py-2 text-sm transition-colors ${
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                   active
-                    ? 'bg-blue-900/40 text-blue-200'
-                    : 'text-ink-muted hover:bg-surface-panel hover:text-gray-200'
+                    ? 'bg-brand/15 text-white border border-brand/30 shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset]'
+                    : 'text-ink-muted border border-transparent hover:bg-white/5 hover:text-white'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -58,9 +61,26 @@ function Sidebar() {
 export default function SuperadminLayout({ children }: { children: React.ReactNode }) {
   return (
     <SuperAdminGuard>
-      <div className="flex min-h-screen bg-surface">
-        <Sidebar />
-        <div className="flex-1">{children}</div>
+      <div className="relative min-h-screen bg-surface bg-hero-dark text-white overflow-hidden">
+        {/* faint grid overlay */}
+        <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
+        <div className="pointer-events-none absolute -right-32 top-16 -z-10 opacity-[0.06] select-none">
+          <Image src="/logo-light.png" alt="" width={720} height={720} priority />
+        </div>
+
+        {/* Header */}
+        <header className="relative z-10 bg-surface-panel/70 backdrop-blur-md border-b border-line/60 h-14 px-5 flex items-center justify-between shrink-0">
+          <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
+            <Image src="/logo-light.png" alt="Daubert" width={26} height={26} priority />
+            <h1 className="text-base font-semibold tracking-tight text-white">Daubert</h1>
+          </Link>
+          <UserMenu />
+        </header>
+
+        <div className="flex">
+          <Sidebar />
+          <div className="flex-1 min-w-0">{children}</div>
+        </div>
       </div>
     </SuperAdminGuard>
   );

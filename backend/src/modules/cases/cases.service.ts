@@ -4,10 +4,11 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { CaseEntity } from '../../database/entities/case.entity';
 import { CaseMemberEntity, CaseRole } from '../../database/entities/case-member.entity';
 import { OrganizationEntity } from '../../database/entities/organization.entity';
-import { OrganizationMemberEntity } from '../../database/entities/organization-member.entity';
+import { OrganizationMemberEntity, OrgRole } from '../../database/entities/organization-member.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UpdateCaseDto } from './dto/update-case.dto';
 import { UsersService } from '../users/users.service';
+import { orgRoleToImplicitCaseRole } from '../auth/case-access.service';
 
 @Injectable()
 export class CasesService {
@@ -23,44 +24,53 @@ export class CasesService {
   ) {}
 
   async findAllForUser(user: UserEntity) {
-    // Cases where user has an explicit case_members row
+    // 1. Explicit case_members rows — always honored, even if the user is no
+    //    longer in the org (case access doesn't auto-revoke on org departure).
     const memberships = await this.memberRepo.find({
       where: { userId: user.id },
       relations: ['case'],
-      order: { case: { createdAt: 'DESC' } },
     });
-    const memberCases = memberships.map((m) => ({ ...m.case, role: m.role }));
-
-    // Cases in orgs where user is org admin (implicit owner-equivalent).
-    // Soft-deleted orgs filtered out via the join.
-    const adminMemberships = await this.orgMemberRepo
-      .createQueryBuilder('m')
-      .innerJoin('organizations', 'o', 'o.id = m.organization_id AND o.deleted_at IS NULL')
-      .where('m.user_id = :userId AND m.role = :role', { userId: user.id, role: 'admin' })
-      .getMany();
-    const adminOrgIds = adminMemberships.map((m) => m.organizationId);
-
-    let adminImplicitCases: Array<CaseEntity & { role: CaseRole }> = [];
-    if (adminOrgIds.length > 0) {
-      const orgCases = await this.repo
-        .createQueryBuilder('c')
-        .where('c.orgId IN (:...orgIds)', { orgIds: adminOrgIds })
-        .orderBy('c.createdAt', 'DESC')
-        .getMany();
-      adminImplicitCases = orgCases.map((c) => ({ ...c, role: 'owner' as CaseRole }));
+    const explicit = new Map<string, CaseEntity & { role: CaseRole }>();
+    for (const m of memberships) {
+      explicit.set(m.case.id, { ...m.case, role: m.role });
     }
 
-    // Dedupe: explicit membership wins over implicit (in case user is both member and org admin)
-    const seen = new Set(memberCases.map((c) => c.id));
-    const deduped = [...memberCases];
-    for (const c of adminImplicitCases) {
-      if (!seen.has(c.id)) {
-        seen.add(c.id);
-        deduped.push(c);
+    // 2. All org memberships in active orgs.
+    const orgMemberships = await this.orgMemberRepo
+      .createQueryBuilder('m')
+      .innerJoin('organizations', 'o', 'o.id = m.organization_id AND o.deleted_at IS NULL')
+      .where('m.user_id = :userId', { userId: user.id })
+      .getMany();
+    const orgRoleByOrgId = new Map<string, OrgRole>(
+      orgMemberships.map((m) => [m.organizationId, m.role] as const),
+    );
+
+    // 3. All cases in those orgs — guests see them too (ghosted on the frontend).
+    const result: Array<CaseEntity & { role?: CaseRole }> = [];
+    const orgIds = Array.from(orgRoleByOrgId.keys());
+    if (orgIds.length > 0) {
+      const orgCases = await this.repo
+        .createQueryBuilder('c')
+        .where('c.orgId IN (:...orgIds)', { orgIds })
+        .getMany();
+      for (const c of orgCases) {
+        const ex = explicit.get(c.id);
+        if (ex) {
+          result.push(ex);
+          explicit.delete(c.id);
+          continue;
+        }
+        const implicit = orgRoleToImplicitCaseRole(orgRoleByOrgId.get(c.orgId)!);
+        result.push(implicit ? { ...c, role: implicit } : { ...c });
       }
     }
 
-    return deduped.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    // 4. Remaining explicit memberships (cases in orgs the user has since left).
+    for (const c of explicit.values()) {
+      result.push(c);
+    }
+
+    return result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   /** Internal helper — returns the raw entity; never exposed over the wire. */

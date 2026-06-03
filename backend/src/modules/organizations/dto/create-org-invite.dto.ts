@@ -5,7 +5,7 @@ export class CreateOrgInviteDto {
   @IsEmail()
   email: string;
 
-  @IsIn(['member', 'guest'])
+  @IsIn(['admin', 'member', 'guest'])
   role: OrgInviteRole;
 
   @IsOptional()

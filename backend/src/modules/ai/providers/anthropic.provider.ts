@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
-import { LlmProvider, StreamEvent } from './llm-provider.interface';
+import { GeneratedText, LlmProvider, StreamEvent } from './llm-provider.interface';
 
 const DEFAULT_MODEL = 'claude-opus-4-6';
 // Output budget for one streaming turn. Includes thinking, tool_use inputs,
@@ -88,13 +88,15 @@ export class AnthropicProvider implements LlmProvider {
     model?: string;
     maxTokens: number;
     messages: Anthropic.MessageParam[];
-  }): Promise<string | null> {
+  }): Promise<GeneratedText> {
+    const model = params.model ?? 'claude-haiku-4-5';
     const response = await this.client.messages.create({
-      model: params.model ?? 'claude-haiku-4-5',
+      model,
       max_tokens: params.maxTokens,
       messages: params.messages,
     });
     const block = response.content[0];
-    return block?.type === 'text' ? block.text.trim() : null;
+    const text = block?.type === 'text' ? block.text.trim() : null;
+    return { text, usage: response.usage, model };
   }
 }

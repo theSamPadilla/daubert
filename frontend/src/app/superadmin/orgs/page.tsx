@@ -14,6 +14,18 @@ interface DeleteConfirmState {
   typed: string;
 }
 
+const inputClass =
+  'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-brand transition-colors';
+
+const primaryBtn =
+  'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-brand hover:bg-brand/90 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] disabled:opacity-50 disabled:cursor-not-allowed transition-colors';
+
+const secondaryBtn =
+  'px-4 py-2 rounded-lg text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted hover:text-white transition-colors';
+
+const dangerBtn =
+  'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-500 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] disabled:opacity-50 disabled:cursor-not-allowed transition-colors';
+
 export default function SuperadminOrgsPage() {
   const [orgs, setOrgs] = useState<OrgSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,29 +95,40 @@ export default function SuperadminOrgsPage() {
   };
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
+    <main className="relative max-w-5xl mx-auto px-6 py-12">
+      <div className="mb-10 flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Organizations</h1>
-          <p className="mt-1 text-sm text-ink-muted">
+          <div className="flex items-center gap-3">
+            <span className="h-px w-8 bg-gradient-to-r from-brand to-transparent" />
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+              Superadmin
+            </span>
+          </div>
+          <h2 className="mt-3 text-4xl font-bold tracking-tight text-white">
+            Organizations
+          </h2>
+          <p className="mt-2 text-sm text-ink-muted">
             Create organizations and assign first admins. Deleted orgs are soft-deleted (30-day retention).
           </p>
         </div>
-        <button
-          onClick={() => setShowForm((s) => !s)}
-          className="flex items-center gap-2 rounded bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand/90"
-        >
+        <button onClick={() => setShowForm((s) => !s)} className={`${primaryBtn} shrink-0 mt-1`}>
           <FaPlus className="h-3 w-3" /> New org
         </button>
       </div>
 
       {loadError && (
-        <div className="mb-4 rounded bg-red-900/50 p-3 text-sm text-red-300">{loadError}</div>
+        <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+          {loadError}
+        </div>
       )}
 
       {showForm && (
-        <form onSubmit={handleCreate} className="mb-6 rounded-lg border border-line-strong bg-surface-panel p-4">
-          <h2 className="mb-4 text-lg font-semibold text-white">New organization</h2>
+        <form
+          onSubmit={handleCreate}
+          className="relative mb-6 p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden"
+        >
+          <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+          <h3 className="mb-5 text-base font-semibold text-white">New organization</h3>
           <div className="mb-4 grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm text-ink-muted">Name</label>
@@ -114,7 +137,7 @@ export default function SuperadminOrgsPage() {
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 required
-                className="w-full rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                className={inputClass}
                 placeholder="Acme Corp"
               />
             </div>
@@ -124,7 +147,7 @@ export default function SuperadminOrgsPage() {
                 type="text"
                 value={formSlug}
                 onChange={(e) => setFormSlug(e.target.value)}
-                className="w-full rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none"
+                className={`${inputClass} font-mono`}
                 placeholder="auto-derived from name"
               />
             </div>
@@ -136,25 +159,21 @@ export default function SuperadminOrgsPage() {
               value={formAdminEmail}
               onChange={(e) => setFormAdminEmail(e.target.value)}
               required
-              className="w-full rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+              className={inputClass}
               placeholder="admin@example.com"
             />
             <p className="mt-1 text-xs text-ink-faint">
               If the user exists they are promoted to admin. Otherwise a shell user is created pending sign-in.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand/90 disabled:opacity-50"
-            >
+          <div className="flex items-center gap-2 pt-1">
+            <button type="submit" disabled={saving} className={primaryBtn}>
               {saving ? 'Creating...' : 'Create'}
             </button>
             <button
               type="button"
               onClick={() => { setShowForm(false); setFormName(''); setFormSlug(''); setFormAdminEmail(''); }}
-              className="rounded bg-surface-raised px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-raised/80"
+              className={secondaryBtn}
             >
               Cancel
             </button>
@@ -165,12 +184,15 @@ export default function SuperadminOrgsPage() {
       {loading ? (
         <Loader inline />
       ) : orgs.length === 0 ? (
-        <p className="py-12 text-center text-ink-muted">No organizations yet.</p>
+        <div className="rounded-xl border border-line-strong/60 bg-surface-panel/50 py-16 text-center">
+          <p className="text-sm text-ink-muted">No organizations yet.</p>
+        </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line-strong">
+        <div className="relative overflow-hidden rounded-xl border border-line-strong/60 bg-surface-panel shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
+          <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
           <table className="w-full">
             <thead>
-              <tr className="bg-surface-panel/50 text-left text-sm text-ink-muted">
+              <tr className="bg-surface/40 text-left text-xs text-ink-faint uppercase tracking-wider">
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Slug</th>
                 <th className="px-4 py-3">Members</th>
@@ -181,7 +203,7 @@ export default function SuperadminOrgsPage() {
             </thead>
             <tbody>
               {orgs.map((org) => (
-                <tr key={org.id} className="border-b border-line-strong/50">
+                <tr key={org.id} className="border-t border-line-strong/40 hover:bg-white/[0.02] transition-colors">
                   <td className="px-4 py-3 text-sm font-medium text-white">{org.name}</td>
                   <td className="px-4 py-3 text-sm text-ink-muted font-mono">{org.slug}</td>
                   <td className="px-4 py-3 text-sm text-ink-muted">{org.memberCount}</td>
@@ -192,7 +214,7 @@ export default function SuperadminOrgsPage() {
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => setDeleteConfirm({ org, typed: '' })}
-                      className="p-1.5 text-ink-faint hover:text-red-400"
+                      className="p-1.5 text-ink-faint hover:text-red-400 transition-colors"
                       title="Delete org"
                     >
                       <FaTrash className="h-3.5 w-3.5" />
@@ -206,9 +228,10 @@ export default function SuperadminOrgsPage() {
       )}
 
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-panel border border-line-strong rounded-lg shadow-2xl w-full max-w-sm p-6 space-y-4">
-            <h2 className="text-base font-semibold text-white">Delete organization?</h2>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="relative bg-surface-panel border border-line-strong rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4 overflow-hidden">
+            <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+            <h3 className="text-base font-semibold text-white">Delete organization?</h3>
             <p className="text-sm text-ink-muted">
               This will soft-delete <span className="text-white font-medium">{deleteConfirm.org.name}</span>.
               The org and its data are retained for 30 days. Type the org name to confirm.
@@ -217,20 +240,17 @@ export default function SuperadminOrgsPage() {
               type="text"
               value={deleteConfirm.typed}
               onChange={(e) => setDeleteConfirm((s) => s ? { ...s, typed: e.target.value } : null)}
-              className="w-full rounded border border-line-strong bg-surface px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500"
+              className={`${inputClass} focus:border-red-500`}
               placeholder={deleteConfirm.org.name}
             />
-            <div className="flex items-center gap-2 justify-end">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-3 py-1.5 rounded text-sm bg-surface-raised text-ink-muted hover:bg-surface-raised/80"
-              >
+            <div className="flex items-center gap-2 justify-end pt-1">
+              <button onClick={() => setDeleteConfirm(null)} className={secondaryBtn}>
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleteConfirm.typed !== deleteConfirm.org.name || deleting}
-                className="px-3 py-1.5 rounded text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={dangerBtn}
               >
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>
@@ -244,6 +264,6 @@ export default function SuperadminOrgsPage() {
         message={errorMessage ?? ''}
         onClose={() => setErrorMessage(null)}
       />
-    </div>
+    </main>
   );
 }

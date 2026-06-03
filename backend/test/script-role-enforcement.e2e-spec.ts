@@ -27,6 +27,8 @@ import { CaseEntity } from '../src/database/entities/case.entity';
 import { CaseMemberEntity } from '../src/database/entities/case-member.entity';
 import { ProductionEntity, ProductionType } from '../src/database/entities/production.entity';
 import { UserEntity } from '../src/database/entities/user.entity';
+import { OrganizationEntity } from '../src/database/entities/organization.entity';
+import { OrganizationMemberEntity } from '../src/database/entities/organization-member.entity';
 
 // Services
 import { AuthGuard } from '../src/modules/auth/auth.guard';
@@ -56,8 +58,11 @@ describe('PATCH /productions/:id — script token role enforcement (e2e)', () =>
   let caseRepo: Repository<CaseEntity>;
   let memberRepo: Repository<CaseMemberEntity>;
   let productionRepo: Repository<ProductionEntity>;
+  let orgRepo: Repository<OrganizationEntity>;
+  let orgMemberRepo: Repository<OrganizationMemberEntity>;
 
   let seedUserId: string;
+  let seedOrgId: string;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -75,6 +80,8 @@ describe('PATCH /productions/:id — script token role enforcement (e2e)', () =>
           CaseEntity,
           CaseMemberEntity,
           ProductionEntity,
+          OrganizationEntity,
+          OrganizationMemberEntity,
         ]),
       ],
       controllers: [ProductionsController],
@@ -124,21 +131,49 @@ describe('PATCH /productions/:id — script token role enforcement (e2e)', () =>
     productionRepo = moduleRef.get<Repository<ProductionEntity>>(
       getRepositoryToken(ProductionEntity),
     );
+    orgRepo = moduleRef.get<Repository<OrganizationEntity>>(
+      getRepositoryToken(OrganizationEntity),
+    );
+    orgMemberRepo = moduleRef.get<Repository<OrganizationMemberEntity>>(
+      getRepositoryToken(OrganizationMemberEntity),
+    );
 
     // ── Seed ──────────────────────────────────────────────────────────────────
+
+    const stamp = Date.now();
 
     const user = await userRepo.save(
       userRepo.create({
         name: 'E2E Script Role Test User',
-        email: `e2e-script-role-${Date.now()}@test.invalid`,
+        email: `e2e-script-role-${stamp}@test.invalid`,
         firebaseUid: null,
-        orgRole: 'member',
       }),
     );
     seedUserId = user.id;
 
+    const org = await orgRepo.save(
+      orgRepo.create({
+        name: 'E2E Script Role Test Org',
+        slug: `e2e-script-role-${stamp}`,
+        deletedAt: null,
+      }),
+    );
+    seedOrgId = org.id;
+
+    await orgMemberRepo.save(
+      orgMemberRepo.create({
+        userId: user.id,
+        organizationId: org.id,
+        role: 'admin',
+      }),
+    );
+
     const testCase = await caseRepo.save(
-      caseRepo.create({ name: 'E2E Script Role Test Case', userId: user.id }),
+      caseRepo.create({
+        name: 'E2E Script Role Test Case',
+        userId: user.id,
+        orgId: org.id,
+      }),
     );
     caseId = testCase.id;
 
@@ -172,6 +207,7 @@ describe('PATCH /productions/:id — script token role enforcement (e2e)', () =>
     // on cascade behaviour in the test environment.
     if (productionId) await productionRepo.delete({ id: productionId });
     if (caseId) await caseRepo.delete({ id: caseId });
+    if (seedOrgId) await orgRepo.delete({ id: seedOrgId });
     if (seedUserId) await userRepo.delete({ id: seedUserId });
     if (app) await app.close();
   }, 15_000);

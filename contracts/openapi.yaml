@@ -165,6 +165,20 @@ paths:
     $ref: './paths/superadmin.yaml#/~1superadmin~1labeled-entities'
   /superadmin/labeled-entities/{id}:
     $ref: './paths/superadmin.yaml#/~1superadmin~1labeled-entities~1{id}'
+  /superadmin/token-usage/overview:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1token-usage~1overview'
+  /superadmin/token-usage/by-org:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1token-usage~1by-org'
+  /superadmin/token-usage/by-user:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1token-usage~1by-user'
+  /superadmin/token-usage/by-case:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1token-usage~1by-case'
+  /superadmin/token-usage/by-conversation:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1token-usage~1by-conversation'
+  /superadmin/token-usage/org-model-matrix:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1token-usage~1org-model-matrix'
+  /superadmin/token-usage/cache-effectiveness:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1token-usage~1cache-effectiveness'
 
 components:
   schemas:
@@ -300,3 +314,17 @@ components:
       $ref: './schemas/superadmin.yaml#/SetSuperAdminRequest'
     CaseSummary:
       $ref: './schemas/superadmin.yaml#/CaseSummary'
+    TokenUsageOverview:
+      $ref: './schemas/superadmin.yaml#/TokenUsageOverview'
+    TokenUsageByOrgRow:
+      $ref: './schemas/superadmin.yaml#/TokenUsageByOrgRow'
+    TokenUsageByUserRow:
+      $ref: './schemas/superadmin.yaml#/TokenUsageByUserRow'
+    TokenUsageByCaseRow:
+      $ref: './schemas/superadmin.yaml#/TokenUsageByCaseRow'
+    TokenUsageByConversationRow:
+      $ref: './schemas/superadmin.yaml#/TokenUsageByConversationRow'
+    TokenUsageOrgModelMatrixRow:
+      $ref: './schemas/superadmin.yaml#/TokenUsageOrgModelMatrixRow'
+    TokenUsageCacheEffectiveness:
+      $ref: './schemas/superadmin.yaml#/TokenUsageCacheEffectiveness'

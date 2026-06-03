@@ -1039,6 +1039,125 @@ export interface paths {
         patch: operations["superadminUpdateLabeledEntity"];
         trace?: never;
     };
+    "/superadmin/token-usage/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Token usage overview KPIs (superadmin only) */
+        get: operations["getTokenUsageOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/superadmin/token-usage/by-org": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Token usage ranked by organization (superadmin only) */
+        get: operations["getTokenUsageByOrg"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/superadmin/token-usage/by-user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Token usage ranked by user (superadmin only) */
+        get: operations["getTokenUsageByUser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/superadmin/token-usage/by-case": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Token usage ranked by case (superadmin only) */
+        get: operations["getTokenUsageByCase"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/superadmin/token-usage/by-conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Token usage ranked by conversation (superadmin only) */
+        get: operations["getTokenUsageByConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/superadmin/token-usage/org-model-matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Token usage org × model matrix (superadmin only) */
+        get: operations["getTokenUsageOrgModelMatrix"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/superadmin/token-usage/cache-effectiveness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cache effectiveness breakdown (superadmin only) */
+        get: operations["getTokenUsageCacheEffectiveness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1481,10 +1600,10 @@ export interface components {
          */
         OrgMemberRole: "admin" | "member" | "guest";
         /**
-         * @description Role granted when an org invite is accepted. Admin cannot be granted via invite.
+         * @description Role granted when an org invite is accepted.
          * @enum {string}
          */
-        OrgInviteRole: "member" | "guest";
+        OrgInviteRole: "admin" | "member" | "guest";
         Organization: {
             /** Format: uuid */
             id: string;
@@ -1649,6 +1768,97 @@ export interface components {
             memberCount: number;
             /** Format: date-time */
             createdAt: string;
+        };
+        TokenUsageOverview: {
+            days: number;
+            /** Format: float */
+            totalCost: number | null;
+            /** Format: int64 */
+            totalTokens: number;
+            /** Format: int64 */
+            totalCalls: number;
+            /**
+             * Format: float
+             * @description 0.0–1.0
+             */
+            cacheHitRate: number;
+        };
+        TokenUsageByOrgRow: {
+            /** Format: uuid */
+            orgId: string;
+            orgName: string;
+            /** Format: int64 */
+            calls: number;
+            /** Format: int64 */
+            totalTokens: number;
+            /** Format: float */
+            cost?: number | null;
+        };
+        TokenUsageByUserRow: {
+            /** Format: uuid */
+            userId: string;
+            email: string;
+            orgName?: string | null;
+            /** Format: int64 */
+            calls: number;
+            /** Format: int64 */
+            totalTokens: number;
+            /** Format: float */
+            cost?: number | null;
+        };
+        TokenUsageByCaseRow: {
+            /** Format: uuid */
+            caseId: string;
+            caseName: string;
+            orgName?: string | null;
+            /** Format: int64 */
+            calls: number;
+            /** Format: int64 */
+            totalTokens: number;
+            /** Format: float */
+            cost?: number | null;
+        };
+        TokenUsageByConversationRow: {
+            /** Format: uuid */
+            conversationId: string;
+            title?: string | null;
+            caseName?: string | null;
+            userEmail?: string | null;
+            /** Format: int64 */
+            calls: number;
+            /** Format: int64 */
+            totalTokens: number;
+            /** Format: float */
+            cost?: number | null;
+        };
+        TokenUsageOrgModelMatrixRow: {
+            /** Format: uuid */
+            orgId: string;
+            orgName: string;
+            model: string;
+            /** Format: int64 */
+            calls: number;
+            /** Format: int64 */
+            totalTokens: number;
+            /** Format: float */
+            cost?: number | null;
+        };
+        TokenUsageCacheEffectiveness: {
+            days: number;
+            /** Format: float */
+            cacheHitRate: number;
+            breakdown: {
+                /** Format: int64 */
+                cacheReadTokens: number;
+                /** Format: int64 */
+                cacheCreation5mTokens: number;
+                /** Format: int64 */
+                cacheCreation1hTokens: number;
+                /** Format: int64 */
+                uncachedInputTokens: number;
+                /** Format: int64 */
+                outputTokens: number;
+            };
         };
         InvestigationSummary: {
             /** Format: uuid */
@@ -4456,6 +4666,227 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTokenUsageOverview: {
+        parameters: {
+            query?: {
+                days?: 7 | 30 | 90;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token usage overview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenUsageOverview"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTokenUsageByOrg: {
+        parameters: {
+            query?: {
+                days?: 7 | 30 | 90;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token usage by organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenUsageByOrgRow"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTokenUsageByUser: {
+        parameters: {
+            query?: {
+                days?: 7 | 30 | 90;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token usage by user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenUsageByUserRow"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTokenUsageByCase: {
+        parameters: {
+            query?: {
+                days?: 7 | 30 | 90;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token usage by case */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenUsageByCaseRow"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTokenUsageByConversation: {
+        parameters: {
+            query?: {
+                days?: 7 | 30 | 90;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token usage by conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenUsageByConversationRow"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTokenUsageOrgModelMatrix: {
+        parameters: {
+            query?: {
+                days?: 7 | 30 | 90;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token usage org × model matrix rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenUsageOrgModelMatrixRow"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTokenUsageCacheEffectiveness: {
+        parameters: {
+            query?: {
+                days?: 7 | 30 | 90;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cache effectiveness data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenUsageCacheEffectiveness"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

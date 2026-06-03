@@ -4,9 +4,21 @@ import { Repository } from 'typeorm';
 import { CaseMemberEntity, CaseRole } from '../../database/entities/case-member.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
 import { OrganizationEntity } from '../../database/entities/organization.entity';
-import { OrganizationMemberEntity } from '../../database/entities/organization-member.entity';
+import { OrganizationMemberEntity, OrgRole } from '../../database/entities/organization-member.entity';
 import { AccessPrincipal } from './access-principal';
 import { roleAtLeast } from './require-role.decorator';
+
+/**
+ * Implicit case role granted by org membership.
+ * - admin → owner-equivalent (manages everything)
+ * - member → editor-equivalent (full collaborator, no ownership-level powers)
+ * - guest → null (must have an explicit case_members row to access)
+ */
+export function orgRoleToImplicitCaseRole(orgRole: OrgRole): CaseRole | null {
+  if (orgRole === 'admin') return 'owner';
+  if (orgRole === 'member') return 'editor';
+  return null;
+}
 
 @Injectable()
 export class CaseAccessService {
@@ -22,11 +34,11 @@ export class CaseAccessService {
   ) {}
 
   /**
-   * Org admins of the case's host org get implicit owner-equivalent access.
+   * Implicit case role derived from the user's org membership.
    * Returns a synthetic membership when applicable; null otherwise.
    * Soft-deleted orgs are NOT honored — implicit access requires an active org.
    */
-  private async tryOrgAdminImplicit(
+  private async tryOrgImplicit(
     userId: string,
     caseId: string,
   ): Promise<CaseMemberEntity | null> {
@@ -36,14 +48,16 @@ export class CaseAccessService {
       userId,
       organizationId: caseEntity.orgId,
     });
-    if (orgMembership?.role !== 'admin') return null;
+    if (!orgMembership) return null;
+    const implicitRole = orgRoleToImplicitCaseRole(orgMembership.role);
+    if (!implicitRole) return null;
     const org = await this.orgRepo.findOneBy({ id: caseEntity.orgId });
     if (!org || org.deletedAt !== null) return null;
     return {
-      id: 'org-admin-implicit',
+      id: 'org-implicit',
       userId,
       caseId,
-      role: 'owner' as CaseRole,
+      role: implicitRole,
     } as CaseMemberEntity;
   }
 
@@ -68,7 +82,7 @@ export class CaseAccessService {
       caseId,
     });
     if (membership) return membership;
-    const implicit = await this.tryOrgAdminImplicit(principal.userId, caseId);
+    const implicit = await this.tryOrgImplicit(principal.userId, caseId);
     if (implicit) return implicit;
     throw new ForbiddenException('You do not have access to this case');
   }

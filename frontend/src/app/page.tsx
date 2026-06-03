@@ -11,7 +11,7 @@ import { OrgSwitcher } from '@/components/Layout/OrgSwitcher';
 import { apiClient, type Case } from '@/lib/api-client';
 import { Loader } from '@/components/Common/Loader';
 import { NewCaseModal } from '@/components/Cases/NewCaseModal';
-import { FaGear, FaPlus } from 'react-icons/fa6';
+import { FaGear, FaLock, FaPlus } from 'react-icons/fa6';
 
 function CaseSelector() {
   const router = useRouter();
@@ -95,8 +95,42 @@ function CaseSelector() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {cases.map((c) => {
+              const hasAccess = !!c.role;
               const canAccessSettings = c.role === 'owner' || c.role === 'editor';
               const isOwner = c.role === 'owner';
+
+              if (!hasAccess) {
+                return (
+                  <div
+                    key={c.id}
+                    title="You're not a member of this case. Ask an org admin to add you."
+                    className="relative p-5 min-h-[128px] rounded-xl
+                      bg-surface-panel/40 border border-dashed border-line-strong/50
+                      cursor-not-allowed overflow-hidden"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="font-semibold text-base text-ink-muted line-clamp-1 flex-1">
+                        {c.name}
+                      </h3>
+                      <span
+                        className="flex-shrink-0 w-7 h-7 rounded-md bg-surface/60 border border-line-strong/60 flex items-center justify-center"
+                        aria-label="Locked"
+                      >
+                        <FaLock size={10} className="text-ink-faint" />
+                      </span>
+                    </div>
+                    {c.summary && (
+                      <p className="text-sm text-ink-faint mt-2 line-clamp-2 leading-relaxed">
+                        {c.summary}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-ink-faint mt-3 italic">
+                      Not a case member — ask an admin to add you.
+                    </p>
+                  </div>
+                );
+              }
+
               return (
                 <div key={c.id} className="relative group">
                   <button
@@ -115,18 +149,16 @@ function CaseSelector() {
                       <h3 className="font-semibold text-base text-white group-hover:text-brand transition-colors line-clamp-1 flex-1">
                         {c.name}
                       </h3>
-                      {c.role && (
-                        <span
-                          className={
-                            'text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold flex-shrink-0 ' +
-                            (isOwner
-                              ? 'bg-brand text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]'
-                              : 'bg-surface text-ink-muted border border-line-strong')
-                          }
-                        >
-                          {c.role}
-                        </span>
-                      )}
+                      <span
+                        className={
+                          'text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold flex-shrink-0 ' +
+                          (isOwner
+                            ? 'bg-brand text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]'
+                            : 'bg-surface text-ink-muted border border-line-strong')
+                        }
+                      >
+                        {c.role}
+                      </span>
                     </div>
                     {c.summary && (
                       <p className="text-sm text-ink-muted mt-2 line-clamp-2 leading-relaxed">

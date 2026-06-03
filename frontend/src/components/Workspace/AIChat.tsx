@@ -327,7 +327,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelId>('claude-opus-4-6');
+  const [selectedModel, setSelectedModel] = useState<ModelId>('claude-opus-4-7');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);

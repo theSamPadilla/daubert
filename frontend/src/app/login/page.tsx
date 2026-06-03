@@ -7,6 +7,7 @@ import { signInWithPopup, type AuthProvider } from 'firebase/auth';
 import { getFirebaseAuth, googleProvider, microsoftProvider } from '@/lib/firebase';
 import { useAuth } from '@/components/Auth/AuthProvider';
 import { EmailLoginForm } from '@/components/Auth/EmailLoginForm';
+import { RequestAccessModal } from '@/components/Auth/RequestAccessModal';
 
 function friendlyAuthError(err: any): string {
   switch (err?.code) {
@@ -109,6 +110,7 @@ export default function LoginPage() {
   const { user, noAccount, loading, signOut } = useAuth();
   const [signingIn, setSigningIn] = useState<'google' | 'microsoft' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showRequestAccess, setShowRequestAccess] = useState<{ source: 'login-email' | 'login-no-account'; email: string } | null>(null);
 
   useEffect(() => {
     if (user && !loading) {
@@ -159,22 +161,35 @@ export default function LoginPage() {
               <p className="text-red-300 text-base">
                 No account found for {getFirebaseAuth().currentUser?.email}.
               </p>
-              <p className="mt-1 text-red-300/80 text-sm">
-                Contact our team to get access.
-              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setShowRequestAccess({
+                    source: 'login-no-account',
+                    email: getFirebaseAuth().currentUser?.email ?? '',
+                  })
+                }
+                className="mt-4 inline-flex items-center justify-center px-4 py-2 bg-brand hover:bg-brand/90 rounded text-sm text-white font-medium transition-colors"
+              >
+                Request access
+              </button>
               <button
                 onClick={async () => {
                   await signOut();
                   window.location.reload();
                 }}
-                className="mt-4 text-sm text-ink-muted hover:text-white underline"
+                className="mt-4 ml-3 text-sm text-ink-muted hover:text-white underline"
               >
                 Sign in with a different account
               </button>
             </div>
           ) : (
             <>
-              <EmailLoginForm />
+              <EmailLoginForm
+                onRequestAccess={(email) =>
+                  setShowRequestAccess({ source: 'login-email', email })
+                }
+              />
 
               <div className="flex items-center gap-3 pt-1">
                 <div className="h-px flex-1 bg-line-strong" />
@@ -229,6 +244,14 @@ export default function LoginPage() {
           )}
         </div>
       </div>
+
+      {showRequestAccess && (
+        <RequestAccessModal
+          defaultEmail={showRequestAccess.email}
+          source={showRequestAccess.source}
+          onClose={() => setShowRequestAccess(null)}
+        />
+      )}
     </div>
   );
 }

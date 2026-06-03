@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 import { Loader } from '@/components/Common/Loader';
+import { RequestAccessModal } from './RequestAccessModal';
 
 /**
  * Wraps authenticated pages. Redirects to /login if not signed in OR if the
@@ -14,6 +15,7 @@ import { Loader } from '@/components/Common/Loader';
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading, noAccount, firebaseUser, error } = useAuth();
   const router = useRouter();
+  const [showRequestAccess, setShowRequestAccess] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -44,9 +46,22 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           <h2 className="text-xl font-bold text-ink">No Account Found</h2>
           <p className="text-ink-muted">
             No account found for {firebaseUser.email}.
-            Contact our team to get access.
           </p>
+          <button
+            type="button"
+            onClick={() => setShowRequestAccess(true)}
+            className="px-4 py-2 bg-brand hover:bg-brand/90 rounded text-sm text-white font-medium transition-colors"
+          >
+            Request access
+          </button>
         </div>
+        {showRequestAccess && (
+          <RequestAccessModal
+            defaultEmail={firebaseUser.email ?? ''}
+            source="auth-guard"
+            onClose={() => setShowRequestAccess(false)}
+          />
+        )}
       </div>
     );
   }

@@ -1,10 +1,11 @@
-import { Entity, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, OneToMany, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { MessageEntity } from './message.entity';
 import { CaseEntity } from './case.entity';
 import { UserEntity } from './user.entity';
 
 @Entity('conversations')
+@Index('IDX_conversations_case_user', ['caseId', 'userId'])
 export class ConversationEntity extends BaseEntity {
   @Column({ nullable: true, type: 'varchar' })
   title: string | null;

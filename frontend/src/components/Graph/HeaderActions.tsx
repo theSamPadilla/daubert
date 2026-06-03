@@ -39,7 +39,7 @@ export function TransactionHeaderActions({ transaction, onEdit, onDelete, onColo
 }) {
   return (
     <div className="flex items-center gap-2">
-      <LabelColorPicker color={transaction.color || '#10b981'} onChange={onColorChange} />
+      <LabelColorPicker color={transaction.color || ''} fallback="#10b981" onChange={onColorChange} />
       <EditDeleteActions onEdit={onEdit} onDelete={onDelete} />
     </div>
   );
@@ -53,7 +53,7 @@ export function WalletHeaderActions({ wallet, onEdit, onDelete, onColorChange }:
 }) {
   return (
     <div className="flex items-center gap-2">
-      <LabelColorPicker color={wallet.color || '#60a5fa'} onChange={onColorChange} />
+      <LabelColorPicker color={wallet.color || ''} fallback="#60a5fa" onChange={onColorChange} />
       <EditDeleteActions onEdit={onEdit} onDelete={onDelete} />
     </div>
   );

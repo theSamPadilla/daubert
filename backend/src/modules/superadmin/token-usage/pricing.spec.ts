@@ -59,4 +59,28 @@ describe('calculateCost', () => {
     expect(PRICING['claude-haiku-4-5'].input).toBe(1);
     expect(PRICING['claude-haiku-4-5'].output).toBe(5);
   });
+
+  // Source of truth for "model IDs the frontend can send us". Keep this in
+  // lockstep with the MODELS array in frontend/src/components/Workspace/AIChat.tsx.
+  // If you add a model to the dropdown, add it here too — this test catches
+  // the silent-null-cost bug that the haiku-4-5-20251001 mismatch caused.
+  const SUPPORTED_MODELS = [
+    'claude-opus-4-7',
+    'claude-opus-4-6',
+    'claude-sonnet-4-6',
+    'claude-haiku-4-5',
+  ];
+
+  it.each(SUPPORTED_MODELS)('has pricing for %s', (model) => {
+    expect(PRICING[model]).toBeDefined();
+    const cost = calculateCost(model, {
+      inputTokens: 1_000_000,
+      outputTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheCreation5mInputTokens: 0,
+      cacheCreation1hInputTokens: 0,
+    });
+    expect(cost).not.toBeNull();
+    expect(cost).toBeGreaterThan(0);
+  });
 });

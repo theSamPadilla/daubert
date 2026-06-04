@@ -324,7 +324,7 @@ export function ChronologyTable({
                 onClick={toggleColSelectMode}
                 className={
                   colSelectMode
-                    ? 'h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md text-xs font-medium bg-brand/15 border border-brand/60 text-brand hover:bg-brand/25 transition-colors'
+                    ? 'h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md text-xs font-medium bg-brand border border-brand text-white hover:bg-brand/90 transition-colors'
                     : toolbarBtn
                 }
                 title={colSelectMode ? 'Exit edit mode' : 'Edit columns'}
@@ -338,7 +338,7 @@ export function ChronologyTable({
                 onClick={toggleSelectMode}
                 className={
                   selectMode
-                    ? 'h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md text-xs font-medium bg-brand/15 border border-brand/60 text-brand hover:bg-brand/25 transition-colors'
+                    ? 'h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md text-xs font-medium bg-brand border border-brand text-white hover:bg-brand/90 transition-colors'
                     : toolbarBtn
                 }
                 title={selectMode ? 'Exit edit mode' : 'Edit rows'}
@@ -572,7 +572,7 @@ function Cell({
             className="hover:underline inline-flex items-center gap-1 text-xs font-mono"
             style={hl ? { color: hl.fg } : undefined}
           >
-            <span className={hl ? '' : 'text-brand'}>{label ?? url}</span>
+            <span className={hl ? '' : 'text-brand-ink'}>{label ?? url}</span>
             <FaArrowUpRightFromSquare className="w-2.5 h-2.5 flex-shrink-0" />
           </a>
         ) : (

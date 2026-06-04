@@ -282,7 +282,7 @@ export default function DataRoomPage() {
 
           {state === 'disconnected' && (
             <div className="rounded-lg bg-surface-panel border border-line-strong p-8 text-center">
-              <FaFolderOpen className="mx-auto text-brand mb-3" size={36} />
+              <FaFolderOpen className="mx-auto text-brand-ink mb-3" size={36} />
               <h2 className="text-lg font-semibold text-white mb-2">Connect a Google Drive folder</h2>
               <p className="text-sm text-ink-muted max-w-md mx-auto mb-6">
                 Daubert reads and writes case documents directly in your Google Drive. Connect a
@@ -460,7 +460,7 @@ export default function DataRoomPage() {
                                 href={file.webViewLink}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-brand hover:text-blue-200 inline-flex items-center gap-1.5"
+                                className="text-brand-ink hover:text-white inline-flex items-center gap-1.5"
                                 title="Open in Google Drive"
                               >
                                 {file.name}
@@ -486,7 +486,7 @@ export default function DataRoomPage() {
                           <td className="px-4 py-3">
                             <button
                               onClick={() => handleDownload(file)}
-                              className="p-1.5 text-ink-faint hover:text-brand"
+                              className="p-1.5 text-ink-faint hover:text-brand-ink"
                               title="Download"
                             >
                               <FaDownload className="w-3.5 h-3.5" />

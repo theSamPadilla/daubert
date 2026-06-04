@@ -153,7 +153,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                 }}
                 className={`flex items-center group px-3 pr-2 py-1.5 cursor-pointer text-sm transition-colors ${
                   isActive
-                    ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand)]'
+                    ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand-ink)]'
                     : 'hover:bg-surface-raised text-ink-muted'
                 }`}
               >
@@ -272,7 +272,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                         title={prod.name}
                         className={`flex items-center px-3 py-1 cursor-pointer text-xs transition-colors ${
                           active
-                            ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand)]'
+                            ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand-ink)]'
                             : 'hover:bg-surface-raised text-ink-muted hover:text-ink'
                         }`}
                       >
@@ -320,7 +320,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                 }}
                 className={`block px-3 py-1.5 cursor-pointer text-xs transition-colors ${
                   dataRoomActive
-                    ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand)]'
+                    ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand-ink)]'
                     : 'hover:bg-surface-raised text-ink-muted'
                 }`}
               >
@@ -338,7 +338,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           <div className="mt-3 px-3 pb-3">
             <button
               onClick={() => setExhibitOpen(true)}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-brand-soft text-ink shadow-[inset_0_0_0_1px_var(--brand)] hover:bg-brand hover:text-white transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-brand-soft text-ink shadow-[inset_0_0_0_1px_var(--brand-ink)] hover:bg-brand hover:text-white transition-colors"
               title="Create exhibit from investigations and productions"
             >
               <FaPlus size={10} />

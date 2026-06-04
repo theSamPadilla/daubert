@@ -37,11 +37,25 @@ function CaseSelector() {
       : allCases;
 
   return (
-    <div className="relative min-h-screen bg-surface bg-hero-dark text-white overflow-hidden">
+    <div className="relative min-h-screen bg-surface text-white overflow-hidden">
       {/* faint grid overlay — adds texture without competing with content */}
       <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
-      <div className="pointer-events-none absolute -right-32 top-16 -z-10 opacity-[0.06] select-none">
-        <Image src="/logo-light.png" alt="" width={720} height={720} priority />
+
+      {/* Soft ambient brand glow — single light source from top-right */}
+      <div
+        className="pointer-events-none absolute -top-48 -right-48 w-[960px] h-[960px] -z-10 blur-3xl"
+        style={{ background: 'radial-gradient(circle, rgba(31,58,147,0.95), rgba(31,58,147,0.35) 35%, transparent 70%)' }}
+      />
+
+      {/* Large logo watermark — anchors bottom-right canvas */}
+      <div className="pointer-events-none absolute -bottom-48 -right-48 -z-10 opacity-[0.04] select-none">
+        <Image src="/logo-light.png" alt="" width={960} height={960} priority />
+      </div>
+
+      {/* Hero header band — soft surface tint behind the heading, hairline divider at its base */}
+      <div className="pointer-events-none absolute left-0 right-0 top-14 -z-10">
+        <div className="h-64 bg-gradient-to-b from-surface-panel/45 via-surface-panel/15 to-transparent" />
+        <div className="h-px bg-gradient-to-r from-transparent via-brand-ink/20 to-transparent" />
       </div>
 
       {/* Header */}
@@ -66,8 +80,8 @@ function CaseSelector() {
       <main className="relative max-w-5xl mx-auto px-6 py-14">
         <div className="mb-10">
           <div className="flex items-center gap-3">
-            <span className="h-px w-8 bg-gradient-to-r from-brand to-transparent" />
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+            <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
               Workspace
             </span>
           </div>
@@ -138,15 +152,15 @@ function CaseSelector() {
                     className="w-full text-left p-5 min-h-[128px] rounded-xl
                       bg-surface-panel border border-line-strong/60
                       shadow-[0_2px_12px_rgba(0,0,0,0.35)]
-                      hover:bg-surface-raised hover:border-brand/50
-                      hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(84,104,198,0.22)]
+                      hover:bg-surface-raised hover:border-brand-ink/40
+                      hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(31,58,147,0.35)]
                       transition-all duration-200 relative overflow-hidden"
                   >
                     {/* subtle top inner-highlight to give the card a raised edge */}
                     <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
 
                     <div className="flex items-start justify-between gap-3 pr-7">
-                      <h3 className="font-semibold text-base text-white group-hover:text-brand transition-colors line-clamp-1 flex-1">
+                      <h3 className="font-semibold text-base text-white group-hover:text-brand-ink transition-colors line-clamp-1 flex-1">
                         {c.name}
                       </h3>
                       <span
@@ -181,10 +195,10 @@ function CaseSelector() {
             {canCreate && (
               <button
                 onClick={() => setNewCaseOpen(true)}
-                className="group flex flex-col items-center justify-center gap-2 p-5 min-h-[128px] rounded-xl border-2 border-dashed border-line-strong/70 hover:border-brand/60 hover:bg-brand/5 transition-colors"
+                className="group flex flex-col items-center justify-center gap-2 p-5 min-h-[128px] rounded-xl border-2 border-dashed border-line-strong/70 hover:border-brand-ink/40 hover:bg-brand/10 transition-colors"
               >
-                <div className="w-10 h-10 rounded-full bg-brand/10 group-hover:bg-brand/20 flex items-center justify-center transition-colors">
-                  <FaPlus size={16} className="text-brand" />
+                <div className="w-10 h-10 rounded-full bg-brand/20 group-hover:bg-brand/40 flex items-center justify-center transition-colors">
+                  <FaPlus size={16} className="text-brand-ink" />
                 </div>
                 <span className="text-sm font-medium text-ink group-hover:text-white transition-colors">New case</span>
                 <span className="text-xs text-ink-faint">Start a new investigation</span>

@@ -280,7 +280,7 @@ export default function InvitePage() {
       <Card>
         {/* Heading */}
         <div className="text-center">
-          <p className="text-xs uppercase tracking-widest text-brand font-semibold">
+          <p className="text-xs uppercase tracking-widest text-brand-ink font-semibold">
             You&apos;re invited
           </p>
           <h1 className="mt-3 text-3xl font-bold text-white tracking-tight">
@@ -307,8 +307,8 @@ export default function InvitePage() {
 
         {/* Personal note from the inviter */}
         {invite.message && (
-          <div className="border-l-2 border-brand/70 bg-brand/[0.06] rounded-r-md px-4 py-3 space-y-1">
-            <p className="text-[10px] uppercase tracking-wider text-brand font-semibold">
+          <div className="border-l-2 border-brand-ink/40 bg-brand/10 rounded-r-md px-4 py-3 space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-brand-ink font-semibold">
               A note from {invite.inviterName ?? 'them'}
             </p>
             <p className="text-ink text-sm whitespace-pre-wrap italic leading-relaxed">

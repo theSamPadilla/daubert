@@ -12,7 +12,7 @@ export function TraceDetails({ trace, onEdit, onUpdate }: TraceDetailsProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-semibold text-ink-muted uppercase">Trace</h4>
-        <button onClick={onEdit} className="text-xs text-brand hover:text-brand">Edit</button>
+        <button onClick={onEdit} className="text-xs text-brand-ink hover:text-white">Edit</button>
       </div>
       <p className="text-sm font-semibold">{trace.name}</p>
       <div>

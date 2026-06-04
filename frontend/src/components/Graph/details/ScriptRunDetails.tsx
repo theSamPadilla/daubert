@@ -61,7 +61,7 @@ export function ScriptRunDetails({
           onClick={() => setShowCode(true)}
           className={`px-2 py-1 text-xs transition-colors ${
             showCode
-              ? 'text-brand border-b border-brand -mb-px'
+              ? 'text-brand-ink border-b border-brand-ink -mb-px'
               : 'text-ink-faint hover:text-ink-muted'
           }`}
         >
@@ -71,7 +71,7 @@ export function ScriptRunDetails({
           onClick={() => setShowCode(false)}
           className={`px-2 py-1 text-xs transition-colors ${
             !showCode
-              ? 'text-brand border-b border-brand -mb-px'
+              ? 'text-brand-ink border-b border-brand-ink -mb-px'
               : 'text-ink-faint hover:text-ink-muted'
           }`}
         >

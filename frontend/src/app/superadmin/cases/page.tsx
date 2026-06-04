@@ -30,8 +30,8 @@ export default function SuperadminCasesPage() {
     <main className="relative max-w-5xl mx-auto px-6 py-12">
       <div className="mb-10">
         <div className="flex items-center gap-3">
-          <span className="h-px w-8 bg-gradient-to-r from-brand to-transparent" />
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+          <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
             Superadmin
           </span>
         </div>

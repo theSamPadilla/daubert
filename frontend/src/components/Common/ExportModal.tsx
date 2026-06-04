@@ -161,13 +161,13 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
                   disabled={busy}
                   className={`flex-1 flex flex-col items-center gap-1.5 px-3 py-3.5 rounded-lg border transition-all ${
                     format === f
-                      ? 'bg-brand/15 border-brand text-brand'
+                      ? 'bg-brand border-brand text-white'
                       : 'bg-surface-raised border-transparent hover:border-line-strong text-ink-muted'
                   }`}
                 >
                   {FORMAT_LABELS[f].icon}
                   <span className="text-sm font-semibold">{FORMAT_LABELS[f].label}</span>
-                  <span className={`text-[10px] ${format === f ? 'text-brand/80' : 'text-ink-faint'} text-center leading-snug`}>
+                  <span className={`text-[10px] ${format === f ? 'text-white/80' : 'text-ink-faint'} text-center leading-snug`}>
                     {FORMAT_LABELS[f].desc}
                   </span>
                 </button>

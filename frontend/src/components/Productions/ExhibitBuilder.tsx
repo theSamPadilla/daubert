@@ -390,7 +390,7 @@ function PickerRow({
         className={`shrink-0 text-xs px-2 py-1 rounded font-medium transition-colors ${
           added
             ? 'text-ink-faint cursor-default'
-            : 'bg-brand/15 text-brand hover:bg-brand/25'
+            : 'bg-brand text-white hover:bg-brand/90'
         }`}
       >
         {added ? 'Added' : <><FaPlus className="inline w-2.5 h-2.5 mr-1" />Add</>}

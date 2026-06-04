@@ -38,7 +38,7 @@ function HeroLogo() {
       />
       <svg
         viewBox="0 0 200 200"
-        className="pointer-events-none absolute inset-0 h-full w-full text-brand/35"
+        className="pointer-events-none absolute inset-0 h-full w-full text-brand-ink/30"
         style={{ animation: 'spin-slow 60s linear infinite' }}
         fill="none"
         aria-hidden
@@ -135,7 +135,7 @@ export default function LoginPage() {
   const busy = signingIn !== null || loading;
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-surface bg-hero-dark px-4 py-10 overflow-hidden">
+    <div className="relative min-h-screen flex items-center justify-center bg-surface px-4 py-10 overflow-hidden">
       <div className="pointer-events-none absolute -right-40 -bottom-40 -z-10 opacity-[0.05] select-none">
         <Image src="/logo-light.png" alt="" width={720} height={720} priority />
       </div>

@@ -133,7 +133,7 @@ function InlineCode({ children, ...props }: React.HTMLAttributes<HTMLElement>) {
         href={link.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-brand hover:text-brand underline decoration-brand/30 hover:decoration-brand/60 transition-colors"
+        className="text-brand-ink hover:text-white underline decoration-brand-ink/40 hover:decoration-brand-ink/70 transition-colors"
       >
         {text}
       </a>
@@ -740,7 +740,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
       {/* Drag overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-50 pointer-events-none border-2 border-brand rounded-none bg-brand/10 flex items-center justify-center">
-          <div className="bg-surface-panel border border-brand rounded-xl px-6 py-4 text-brand font-semibold text-sm shadow-xl">
+          <div className="bg-surface-panel border border-brand-ink rounded-xl px-6 py-4 text-brand-ink font-semibold text-sm shadow-xl">
             Drop images or PDFs here
           </div>
         </div>
@@ -892,7 +892,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                       isUser ? (
                         <span className="whitespace-pre-wrap">{m.text}</span>
                       ) : (
-                        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-pre:my-2 prose-pre:bg-surface-raised prose-pre:text-ink-muted prose-code:text-ink-muted prose-code:before:content-none prose-code:after:content-none prose-a:text-brand prose-strong:text-ink prose-td:p-1.5 prose-th:p-1.5">
+                        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-pre:my-2 prose-pre:bg-surface-raised prose-pre:text-ink-muted prose-code:text-ink-muted prose-code:before:content-none prose-code:after:content-none prose-a:text-brand-ink prose-strong:text-ink prose-td:p-1.5 prose-th:p-1.5">
                           <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: InlineCode }}>{m.text}</ReactMarkdown>
                         </div>
                       )

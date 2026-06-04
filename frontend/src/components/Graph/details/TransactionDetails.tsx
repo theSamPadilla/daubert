@@ -77,7 +77,7 @@ function TransactionHeader({
 
   return (
     <p
-      className={`text-sm font-semibold ${onUpdate ? 'cursor-pointer hover:text-brand transition-colors' : ''}`}
+      className={`text-sm font-semibold ${onUpdate ? 'cursor-pointer hover:text-brand-ink transition-colors' : ''}`}
       onClick={() => onUpdate && setEditing(true)}
       title={onUpdate ? 'Click to rename' : undefined}
     >
@@ -134,7 +134,7 @@ export function TransactionDetails({
                   href={explorerUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-mono text-brand hover:text-brand break-all underline decoration-brand/30 hover:decoration-brand/60 transition-colors min-w-0"
+                  className="inline-flex items-center gap-1.5 text-xs font-mono text-brand-ink hover:text-white break-all underline decoration-brand-ink/40 hover:decoration-brand-ink/70 transition-colors min-w-0"
                 >
                   {transaction.txHash}
                   <FaArrowUpRightFromSquare size={10} className="shrink-0 opacity-60" />
@@ -158,7 +158,7 @@ export function TransactionDetails({
                 title={label}
                 className={`flex-1 py-1 rounded text-xs font-mono transition-colors border ${
                   currentStyle === value
-                    ? 'border-brand bg-brand/20 text-brand'
+                    ? 'border-brand bg-brand text-white'
                     : 'border-line-strong text-ink-muted hover:border-line-strong hover:text-ink'
                 }`}
               >
@@ -179,7 +179,7 @@ export function TransactionDetails({
                 title={label}
                 className={`flex-1 py-2 rounded transition-colors border flex items-center justify-center ${
                   currentWidth === value
-                    ? 'border-brand bg-brand/20 text-brand'
+                    ? 'border-brand bg-brand text-white'
                     : 'border-line-strong text-ink-muted hover:border-line-strong hover:text-ink'
                 }`}
               >
@@ -261,7 +261,7 @@ export function TransactionDetails({
                 href={link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block text-xs text-brand hover:text-brand underline decoration-brand/30 hover:decoration-brand/60 truncate transition-colors"
+                className="block text-xs text-brand-ink hover:text-white underline decoration-brand-ink/40 hover:decoration-brand-ink/70 truncate transition-colors"
                 title={link}
               >
                 {link}

@@ -403,7 +403,7 @@ function AddressInput({ selected, chain, atCap, onToggle }: AddressInputProps) {
           type="button"
           onClick={handleAdd}
           disabled={!input.trim() || atCap}
-          className="px-2.5 py-1 rounded text-xs font-medium bg-brand/20 hover:bg-brand/30 text-brand disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-2.5 py-1 rounded text-xs font-medium bg-brand hover:bg-brand/90 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Add
         </button>
@@ -415,7 +415,7 @@ function AddressInput({ selected, chain, atCap, onToggle }: AddressInputProps) {
           {addresses.map((addr) => (
             <span
               key={addr}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand/15 text-brand text-[10px] font-mono"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand/30 text-brand-ink text-[10px] font-mono"
             >
               {truncateAddress(addr)}
               <button

@@ -113,8 +113,8 @@ export default function SuperadminUsersPage() {
       <div className="mb-10 flex items-start justify-between gap-6">
         <div>
           <div className="flex items-center gap-3">
-            <span className="h-px w-8 bg-gradient-to-r from-brand to-transparent" />
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+            <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
               Superadmin
             </span>
           </div>
@@ -220,7 +220,7 @@ export default function SuperadminUsersPage() {
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {u.isSuperAdmin ? (
-                      <span className="inline-flex items-center gap-1 text-brand">
+                      <span className="inline-flex items-center gap-1 text-brand-ink">
                         <FaShield className="h-3 w-3" /> Yes
                       </span>
                     ) : (
@@ -234,7 +234,7 @@ export default function SuperadminUsersPage() {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => handleToggleSuperAdmin(u)}
-                        className={`p-1.5 transition-colors ${u.isSuperAdmin ? 'text-brand hover:text-white' : 'text-ink-faint hover:text-brand'}`}
+                        className={`p-1.5 transition-colors ${u.isSuperAdmin ? 'text-brand-ink hover:text-white' : 'text-ink-faint hover:text-brand-ink'}`}
                         title={u.isSuperAdmin ? 'Revoke superadmin' : 'Grant superadmin'}
                       >
                         <FaShield className="h-3.5 w-3.5" />

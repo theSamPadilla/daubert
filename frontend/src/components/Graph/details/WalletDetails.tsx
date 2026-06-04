@@ -11,7 +11,7 @@ const ADDRESS_TYPE_LABELS: Record<string, string> = {
 };
 
 const ADDRESS_TYPE_COLORS: Record<string, string> = {
-  wallet: 'bg-brand/20 text-brand',
+  wallet: 'bg-brand text-white',
   contract: 'bg-purple-500/20 text-purple-300',
   unknown: 'bg-surface-raised/50 text-ink-muted',
 };
@@ -106,7 +106,7 @@ export function WalletDetails({
                 href={wallet.explorerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-mono text-brand hover:text-brand break-all underline decoration-brand/30 hover:decoration-brand/60 transition-colors"
+                className="text-xs font-mono text-brand-ink hover:text-white break-all underline decoration-brand-ink/40 hover:decoration-brand-ink/70 transition-colors"
               >
                 {wallet.address}
               </a>
@@ -156,7 +156,7 @@ export function WalletDetails({
                 title={label}
                 className={`py-1.5 rounded text-xs transition-colors border flex flex-col items-center gap-0.5 ${
                   (wallet.shape || 'ellipse') === value
-                    ? 'border-brand bg-brand/20 text-brand'
+                    ? 'border-brand bg-brand text-white'
                     : 'border-line-strong text-ink-muted hover:border-line-strong hover:text-ink'
                 }`}
               >

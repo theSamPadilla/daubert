@@ -54,7 +54,7 @@ function AccountInner() {
   };
 
   return (
-    <div className="relative min-h-screen bg-surface bg-hero-dark text-white overflow-hidden">
+    <div className="relative min-h-screen bg-surface text-white overflow-hidden">
       {/* faint grid overlay */}
       <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
       <div className="pointer-events-none absolute -right-32 top-16 -z-10 opacity-[0.06] select-none">
@@ -81,8 +81,8 @@ function AccountInner() {
 
         <div className="mb-10">
           <div className="flex items-center gap-3">
-            <span className="h-px w-8 bg-gradient-to-r from-brand to-transparent" />
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+            <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
               You
             </span>
           </div>

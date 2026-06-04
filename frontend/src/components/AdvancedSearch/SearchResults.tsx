@@ -200,7 +200,7 @@ export function SearchResults({ investigation, defaultTargetTraceId, results, on
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1 text-brand hover:underline"
+                        className="flex items-center gap-1 text-brand-ink hover:text-white hover:underline"
                       >
                         {truncateTx(item.txHash)}
                         <FaArrowUpRightFromSquare className="w-2.5 h-2.5 shrink-0" />

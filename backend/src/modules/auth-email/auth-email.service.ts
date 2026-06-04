@@ -35,7 +35,7 @@ export class AuthEmailService {
     const existingUser = await this.usersService.findByEmail(normalizedEmail);
     if (!existingUser) {
       throw new NotFoundException(
-        `No account found for ${normalizedEmail}. Contact our team to get access.`,
+        `No account found for ${normalizedEmail}.`,
       );
     }
 

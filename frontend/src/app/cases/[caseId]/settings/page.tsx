@@ -166,8 +166,8 @@ function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: Ca
   return (
     <SectionCard title="Members">
       {error && <Banner message={error} onClose={() => setError(null)} />}
-      <div className="mb-4 rounded-md border-l-2 border-brand/70 bg-brand/[0.06] px-4 py-3 space-y-1">
-        <p className="text-[10px] uppercase tracking-wider text-brand font-semibold">
+      <div className="mb-4 rounded-md border-l-2 border-brand-ink/40 bg-brand/10 px-4 py-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-wider text-brand-ink font-semibold">
           Who sees this case
         </p>
         <p className="text-sm text-ink-muted leading-relaxed">
@@ -386,7 +386,7 @@ function InvitesSection({ caseId }: { caseId: string }) {
               </div>
               <button
                 onClick={() => copyLink(inv.code, inv.id)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-brand/30 bg-brand/5 text-brand hover:border-brand/60 hover:bg-brand/10 transition-colors text-xs font-medium"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-line-strong bg-surface-panel hover:bg-surface-raised text-brand-ink hover:text-white transition-colors text-xs font-medium"
                 title="Copy invite link"
               >
                 {copied === inv.id ? (

@@ -54,7 +54,7 @@ function AccountInner() {
   };
 
   return (
-    <div className="relative min-h-screen bg-surface bg-noise text-white overflow-hidden">
+    <div className="relative min-h-screen bg-surface text-white overflow-hidden">
       {/* faint grid overlay */}
       <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
       <div className="pointer-events-none absolute -right-32 top-16 -z-10 opacity-[0.06] select-none">

@@ -37,11 +37,25 @@ function CaseSelector() {
       : allCases;
 
   return (
-    <div className="relative min-h-screen bg-surface bg-noise text-white overflow-hidden">
+    <div className="relative min-h-screen bg-surface text-white overflow-hidden">
       {/* faint grid overlay — adds texture without competing with content */}
       <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
-      <div className="pointer-events-none absolute -right-32 top-16 -z-10 opacity-[0.06] select-none">
-        <Image src="/logo-light.png" alt="" width={720} height={720} priority />
+
+      {/* Soft ambient brand glow — single light source from top-right */}
+      <div
+        className="pointer-events-none absolute -top-48 -right-48 w-[960px] h-[960px] -z-10 blur-3xl"
+        style={{ background: 'radial-gradient(circle, rgba(31,58,147,0.95), rgba(31,58,147,0.35) 35%, transparent 70%)' }}
+      />
+
+      {/* Large logo watermark — anchors bottom-right canvas */}
+      <div className="pointer-events-none absolute -bottom-48 -right-48 -z-10 opacity-[0.04] select-none">
+        <Image src="/logo-light.png" alt="" width={960} height={960} priority />
+      </div>
+
+      {/* Hero header band — soft surface tint behind the heading, hairline divider at its base */}
+      <div className="pointer-events-none absolute left-0 right-0 top-14 -z-10">
+        <div className="h-64 bg-gradient-to-b from-surface-panel/45 via-surface-panel/15 to-transparent" />
+        <div className="h-px bg-gradient-to-r from-transparent via-brand-ink/20 to-transparent" />
       </div>
 
       {/* Header */}

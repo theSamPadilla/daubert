@@ -162,7 +162,7 @@ export default function OrgInvitePage() {
 
   function Shell({ children }: { children: React.ReactNode }) {
     return (
-      <div className="relative min-h-screen flex flex-col items-center justify-center bg-surface bg-noise px-4 py-10 overflow-hidden">
+      <div className="relative min-h-screen flex flex-col items-center justify-center bg-surface px-4 py-10 overflow-hidden">
         <div className="pointer-events-none absolute -right-40 -bottom-40 -z-10 opacity-[0.05] select-none">
           <Image src="/logo-light.png" alt="" width={720} height={720} priority />
         </div>

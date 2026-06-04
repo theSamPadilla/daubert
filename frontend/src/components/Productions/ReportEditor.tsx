@@ -41,7 +41,7 @@ function ToolbarButton({
       title={title}
       className={`p-1.5 rounded transition-colors ${
         isActive
-          ? 'bg-brand/20 text-brand'
+          ? 'bg-brand text-white'
           : 'text-ink-muted hover:bg-surface-raised hover:text-ink'
       }`}
     >
@@ -192,8 +192,8 @@ export function ReportEditor({
           'prose-ul:text-ink-muted',
           'prose-ol:text-ink-muted',
           'prose-li:text-ink-muted',
-          'prose-a:text-brand',
-          'prose-blockquote:border-brand',
+          'prose-a:text-brand-ink',
+          'prose-blockquote:border-brand-ink',
           'prose-blockquote:text-ink-muted',
         ].join(' '),
       },

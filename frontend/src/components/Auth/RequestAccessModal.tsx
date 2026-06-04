@@ -96,7 +96,7 @@ export function RequestAccessModal({ defaultEmail = '', source, onClose }: Reque
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand/15 border border-brand/30 text-brand text-xs font-medium">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand/30 border border-brand-ink/40 text-brand-ink text-xs font-medium">
                 <FaPaperPlane className="w-3 h-3" />
                 We&rsquo;ll be in touch
               </div>

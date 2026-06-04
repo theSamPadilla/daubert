@@ -43,7 +43,7 @@ export default function EntityDetailPage() {
       <div className="min-h-screen bg-surface flex items-center justify-center">
         <div className="text-center space-y-3">
           <p className="text-red-400">{error || 'Entity not found'}</p>
-          <Link href="/" className="text-sm text-brand hover:text-brand">
+          <Link href="/" className="text-sm text-brand-ink hover:text-white">
             Back to cases
           </Link>
         </div>

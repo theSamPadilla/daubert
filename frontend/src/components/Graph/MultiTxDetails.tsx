@@ -139,7 +139,7 @@ export function MultiTxDetails({
           />
         ) : (
           <p
-            className="text-sm font-semibold text-ink cursor-pointer hover:text-brand transition-colors"
+            className="text-sm font-semibold text-ink cursor-pointer hover:text-brand-ink transition-colors"
             onClick={() => setEditingLabel(true)}
             title="Click to rename"
           >
@@ -191,7 +191,7 @@ export function MultiTxDetails({
                 title={label}
                 className={`flex-1 py-2 rounded transition-colors border flex items-center justify-center ${
                   currentWidth === value
-                    ? 'border-brand bg-brand/20 text-brand'
+                    ? 'border-brand bg-brand text-white'
                     : 'border-line-strong text-ink-muted hover:border-line-strong hover:text-ink'
                 }`}
               >

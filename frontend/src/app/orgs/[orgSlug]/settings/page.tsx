@@ -222,8 +222,8 @@ function MembersSection({
   return (
     <SectionCard title="Members">
       {error && <Banner message={error} onClose={() => setError(null)} />}
-      <div className="mb-4 rounded-lg border-l-2 border-brand/70 bg-brand/[0.06] px-4 py-3 space-y-1">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-brand font-semibold">
+      <div className="mb-4 rounded-lg border-l-2 border-brand-ink/40 bg-brand/10 px-4 py-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-brand-ink font-semibold">
           Who sees what
         </p>
         <p className="text-sm text-ink-muted leading-relaxed">
@@ -323,8 +323,8 @@ const ROLE_BLURBS: Record<OrgInviteRole, { headline: string; can: string; cant: 
 function RoleExplainer({ role }: { role: OrgInviteRole }) {
   const blurb = ROLE_BLURBS[role];
   return (
-    <div className="rounded-lg border-l-2 border-brand/70 bg-brand/[0.06] px-4 py-3 space-y-1">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-brand font-semibold">
+    <div className="rounded-lg border-l-2 border-brand-ink/40 bg-brand/10 px-4 py-3 space-y-1">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-brand-ink font-semibold">
         {role} can do
       </p>
       <p className="text-sm text-white font-medium">{blurb.headline}</p>
@@ -530,7 +530,7 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => handleCopy(inv.code)}
-                        className="p-1.5 text-ink-faint hover:text-brand"
+                        className="p-1.5 text-ink-faint hover:text-brand-ink"
                         title="Copy invite link"
                       >
                         {copiedCode === inv.code ? <FaCheck size={12} /> : <FaCopy size={12} />}
@@ -583,8 +583,8 @@ export default function OrgSettingsPage() {
 
       <div className="mb-10">
         <div className="flex items-center gap-3">
-          <span className="h-px w-8 bg-gradient-to-r from-brand to-transparent" />
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+          <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
             Organization
           </span>
         </div>

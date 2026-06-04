@@ -28,7 +28,7 @@ function Sidebar() {
         Back to Cases
       </Link>
 
-      <h2 className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand">
+      <h2 className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-muted">
         Superadmin
       </h2>
       <ul className="space-y-1">
@@ -43,7 +43,7 @@ function Sidebar() {
                 href={item.href}
                 className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                   active
-                    ? 'bg-brand/15 text-white border border-brand/30 shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset]'
+                    ? 'bg-brand/25 text-white border border-brand-ink/30 shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset]'
                     : 'text-ink-muted border border-transparent hover:bg-white/5 hover:text-white'
                 }`}
               >
@@ -61,7 +61,7 @@ function Sidebar() {
 export default function SuperadminLayout({ children }: { children: React.ReactNode }) {
   return (
     <SuperAdminGuard>
-      <div className="relative min-h-screen bg-surface bg-hero-dark text-white overflow-hidden">
+      <div className="relative min-h-screen bg-surface bg-noise text-white overflow-hidden">
         {/* faint grid overlay */}
         <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
         <div className="pointer-events-none absolute -right-32 top-16 -z-10 opacity-[0.06] select-none">

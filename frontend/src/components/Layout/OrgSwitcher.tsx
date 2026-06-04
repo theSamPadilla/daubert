@@ -43,7 +43,7 @@ export function OrgSwitcher({ variant = 'dark' }: { variant?: 'dark' | 'light' }
             : 'border-line-strong/60 bg-surface-panel/60 hover:bg-surface-raised hover:border-line-strong'
         }`}
       >
-        <FaBuilding className={`w-3.5 h-3.5 ${isLight ? 'text-[#5468C6]' : 'text-brand'}`} />
+        <FaBuilding className={`w-3.5 h-3.5 ${isLight ? 'text-brand' : 'text-brand-ink'}`} />
         <span className={`text-sm font-medium truncate max-w-[180px] ${isLight ? 'text-[#0B1220]' : 'text-white'}`}>
           {activeOrg?.name ?? 'Select org'}
         </span>

@@ -17,8 +17,9 @@
     --line: #333B5E;
     --line-strong: #44508A;
 
-    --brand: #5468C6;
+    --brand: #1F3A93;
     --brand-soft: #1F2A4A;
+    --brand-ink: #D4DDEE;
     --accent: #1FB5B0;
   }
 
@@ -60,19 +61,17 @@
 }
 
 @layer utilities {
-  .bg-hero-dark {
-    background:
-      radial-gradient(900px 500px at 80% -10%, rgba(84, 104, 198, 0.28), transparent 60%),
-      radial-gradient(700px 400px at 0% 10%, rgba(31, 181, 176, 0.14), transparent 60%),
-      radial-gradient(800px 600px at 50% 110%, rgba(31, 42, 74, 0.45), transparent 70%);
-  }
-
   .bg-grid-faint {
     background-image:
-      linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ccircle cx='0' cy='0' r='1.4' fill='white' fill-opacity='0.12'/%3E%3C/svg%3E"),
+      linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
     background-size: 40px 40px;
     background-position: -1px -1px;
+  }
+
+  .bg-noise {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
   }
 
 }

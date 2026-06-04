@@ -162,7 +162,7 @@ export default function OrgInvitePage() {
 
   function Shell({ children }: { children: React.ReactNode }) {
     return (
-      <div className="relative min-h-screen flex flex-col items-center justify-center bg-surface bg-hero-dark px-4 py-10 overflow-hidden">
+      <div className="relative min-h-screen flex flex-col items-center justify-center bg-surface bg-noise px-4 py-10 overflow-hidden">
         <div className="pointer-events-none absolute -right-40 -bottom-40 -z-10 opacity-[0.05] select-none">
           <Image src="/logo-light.png" alt="" width={720} height={720} priority />
         </div>
@@ -282,7 +282,7 @@ export default function OrgInvitePage() {
     <Shell>
       <Card>
         <div className="text-center">
-          <p className="text-xs uppercase tracking-widest text-brand font-semibold">
+          <p className="text-xs uppercase tracking-widest text-brand-ink font-semibold">
             You&apos;re invited
           </p>
           <h1 className="mt-3 text-3xl font-bold text-white tracking-tight">
@@ -307,8 +307,8 @@ export default function OrgInvitePage() {
         )}
 
         {invite.message && (
-          <div className="border-l-2 border-brand/70 bg-brand/[0.06] rounded-r-md px-4 py-3 space-y-1">
-            <p className="text-[10px] uppercase tracking-wider text-brand font-semibold">
+          <div className="border-l-2 border-brand-ink/40 bg-brand/10 rounded-r-md px-4 py-3 space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-brand-ink font-semibold">
               A note from {invite.inviterName ?? 'them'}
             </p>
             <p className="text-ink text-sm whitespace-pre-wrap italic leading-relaxed">

@@ -99,8 +99,8 @@ export default function SuperadminOrgsPage() {
       <div className="mb-10 flex items-start justify-between gap-6">
         <div>
           <div className="flex items-center gap-3">
-            <span className="h-px w-8 bg-gradient-to-r from-brand to-transparent" />
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+            <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
               Superadmin
             </span>
           </div>

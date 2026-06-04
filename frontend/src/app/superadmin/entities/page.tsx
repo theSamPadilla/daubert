@@ -183,8 +183,8 @@ export default function AdminEntitiesPage() {
       <div className="mb-10 flex items-start justify-between gap-6 flex-wrap">
         <div>
           <div className="flex items-center gap-3">
-            <span className="h-px w-8 bg-gradient-to-r from-brand to-transparent" />
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+            <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
               Superadmin
             </span>
           </div>
@@ -275,7 +275,7 @@ export default function AdminEntitiesPage() {
               <button
                 type="button"
                 onClick={addWalletField}
-                className="flex items-center gap-1 text-xs text-brand hover:text-white transition-colors"
+                className="flex items-center gap-1 text-xs text-brand-ink hover:text-white transition-colors"
               >
                 <FaPlus className="w-3 h-3" /> Add wallet
               </button>
@@ -376,7 +376,7 @@ export default function AdminEntitiesPage() {
                               e.stopPropagation();
                               handleEdit(entity);
                             }}
-                            className="p-1.5 text-ink-faint hover:text-brand transition-colors"
+                            className="p-1.5 text-ink-faint hover:text-brand-ink transition-colors"
                             title="Edit"
                           >
                             <FaPenToSquare className="w-3.5 h-3.5" />
@@ -400,7 +400,7 @@ export default function AdminEntitiesPage() {
                           <div className="space-y-3">
                             {entity.description && (
                               <div>
-                                <span className="text-[10px] text-brand font-semibold uppercase tracking-[0.18em]">
+                                <span className="text-[10px] text-ink-muted font-semibold uppercase tracking-[0.18em]">
                                   Description
                                 </span>
                                 <p className="text-sm text-ink-muted mt-1">
@@ -409,7 +409,7 @@ export default function AdminEntitiesPage() {
                               </div>
                             )}
                             <div>
-                              <span className="text-[10px] text-brand font-semibold uppercase tracking-[0.18em]">
+                              <span className="text-[10px] text-ink-muted font-semibold uppercase tracking-[0.18em]">
                                 Wallets ({entity.wallets.length})
                               </span>
                               {entity.wallets.length > 0 ? (
@@ -432,7 +432,7 @@ export default function AdminEntitiesPage() {
                             {entity.metadata &&
                               Object.keys(entity.metadata).length > 0 && (
                                 <div>
-                                  <span className="text-[10px] text-brand font-semibold uppercase tracking-[0.18em]">
+                                  <span className="text-[10px] text-ink-muted font-semibold uppercase tracking-[0.18em]">
                                     Metadata
                                   </span>
                                   <pre className="text-xs text-ink-muted mt-1.5 bg-surface border border-line-strong/60 rounded-lg p-2.5 overflow-x-auto">

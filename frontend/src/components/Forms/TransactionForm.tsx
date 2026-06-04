@@ -68,7 +68,7 @@ function AddressField({
           <button
             type="button"
             onClick={() => { setManualEntry(!manualEntry); if (!manualEntry) onChange(''); }}
-            className="text-[10px] text-brand hover:text-brand"
+            className="text-[10px] text-brand-ink hover:text-white"
           >
             {manualEntry ? 'Select existing' : 'New address'}
           </button>

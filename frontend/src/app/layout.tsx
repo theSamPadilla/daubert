@@ -19,7 +19,7 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'Daubert',
-  description: 'The ai platform for tech experts',
+  description: 'The agentic harness for litigation consultants and expert witnesses.',
 };
 
 export default function RootLayout({

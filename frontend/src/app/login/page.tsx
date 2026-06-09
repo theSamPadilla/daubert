@@ -151,7 +151,7 @@ export default function LoginPage() {
             Daubert AI
           </h1>
           <p className="text-ink-muted text-lg max-w-md mx-auto leading-relaxed">
-            The agentic workspace for blockchain&rsquo;s most technical cases.
+            The agentic harness for litigation consultants and expert witnesses.
           </p>
         </div>
 

@@ -11,7 +11,9 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import busboy from 'busboy';
+// busboy is a CommonJS `export =` module and the project has esModuleInterop off,
+// so a default import compiles to `busboy_1.default` (undefined at runtime).
+import busboy = require('busboy');
 import { RequireRole } from '../auth/require-role.decorator';
 import { DataRoomService } from './data-room.service';
 

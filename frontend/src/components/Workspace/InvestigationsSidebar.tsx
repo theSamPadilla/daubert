@@ -19,7 +19,7 @@ const PRODUCTION_TYPE_ICONS: Record<string, React.ReactNode> = {
   chronology: <FaTableList className="w-3 h-3" />,
 };
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { apiClient, type Investigation, type DataRoomConnection } from '@/lib/api-client';
+import { apiClient, type Investigation } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
 import { ScriptsPanel } from './ScriptsPanel';
 import { ExhibitBuilder } from '../Productions/ExhibitBuilder';
@@ -60,7 +60,6 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
   const [exhibitOpen, setExhibitOpen] = useState(false);
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
   const [collapsedInvs, setCollapsedInvs] = useState<Set<string>>(new Set());
-  const [dataRoom, setDataRoom] = useState<DataRoomConnection | null | undefined>(undefined);
 
   const toggleInv = (invId: string) => {
     setCollapsedInvs((prev) => {
@@ -85,15 +84,6 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
     loadInvestigations();
   }, [loadInvestigations, investigationsVersion]);
 
-  // Refetch data-room state on mount and pathname changes
-  useEffect(() => {
-    let cancelled = false;
-    apiClient
-      .dataRoomGet(caseId)
-      .then((conn) => { if (!cancelled) setDataRoom(conn); })
-      .catch(() => { if (!cancelled) setDataRoom(null); });
-    return () => { cancelled = true; };
-  }, [caseId, pathname]);
 
   const handleSelectInvestigation = useCallback((inv: Investigation) => {
     router.push(`/cases/${caseId}/investigations?inv=${inv.id}`);
@@ -290,23 +280,6 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
         {(() => {
           const dataRoomHref = `/cases/${caseId}/data-room`;
           const dataRoomActive = pathname === dataRoomHref || pathname?.startsWith(dataRoomHref + '/');
-
-          let statusText = 'Loading...';
-          let statusColor = 'text-ink-faint';
-          let folderText: string | null = null;
-
-          if (dataRoom === null) {
-            statusText = 'Not connected';
-            statusColor = 'text-ink-faint';
-          } else if (dataRoom && dataRoom.status === 'broken') {
-            statusText = 'Reconnect needed';
-            statusColor = 'text-yellow-500';
-          } else if (dataRoom && dataRoom.status === 'active') {
-            statusText = 'Connected';
-            statusColor = 'text-green-500';
-            folderText = dataRoom.folderName ?? 'No folder selected';
-          }
-
           return (
             <div className="mt-2 border-t border-line-strong">
               <div className="px-3 py-2 flex items-center justify-between border-b border-line-strong">
@@ -324,10 +297,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                     : 'hover:bg-surface-raised text-ink-muted'
                 }`}
               >
-                <span className={`text-[10px] ${statusColor}`}>{statusText}</span>
-                {folderText && (
-                  <p className="truncate font-medium mt-0.5">{folderText}</p>
-                )}
+                <span className="font-medium">Files</span>
               </a>
             </div>
           );

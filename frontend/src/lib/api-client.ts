@@ -197,27 +197,13 @@ export interface Production {
 }
 
 // Data Room
-export interface DataRoomConnection {
-  id: string;
-  caseId: string;
-  provider: string;
-  folderId: string | null;
-  folderName: string | null;
-  status: 'active' | 'broken';
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface DataRoomFile {
   id: string;
   name: string;
   mimeType: string;
-  /** Drive returns size as a string; absent for native Google docs (Docs/Sheets/Slides). */
-  size?: string;
-  /** ISO timestamp; absent on some Drive file types. */
-  modifiedTime?: string;
-  /** Drive web viewer URL; absent on some file types — guard before rendering. */
-  webViewLink?: string;
+  size: string;
+  uploadedByUserId: string;
+  createdAt: string;
 }
 
 // Invites
@@ -596,42 +582,18 @@ export const apiClient = {
     });
   },
 
-  // Data Room — Google Drive integration
-  dataRoomConnect: (caseId: string) =>
-    request<{ url: string }>(`/cases/${caseId}/data-room/connect`, { method: 'POST' }),
-  /**
-   * Per the OpenAPI contract, the backend returns 404 when no connection
-   * exists for this case. Map that to `null` for ergonomic consumer code:
-   * callers can `if (!conn)` check directly without try/catch around 404s.
-   * Other failures (auth, network, 5xx) still throw via `requestNullable404`.
-   */
-  dataRoomGet: (caseId: string) =>
-    requestNullable404<DataRoomConnection>(`/cases/${caseId}/data-room`),
-  dataRoomSetFolder: (caseId: string, folderId: string) =>
-    request<DataRoomConnection>(`/cases/${caseId}/data-room/folder`, {
-      method: 'PATCH',
-      body: JSON.stringify({ folderId }),
-    }),
+  // Data Room
   dataRoomListFiles: (caseId: string) =>
     request<DataRoomFile[]>(`/cases/${caseId}/data-room/files`),
   dataRoomDownload: (caseId: string, fileId: string, filename: string) =>
     downloadFile(`/cases/${caseId}/data-room/files/${fileId}/download`, filename),
-  dataRoomDisconnect: (caseId: string) =>
-    request<void>(`/cases/${caseId}/data-room`, { method: 'DELETE' }),
-  /**
-   * Owner-only. Returns a short-lived Google OAuth access token that lets
-   * the browser drive the Drive Picker SDK directly. Don't cache beyond
-   * `expiresAt` — the backend will mint a fresh one on each call.
-   */
-  dataRoomGetAccessToken: (caseId: string) =>
-    request<{ accessToken: string; expiresAt: string }>(
-      `/cases/${caseId}/data-room/access-token`,
-    ),
+  dataRoomDeleteFile: (caseId: string, fileId: string): Promise<void> =>
+    request<void>(`/cases/${caseId}/data-room/files/${fileId}`, { method: 'DELETE' }),
 
   /**
-   * Upload a file to the connected Drive folder. Uses XMLHttpRequest because
+   * Upload a file to the built-in data room. Uses XMLHttpRequest because
    * `fetch` doesn't expose upload progress events. Resolves with the created
-   * Drive file metadata.
+   * file metadata.
    */
   dataRoomUpload: async (
     caseId: string,

@@ -2,21 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import {
-  FaCloudArrowUp,
-  FaDownload,
-  FaPlug,
-  FaPlugCircleXmark,
-  FaTriangleExclamation,
-  FaArrowUpRightFromSquare,
-  FaFolderOpen,
-  FaPenToSquare,
-} from 'react-icons/fa6';
-import { apiClient, type DataRoomConnection, type DataRoomFile } from '@/lib/api-client';
+import { FaCloudArrowUp, FaDownload, FaTrash } from 'react-icons/fa6';
+import { apiClient, type DataRoomFile } from '@/lib/api-client';
 import { Loader } from '@/components/Common/Loader';
 import { PageHeader } from '@/components/Common/PageHeader';
 import UserMenu from '@/components/Auth/UserMenu';
-import { openDriveFolderPicker } from '@/lib/google-picker';
 import { useCaseContext } from '@/contexts/CaseContext';
 
 function formatBytes(raw: string | undefined): string {
@@ -40,47 +30,15 @@ function formatDate(iso: string | undefined): string {
   return d.toLocaleString();
 }
 
-function shortMime(mt: string): string {
-  if (!mt) return '—';
-  // Compress common Google Workspace types for readability.
-  const map: Record<string, string> = {
-    'application/vnd.google-apps.document': 'Google Doc',
-    'application/vnd.google-apps.spreadsheet': 'Google Sheet',
-    'application/vnd.google-apps.presentation': 'Google Slides',
-    'application/vnd.google-apps.folder': 'Folder',
-    'application/pdf': 'PDF',
-    'text/plain': 'Text',
-    'text/csv': 'CSV',
-    'image/png': 'PNG',
-    'image/jpeg': 'JPEG',
-  };
-  return map[mt] ?? mt.split('/').pop() ?? mt;
-}
-
 export default function DataRoomPage() {
   const params = useParams();
   const caseId = params.caseId as string;
   const { viewerRole } = useCaseContext();
   const canMutate = viewerRole === 'owner' || viewerRole === 'editor';
 
-  // Browser-key for the Drive Picker SDK. Read once at module evaluation;
-  // null/undefined both indicate "unset" (Next inlines `process.env.NEXT_PUBLIC_*` at build).
-  const drivePickerKey = process.env.NEXT_PUBLIC_DRIVE_PICKER_KEY || '';
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [connection, setConnection] = useState<DataRoomConnection | null>(null);
-
-  // Pre-OAuth confirmation modal
-  const [showConsentModal, setShowConsentModal] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-
-  // Picker state
-  const [pickerBusy, setPickerBusy] = useState(false);
-
-  // File listing
   const [files, setFiles] = useState<DataRoomFile[]>([]);
-  const [filesLoading, setFilesLoading] = useState(false);
 
   // Upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -89,31 +47,12 @@ export default function DataRoomPage() {
     null,
   );
 
-  // Disconnect modal
-  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
-  const [disconnecting, setDisconnecting] = useState(false);
-
-  const fetchConnection = useCallback(async () => {
-    try {
-      setError(null);
-      const conn = await apiClient.dataRoomGet(caseId);
-      setConnection(conn);
-      return conn;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data room');
-      return null;
-    }
-  }, [caseId]);
-
   const fetchFiles = useCallback(async () => {
-    setFilesLoading(true);
     try {
       const list = await apiClient.dataRoomListFiles(caseId);
       setFiles(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to list files');
-    } finally {
-      setFilesLoading(false);
     }
   }, [caseId]);
 
@@ -122,65 +61,13 @@ export default function DataRoomPage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const conn = await fetchConnection();
-      if (cancelled) return;
-      if (conn?.folderId && conn.status === 'active') {
-        await fetchFiles();
-      }
+      await fetchFiles();
       if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [fetchConnection, fetchFiles]);
-
-  const handleConnectClick = () => {
-    setShowConsentModal(true);
-  };
-
-  const handleConfirmConnect = async () => {
-    setConnecting(true);
-    try {
-      const { url } = await apiClient.dataRoomConnect(caseId);
-      window.location.href = url;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start OAuth');
-      setConnecting(false);
-      setShowConsentModal(false);
-    }
-  };
-
-  /**
-   * Open the Google Drive Picker, then persist the selection. Mints a fresh
-   * access token per click rather than caching one — they're cheap to obtain
-   * (just a refresh on the backend) and we'd rather pay one network call than
-   * race against a token expiring mid-Picker session.
-   */
-  const handlePickFolder = useCallback(async () => {
-    if (!drivePickerKey) {
-      setError('Google Drive Picker is not configured');
-      return;
-    }
-    setError(null);
-    setPickerBusy(true);
-    try {
-      const { accessToken } = await apiClient.dataRoomGetAccessToken(caseId);
-      const picked = await openDriveFolderPicker({
-        accessToken,
-        apiKey: drivePickerKey,
-      });
-      if (!picked) return; // user cancelled
-      const updated = await apiClient.dataRoomSetFolder(caseId, picked.id);
-      setConnection(updated);
-      if (updated.status === 'active') {
-        await fetchFiles();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to pick folder');
-    } finally {
-      setPickerBusy(false);
-    }
-  }, [caseId, drivePickerKey, fetchFiles]);
+  }, [fetchFiles]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -217,48 +104,22 @@ export default function DataRoomPage() {
     }
   };
 
-  const handleDisconnect = async () => {
-    setDisconnecting(true);
+  const handleDelete = async (file: DataRoomFile) => {
+    if (!confirm(`Delete "${file.name}"? This cannot be undone.`)) return;
     try {
-      await apiClient.dataRoomDisconnect(caseId);
-      setConnection(null);
-      setFiles([]);
-      setShowDisconnectModal(false);
+      await apiClient.dataRoomDeleteFile(caseId, file.id);
+      await fetchFiles();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disconnect');
-    } finally {
-      setDisconnecting(false);
+      setError(err instanceof Error ? err.message : 'Delete failed');
     }
   };
 
   // ----------------------------- Render -----------------------------
 
-  const state: 'loading' | 'disconnected' | 'noFolder' | 'connected' | 'broken' = loading
-    ? 'loading'
-    : !connection
-      ? 'disconnected'
-      : connection.status === 'broken'
-        ? 'broken'
-        : connection.folderId
-          ? 'connected'
-          : 'noFolder';
-
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <PageHeader
         title="Data Room"
-        subtitle={connection?.folderName ? `/ ${connection.folderName}` : undefined}
-        actions={
-          canMutate && state === 'connected' ? (
-            <button
-              onClick={() => setShowDisconnectModal(true)}
-              className="flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium bg-white hover:bg-[#F1F4FA] text-[#5B6473] hover:text-[#0B1220] border border-[#E5E7EB] hover:border-[#CFD4DD] transition-colors"
-              title="Disconnect Google Drive"
-            >
-              <FaPlugCircleXmark className="w-3.5 h-3.5" /> Disconnect
-            </button>
-          ) : undefined
-        }
         rightContent={<UserMenu variant="light" />}
       />
       <div className="flex-1 overflow-y-auto p-6">
@@ -276,135 +137,29 @@ export default function DataRoomPage() {
             </div>
           )}
 
-          {state === 'loading' && (
+          {loading ? (
             <Loader inline />
-          )}
-
-          {state === 'disconnected' && (
-            <div className="rounded-lg bg-surface-panel border border-line-strong p-8 text-center">
-              <FaFolderOpen className="mx-auto text-brand-ink mb-3" size={36} />
-              <h2 className="text-lg font-semibold text-white mb-2">Connect a Google Drive folder</h2>
-              <p className="text-sm text-ink-muted max-w-md mx-auto mb-6">
-                Daubert reads and writes case documents directly in your Google Drive. Connect a
-                folder to get started.
-              </p>
-              {canMutate && (
-                <button
-                  onClick={handleConnectClick}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded bg-brand hover:bg-brand/90 text-white text-sm"
-                >
-                  <FaPlug className="w-3.5 h-3.5" /> Connect Google Drive
-                </button>
-              )}
-            </div>
-          )}
-
-          {state === 'noFolder' && (
-            <div className="rounded-lg bg-surface-panel border border-line-strong p-6">
-              <h2 className="text-lg font-semibold text-white mb-2">Choose a folder</h2>
-              <p className="text-sm text-ink-muted mb-4">
-                Pick the Google Drive folder you want to use as this case&apos;s data room.
-                Daubert will only read or modify files in this folder.
-              </p>
-              {canMutate && (drivePickerKey ? (
-                <button
-                  onClick={handlePickFolder}
-                  disabled={pickerBusy}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm"
-                >
-                  <FaFolderOpen className="w-3.5 h-3.5" />
-                  {pickerBusy ? 'Opening picker...' : 'Pick a Drive folder'}
-                </button>
-              ) : (
-                <PickerNotConfiguredBanner />
-              ))}
-            </div>
-          )}
-
-          {state === 'broken' && (
-            <div className="rounded-lg bg-yellow-900/30 border border-yellow-800/60 p-6">
-              <div className="flex items-start gap-3 mb-4">
-                <FaTriangleExclamation className="text-yellow-300 mt-0.5" />
-                <div>
-                  <h2 className="text-lg font-semibold text-yellow-100">Connection lost</h2>
-                  <p className="text-sm text-yellow-200/80 mt-1">
-                    Daubert can no longer access this Drive folder. The token may have been revoked
-                    or expired beyond refresh. Please reconnect to restore access.
-                  </p>
-                  <p className="text-xs text-yellow-200/60 mt-2">
-                    You can also remove Daubert from your Google account at{' '}
-                    <a
-                      href="https://myaccount.google.com/permissions"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline hover:text-yellow-100"
-                    >
-                      myaccount.google.com/permissions
-                    </a>
-                    .
-                  </p>
-                </div>
-              </div>
-              {canMutate && (
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleConnectClick}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded bg-brand hover:bg-brand/90 text-white text-sm"
-                  >
-                    <FaPlug className="w-3.5 h-3.5" /> Reconnect
-                  </button>
-                  <button
-                    onClick={() => setShowDisconnectModal(true)}
-                    className="px-3 py-1.5 rounded text-sm bg-surface-panel hover:bg-surface-raised text-ink-muted border border-line-strong"
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {state === 'connected' && (
+          ) : (
             <>
-              {/* Upload bar */}
-              <div className="mb-4 flex items-center gap-3">
-                {canMutate && (
-                  <>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      onChange={handleUploadFile}
-                      className="hidden"
-                    />
-                    <button
-                      onClick={handleUploadClick}
-                      disabled={uploadingName !== null}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                    >
-                      <FaCloudArrowUp className="w-3.5 h-3.5" /> Upload file
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={fetchFiles}
-                  disabled={filesLoading}
-                  className="px-3 py-1.5 rounded text-sm bg-surface-panel hover:bg-surface-raised text-ink-muted border border-line-strong disabled:opacity-50"
-                >
-                  {filesLoading ? 'Refreshing...' : 'Refresh'}
-                </button>
-                {canMutate && drivePickerKey && (
+              {/* Upload controls */}
+              {canMutate && (
+                <div className="mb-4 flex items-center gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleUploadFile}
+                    className="hidden"
+                  />
                   <button
-                    onClick={handlePickFolder}
-                    disabled={pickerBusy}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-surface-panel hover:bg-surface-raised text-ink-muted border border-line-strong disabled:opacity-50"
-                    title="Point this data room at a different Drive folder"
+                    onClick={handleUploadClick}
+                    disabled={uploadingName !== null}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed text-white"
                   >
-                    <FaPenToSquare className="w-3.5 h-3.5" />
-                    {pickerBusy ? 'Opening...' : 'Change folder'}
+                    <FaCloudArrowUp className="w-3.5 h-3.5" /> Upload file
                   </button>
-                )}
-                {canMutate && <p className="text-xs text-ink-faint ml-auto">Max 50MB per upload.</p>}
-              </div>
+                  <p className="text-xs text-ink-faint ml-auto">Max 50MB per upload.</p>
+                </div>
+              )}
 
               {/* Upload progress */}
               {uploadingName && uploadProgress && (
@@ -429,12 +184,10 @@ export default function DataRoomPage() {
                 </div>
               )}
 
-              {/* File table */}
-              {filesLoading && files.length === 0 ? (
-                <Loader inline />
-              ) : files.length === 0 ? (
+              {/* File table / empty state */}
+              {files.length === 0 ? (
                 <div className="text-center py-12 text-ink-muted text-sm">
-                  No files in this folder yet. Upload one to get started.
+                  No files yet.{canMutate ? ' Upload one to get started.' : ''}
                 </div>
               ) : (
                 <div className="rounded-lg border border-line-strong overflow-hidden">
@@ -442,10 +195,9 @@ export default function DataRoomPage() {
                     <thead>
                       <tr className="bg-surface-panel/50 text-left text-sm text-ink-muted">
                         <th className="px-4 py-3">Name</th>
-                        <th className="px-4 py-3 w-32">Type</th>
                         <th className="px-4 py-3 w-24">Size</th>
-                        <th className="px-4 py-3 w-44">Modified</th>
-                        <th className="px-4 py-3 w-20">Actions</th>
+                        <th className="px-4 py-3 w-44">Uploaded</th>
+                        <th className="px-4 py-3 w-24">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -454,43 +206,34 @@ export default function DataRoomPage() {
                           key={file.id}
                           className="border-b border-line-strong/50 hover:bg-surface-panel/40"
                         >
-                          <td className="px-4 py-3 text-sm">
-                            {file.webViewLink ? (
-                              <a
-                                href={file.webViewLink}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-brand-ink hover:text-white inline-flex items-center gap-1.5"
-                                title="Open in Google Drive"
-                              >
-                                {file.name}
-                                <FaArrowUpRightFromSquare className="w-3 h-3 opacity-60" />
-                              </a>
-                            ) : (
-                              <span className="text-ink-muted" title="No web viewer for this file type">
-                                {file.name}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-surface-raised text-ink-muted">
-                              {shortMime(file.mimeType)}
-                            </span>
-                          </td>
+                          <td className="px-4 py-3 text-sm text-white">{file.name}</td>
                           <td className="px-4 py-3 text-sm text-ink-muted">
                             {formatBytes(file.size)}
                           </td>
                           <td className="px-4 py-3 text-sm text-ink-muted">
-                            {formatDate(file.modifiedTime)}
+                            {formatDate(file.createdAt)}
                           </td>
                           <td className="px-4 py-3">
-                            <button
-                              onClick={() => handleDownload(file)}
-                              className="p-1.5 text-ink-faint hover:text-brand-ink"
-                              title="Download"
-                            >
-                              <FaDownload className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleDownload(file)}
+                                className="p-1.5 text-ink-faint hover:text-brand-ink"
+                                title="Download"
+                                aria-label="Download"
+                              >
+                                <FaDownload className="w-3.5 h-3.5" />
+                              </button>
+                              {canMutate && (
+                                <button
+                                  onClick={() => handleDelete(file)}
+                                  className="p-1.5 text-ink-faint hover:text-red-400"
+                                  title="Delete"
+                                  aria-label="Delete"
+                                >
+                                  <FaTrash className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -500,105 +243,7 @@ export default function DataRoomPage() {
               )}
             </>
           )}
-
-          {/* Pre-OAuth consent modal */}
-          {showConsentModal && (
-            <Modal onClose={() => !connecting && setShowConsentModal(false)}>
-              <h3 className="text-lg font-semibold text-white mb-3">Connect Google Drive</h3>
-              <p className="text-sm text-ink-muted mb-3">
-                Daubert will request access to your full Google Drive. It will only read or modify
-                the folder you select for this case.
-              </p>
-              <p className="text-xs text-ink-faint mb-5">
-                You&apos;ll be redirected to Google to grant access. You can revoke at any time at{' '}
-                <a
-                  href="https://myaccount.google.com/permissions"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline hover:text-ink-muted"
-                >
-                  myaccount.google.com/permissions
-                </a>
-                .
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setShowConsentModal(false)}
-                  disabled={connecting}
-                  className="px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmConnect}
-                  disabled={connecting}
-                  className="px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 text-white disabled:opacity-50"
-                >
-                  {connecting ? 'Redirecting...' : 'Continue to Google'}
-                </button>
-              </div>
-            </Modal>
-          )}
-
-          {/* Disconnect confirm modal */}
-          {showDisconnectModal && (
-            <Modal onClose={() => !disconnecting && setShowDisconnectModal(false)}>
-              <h3 className="text-lg font-semibold text-white mb-3">Disconnect Google Drive?</h3>
-              <p className="text-sm text-ink-muted mb-5">
-                Daubert will stop having access to this folder. Your files in Drive are not deleted.
-                You can reconnect later.
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setShowDisconnectModal(false)}
-                  disabled={disconnecting}
-                  className="px-3 py-1.5 rounded text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDisconnect}
-                  disabled={disconnecting}
-                  className="px-3 py-1.5 rounded text-sm bg-red-600 hover:bg-red-500 text-white disabled:opacity-50"
-                >
-                  {disconnecting ? 'Disconnecting...' : 'Disconnect'}
-                </button>
-              </div>
-            </Modal>
-          )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function PickerNotConfiguredBanner() {
-  return (
-    <div className="rounded bg-yellow-900/30 border border-yellow-800/60 p-3 text-sm text-yellow-200">
-      <div className="flex items-start gap-2">
-        <FaTriangleExclamation className="text-yellow-300 mt-0.5 shrink-0" />
-        <span>
-          Google Drive Picker is not configured. Set{' '}
-          <code className="px-1 py-0.5 rounded bg-yellow-950/60 text-yellow-100 text-xs">
-            NEXT_PUBLIC_DRIVE_PICKER_KEY
-          </code>{' '}
-          in <code className="px-1 py-0.5 rounded bg-yellow-950/60 text-yellow-100 text-xs">frontend/.env.development</code> and restart.
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="bg-surface-panel border border-line-strong rounded-lg p-6 max-w-md w-full shadow-2xl">
-        {children}
       </div>
     </div>
   );

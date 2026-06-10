@@ -1,233 +1,290 @@
-import { BadRequestException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataRoomConnectionEntity } from './_legacy-connection.type';
+import { Readable } from 'stream';
+import { CaseEntity } from '../../database/entities/case.entity';
+import { DataRoomAccessLogEntity } from '../../database/entities/data-room-access-log.entity';
+import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { DataRoomService } from './data-room.service';
-import { EncryptionService } from './encryption.service';
-import { GoogleDriveService } from './google-drive.service';
+import { STORAGE_PROVIDER } from './storage/storage-provider.interface';
 
-const TEST_KEY = '00'.repeat(32);
-const STATE_TTL_MS = 10 * 60 * 1000;
-
-/**
- * Minimal DataRoomService harness: just the dependencies needed to construct
- * the service and exercise the HMAC `state` paths. Drive + DB are not touched.
- */
-async function buildService(): Promise<DataRoomService> {
-  const mockRepo = {
-    findOneBy: jest.fn(),
-    save: jest.fn(),
-    create: jest.fn(),
-    delete: jest.fn(),
-  };
-  const mockEncryption = {
-    encrypt: jest.fn(),
-    decrypt: jest.fn(),
-  };
-  const mockGoogleDrive = {
-    getAuthUrl: jest.fn(),
-    exchangeCode: jest.fn(),
-    refreshAccessToken: jest.fn(),
-    revokeToken: jest.fn(),
-    getFolder: jest.fn(),
-    listFiles: jest.fn(),
-    getFileMetadata: jest.fn(),
-    downloadFile: jest.fn(),
-    uploadFile: jest.fn(),
-  };
-
-  const moduleRef: TestingModule = await Test.createTestingModule({
-    providers: [
-      DataRoomService,
-      {
-        provide: getRepositoryToken(DataRoomConnectionEntity),
-        useValue: mockRepo,
-      },
-      { provide: EncryptionService, useValue: mockEncryption },
-      { provide: GoogleDriveService, useValue: mockGoogleDrive },
-    ],
-  }).compile();
-
-  return moduleRef.get<DataRoomService>(DataRoomService);
+interface MockRepo {
+  find: jest.Mock;
+  findOne: jest.Mock;
+  findOneByOrFail: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+  remove: jest.Mock;
 }
 
-describe('DataRoomService — HMAC state', () => {
-  const originalKey = process.env.DATAROOM_ENCRYPTION_KEY;
-  let service: DataRoomService;
+interface MockStorage {
+  upload: jest.Mock;
+  download: jest.Mock;
+  delete: jest.Mock;
+}
 
-  beforeAll(() => {
-    process.env.DATAROOM_ENCRYPTION_KEY = TEST_KEY;
-  });
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+describe('DataRoomService', () => {
+  let service: DataRoomService;
+  let fileRepo: MockRepo;
+  let logRepo: MockRepo;
+  let caseRepo: MockRepo;
+  let storage: MockStorage;
+
+  function makeRepo(): MockRepo {
+    return {
+      find: jest.fn(),
+      findOne: jest.fn(),
+      findOneByOrFail: jest.fn(),
+      // `create` just constructs an entity instance — model it as identity.
+      create: jest.fn((e) => e),
+      save: jest.fn(),
+      remove: jest.fn(),
+    };
+  }
 
   beforeEach(async () => {
-    service = await buildService();
-  });
+    fileRepo = makeRepo();
+    logRepo = makeRepo();
+    caseRepo = makeRepo();
+    storage = {
+      upload: jest.fn(),
+      download: jest.fn(),
+      delete: jest.fn(),
+    };
 
-  afterAll(() => {
-    if (originalKey === undefined) {
-      delete process.env.DATAROOM_ENCRYPTION_KEY;
-    } else {
-      process.env.DATAROOM_ENCRYPTION_KEY = originalKey;
-    }
-  });
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        DataRoomService,
+        { provide: getRepositoryToken(DataRoomFileEntity), useValue: fileRepo },
+        {
+          provide: getRepositoryToken(DataRoomAccessLogEntity),
+          useValue: logRepo,
+        },
+        { provide: getRepositoryToken(CaseEntity), useValue: caseRepo },
+        { provide: STORAGE_PROVIDER, useValue: storage },
+      ],
+    }).compile();
 
-  // ---------------------------------------------------------------------------
-  // signState
-  // ---------------------------------------------------------------------------
-  describe('signState', () => {
-    it('produces a deterministic value for fixed inputs', () => {
-      const args = { caseId: 'case-123', nonce: 'nonce-abc', ts: 1_700_000_000_000 };
-      const a = service.signState(args);
-      const b = service.signState(args);
-      expect(a).toBe(b);
-      expect(typeof a).toBe('string');
-      expect(a.length).toBeGreaterThan(0);
-    });
-
-    it('produces different output when caseId differs', () => {
-      const ts = Date.now();
-      const a = service.signState({ caseId: 'case-1', nonce: 'n', ts });
-      const b = service.signState({ caseId: 'case-2', nonce: 'n', ts });
-      expect(a).not.toBe(b);
-    });
-
-    it('produces different output when nonce differs', () => {
-      const ts = Date.now();
-      const a = service.signState({ caseId: 'c', nonce: 'n1', ts });
-      const b = service.signState({ caseId: 'c', nonce: 'n2', ts });
-      expect(a).not.toBe(b);
-    });
+    service = moduleRef.get<DataRoomService>(DataRoomService);
   });
 
   // ---------------------------------------------------------------------------
-  // verifyState — happy path
+  // listFiles
   // ---------------------------------------------------------------------------
-  describe('verifyState — round-trip', () => {
-    it('returns the caseId when state is freshly signed', () => {
-      const caseId = 'case-abc';
-      const state = service.signState({
-        caseId,
-        nonce: 'nonce-xyz',
-        ts: Date.now(),
+  describe('listFiles', () => {
+    it('returns mapped DTOs ordered by createdAt DESC and does not log', async () => {
+      const now = new Date('2026-01-01T00:00:00.000Z');
+      fileRepo.find.mockResolvedValue([
+        {
+          id: 'f1',
+          caseId: 'c1',
+          name: 'a.pdf',
+          mimeType: 'application/pdf',
+          size: '11',
+          objectKey: 'org/o1/case/c1/f1',
+          uploadedByUserId: 'u1',
+          createdAt: now,
+        },
+      ]);
+
+      const result = await service.listFiles('c1');
+
+      expect(fileRepo.find).toHaveBeenCalledWith({
+        where: { caseId: 'c1' },
+        order: { createdAt: 'DESC' },
       });
-      expect(service.verifyState(state)).toEqual({ caseId });
+      expect(result).toEqual([
+        {
+          id: 'f1',
+          name: 'a.pdf',
+          mimeType: 'application/pdf',
+          size: '11',
+          uploadedByUserId: 'u1',
+          createdAt: now,
+        },
+      ]);
+      expect(logRepo.save).not.toHaveBeenCalled();
     });
   });
 
   // ---------------------------------------------------------------------------
-  // verifyState — tamper / shape
+  // uploadFromStream
   // ---------------------------------------------------------------------------
-  describe('verifyState — tamper detection', () => {
-    function decode(state: string): string {
-      return Buffer.from(state, 'base64url').toString('utf8');
-    }
-    function encode(payload: string): string {
-      return Buffer.from(payload, 'utf8').toString('base64url');
-    }
+  describe('uploadFromStream', () => {
+    it('builds objectKey org/<orgId>/case/<caseId>/<uuid>, uploads, saves the row and logs upload', async () => {
+      caseRepo.findOneByOrFail.mockResolvedValue({ id: 'c1', orgId: 'o1' });
+      storage.upload.mockResolvedValue({ size: 11 });
+      fileRepo.save.mockImplementation(async (e) => e);
+      logRepo.save.mockImplementation(async (e) => e);
 
-    it('throws BadRequestException when HMAC portion is tampered', () => {
-      const state = service.signState({
-        caseId: 'case-1',
-        nonce: 'n',
-        ts: Date.now(),
+      const dto = await service.uploadFromStream(
+        'c1',
+        'u1',
+        'a.pdf',
+        'application/pdf',
+        Readable.from('hello data'),
+      );
+
+      expect(caseRepo.findOneByOrFail).toHaveBeenCalledWith({ id: 'c1' });
+      expect(storage.upload).toHaveBeenCalledWith(
+        expect.stringMatching(/^org\/o1\/case\/c1\/[0-9a-f-]{36}$/),
+        expect.anything(),
+        'application/pdf',
+      );
+
+      // The saved file row carries the explicit id matching the objectKey suffix.
+      const savedFile = fileRepo.save.mock.calls[0][0];
+      expect(savedFile.id).toMatch(UUID_RE);
+      expect(savedFile.objectKey).toBe(`org/o1/case/c1/${savedFile.id}`);
+      expect(savedFile).toMatchObject({
+        caseId: 'c1',
+        name: 'a.pdf',
+        mimeType: 'application/pdf',
+        size: '11',
+        uploadedByUserId: 'u1',
       });
-      const decoded = decode(state);
-      const parts = decoded.split('.');
-      // Flip the first hex char of the HMAC.
-      const hmac = parts[3];
-      const flipped =
-        (hmac[0] === '0' ? '1' : '0') + hmac.slice(1);
-      const tampered = encode([parts[0], parts[1], parts[2], flipped].join('.'));
 
-      expect(() => service.verifyState(tampered)).toThrow(BadRequestException);
-    });
+      expect(logRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          caseId: 'c1',
+          userId: 'u1',
+          fileId: savedFile.id,
+          action: 'upload',
+        }),
+      );
 
-    it('throws BadRequestException when caseId portion is changed but HMAC kept', () => {
-      const state = service.signState({
-        caseId: 'case-1',
-        nonce: 'n',
-        ts: Date.now(),
+      expect(dto).toEqual({
+        id: savedFile.id,
+        name: 'a.pdf',
+        mimeType: 'application/pdf',
+        size: '11',
+        uploadedByUserId: 'u1',
+        createdAt: savedFile.createdAt,
       });
-      const decoded = decode(state);
-      const parts = decoded.split('.');
-      const tampered = encode(['case-2', parts[1], parts[2], parts[3]].join('.'));
+    });
+  });
 
-      expect(() => service.verifyState(tampered)).toThrow(BadRequestException);
+  // ---------------------------------------------------------------------------
+  // getFileForDownload
+  // ---------------------------------------------------------------------------
+  describe('getFileForDownload', () => {
+    it('throws NotFoundException when no row matches {id, caseId}', async () => {
+      fileRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getFileForDownload('c1', 'u1', 'missing'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(storage.download).not.toHaveBeenCalled();
     });
 
-    it('throws BadRequestException for wrong-shape (not enough dots) input', () => {
-      const bad = Buffer.from('only.three.parts', 'utf8').toString('base64url');
-      expect(() => service.verifyState(bad)).toThrow(BadRequestException);
+    it('downloads via storage, logs download and returns metadata', async () => {
+      const stream = Readable.from('bytes');
+      fileRepo.findOne.mockResolvedValue({
+        id: 'f1',
+        caseId: 'c1',
+        name: 'a.pdf',
+        mimeType: 'application/pdf',
+        size: '11',
+        objectKey: 'org/o1/case/c1/f1',
+      });
+      storage.download.mockResolvedValue({ stream, size: 11 });
+      logRepo.save.mockImplementation(async (e) => e);
+
+      const result = await service.getFileForDownload('c1', 'u1', 'f1');
+
+      expect(fileRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'f1', caseId: 'c1' },
+      });
+      expect(storage.download).toHaveBeenCalledWith('org/o1/case/c1/f1');
+      expect(logRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          caseId: 'c1',
+          userId: 'u1',
+          fileId: 'f1',
+          action: 'download',
+        }),
+      );
+      expect(result).toEqual({
+        stream,
+        name: 'a.pdf',
+        mimeType: 'application/pdf',
+        size: 11,
+      });
     });
 
-    it('throws BadRequestException for non-base64url garbage that decodes wrong', () => {
-      // Random non-state input — base64url-decodes to junk that won't have 4 dot-parts.
-      expect(() => service.verifyState('!!!not.a.valid.state!!!')).toThrow(
-        BadRequestException,
+    it('treats a row from a different case as not found (cross-case isolation)', async () => {
+      // The {id, caseId} where-clause means a mismatched caseId yields no row.
+      fileRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getFileForDownload('other-case', 'u1', 'f1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(fileRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'f1', caseId: 'other-case' },
+      });
+      expect(storage.download).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // deleteFile
+  // ---------------------------------------------------------------------------
+  describe('deleteFile', () => {
+    it('throws NotFoundException when no row matches {id, caseId}', async () => {
+      fileRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.deleteFile('c1', 'u1', 'missing'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(storage.delete).not.toHaveBeenCalled();
+      expect(fileRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('deletes the object, removes the row and logs delete', async () => {
+      const row = {
+        id: 'f1',
+        caseId: 'c1',
+        objectKey: 'org/o1/case/c1/f1',
+      };
+      fileRepo.findOne.mockResolvedValue(row);
+      storage.delete.mockResolvedValue(undefined);
+      fileRepo.remove.mockResolvedValue(row);
+      logRepo.save.mockImplementation(async (e) => e);
+
+      await service.deleteFile('c1', 'u1', 'f1');
+
+      expect(fileRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'f1', caseId: 'c1' },
+      });
+      expect(storage.delete).toHaveBeenCalledWith('org/o1/case/c1/f1');
+      expect(fileRepo.remove).toHaveBeenCalledWith(row);
+      expect(logRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          caseId: 'c1',
+          userId: 'u1',
+          fileId: 'f1',
+          action: 'delete',
+        }),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // requireWriteAccess
+  // ---------------------------------------------------------------------------
+  describe('requireWriteAccess', () => {
+    it('throws ForbiddenException for viewer', () => {
+      expect(() => DataRoomService.requireWriteAccess('viewer')).toThrow(
+        ForbiddenException,
       );
     });
 
-    it('throws BadRequestException when ts is non-numeric', () => {
-      const tampered = encode(['c', 'n', 'not-a-number', 'deadbeef'].join('.'));
-      expect(() => service.verifyState(tampered)).toThrow(BadRequestException);
-    });
-
-    it('throws BadRequestException when hmac is not valid hex', () => {
-      const tampered = encode(['c', 'n', String(Date.now()), 'zzz'].join('.'));
-      expect(() => service.verifyState(tampered)).toThrow(BadRequestException);
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // verifyState — timing window
-  // ---------------------------------------------------------------------------
-  describe('verifyState — timestamp window', () => {
-    afterEach(() => {
-      jest.useRealTimers();
-    });
-
-    it('throws when ts is older than the 10-minute TTL', () => {
-      const stale = service.signState({
-        caseId: 'c',
-        nonce: 'n',
-        ts: Date.now() - STATE_TTL_MS - 1_000,
-      });
-      expect(() => service.verifyState(stale)).toThrow(BadRequestException);
-    });
-
-    it('throws when ts is in the future beyond clock skew', () => {
-      const future = service.signState({
-        caseId: 'c',
-        nonce: 'n',
-        ts: Date.now() + 60_000, // 1 minute in the future
-      });
-      expect(() => service.verifyState(future)).toThrow(BadRequestException);
-    });
-
-    it('boundary: ts exactly STATE_TTL_MS old is still valid (inclusive on recent side)', () => {
-      // Freeze time so signing-ts and verifying-ts are reasoned about precisely.
-      const now = 1_700_000_000_000;
-      jest.useFakeTimers().setSystemTime(now);
-
-      const state = service.signState({
-        caseId: 'c',
-        nonce: 'n',
-        ts: now - STATE_TTL_MS,
-      });
-      // Still at `now`, age = STATE_TTL_MS exactly => valid.
-      expect(() => service.verifyState(state)).not.toThrow();
-    });
-
-    it('boundary: ts STATE_TTL_MS + 1ms old is invalid (exclusive on stale side)', () => {
-      const now = 1_700_000_000_000;
-      jest.useFakeTimers().setSystemTime(now);
-
-      const state = service.signState({
-        caseId: 'c',
-        nonce: 'n',
-        ts: now - STATE_TTL_MS - 1,
-      });
-      expect(() => service.verifyState(state)).toThrow(BadRequestException);
+    it('allows non-viewer roles', () => {
+      expect(() => DataRoomService.requireWriteAccess('owner')).not.toThrow();
+      expect(() => DataRoomService.requireWriteAccess('editor')).not.toThrow();
+      expect(() => DataRoomService.requireWriteAccess(undefined)).not.toThrow();
     });
   });
 });

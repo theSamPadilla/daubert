@@ -34,3 +34,9 @@ frontend/.env*
 backups/
 
 .claude/
+
+# QA brief (local-only, read by the qa skill)
+QA.md
+
+# Fullsend worktrees (local-only isolation)
+.worktrees/

@@ -1,66 +1,47 @@
 /**
- * Thin wrapper around Google's Picker SDK. The SDK is loaded lazily on first
- * use and cached for subsequent opens — the script tag adds globals to
- * `window` (`gapi`, `google.picker`) and re-injecting it would no-op anyway.
+ * Browser helper for picking individual Google Drive files using the
+ * `drive.file` scope — no full-drive read access, no CASA review required.
  *
- * The Picker is the only sanctioned way to pick a Drive folder from the
- * browser without exposing the user's full Drive listing API to our code.
- * It runs in a Google-hosted iframe; we just hand it an OAuth access token
- * and a developer (API) key and listen for the selection callback.
+ * Flow:
+ *   1. Lazy-load Google Identity Services (GIS) and obtain a short-lived
+ *      `drive.file` OAuth access token via a token client. This opens a
+ *      Google consent/popup the first time and is otherwise silent.
+ *   2. Lazy-load Google's Picker SDK (`gapi` + `gapi.load('picker')`).
+ *   3. Open a FILE picker (multi-select) handed that access token + the
+ *      browser-side Picker developer key.
+ *   4. Resolve with the picked file IDs and the access token so the caller
+ *      can POST them to the backend import endpoint (the `drive.file` token
+ *      grants the backend per-file access to exactly the picked files).
+ *
+ * Both external scripts are loaded lazily and their load promises are cached
+ * at module scope so HMR / double-mount don't re-inject or race.
  */
 
 declare global {
+  // The Google SDKs attach untyped globals to `window`; `any` here is
+  // pragmatic and matches the prior implementation of this module.
   interface Window {
-    gapi?: {
-      load: (lib: string, cb: () => void) => void;
-    };
-    google?: {
-      picker: GooglePickerNamespace;
-    };
+    google?: any;
+    gapi?: any;
   }
 }
 
-interface GooglePickerNamespace {
-  DocsView: new () => DocsView;
-  PickerBuilder: new () => PickerBuilder;
-  Action: { PICKED: string; CANCEL: string };
-  ViewId?: { FOLDERS: string };
-}
-
-interface DocsView {
-  setIncludeFolders(b: boolean): DocsView;
-  setSelectFolderEnabled(b: boolean): DocsView;
-  setMimeTypes(types: string): DocsView;
-  setOwnedByMe?(b: boolean): DocsView;
-}
-
-interface PickerBuilder {
-  setOAuthToken(t: string): PickerBuilder;
-  setDeveloperKey(k: string): PickerBuilder;
-  setAppId(id: string): PickerBuilder;
-  addView(v: DocsView): PickerBuilder;
-  setCallback(cb: (result: PickerCallbackData) => void): PickerBuilder;
-  build(): { setVisible(v: boolean): void };
-}
-
-interface PickerCallbackData {
-  action: string;
-  docs?: Array<{ id: string; name: string; mimeType?: string }>;
-}
-
 const GAPI_SRC = 'https://apis.google.com/js/api.js';
+const GIS_SRC = 'https://accounts.google.com/gsi/client';
+
+const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 /**
- * Cached load promise. First call kicks off `<script>` injection + `gapi.load
- * ('picker')`; subsequent calls await the same promise. We don't try to
- * recover from a failed load — if Google's CDN is down, every call should
- * surface that error rather than silently retrying.
+ * Cached load promise for the Picker SDK (`gapi` + `gapi.load('picker')`).
+ * First call kicks off `<script>` injection; subsequent calls await the same
+ * promise. We don't retry on failure — if Google's CDN is down, every call
+ * should surface that error rather than silently retrying.
  */
-let loadPromise: Promise<void> | null = null;
+let gapiLoadPromise: Promise<void> | null = null;
 
 function loadGapiAndPicker(): Promise<void> {
-  if (loadPromise) return loadPromise;
-  loadPromise = new Promise<void>((resolve, reject) => {
+  if (gapiLoadPromise) return gapiLoadPromise;
+  gapiLoadPromise = new Promise<void>((resolve, reject) => {
     if (typeof window === 'undefined') {
       reject(new Error('Google Picker requires a browser environment'));
       return;
@@ -101,68 +82,151 @@ function loadGapiAndPicker(): Promise<void> {
     script.onerror = () => reject(new Error('Failed to load Google Picker SDK'));
     document.head.appendChild(script);
   });
-  return loadPromise;
-}
-
-export interface PickedFolder {
-  id: string;
-  name: string;
-}
-
-export interface OpenPickerOptions {
-  accessToken: string;
-  apiKey: string;
-  /**
-   * Google Cloud project number. Optional — the Picker works without it but
-   * surfaces a console warning. Provide if available.
-   */
-  appId?: string;
+  return gapiLoadPromise;
 }
 
 /**
- * Open the Google Drive Picker constrained to folders. Resolves with the
- * picked folder, or `null` if the user cancelled. Rejects on SDK load
- * failure or unexpected runtime errors.
+ * Cached load promise for Google Identity Services. Same lazy/cached pattern
+ * as the gapi loader — the GIS script attaches `google.accounts.oauth2` to
+ * the window.
  */
-export async function openDriveFolderPicker(
-  opts: OpenPickerOptions,
-): Promise<PickedFolder | null> {
+let gisLoadPromise: Promise<void> | null = null;
+
+function loadGis(): Promise<void> {
+  if (gisLoadPromise) return gisLoadPromise;
+  gisLoadPromise = new Promise<void>((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error('Google Identity Services requires a browser environment'));
+      return;
+    }
+    // If GIS is already on the window (HMR / second mount), skip the script.
+    const afterScriptLoaded = () => {
+      if (!window.google?.accounts?.oauth2) {
+        reject(new Error('GIS did not initialize after script load'));
+        return;
+      }
+      resolve();
+    };
+
+    if (window.google?.accounts?.oauth2) {
+      afterScriptLoaded();
+      return;
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src="${GIS_SRC}"]`,
+    );
+    if (existing) {
+      // Another mount started loading — wait for it.
+      existing.addEventListener('load', afterScriptLoaded, { once: true });
+      existing.addEventListener(
+        'error',
+        () => reject(new Error('Failed to load Google Identity Services')),
+        { once: true },
+      );
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = GIS_SRC;
+    script.async = true;
+    script.defer = true;
+    script.onload = afterScriptLoaded;
+    script.onerror = () =>
+      reject(new Error('Failed to load Google Identity Services'));
+    document.head.appendChild(script);
+  });
+  return gisLoadPromise;
+}
+
+/**
+ * Request a short-lived `drive.file` access token via the GIS token client.
+ * Opens a Google consent/popup. Resolves with the access token or rejects on
+ * an OAuth error.
+ */
+function requestDriveFileToken(): Promise<string> {
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID;
+  if (!clientId) {
+    return Promise.reject(
+      new Error('NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID is not set'),
+    );
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    try {
+      const tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: DRIVE_FILE_SCOPE,
+        callback: (tokenResponse: any) => {
+          if (tokenResponse?.error) {
+            reject(
+              new Error(
+                tokenResponse.error_description ||
+                  tokenResponse.error ||
+                  'Failed to obtain Drive access token',
+              ),
+            );
+            return;
+          }
+          if (!tokenResponse?.access_token) {
+            reject(new Error('No access token returned by Google'));
+            return;
+          }
+          resolve(tokenResponse.access_token);
+        },
+      });
+      tokenClient.requestAccessToken();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
+ * Let the user pick one or more Google Drive files (multi-select) using the
+ * `drive.file` scope. Resolves with the short-lived access token and the
+ * picked file IDs, or `null` if the user cancelled. Rejects on SDK load or
+ * OAuth failure.
+ */
+export async function pickDriveFiles(): Promise<
+  { accessToken: string; fileIds: string[] } | null
+> {
+  // 1. Load GIS and obtain a drive.file access token (consent popup).
+  await loadGis();
+  const accessToken = await requestDriveFileToken();
+
+  // 2. Load the Picker SDK.
   await loadGapiAndPicker();
   const picker = window.google?.picker;
   if (!picker) {
     throw new Error('Google Picker SDK unavailable after load');
   }
 
-  return new Promise<PickedFolder | null>((resolve, reject) => {
-    try {
-      const view = new picker.DocsView()
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(true)
-        .setMimeTypes('application/vnd.google-apps.folder');
+  // 3. Build and open a multi-select FILE picker handed the token.
+  return new Promise<{ accessToken: string; fileIds: string[] } | null>(
+    (resolve, reject) => {
+      try {
+        const view = new picker.DocsView();
 
-      const builder = new picker.PickerBuilder()
-        .setOAuthToken(opts.accessToken)
-        .setDeveloperKey(opts.apiKey)
-        .addView(view)
-        .setCallback((result) => {
-          if (result.action === picker.Action.PICKED) {
-            const doc = result.docs?.[0];
-            if (doc) {
-              resolve({ id: doc.id, name: doc.name });
-            } else {
+        const picked = new picker.PickerBuilder()
+          .enableFeature(picker.Feature.MULTISELECT_ENABLED)
+          .addView(view)
+          .setOAuthToken(accessToken)
+          .setDeveloperKey(process.env.NEXT_PUBLIC_DRIVE_PICKER_KEY)
+          .setCallback((data: any) => {
+            if (data.action === picker.Action.PICKED) {
+              const fileIds = (data.docs ?? []).map((d: any) => d.id);
+              resolve({ accessToken, fileIds });
+            } else if (data.action === picker.Action.CANCEL) {
               resolve(null);
             }
-          } else if (result.action === picker.Action.CANCEL) {
-            resolve(null);
-          }
-          // Other actions (e.g. 'loaded') are no-ops — keep the promise open.
-        });
+            // Other actions (e.g. 'loaded') are no-ops — keep the promise open.
+          });
 
-      if (opts.appId) builder.setAppId(opts.appId);
-
-      builder.build().setVisible(true);
-    } catch (err) {
-      reject(err);
-    }
-  });
+        picked.build().setVisible(true);
+      } catch (err) {
+        reject(err);
+      }
+    },
+  );
 }

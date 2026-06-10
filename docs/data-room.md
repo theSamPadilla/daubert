@@ -1,162 +1,151 @@
 # Data Room
 
-Per-case Google Drive integration for storing, browsing, uploading, and downloading case documents. Each case has at most one data room connection (1:1 relationship). Case owners manage the connection; all case members can browse and download files.
+Every case has a built-in data room automatically — no OAuth flow, no connect step, no folder picker. Members browse and download files; editors and above upload and delete. There is no external storage dependency in development.
 
-## Directory Structure
+## Architecture
 
-```
-backend/src/modules/data-room/
-├── data-room.module.ts        NestJS module
-├── data-room.controller.ts    REST endpoints (9 operations)
-├── data-room.service.ts       Orchestration, OAuth, token lifecycle
-├── google-drive.service.ts    Google Drive API wrapper
-├── encryption.service.ts      AES-256-GCM encryption for tokens at rest
-└── dto/
-    └── set-folder.dto.ts      Folder ID validation
+### StorageProvider interface
 
-frontend/src/
-├── app/cases/[caseId]/data-room/
-│   ├── page.tsx               Main data room UI (4-state machine)
-│   └── layout.tsx             Layout wrapper
-└── lib/
-    └── google-picker.ts       Google Drive Picker SDK wrapper
+All storage operations go through a single interface:
 
-contracts/
-├── paths/data-room.yaml       Endpoint specs
-└── schemas/data-room.yaml     Request/response DTOs
-```
-
-## Endpoints
-
-All case-scoped endpoints are gated by `CaseMemberGuard` (Firebase auth). The OAuth callback is `@Public()` and authenticated via HMAC `state`.
-
-| Method | Path | Purpose | Role |
-|--------|------|---------|------|
-| `POST` | `/cases/:caseId/data-room/connect` | Initiate OAuth, returns consent URL | Owner |
-| `GET` | `/data-room/oauth-callback` | Google OAuth redirect target | Public (HMAC) |
-| `GET` | `/cases/:caseId/data-room` | Get connection status | Any member |
-| `PATCH` | `/cases/:caseId/data-room/folder` | Set or change connected folder | Owner |
-| `GET` | `/cases/:caseId/data-room/files` | List files in folder (flat, max 100) | Any member |
-| `GET` | `/cases/:caseId/data-room/files/:fileId/download` | Stream-proxy file from Drive | Any member |
-| `POST` | `/cases/:caseId/data-room/files` | Upload file (multipart, 50MB max) | Owner |
-| `GET` | `/cases/:caseId/data-room/access-token` | Short-lived token for Drive Picker | Owner |
-| `DELETE` | `/cases/:caseId/data-room` | Disconnect and revoke token | Owner |
-
-## Entity: `data_room_connections`
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK (from BaseEntity) |
-| `case_id` | UUID | FK -> cases, UNIQUE (1:1), CASCADE delete |
-| `provider` | varchar | Default `'google_drive'` |
-| `credentials_cipher` | bytea | AES-256-GCM ciphertext |
-| `credentials_iv` | bytea | Random 12-byte IV per row |
-| `credentials_auth_tag` | bytea | GCM auth tag |
-| `folder_id` | varchar | Nullable. Drive folder ID |
-| `folder_name` | varchar | Nullable. Display name from Drive |
-| `status` | varchar | `'active'` or `'broken'` |
-| `created_at` | timestamp | Auto (from BaseEntity) |
-| `updated_at` | timestamp | Auto (from BaseEntity) |
-
-The encrypted credentials store a JSON blob:
-
-```json
-{
-  "accessToken": "ya29...",
-  "refreshToken": "1//0gF...",
-  "expiry": "2026-05-27T11:04:00.000Z",
-  "scope": "https://www.googleapis.com/auth/drive"
+```typescript
+interface StorageProvider {
+  upload(objectKey: string, body: Readable, contentType: string): Promise<{ size: number }>;
+  download(objectKey: string): Promise<{ stream: Readable; size?: number }>;
+  delete(objectKey: string): Promise<void>;  // idempotent — never throws if absent
 }
 ```
 
-Encryption key: `DATAROOM_ENCRYPTION_KEY` env var (32 bytes, hex-encoded). Generate with `openssl rand -hex 32`.
+### Implementations
 
-## OAuth Flow
+**`GcsStorageProvider`** (production) — wraps `@google-cloud/storage`. Authenticates via Application Default Credentials (`new Storage()` with no explicit keys). On Cloud Run this resolves to the Workload Identity service account — no static key files are needed or used.
 
-1. Frontend calls `POST /cases/:caseId/data-room/connect`
-2. Backend generates HMAC-SHA256 signed state: `base64url(caseId.nonce.timestamp.hmac)`
-3. Returns Google OAuth consent URL with the `state` parameter
-4. User grants access; Google redirects to `GET /data-room/oauth-callback?code=...&state=...`
-5. Backend verifies HMAC signature, checks timestamp (10-minute TTL), extracts `caseId`
-6. Exchanges authorization code for tokens, encrypts with AES-256-GCM, persists to DB
-7. 302 redirects to `$FRONTEND_URL/cases/{caseId}/data-room`
+**`LocalDiskStorageProvider`** (non-prod / local / QA) — writes under `os.tmpdir()/daubert-data-room` by default, or the path in `DATA_ROOM_LOCAL_DIR`. Path traversal (`..`) is rejected. Useful for development and automated tests without any GCP dependency.
 
-The OAuth callback sits outside the `cases/:caseId/` prefix because Google's `redirect_uri` is fixed at registration time. The `caseId` rides inside the signed `state`.
+### Selection logic (`storage.factory.ts`)
 
-Reconnecting an existing case overwrites the old credentials but preserves `folderId`/`folderName` so the user doesn't have to re-pick the folder.
+| Condition | Provider |
+|-----------|----------|
+| `GCS_DATA_ROOM_BUCKET` is set | `GcsStorageProvider` |
+| `GCS_DATA_ROOM_BUCKET` unset, `NODE_ENV !== 'production'` | `LocalDiskStorageProvider` |
+| `GCS_DATA_ROOM_BUCKET` unset, `NODE_ENV === 'production'` | Fatal startup error |
 
-## Folder Selection
+The fatal-in-prod guard prevents files from landing on ephemeral Cloud Run disk.
 
-Two paths depending on whether `NEXT_PUBLIC_DRIVE_PICKER_KEY` is configured:
+## Object layout
 
-- **With Picker** (preferred): Frontend calls `GET /access-token` to mint a short-lived token, opens the Google Drive Picker SDK, and sends the selection via `PATCH /folder`.
-- **Without Picker** (fallback): The frontend shows a "Picker not configured" banner prompting the operator to set the env var.
+```
+org/<orgId>/case/<caseId>/<fileId>
+```
 
-The backend validates folder IDs with regex (`^[a-zA-Z0-9_-]{20,}$`) and confirms the Drive resource is actually a folder (`mimeType === 'application/vnd.google-apps.folder'`).
+The `fileId` is the `data_room_files` row's primary key, so storage and database are always in lockstep. Cross-case access is structurally impossible: every read and delete is scoped by `{ id, caseId }`, so a fileId from another case is simply not found.
 
-## Token Refresh and Broken State
+## Data model
 
-Google rotates refresh tokens; concurrent refresh calls with the same token would permanently break the connection.
+### `data_room_files`
 
-**De-duplication**: `DataRoomService` keeps a `Map<connectionId, Promise>` of in-flight refreshes. If a refresh is already running for a connection, all callers await the same promise.
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID | PK — equals the last segment of `object_key` |
+| `case_id` | UUID | FK → cases (indexed) |
+| `name` | varchar | Original filename |
+| `mime_type` | varchar | MIME type from upload |
+| `size` | bigint | Bytes (TypeORM surfaces as string) |
+| `object_key` | varchar | Unique. Full GCS/disk path |
+| `uploaded_by_user_id` | varchar | Firebase UID of uploader |
+| `created_at` | timestamp | Auto |
 
-**Refresh triggers**:
-- Before every Drive API call, if expiry is within 60 seconds
-- On 401 response from Drive, forces a single retry with fresh tokens
-- If the retry also gets 401, marks `status = 'broken'`
+### `data_room_access_log`
 
-**Broken state UX**:
-- Yellow warning banner with explanation
-- "Reconnect" button re-runs OAuth (overwrites credentials, preserves folder)
-- "Disconnect" button removes the connection entirely
-- Link to `myaccount.google.com/permissions` for manual revocation
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID | PK |
+| `case_id` | UUID | Indexed |
+| `file_id` | varchar | Nullable (reserved for future bulk actions) |
+| `user_id` | varchar | Firebase UID |
+| `action` | varchar | `upload` \| `download` \| `delete` |
+| `created_at` | timestamp | Auto |
 
-## Upload / Download
+**What is and is not logged:** upload, download, and delete each write a log row as part of the operation — a log failure fails the operation. Listing files is not logged (browsing is not access).
 
-### Upload (streaming)
+## Backend-brokered access
 
-Uses `busboy` directly instead of NestJS's `FileInterceptor` (multer) to avoid buffering the entire file in memory. The upload stream pipes directly into `drive.files.create`, which auto-switches to resumable upload in 256KB chunks. Peak memory is ~256KB regardless of file size.
+There are no public GCS objects and no presigned URLs. Every file access goes through the NestJS backend:
 
-- 50MB cap enforced at busboy `limits.fileSize`
-- Single file per request (busboy `limits.files: 1`)
-- `safeRespond` guard checks `res.headersSent` before responding (headers may flush during streaming)
-- Frontend shows a progress bar via `XMLHttpRequest` upload events
+- The backend verifies the caller's Firebase token and case role before serving or accepting any data.
+- Reads require `viewer` role or above; writes require `editor` role or above.
+- Each write (upload, download, delete) appends an `access_log` row before the response is sent — this is the chain-of-custody guarantee.
 
-### Download (streaming)
+## Endpoints
 
-1. Fetches file metadata (`name`, `mimeType`, `size`) from Drive
-2. Pipes Drive's stream response directly to the client via NestJS `StreamableFile`
-3. Sets `Content-Type`, `Content-Disposition` (RFC 5987 for non-ASCII names), `Content-Length`
+| Method | Path | Role | Notes |
+|--------|------|------|-------|
+| `GET` | `/cases/:caseId/data-room/files` | viewer+ | List files, newest first |
+| `POST` | `/cases/:caseId/data-room/files` | editor+ | Stream upload (busboy, 50MB cap) |
+| `GET` | `/cases/:caseId/data-room/files/:fileId/download` | viewer+ | Stream download |
+| `DELETE` | `/cases/:caseId/data-room/files/:fileId` | editor+ | Delete file, returns 204 |
 
-## Frontend UI States
+## Upload and download
 
-The data room page is a 4-state machine:
+**Upload** uses `busboy` directly, bypassing NestJS `FileInterceptor` (multer) to avoid buffering the entire file before streaming. The file stream pipes straight into storage. Peak memory is bounded regardless of file size.
 
-| State | Condition | UI |
-|-------|-----------|-----|
-| **Disconnected** | No connection row | "Connect Google Drive" button with consent modal |
-| **No Folder** | Connection exists, `folderId === null` | Google Drive Picker (or "not configured" banner) |
-| **Connected** | Active connection with folder | File table, upload, download, change folder, disconnect |
-| **Broken** | `status === 'broken'` | Yellow warning, reconnect/disconnect buttons |
+- 50MB cap enforced via `busboy limits.fileSize`.
+- One file per request (`limits.files: 1`).
+- `safeRespond` checks `res.headersSent` before writing status — prevents double-response if headers flush mid-stream.
 
-## Role-Based Access
+**Download** resolves the file row, opens the storage read stream, logs the access, then returns a NestJS `StreamableFile` with `Content-Type`, `Content-Disposition` (RFC 5987 for non-ASCII filenames), and `Content-Length` (when available).
 
-Write operations (connect, disconnect, upload, set folder) require `owner` role via `DataRoomService.requireOwner()`. Read operations (get connection, list files, download) are available to all case members including guests.
+## Importing from Google Drive
 
-## Environment Variables
+An "Add from Google Drive" action beside the normal upload button lets editors pull files directly from their Drive without a manual download-then-reupload step.
 
-**Backend** (required in prod):
+**Flow:**
 
-| Variable | Purpose |
-|----------|---------|
-| `GOOGLE_OAUTH_CLIENT_ID` | OAuth2 app credentials |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth2 app credentials |
-| `GOOGLE_OAUTH_REDIRECT_URI` | e.g. `https://api.daubert.com/data-room/oauth-callback` |
-| `DATAROOM_ENCRYPTION_KEY` | 32 bytes hex (`openssl rand -hex 32`) |
-| `FRONTEND_URL` | For OAuth callback redirect |
+1. The frontend loads the Google Picker using the [Google Identity Services](https://developers.google.com/identity/gsi/web) library and requests a short-lived `drive.file` access token (no full `drive` scope; not CASA-restricted).
+2. The user picks files through the Picker. Opening the Picker with `drive.file` grants the app access to exactly those files and nothing else.
+3. The frontend POSTs `{ accessToken, fileIds }` to `POST /cases/:caseId/data-room/import/google-drive` (editor+ role required).
+4. The backend downloads each file from Drive using the `googleapis` library and streams it straight into the active `StorageProvider`. Each file lands as a normal `data_room_files` row logged as an `upload` access-log entry — identical to a manual upload for chain-of-custody purposes.
 
-**Frontend** (optional):
+**Native Google file export:** Google Workspace files cannot be downloaded as-is and are auto-exported to editable Office formats.
 
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_DRIVE_PICKER_KEY` | Google API key for Drive Picker SDK |
+| Google type | Exported as |
+|-------------|-------------|
+| Docs | `.docx` (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`) |
+| Sheets | `.xlsx` (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`) |
+| Slides | `.pptx` (`application/vnd.openxmlformats-officedocument.presentationml.presentation`) |
+| Forms, Drawings, other native types | Rejected (400) |
+
+**No stored credentials:** the access token is used only for the in-request downloads and is never persisted.
+
+**Operator prerequisites:**
+
+| Item | Notes |
+|------|-------|
+| `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` | Exposes the existing OAuth client ID to the frontend for the GIS token request. Add `drive.file` to the client's allowed scopes and the deployment's origin to the client's authorized JavaScript origins. |
+| Google brand verification | Required to lift the ~100-test-user cap and remove the "unverified app" warning screen. This is the standard brand-verification gate, not CASA. |
+
+## Environment variables
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `GCS_DATA_ROOM_BUCKET` | Yes in prod | GCS bucket name. Selects GcsStorageProvider. Validated at startup when `NODE_ENV=production`. |
+| `DATA_ROOM_LOCAL_DIR` | No | Override the local-disk base directory. Defaults to `os.tmpdir()/daubert-data-room`. |
+
+The OAuth/encryption variables from the old Drive integration (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `DATAROOM_ENCRYPTION_KEY`) are gone. The OAuth client itself is retained and reused for the Drive import Picker; `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` exposes the client ID to the frontend (see "Importing from Google Drive" below). `NEXT_PUBLIC_DRIVE_PICKER_KEY` is also reused.
+
+## Bring-your-own-cloud
+
+The `StorageProvider` interface is the extension point for alternate backends. `docs/plans/extensions.md` tracks deferred providers: Google Drive (`drive.file` scope, per-case folders), Microsoft Graph (SharePoint/OneDrive). Both would register behind the same interface and the rest of the data room — access log, role gates, streaming — would be unchanged.
+
+## Operator migration note
+
+In development, `synchronize: true` auto-syncs the schema from entities — no manual steps needed.
+
+For production, the operator must generate and apply the migration manually:
+
+```bash
+./migrations.sh --prod --generate AddBuiltInDataRoom
+./migrations.sh --prod --run
+```
+
+This migration creates `data_room_files` and `data_room_access_log`, and drops the old `data_room_connections` table. Review the generated file before running.

@@ -10,7 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
-import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
+import { DataRoomConnectionEntity } from './_legacy-connection.type';
 import { EncryptionService } from './encryption.service';
 import {
   DriveFile,

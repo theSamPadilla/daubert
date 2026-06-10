@@ -11,7 +11,7 @@ import { AnthropicProvider } from './providers/anthropic.provider';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
-import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
+import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { ConversationEntity } from '../../database/entities/conversation.entity';
 import { TokenUsageService } from '../superadmin/token-usage/token-usage.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
@@ -29,7 +29,7 @@ const mockAnthropicProvider = { streamChat: jest.fn(), generateText: jest.fn() }
 const mockMessageRepo = { find: jest.fn(), save: jest.fn((e: any) => Promise.resolve({ id: 'msg-saved-id', ...e })), create: jest.fn((e: any) => e) };
 const mockInvestigationRepo = { find: jest.fn(), findOneBy: jest.fn() };
 const mockTraceRepo = { findOneBy: jest.fn(), save: jest.fn() };
-const mockDataRoomRepo = { find: jest.fn() };
+const mockDataRoomRepo = { find: jest.fn(), count: jest.fn().mockResolvedValue(0) };
 const mockConversationRepo = { findOne: jest.fn() };
 const mockTokenUsageService = { record: jest.fn() };
 
@@ -76,7 +76,7 @@ describe('AiService — executeTool label cases', () => {
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
-        { provide: getRepositoryToken(DataRoomConnectionEntity), useValue: mockDataRoomRepo },
+        { provide: getRepositoryToken(DataRoomFileEntity), useValue: mockDataRoomRepo },
         { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
       ],
     }).compile();
@@ -283,7 +283,7 @@ describe('AiService — pickToolsForRole', () => {
         { provide: getRepositoryToken(MessageEntity), useValue: { find: jest.fn() } },
         { provide: getRepositoryToken(InvestigationEntity), useValue: { find: jest.fn(), findOneBy: jest.fn() } },
         { provide: getRepositoryToken(TraceEntity), useValue: { findOneBy: jest.fn(), save: jest.fn() } },
-        { provide: getRepositoryToken(DataRoomConnectionEntity), useValue: { find: jest.fn() } },
+        { provide: getRepositoryToken(DataRoomFileEntity), useValue: { find: jest.fn(), count: jest.fn().mockResolvedValue(0) } },
         { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
       ],
     }).compile();
@@ -382,7 +382,7 @@ describe('AiService — token usage metering', () => {
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
-        { provide: getRepositoryToken(DataRoomConnectionEntity), useValue: mockDataRoomRepo },
+        { provide: getRepositoryToken(DataRoomFileEntity), useValue: mockDataRoomRepo },
         { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
       ],
     }).compile();

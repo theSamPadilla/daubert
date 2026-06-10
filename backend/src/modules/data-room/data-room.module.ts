@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
+import { DataRoomConnectionEntity } from './_legacy-connection.type';
 import { AuthModule } from '../auth/auth.module';
 import { DataRoomController } from './data-room.controller';
 import { DataRoomService } from './data-room.service';

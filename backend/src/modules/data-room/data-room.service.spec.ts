@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
+import { DataRoomConnectionEntity } from './_legacy-connection.type';
 import { DataRoomService } from './data-room.service';
 import { EncryptionService } from './encryption.service';
 import { GoogleDriveService } from './google-drive.service';

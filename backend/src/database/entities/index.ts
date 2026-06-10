@@ -2,7 +2,8 @@ import { CaseEntity } from './case.entity';
 import { CaseInviteEntity } from './case-invite.entity';
 import { CaseMemberEntity } from './case-member.entity';
 import { ConversationEntity } from './conversation.entity';
-import { DataRoomConnectionEntity } from './data-room-connection.entity';
+import { DataRoomAccessLogEntity } from './data-room-access-log.entity';
+import { DataRoomFileEntity } from './data-room-file.entity';
 import { InvestigationEntity } from './investigation.entity';
 import { LabeledEntityEntity } from './labeled-entity.entity';
 import { MessageEntity } from './message.entity';
@@ -22,7 +23,8 @@ export const entities = [
   CaseInviteEntity,
   CaseMemberEntity,
   ConversationEntity,
-  DataRoomConnectionEntity,
+  DataRoomAccessLogEntity,
+  DataRoomFileEntity,
   InvestigationEntity,
   LabeledEntityEntity,
   MessageEntity,

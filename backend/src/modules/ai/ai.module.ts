@@ -6,7 +6,7 @@ import { InvestigationEntity } from '../../database/entities/investigation.entit
 import { ScriptRunEntity } from '../../database/entities/script-run.entity';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
-import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
+import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import { ScriptExecutionService } from './services/script-execution.service';
 import { AiController } from './ai.controller';
@@ -29,7 +29,7 @@ import { TokenUsageModule } from '../superadmin/token-usage/token-usage.module';
       ScriptRunEntity,
       CaseMemberEntity,
       TraceEntity,
-      DataRoomConnectionEntity,
+      DataRoomFileEntity,
     ]),
     AuthModule,
     LabeledEntitiesModule,

@@ -22,7 +22,7 @@ import { Public } from '../auth/public.decorator';
 import { DataRoomService } from './data-room.service';
 import { DriveFile } from './google-drive.service';
 import { SetFolderDto } from './dto/set-folder.dto';
-import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
+import { DataRoomConnectionEntity } from './_legacy-connection.type';
 
 const UPLOAD_LIMIT_BYTES = 50 * 1024 * 1024; // 50 MiB
 

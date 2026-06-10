@@ -6,7 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
-import { DataRoomConnectionEntity } from '../../database/entities/data-room-connection.entity';
+import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { ConversationEntity } from '../../database/entities/conversation.entity';
 import { TokenUsageService } from '../superadmin/token-usage/token-usage.service';
 import { INVESTIGATOR_PROMPT } from '../../prompts/investigator';
@@ -285,8 +285,8 @@ export class AiService {
     private readonly investigationRepo: Repository<InvestigationEntity>,
     @InjectRepository(TraceEntity)
     private readonly traceRepo: Repository<TraceEntity>,
-    @InjectRepository(DataRoomConnectionEntity)
-    private readonly dataRoomRepo: Repository<DataRoomConnectionEntity>,
+    @InjectRepository(DataRoomFileEntity)
+    private readonly dataRoomFileRepo: Repository<DataRoomFileEntity>,
     @InjectRepository(ConversationEntity)
     private readonly conversationRepo: Repository<ConversationEntity>,
   ) {}
@@ -886,10 +886,8 @@ export class AiService {
       type: p.type,
     }));
 
-    const drConn = await this.dataRoomRepo.findOneBy({ caseId });
-    const dataRoom = drConn
-      ? { connected: true, folderName: drConn.folderName, status: drConn.status }
-      : { connected: false };
+    const fileCount = await this.dataRoomFileRepo.count({ where: { caseId } });
+    const dataRoom = { available: true, fileCount };
 
     return { investigations: investigationSummaries, productions: productionSummaries, dataRoom };
   }

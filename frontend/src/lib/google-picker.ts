@@ -202,6 +202,14 @@ export async function pickDriveFiles(): Promise<
     throw new Error('Google Picker SDK unavailable after load');
   }
 
+  // Project number = the leading segment of the OAuth client id
+  // (`<projectNumber>-<hash>.apps.googleusercontent.com`). Passing it as the
+  // Picker's appId is REQUIRED for `drive.file`: without it the Picker still
+  // "selects" files, but Google never grants this OAuth client access to them,
+  // so the backend's files.get returns "File not found" (404). The picker
+  // developer key, OAuth client, and this appId must all be the same project.
+  const appId = (process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID ?? '').split('-')[0];
+
   // 3. Build and open a multi-select FILE picker handed the token.
   return new Promise<{ accessToken: string; fileIds: string[] } | null>(
     (resolve, reject) => {
@@ -213,6 +221,7 @@ export async function pickDriveFiles(): Promise<
           .addView(view)
           .setOAuthToken(accessToken)
           .setDeveloperKey(process.env.NEXT_PUBLIC_DRIVE_PICKER_KEY)
+          .setAppId(appId)
           .setCallback((data: any) => {
             if (data.action === picker.Action.PICKED) {
               const fileIds = (data.docs ?? []).map((d: any) => d.id);

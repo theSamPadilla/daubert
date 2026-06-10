@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e10]
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - img
+      - img
+      - img "Daubert AI" [ref=e14]
+    - generic [ref=e15]:
+      - heading "Daubert AI" [level=1] [ref=e16]
+      - paragraph [ref=e17]: The agentic workspace for blockchain’s most technical cases.
+    - generic [ref=e18]:
+      - generic [ref=e20]:
+        - textbox "you@example.com" [ref=e21]
+        - button "Continue" [disabled] [ref=e22]
+      - generic [ref=e25]: or continue with
+      - generic [ref=e28]:
+        - button "Continue with Google" [disabled] [ref=e29]:
+          - generic [ref=e42]: …
+        - generic [ref=e35]:
+          - button "Continue with Microsoft (work account)" [disabled] [ref=e36]:
+            - img [ref=e37]
+          - tooltip "Microsoft requires a work account"
+  - iframe [ref=e43]:
+    

@@ -95,6 +95,35 @@ There are no public GCS objects and no presigned URLs. Every file access goes th
 
 **Download** resolves the file row, opens the storage read stream, logs the access, then returns a NestJS `StreamableFile` with `Content-Type`, `Content-Disposition` (RFC 5987 for non-ASCII filenames), and `Content-Length` (when available).
 
+## Importing from Google Drive
+
+An "Add from Google Drive" action beside the normal upload button lets editors pull files directly from their Drive without a manual download-then-reupload step.
+
+**Flow:**
+
+1. The frontend loads the Google Picker using the [Google Identity Services](https://developers.google.com/identity/gsi/web) library and requests a short-lived `drive.file` access token (no full `drive` scope; not CASA-restricted).
+2. The user picks files through the Picker. Opening the Picker with `drive.file` grants the app access to exactly those files and nothing else.
+3. The frontend POSTs `{ accessToken, fileIds }` to `POST /cases/:caseId/data-room/import/google-drive` (editor+ role required).
+4. The backend downloads each file from Drive using the `googleapis` library and streams it straight into the active `StorageProvider`. Each file lands as a normal `data_room_files` row logged as an `upload` access-log entry — identical to a manual upload for chain-of-custody purposes.
+
+**Native Google file export:** Google Workspace files cannot be downloaded as-is and are auto-exported to editable Office formats.
+
+| Google type | Exported as |
+|-------------|-------------|
+| Docs | `.docx` (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`) |
+| Sheets | `.xlsx` (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`) |
+| Slides | `.pptx` (`application/vnd.openxmlformats-officedocument.presentationml.presentation`) |
+| Forms, Drawings, other native types | Rejected (400) |
+
+**No stored credentials:** the access token is used only for the in-request downloads and is never persisted.
+
+**Operator prerequisites:**
+
+| Item | Notes |
+|------|-------|
+| `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` | Exposes the existing OAuth client ID to the frontend for the GIS token request. Add `drive.file` to the client's allowed scopes and the deployment's origin to the client's authorized JavaScript origins. |
+| Google brand verification | Required to lift the ~100-test-user cap and remove the "unverified app" warning screen. This is the standard brand-verification gate, not CASA. |
+
 ## Environment variables
 
 | Variable | Required | Purpose |
@@ -102,7 +131,7 @@ There are no public GCS objects and no presigned URLs. Every file access goes th
 | `GCS_DATA_ROOM_BUCKET` | Yes in prod | GCS bucket name. Selects GcsStorageProvider. Validated at startup when `NODE_ENV=production`. |
 | `DATA_ROOM_LOCAL_DIR` | No | Override the local-disk base directory. Defaults to `os.tmpdir()/daubert-data-room`. |
 
-The OAuth/encryption variables from the old Drive integration (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `DATAROOM_ENCRYPTION_KEY`, `NEXT_PUBLIC_DRIVE_PICKER_KEY`) are gone.
+The OAuth/encryption variables from the old Drive integration (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `DATAROOM_ENCRYPTION_KEY`) are gone. The OAuth client itself is retained and reused for the Drive import Picker; `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` exposes the client ID to the frontend (see "Importing from Google Drive" below). `NEXT_PUBLIC_DRIVE_PICKER_KEY` is also reused.
 
 ## Bring-your-own-cloud
 

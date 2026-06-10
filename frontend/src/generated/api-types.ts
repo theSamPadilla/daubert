@@ -609,6 +609,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{caseId}/data-room/import/google-drive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import files from Google Drive into the data room */
+        post: operations["dataRoomImportFromGoogleDrive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orgs/{org}": {
         parameters: {
             query?: never;
@@ -1456,6 +1473,17 @@ export interface components {
             uploadedByUserId: string;
             /** Format: date-time */
             createdAt: string;
+        };
+        ImportFromDriveRequest: {
+            accessToken: string;
+            fileIds: string[];
+        };
+        ImportFromDriveResponse: {
+            imported: components["schemas"]["DataRoomFile"][];
+            failed: {
+                fileId: string;
+                error: string;
+            }[];
         };
         /**
          * @description Per-org role for a user in an organization.
@@ -3352,6 +3380,68 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    dataRoomImportFromGoogleDrive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportFromDriveRequest"];
+            };
+        };
+        responses: {
+            /** @description Import results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportFromDriveResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Case not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
         };
     };

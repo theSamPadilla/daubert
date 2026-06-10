@@ -14,6 +14,7 @@ import {
   DataRoomAction,
 } from '../../database/entities/data-room-access-log.entity';
 import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
+import { GoogleDriveImportService } from './google-drive-import.service';
 import {
   STORAGE_PROVIDER,
   StorageProvider,
@@ -54,6 +55,7 @@ export class DataRoomService {
     private readonly caseRepo: Repository<CaseEntity>,
     @Inject(STORAGE_PROVIDER)
     private readonly storage: StorageProvider,
+    private readonly driveImport: GoogleDriveImportService,
   ) {}
 
   // --------------------------- File ops ---------------------------
@@ -99,6 +101,40 @@ export class DataRoomService {
     await this.log(caseId, userId, 'upload', id);
     this.logger.log(`upload caseId=${caseId} fileId=${id} size=${size}`);
     return this.toDto(row);
+  }
+
+  /**
+   * Import one or more Google Drive files into the case's data room. Each file
+   * is fetched via {@link GoogleDriveImportService} and streamed through
+   * {@link uploadFromStream} (storage write + row + audit). Failures are
+   * isolated per file: a fetch/upload error for one id never aborts the rest —
+   * the id is collected in `failed` with its message and the loop continues.
+   */
+  async importFromDrive(
+    caseId: string,
+    userId: string,
+    accessToken: string,
+    fileIds: string[],
+  ): Promise<{
+    imported: DataRoomFileDto[];
+    failed: { fileId: string; error: string }[];
+  }> {
+    const imported: DataRoomFileDto[] = [];
+    const failed: { fileId: string; error: string }[] = [];
+    for (const fileId of fileIds) {
+      try {
+        const { name, mimeType, stream } = await this.driveImport.fetchForImport(
+          accessToken,
+          fileId,
+        );
+        imported.push(
+          await this.uploadFromStream(caseId, userId, name, mimeType, stream),
+        );
+      } catch (e) {
+        failed.push({ fileId, error: (e as Error).message });
+      }
+    }
+    return { imported, failed };
   }
 
   /**

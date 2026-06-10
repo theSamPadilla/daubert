@@ -119,6 +119,8 @@ paths:
     $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1files~1{fileId}~1download'
   /cases/{caseId}/data-room/files/{fileId}:
     $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1files~1{fileId}'
+  /cases/{caseId}/data-room/import/google-drive:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1import~1google-drive'
   /orgs/{org}:
     $ref: './paths/organizations.yaml#/~1orgs~1{org}'
   /orgs/{org}/members:
@@ -262,6 +264,10 @@ components:
       $ref: './schemas/auth-email.yaml#/VerifyOtpResponse'
     DataRoomFile:
       $ref: './schemas/data-room.yaml#/DataRoomFile'
+    ImportFromDriveRequest:
+      $ref: './schemas/data-room.yaml#/ImportFromDriveRequest'
+    ImportFromDriveResponse:
+      $ref: './schemas/data-room.yaml#/ImportFromDriveResponse'
     OrgMemberRole:
       $ref: './schemas/organizations.yaml#/OrgMemberRole'
     OrgInviteRole:

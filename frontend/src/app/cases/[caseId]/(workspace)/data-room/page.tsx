@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { FaCloudArrowUp, FaDownload, FaTrash } from 'react-icons/fa6';
+import { FaCloudArrowUp, FaDownload, FaTrash, FaGoogle } from 'react-icons/fa6';
 import { apiClient, type DataRoomFile } from '@/lib/api-client';
+import { pickDriveFiles } from '@/lib/google-picker';
 import { Loader } from '@/components/Common/Loader';
 import { PageHeader } from '@/components/Common/PageHeader';
 import UserMenu from '@/components/Auth/UserMenu';
@@ -46,6 +47,9 @@ export default function DataRoomPage() {
   const [uploadProgress, setUploadProgress] = useState<{ loaded: number; total: number } | null>(
     null,
   );
+
+  // Google Drive import state
+  const [importing, setImporting] = useState(false);
 
   const fetchFiles = useCallback(async () => {
     try {
@@ -114,6 +118,23 @@ export default function DataRoomPage() {
     }
   };
 
+  const handleImportFromDrive = async () => {
+    const picked = await pickDriveFiles();
+    if (!picked) return; // user cancelled
+    setImporting(true);
+    try {
+      const res = await apiClient.dataRoomImportFromDrive(caseId, picked.accessToken, picked.fileIds);
+      await fetchFiles();
+      if (res.failed.length) {
+        setError(`${res.failed.length} file(s) couldn't be imported`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Drive import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // ----------------------------- Render -----------------------------
 
   return (
@@ -152,10 +173,17 @@ export default function DataRoomPage() {
                   />
                   <button
                     onClick={handleUploadClick}
-                    disabled={uploadingName !== null}
+                    disabled={uploadingName !== null || importing}
                     className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed text-white"
                   >
                     <FaCloudArrowUp className="w-3.5 h-3.5" /> Upload file
+                  </button>
+                  <button
+                    onClick={handleImportFromDrive}
+                    disabled={uploadingName !== null || importing}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                  >
+                    <FaGoogle className="w-3.5 h-3.5" /> Add from Google Drive
                   </button>
                   <p className="text-xs text-ink-faint ml-auto">Max 50MB per upload.</p>
                 </div>

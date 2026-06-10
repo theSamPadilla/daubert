@@ -23,6 +23,7 @@ const mockDataRoomListFiles = jest.fn<Promise<DataRoomFile[]>, [string]>();
 const mockDataRoomDeleteFile = jest.fn<Promise<void>, [string, string]>();
 const mockDataRoomDownload = jest.fn<Promise<void>, [string, string, string]>();
 const mockDataRoomUpload = jest.fn();
+const mockDataRoomImportFromDrive = jest.fn();
 
 jest.mock('@/lib/api-client', () => ({
   apiClient: {
@@ -30,7 +31,14 @@ jest.mock('@/lib/api-client', () => ({
     dataRoomDeleteFile: (...args: [string, string]) => mockDataRoomDeleteFile(...args),
     dataRoomDownload: (...args: [string, string, string]) => mockDataRoomDownload(...args),
     dataRoomUpload: (...args: unknown[]) => mockDataRoomUpload(...args),
+    dataRoomImportFromDrive: (...args: unknown[]) => mockDataRoomImportFromDrive(...args),
   },
+}));
+
+// --- Mock google-picker ----------------------------------------------------
+const mockPickDriveFiles = jest.fn();
+jest.mock('@/lib/google-picker', () => ({
+  pickDriveFiles: (...args: unknown[]) => mockPickDriveFiles(...args),
 }));
 
 // --- Mock PageHeader / UserMenu / Loader (minimal stubs) ------------------
@@ -76,6 +84,8 @@ beforeEach(() => {
   mockDataRoomListFiles.mockResolvedValue(FAKE_FILES);
   mockDataRoomDeleteFile.mockResolvedValue(undefined);
   mockDataRoomDownload.mockResolvedValue(undefined);
+  mockPickDriveFiles.mockResolvedValue({ accessToken: 't', fileIds: ['a', 'b'] });
+  mockDataRoomImportFromDrive.mockResolvedValue({ imported: FAKE_FILES, failed: [] });
   // Suppress confirm() in jsdom
   global.confirm = jest.fn().mockReturnValue(true);
 });
@@ -150,5 +160,37 @@ describe('DataRoomPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/Upload one to get started/)).toBeTruthy();
     });
+  });
+
+  // Google Drive import — editor sees button, clicks it, calls import + refreshes list
+  it('calls dataRoomImportFromDrive and re-fetches list when editor clicks "Add from Google Drive"', async () => {
+    mockViewerRole = 'editor';
+    render(<DataRoomPage />);
+
+    await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
+
+    const driveButton = screen.getByText('Add from Google Drive');
+    expect(driveButton).toBeTruthy();
+
+    fireEvent.click(driveButton);
+
+    await waitFor(() => {
+      expect(mockDataRoomImportFromDrive).toHaveBeenCalledWith('case-123', 't', ['a', 'b']);
+    });
+
+    // dataRoomListFiles should have been called again after the import
+    await waitFor(() => {
+      expect(mockDataRoomListFiles.mock.calls.length).toBeGreaterThan(1);
+    });
+  });
+
+  // Google Drive import button is NOT visible for viewers
+  it('does not show "Add from Google Drive" button for viewer', async () => {
+    mockViewerRole = 'viewer';
+    render(<DataRoomPage />);
+
+    await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
+
+    expect(screen.queryByText('Add from Google Drive')).toBeNull();
   });
 });

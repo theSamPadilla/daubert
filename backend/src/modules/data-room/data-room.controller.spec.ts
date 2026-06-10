@@ -16,6 +16,7 @@ const mockService = {
   uploadFromStream: jest.fn(),
   getFileForDownload: jest.fn(),
   deleteFile: jest.fn(),
+  importFromDrive: jest.fn(),
 };
 
 describe('DataRoomController', () => {
@@ -73,6 +74,14 @@ describe('DataRoomController', () => {
       const role = Reflect.getMetadata(
         REQUIRED_ROLE_KEY,
         controller.deleteFile,
+      );
+      expect(role).toBe('editor');
+    });
+
+    it('POST import/google-drive requires editor', () => {
+      const role = Reflect.getMetadata(
+        REQUIRED_ROLE_KEY,
+        controller.importFromDrive,
       );
       expect(role).toBe('editor');
     });
@@ -161,6 +170,29 @@ describe('DataRoomController', () => {
         MOCK_USER_ID,
         MOCK_FILE_ID,
       );
+    });
+  });
+
+  // ----------------------------------------------------------------
+  // importFromDrive
+  // ----------------------------------------------------------------
+
+  describe('importFromDrive', () => {
+    it('delegates to service.importFromDrive and returns the result', async () => {
+      const mockResult = { imported: [{ id: MOCK_FILE_ID, name: 'doc.pdf' }], failed: [] };
+      mockService.importFromDrive.mockResolvedValueOnce(mockResult);
+
+      const dto = { accessToken: 't', fileIds: ['a', 'b'] };
+      const req: any = { user: { id: 'u1' } };
+      const result = await controller.importFromDrive(MOCK_CASE_ID, dto, req);
+
+      expect(mockService.importFromDrive).toHaveBeenCalledWith(
+        MOCK_CASE_ID,
+        'u1',
+        't',
+        ['a', 'b'],
+      );
+      expect(result).toBe(mockResult);
     });
   });
 });

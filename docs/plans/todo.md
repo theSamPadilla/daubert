@@ -3,7 +3,7 @@
 ## Active
 
 - [x] Built-in GCS data room (default, backend-brokered, no static keys). Shipped to `dev` (d488928). See [`../ideas/built-in-data-room.md`](../ideas/built-in-data-room.md). **Before prod:** generate+run `./migrations.sh --prod --generate AddBuiltInDataRoom`; set `GCS_DATA_ROOM_BUCKET`.
-- [ ] Import from Google Drive into the data room (`drive.file` + Picker, no full scope / no CASA). Drive as a one-time import source → copies into our GCS store. See [`extensions.md`](./extensions.md) → "Import sources".
+- [x] Import from Google Drive into the data room (`drive.file` + Picker, no full scope / no CASA). Drive as a one-time import source → copies into our GCS store. See [`extensions.md`](./extensions.md) → "Import sources".
 - [ ] Give agent drive tool access. See [`2026-04-27-agent-drive-tools.md`](./2026-04-27-agent-drive-tools.md).
 
 ## Deferred

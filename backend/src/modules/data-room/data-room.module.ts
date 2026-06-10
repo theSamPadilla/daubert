@@ -6,6 +6,7 @@ import { CaseEntity } from '../../database/entities/case.entity';
 import { AuthModule } from '../auth/auth.module';
 import { DataRoomController } from './data-room.controller';
 import { DataRoomService } from './data-room.service';
+import { GoogleDriveImportService } from './google-drive-import.service';
 import { storageProvider } from './storage/storage.factory';
 
 @Module({
@@ -16,7 +17,7 @@ import { storageProvider } from './storage/storage.factory';
     AuthModule,
   ],
   controllers: [DataRoomController],
-  providers: [DataRoomService, storageProvider],
+  providers: [DataRoomService, GoogleDriveImportService, storageProvider],
   exports: [DataRoomService],
 })
 export class DataRoomModule {}

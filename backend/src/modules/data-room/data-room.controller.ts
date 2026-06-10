@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -16,6 +17,7 @@ import type { Request, Response } from 'express';
 import busboy = require('busboy');
 import { RequireRole } from '../auth/require-role.decorator';
 import { DataRoomService } from './data-room.service';
+import { ImportFromDriveDto } from './dto/import-drive.dto';
 
 const UPLOAD_LIMIT_BYTES = 50 * 1024 * 1024; // 50 MiB
 
@@ -141,6 +143,16 @@ export class DataRoomController {
     });
 
     req.pipe(bb);
+  }
+
+  @RequireRole('editor')
+  @Post('cases/:caseId/data-room/import/google-drive')
+  importFromDrive(
+    @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Body() dto: ImportFromDriveDto,
+    @Req() req: Request,
+  ) {
+    return this.service.importFromDrive(caseId, (req as any).user.id, dto.accessToken, dto.fileIds);
   }
 
   @RequireRole('editor')

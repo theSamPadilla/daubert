@@ -590,6 +590,12 @@ export const apiClient = {
   dataRoomDeleteFile: (caseId: string, fileId: string): Promise<void> =>
     request<void>(`/cases/${caseId}/data-room/files/${fileId}`, { method: 'DELETE' }),
 
+  dataRoomImportFromDrive: (caseId: string, accessToken: string, fileIds: string[]) =>
+    request<{ imported: DataRoomFile[]; failed: { fileId: string; error: string }[] }>(
+      `/cases/${caseId}/data-room/import/google-drive`,
+      { method: 'POST', body: JSON.stringify({ accessToken, fileIds }) },
+    ),
+
   /**
    * Upload a file to the built-in data room. Uses XMLHttpRequest because
    * `fetch` doesn't expose upload progress events. Resolves with the created

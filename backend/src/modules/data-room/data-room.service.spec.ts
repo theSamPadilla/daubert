@@ -6,6 +6,7 @@ import { CaseEntity } from '../../database/entities/case.entity';
 import { DataRoomAccessLogEntity } from '../../database/entities/data-room-access-log.entity';
 import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { DataRoomService } from './data-room.service';
+import { GoogleDriveImportService } from './google-drive-import.service';
 import { STORAGE_PROVIDER } from './storage/storage-provider.interface';
 
 interface MockRepo {
@@ -23,6 +24,10 @@ interface MockStorage {
   delete: jest.Mock;
 }
 
+interface MockDriveImport {
+  fetchForImport: jest.Mock;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 describe('DataRoomService', () => {
@@ -31,6 +36,7 @@ describe('DataRoomService', () => {
   let logRepo: MockRepo;
   let caseRepo: MockRepo;
   let storage: MockStorage;
+  let driveImport: MockDriveImport;
 
   function makeRepo(): MockRepo {
     return {
@@ -53,6 +59,7 @@ describe('DataRoomService', () => {
       download: jest.fn(),
       delete: jest.fn(),
     };
+    driveImport = { fetchForImport: jest.fn() };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
@@ -64,6 +71,7 @@ describe('DataRoomService', () => {
         },
         { provide: getRepositoryToken(CaseEntity), useValue: caseRepo },
         { provide: STORAGE_PROVIDER, useValue: storage },
+        { provide: GoogleDriveImportService, useValue: driveImport },
       ],
     }).compile();
 
@@ -268,6 +276,86 @@ describe('DataRoomService', () => {
           action: 'delete',
         }),
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // importFromDrive
+  // ---------------------------------------------------------------------------
+  describe('importFromDrive', () => {
+    it('imports every fileId by streaming through uploadFromStream; failed is empty', async () => {
+      caseRepo.findOneByOrFail.mockResolvedValue({ id: 'c1', orgId: 'o1' });
+      storage.upload.mockResolvedValue({ size: 7 });
+      fileRepo.save.mockImplementation(async (e) => e);
+      logRepo.save.mockImplementation(async (e) => e);
+      driveImport.fetchForImport.mockImplementation(async (_token, fileId) => ({
+        name: `${fileId}.pdf`,
+        mimeType: 'application/pdf',
+        stream: Readable.from('x'),
+      }));
+
+      const result = await service.importFromDrive('c1', 'u1', 'tok', [
+        'g1',
+        'g2',
+      ]);
+
+      // Both Drive files were fetched with the provided access token.
+      expect(driveImport.fetchForImport).toHaveBeenCalledTimes(2);
+      expect(driveImport.fetchForImport).toHaveBeenNthCalledWith(1, 'tok', 'g1');
+      expect(driveImport.fetchForImport).toHaveBeenNthCalledWith(2, 'tok', 'g2');
+
+      // Each import went through the real uploadFromStream path: a storage
+      // upload, a data_room_files save, and an `upload` access-log save.
+      expect(storage.upload).toHaveBeenCalledTimes(2);
+      expect(fileRepo.save).toHaveBeenCalledTimes(2);
+      expect(logRepo.save).toHaveBeenCalledTimes(2);
+      expect(logRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ caseId: 'c1', userId: 'u1', action: 'upload' }),
+      );
+
+      expect(result.failed).toEqual([]);
+      expect(result.imported).toHaveLength(2);
+      expect(result.imported.map((f) => f.name)).toEqual(['g1.pdf', 'g2.pdf']);
+      result.imported.forEach((f) => {
+        expect(f.mimeType).toBe('application/pdf');
+        expect(f.size).toBe('7');
+        expect(f.uploadedByUserId).toBe('u1');
+        expect(f.id).toMatch(UUID_RE);
+      });
+    });
+
+    it('isolates failures: a rejecting fetchForImport lands in failed while the others still import', async () => {
+      caseRepo.findOneByOrFail.mockResolvedValue({ id: 'c1', orgId: 'o1' });
+      storage.upload.mockResolvedValue({ size: 7 });
+      fileRepo.save.mockImplementation(async (e) => e);
+      logRepo.save.mockImplementation(async (e) => e);
+      driveImport.fetchForImport.mockImplementation(async (_token, fileId) => {
+        if (fileId === 'bad') {
+          throw new Error('Unsupported Google file type: x');
+        }
+        return {
+          name: `${fileId}.pdf`,
+          mimeType: 'application/pdf',
+          stream: Readable.from('x'),
+        };
+      });
+
+      const result = await service.importFromDrive('c1', 'u1', 'tok', [
+        'g1',
+        'bad',
+        'g2',
+      ]);
+
+      // Only the two good ids were uploaded/saved/logged.
+      expect(storage.upload).toHaveBeenCalledTimes(2);
+      expect(fileRepo.save).toHaveBeenCalledTimes(2);
+      expect(logRepo.save).toHaveBeenCalledTimes(2);
+
+      expect(result.imported).toHaveLength(2);
+      expect(result.imported.map((f) => f.name)).toEqual(['g1.pdf', 'g2.pdf']);
+      expect(result.failed).toEqual([
+        { fileId: 'bad', error: 'Unsupported Google file type: x' },
+      ]);
     });
   });
 

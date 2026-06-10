@@ -15,3 +15,35 @@ DataRoomFile:
     createdAt:
       type: string
       format: date-time
+
+ImportFromDriveRequest:
+  type: object
+  required: [accessToken, fileIds]
+  properties:
+    accessToken:
+      type: string
+    fileIds:
+      type: array
+      items:
+        type: string
+      minItems: 1
+      maxItems: 25
+
+ImportFromDriveResponse:
+  type: object
+  required: [imported, failed]
+  properties:
+    imported:
+      type: array
+      items:
+        $ref: './data-room.yaml#/DataRoomFile'
+    failed:
+      type: array
+      items:
+        type: object
+        required: [fileId, error]
+        properties:
+          fileId:
+            type: string
+          error:
+            type: string

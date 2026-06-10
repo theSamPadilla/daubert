@@ -41,7 +41,7 @@ An investigation can have multiple traces — useful for separating different as
 
 ### Data Room
 
-Per-case Google Drive integration. The case owner connects their Google Drive via OAuth, picks a folder, and that folder becomes the case's document repository. All case members can browse and download files; only the owner can upload and manage the connection.
+Every case has a built-in data room — no setup or OAuth required. All case members can browse and download files; editors and owners can upload and delete files. Files are stored in first-party object storage, and every upload, download, and delete is access-logged for chain of custody.
 
 ### Productions
 

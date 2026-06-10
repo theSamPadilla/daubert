@@ -1,5 +1,4 @@
 import {
-  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -146,8 +145,9 @@ export class DataRoomService {
       throw new NotFoundException('file_not_found');
     }
 
-    await this.storage.delete(row.objectKey);
+    const { objectKey } = row;
     await this.fileRepo.remove(row);
+    await this.storage.delete(objectKey);
     await this.log(caseId, userId, 'delete', fileId);
     this.logger.log(`delete caseId=${caseId} fileId=${fileId}`);
   }
@@ -180,15 +180,4 @@ export class DataRoomService {
     };
   }
 
-  // ------------------------- Role helpers -------------------------
-
-  /**
-   * Throw if `role` is `'viewer'`. Viewers can browse the data room but cannot
-   * upload or delete files.
-   */
-  static requireWriteAccess(role: string | undefined): void {
-    if (role === 'viewer') {
-      throw new ForbiddenException('write_requires_owner');
-    }
-  }
 }

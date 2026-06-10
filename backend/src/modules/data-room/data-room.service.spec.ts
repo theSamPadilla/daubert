@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Readable } from 'stream';
@@ -271,20 +271,4 @@ describe('DataRoomService', () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // requireWriteAccess
-  // ---------------------------------------------------------------------------
-  describe('requireWriteAccess', () => {
-    it('throws ForbiddenException for viewer', () => {
-      expect(() => DataRoomService.requireWriteAccess('viewer')).toThrow(
-        ForbiddenException,
-      );
-    });
-
-    it('allows non-viewer roles', () => {
-      expect(() => DataRoomService.requireWriteAccess('owner')).not.toThrow();
-      expect(() => DataRoomService.requireWriteAccess('editor')).not.toThrow();
-      expect(() => DataRoomService.requireWriteAccess(undefined)).not.toThrow();
-    });
-  });
 });

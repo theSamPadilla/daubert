@@ -8,14 +8,7 @@ const requiredEnvVars = [
   'ANTHROPIC_API_KEY',
   'ETHERSCAN_API_KEY',
   'TRONSCAN_API_KEY',
-  // Data Room (Google Drive) — hard-required everywhere. The data-room module
-  // is wired into AppModule unconditionally; missing values would otherwise
-  // crash silently at first request. Fail loud at boot instead.
-  // FRONTEND_URL is here because the OAuth callback redirects back to it.
-  'DATAROOM_ENCRYPTION_KEY',
-  'GOOGLE_OAUTH_CLIENT_ID',
-  'GOOGLE_OAUTH_CLIENT_SECRET',
-  'GOOGLE_OAUTH_REDIRECT_URI',
+  // Required by email.service.ts to build links sent to users.
   'FRONTEND_URL',
 ];
 
@@ -53,14 +46,10 @@ export function validateEnv(env: Record<string, string>): Record<string, string>
     );
   }
 
-  // Format check: encryption key must be 32 bytes of hex
-  if (env.DATAROOM_ENCRYPTION_KEY) {
-    const k = env.DATAROOM_ENCRYPTION_KEY;
-    if (!/^[0-9a-fA-F]{64}$/.test(k)) {
-      throw new Error(
-        'DATAROOM_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes). Generate with `openssl rand -hex 32`.',
-      );
-    }
+  // GCS bucket is required in production; in other envs the app falls back to
+  // a local-disk storage driver so it remains optional.
+  if (env.NODE_ENV === 'production' && !env.GCS_DATA_ROOM_BUCKET) {
+    missing.push('GCS_DATA_ROOM_BUCKET');
   }
 
   // Print warnings

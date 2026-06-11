@@ -110,3 +110,47 @@ ImportFromDriveResponse:
             type: string
           error:
             type: string
+
+ExportToDriveRequest:
+  type: object
+  required: [accessToken, fileIds]
+  properties:
+    accessToken:
+      type: string
+    fileIds:
+      type: array
+      items:
+        type: string
+      minItems: 1
+      maxItems: 25
+    destinationFolderId:
+      type: string
+      nullable: true
+
+ExportToDriveResponse:
+  type: object
+  required: [exported, failed]
+  properties:
+    exported:
+      type: array
+      items:
+        type: object
+        required: [fileId, name, webViewLink]
+        properties:
+          fileId:
+            type: string
+          name:
+            type: string
+          webViewLink:
+            type: string
+            nullable: true
+    failed:
+      type: array
+      items:
+        type: object
+        required: [fileId, error]
+        properties:
+          fileId:
+            type: string
+          error:
+            type: string

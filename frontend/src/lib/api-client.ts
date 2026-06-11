@@ -633,6 +633,17 @@ export const apiClient = {
       { method: 'POST', body: JSON.stringify({ accessToken, fileIds, folderId }) },
     ),
 
+  dataRoomExportToDrive: (
+    caseId: string,
+    accessToken: string,
+    fileIds: string[],
+    destinationFolderId?: string | null,
+  ) =>
+    request<{ exported: { fileId: string; name: string; webViewLink: string | null }[]; failed: { fileId: string; error: string }[] }>(
+      `/cases/${caseId}/data-room/export/google-drive`,
+      { method: 'POST', body: JSON.stringify({ accessToken, fileIds, destinationFolderId }) },
+    ),
+
   /**
    * Upload a file to the built-in data room. Uses XMLHttpRequest because
    * `fetch` doesn't expose upload progress events. Resolves with the created

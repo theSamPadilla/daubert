@@ -99,6 +99,15 @@ const contents = (over: Partial<DataRoomContents> = {}): DataRoomContents => ({
 
 // Import the page AFTER all mocks are set up
 import DataRoomPage from './page';
+import { ConfirmProvider } from '@/components/Common/ConfirmProvider';
+
+// Render the page inside the real ConfirmProvider so useConfirm() resolves.
+const renderPage = () =>
+  render(
+    <ConfirmProvider>
+      <DataRoomPage />
+    </ConfirmProvider>,
+  );
 
 // ---------------------------------------------------------------------------
 
@@ -114,14 +123,12 @@ beforeEach(() => {
   mockDataRoomDeleteFolder.mockResolvedValue(undefined);
   mockDataRoomMoveFile.mockResolvedValue(undefined);
   mockDataRoomMoveFolder.mockResolvedValue(undefined);
-  // Suppress confirm() in jsdom
-  global.confirm = jest.fn().mockReturnValue(true);
 });
 
 describe('DataRoomPage', () => {
   // (a) Both file names render after load
   it('renders both file names after load', async () => {
-    render(<DataRoomPage />);
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('contract.pdf')).toBeTruthy();
       expect(screen.getByText('evidence.xlsx')).toBeTruthy();
@@ -131,7 +138,7 @@ describe('DataRoomPage', () => {
   // (b) For an owner/editor, delete control exists and clicking calls dataRoomDeleteFile
   it('shows delete controls for owner and calls dataRoomDeleteFile with correct fileId', async () => {
     mockViewerRole = 'owner';
-    render(<DataRoomPage />);
+    renderPage();
 
     await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
 
@@ -141,6 +148,11 @@ describe('DataRoomPage', () => {
     // Click the delete button for the first file (file-1)
     fireEvent.click(deleteButtons[0]);
 
+    // Confirm in the reusable modal (icon buttons carry no text, so the
+    // "Delete" text node uniquely identifies the modal's confirm button).
+    await waitFor(() => expect(screen.getByText('Delete file?')).toBeTruthy());
+    fireEvent.click(screen.getByText('Delete'));
+
     await waitFor(() => {
       expect(mockDataRoomDeleteFile).toHaveBeenCalledWith('case-123', 'file-1');
     });
@@ -148,7 +160,7 @@ describe('DataRoomPage', () => {
 
   it('shows upload control for editor', async () => {
     mockViewerRole = 'editor';
-    render(<DataRoomPage />);
+    renderPage();
 
     await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
 
@@ -158,7 +170,7 @@ describe('DataRoomPage', () => {
   // (c) For a viewer, no upload/delete controls but download is available
   it('shows no upload/delete controls for viewer but download is available', async () => {
     mockViewerRole = 'viewer';
-    render(<DataRoomPage />);
+    renderPage();
 
     await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
 
@@ -172,7 +184,7 @@ describe('DataRoomPage', () => {
   // Empty state
   it('shows empty state when no files', async () => {
     mockDataRoomContents.mockResolvedValue(contents({ files: [], folders: [] }));
-    render(<DataRoomPage />);
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByText(/No files yet/)).toBeTruthy();
@@ -183,7 +195,7 @@ describe('DataRoomPage', () => {
   it('shows upload hint in empty state for owner', async () => {
     mockDataRoomContents.mockResolvedValue(contents({ files: [], folders: [] }));
     mockViewerRole = 'owner';
-    render(<DataRoomPage />);
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByText(/Upload one to get started/)).toBeTruthy();
@@ -193,7 +205,7 @@ describe('DataRoomPage', () => {
   // Google Drive import — editor sees button, clicks it, calls import + refreshes list
   it('calls dataRoomImportFromDrive and re-fetches list when editor clicks "Add from Google Drive"', async () => {
     mockViewerRole = 'editor';
-    render(<DataRoomPage />);
+    renderPage();
 
     await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
 
@@ -215,7 +227,7 @@ describe('DataRoomPage', () => {
   // Google Drive import button is NOT visible for viewers
   it('does not show "Add from Google Drive" button for viewer', async () => {
     mockViewerRole = 'viewer';
-    render(<DataRoomPage />);
+    renderPage();
 
     await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
 
@@ -225,7 +237,7 @@ describe('DataRoomPage', () => {
   // Folders render and clicking a folder navigates into it
   it('renders a folder and navigates into it on click', async () => {
     mockDataRoomContents.mockResolvedValue(contents({ folders: [FAKE_FOLDER] }));
-    render(<DataRoomPage />);
+    renderPage();
 
     await waitFor(() => expect(screen.getByText('Discovery')).toBeTruthy());
 
@@ -240,7 +252,7 @@ describe('DataRoomPage', () => {
   it('creates a folder via "New folder" button', async () => {
     mockViewerRole = 'owner';
     const promptSpy = jest.spyOn(window, 'prompt').mockReturnValue('Exhibits');
-    render(<DataRoomPage />);
+    renderPage();
 
     await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
 

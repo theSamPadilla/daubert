@@ -24,6 +24,7 @@ const mockDataRoomDeleteFile = jest.fn<Promise<void>, [string, string]>();
 const mockDataRoomDownload = jest.fn<Promise<void>, [string, string, string]>();
 const mockDataRoomUpload = jest.fn();
 const mockDataRoomImportFromDrive = jest.fn();
+const mockDataRoomExportToDrive = jest.fn();
 const mockDataRoomCreateFolder = jest.fn();
 const mockDataRoomDeleteFolder = jest.fn();
 const mockDataRoomMoveFile = jest.fn();
@@ -36,6 +37,7 @@ jest.mock('@/lib/api-client', () => ({
     dataRoomDownload: (...args: [string, string, string]) => mockDataRoomDownload(...args),
     dataRoomUpload: (...args: unknown[]) => mockDataRoomUpload(...args),
     dataRoomImportFromDrive: (...args: unknown[]) => mockDataRoomImportFromDrive(...args),
+    dataRoomExportToDrive: (...args: unknown[]) => mockDataRoomExportToDrive(...args),
     dataRoomCreateFolder: (...args: unknown[]) => mockDataRoomCreateFolder(...args),
     dataRoomDeleteFolder: (...args: unknown[]) => mockDataRoomDeleteFolder(...args),
     dataRoomMoveFile: (...args: unknown[]) => mockDataRoomMoveFile(...args),
@@ -45,8 +47,10 @@ jest.mock('@/lib/api-client', () => ({
 
 // --- Mock google-picker ----------------------------------------------------
 const mockPickDriveFiles = jest.fn();
+const mockPickDriveFolderForExport = jest.fn();
 jest.mock('@/lib/google-picker', () => ({
   pickDriveFiles: (...args: unknown[]) => mockPickDriveFiles(...args),
+  pickDriveFolderForExport: (...args: unknown[]) => mockPickDriveFolderForExport(...args),
 }));
 
 // --- Mock PageHeader / UserMenu / Loader (minimal stubs) ------------------
@@ -119,6 +123,8 @@ beforeEach(() => {
   mockDataRoomDownload.mockResolvedValue(undefined);
   mockPickDriveFiles.mockResolvedValue({ accessToken: 't', fileIds: ['a', 'b'] });
   mockDataRoomImportFromDrive.mockResolvedValue({ imported: FAKE_FILES, failed: [] });
+  mockPickDriveFolderForExport.mockResolvedValue({ accessToken: 'tok', destinationFolderId: 'folderX' });
+  mockDataRoomExportToDrive.mockResolvedValue({ exported: [], failed: [] });
   mockDataRoomCreateFolder.mockResolvedValue(FAKE_FOLDER);
   mockDataRoomDeleteFolder.mockResolvedValue(undefined);
   mockDataRoomMoveFile.mockResolvedValue(undefined);
@@ -246,6 +252,60 @@ describe('DataRoomPage', () => {
     await waitFor(() => {
       expect(mockDataRoomContents).toHaveBeenCalledWith('case-123', 'folder-1');
     });
+  });
+
+  // Google Drive export — per-file single action saves one file to Drive
+  it('exports a single file to Drive via the per-file action', async () => {
+    mockPickDriveFolderForExport.mockResolvedValue({ accessToken: 'tok', destinationFolderId: 'folderX' });
+    mockDataRoomExportToDrive.mockResolvedValue({
+      exported: [{ fileId: 'file-1', name: 'contract.pdf', webViewLink: null }],
+      failed: [],
+    });
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
+
+    fireEvent.click(screen.getAllByTitle('Save to Google Drive')[0]);
+
+    await waitFor(() => expect(mockPickDriveFolderForExport).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockDataRoomExportToDrive).toHaveBeenCalledWith('case-123', 'tok', ['file-1'], 'folderX'),
+    );
+  });
+
+  // Google Drive export — cancelling the folder picker is a no-op
+  it('does nothing when the folder picker is cancelled', async () => {
+    mockPickDriveFolderForExport.mockResolvedValue(null);
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
+
+    fireEvent.click(screen.getAllByTitle('Save to Google Drive')[0]);
+
+    await waitFor(() => expect(mockPickDriveFolderForExport).toHaveBeenCalled());
+    expect(mockDataRoomExportToDrive).not.toHaveBeenCalled();
+  });
+
+  // Google Drive export — multi-select bulk action exports all selected files
+  it('exports multiple selected files in one call', async () => {
+    mockPickDriveFolderForExport.mockResolvedValue({ accessToken: 'tok', destinationFolderId: 'fX' });
+    mockDataRoomExportToDrive.mockResolvedValue({ exported: [], failed: [] });
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select contract.pdf' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select evidence.xlsx' }));
+    fireEvent.click(screen.getByRole('button', { name: /Save 2 to Google Drive/ }));
+
+    await waitFor(() =>
+      expect(mockDataRoomExportToDrive).toHaveBeenCalledWith(
+        'case-123',
+        'tok',
+        expect.arrayContaining(['file-1', 'file-2']),
+        'fX',
+      ),
+    );
   });
 
   // New folder — prompt for name, create folder, refetch

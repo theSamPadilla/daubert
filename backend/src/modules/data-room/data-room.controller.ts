@@ -20,6 +20,7 @@ import busboy = require('busboy');
 import { RequireRole } from '../auth/require-role.decorator';
 import { DataRoomService } from './data-room.service';
 import { ImportFromDriveDto } from './dto/import-drive.dto';
+import { ExportToDriveDto } from './dto/export-drive.dto';
 import { CreateFolderDto, MoveRequestDto } from './dto/folder.dto';
 
 const UPLOAD_LIMIT_BYTES = 50 * 1024 * 1024; // 50 MiB
@@ -163,6 +164,22 @@ export class DataRoomController {
       dto.accessToken,
       dto.fileIds,
       dto.folderId ?? null,
+    );
+  }
+
+  @RequireRole('viewer')
+  @Post('cases/:caseId/data-room/export/google-drive')
+  exportToDrive(
+    @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Body() dto: ExportToDriveDto,
+    @Req() req: Request,
+  ) {
+    return this.service.exportToDrive(
+      caseId,
+      (req as any).user.id,
+      dto.accessToken,
+      dto.fileIds,
+      dto.destinationFolderId ?? null,
     );
   }
 

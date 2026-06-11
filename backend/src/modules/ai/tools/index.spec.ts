@@ -26,4 +26,12 @@ describe('AI tool registry partition', () => {
       expect(names).not.toContain(writeName);
     }
   });
+
+  it('exposes the data-room tools to every role (read-only and full)', () => {
+    for (const set of [AGENT_TOOLS, READ_ONLY_AGENT_TOOLS]) {
+      const names = set.map((t) => t.name);
+      expect(names).toContain('list_data_room_files');
+      expect(names).toContain('read_data_room_file');
+    }
+  });
 });

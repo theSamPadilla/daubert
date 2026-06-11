@@ -1,7 +1,7 @@
 import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 
-export type DataRoomAction = 'upload' | 'download' | 'delete';
+export type DataRoomAction = 'upload' | 'download' | 'delete' | 'agent_read' | 'export';
 
 @Entity('data_room_access_log')
 export class DataRoomAccessLogEntity extends BaseEntity {

@@ -121,6 +121,8 @@ paths:
     $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1files~1{fileId}'
   /cases/{caseId}/data-room/import/google-drive:
     $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1import~1google-drive'
+  /cases/{caseId}/data-room/export/google-drive:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1export~1google-drive'
   /cases/{caseId}/data-room/contents:
     $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1contents'
   /cases/{caseId}/data-room/folders:
@@ -286,6 +288,10 @@ components:
       $ref: './schemas/data-room.yaml#/ImportFromDriveRequest'
     ImportFromDriveResponse:
       $ref: './schemas/data-room.yaml#/ImportFromDriveResponse'
+    ExportToDriveRequest:
+      $ref: './schemas/data-room.yaml#/ExportToDriveRequest'
+    ExportToDriveResponse:
+      $ref: './schemas/data-room.yaml#/ExportToDriveResponse'
     OrgMemberRole:
       $ref: './schemas/organizations.yaml#/OrgMemberRole'
     OrgInviteRole:

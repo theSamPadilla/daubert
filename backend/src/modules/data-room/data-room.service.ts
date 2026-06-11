@@ -16,6 +16,7 @@ import {
 } from '../../database/entities/data-room-access-log.entity';
 import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { DataRoomFolderEntity } from '../../database/entities/data-room-folder.entity';
+import { GoogleDriveExportService } from './google-drive-export.service';
 import { GoogleDriveImportService } from './google-drive-import.service';
 import {
   STORAGE_PROVIDER,
@@ -49,6 +50,35 @@ export interface DataRoomFolderContents {
   files: DataRoomFileDto[];
 }
 
+/** A flat manifest entry for the AI agent: resolved folder path, numeric size. */
+export interface DataRoomManifestEntry {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  folder: string; // POSIX-style path, '/' for root
+}
+
+export interface DataRoomManifest {
+  files: DataRoomManifestEntry[];
+  total: number;
+  truncated: boolean;
+}
+
+/** Result of an agent file read. `tooLarge` short-circuits before any download. */
+export interface AgentReadResult {
+  tooLarge: boolean;
+  name: string;
+  mimeType: string;
+  size: number;
+  stream?: Readable;
+}
+
+export interface DriveExportResult {
+  exported: { fileId: string; name: string; webViewLink: string | null }[];
+  failed: { fileId: string; error: string }[];
+}
+
 /**
  * Manages a case's built-in data room: files live in object storage (via the
  * injected {@link StorageProvider}) and are described by `data_room_files` rows.
@@ -77,6 +107,7 @@ export class DataRoomService {
     @Inject(STORAGE_PROVIDER)
     private readonly storage: StorageProvider,
     private readonly driveImport: GoogleDriveImportService,
+    private readonly driveExport: GoogleDriveExportService,
   ) {}
 
   // --------------------------- File ops ---------------------------
@@ -88,6 +119,51 @@ export class DataRoomService {
       order: { createdAt: 'DESC' },
     });
     return rows.map((row) => this.toDto(row));
+  }
+
+  /**
+   * Flat file manifest for the AI agent, newest-first. Each file carries a
+   * resolved POSIX-style folder path. `limit` caps the returned files (for the
+   * inline case-context manifest); `total`/`truncated` report the full count.
+   * Not audited — building a listing isn't file access.
+   */
+  async getManifest(caseId: string, limit?: number): Promise<DataRoomManifest> {
+    const [rows, total] = await Promise.all([
+      this.fileRepo.find({
+        where: { caseId },
+        order: { createdAt: 'DESC' },
+        ...(limit ? { take: limit } : {}),
+      }),
+      this.fileRepo.count({ where: { caseId } }),
+    ]);
+
+    const folders = await this.folderRepo.find({ where: { caseId } });
+    const byId = new Map(folders.map((f) => [f.id, f]));
+    const pathFor = (folderId: string | null): string => {
+      const names: string[] = [];
+      let cursor = folderId;
+      const seen = new Set<string>();
+      while (cursor && !seen.has(cursor)) {
+        seen.add(cursor);
+        const f = byId.get(cursor);
+        if (!f) break;
+        names.unshift(f.name);
+        cursor = f.parentFolderId;
+      }
+      return '/' + names.join('/');
+    };
+
+    return {
+      files: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        mimeType: r.mimeType,
+        size: Number(r.size),
+        folder: pathFor(r.folderId),
+      })),
+      total,
+      truncated: limit != null && total > limit,
+    };
   }
 
   /**
@@ -197,6 +273,71 @@ export class DataRoomService {
       mimeType: row.mimeType,
       size: Number(row.size),
     };
+  }
+
+  /**
+   * Export stored files to the user's Google Drive. Browser-supplied `accessToken`
+   * (drive.file scope) authorizes the writes; storage creds authorize the reads.
+   * Each file: tenancy-scoped lookup → stream from storage → drive.files.create →
+   * `export` audit row. One file failing does not abort the batch. `destinationFolderId`
+   * null → My Drive root.
+   */
+  async exportToDrive(
+    caseId: string,
+    userId: string,
+    accessToken: string,
+    fileIds: string[],
+    destinationFolderId: string | null,
+  ): Promise<DriveExportResult> {
+    const exported: DriveExportResult['exported'] = [];
+    const failed: DriveExportResult['failed'] = [];
+
+    for (const fileId of fileIds) {
+      try {
+        const row = await this.fileRepo.findOne({ where: { id: fileId, caseId } });
+        if (!row) {
+          failed.push({ fileId, error: 'file_not_found' });
+          continue;
+        }
+        const { stream } = await this.storage.download(row.objectKey);
+        const created = await this.driveExport.uploadToFolder(
+          accessToken, row.name, row.mimeType, stream, destinationFolderId,
+        );
+        await this.log(caseId, userId, 'export', fileId);
+        this.logger.log(`export caseId=${caseId} fileId=${fileId} driveId=${created.id}`);
+        exported.push({ fileId, name: row.name, webViewLink: created.webViewLink });
+      } catch (e) {
+        failed.push({ fileId, error: e instanceof Error ? e.message : 'export_failed' });
+      }
+    }
+    return { exported, failed };
+  }
+
+  /**
+   * Resolve a file for the AI agent to read. Scoped by `{ id, caseId }` so a
+   * file from a different case reads as not found. Files larger than `maxBytes`
+   * short-circuit to `{ tooLarge: true }` WITHOUT a download or audit row —
+   * nothing was read. A successful read opens the storage stream and writes an
+   * `agent_read` audit row (custody) before returning.
+   */
+  async getFileForAgentRead(
+    caseId: string,
+    userId: string,
+    fileId: string,
+    maxBytes: number,
+  ): Promise<AgentReadResult> {
+    const row = await this.fileRepo.findOne({ where: { id: fileId, caseId } });
+    if (!row) {
+      throw new NotFoundException('file_not_found');
+    }
+    const size = Number(row.size);
+    if (size > maxBytes) {
+      return { tooLarge: true, name: row.name, mimeType: row.mimeType, size };
+    }
+    const { stream } = await this.storage.download(row.objectKey);
+    await this.log(caseId, userId, 'agent_read', fileId);
+    this.logger.log(`agent_read caseId=${caseId} fileId=${fileId}`);
+    return { tooLarge: false, name: row.name, mimeType: row.mimeType, size, stream };
   }
 
   /**

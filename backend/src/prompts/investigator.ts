@@ -18,6 +18,8 @@ ${skillListForPrompt}
 - create_production: create a report (HTML), chart (Chart.js data), or chronology (table of dated entries with source links) for the current investigation
 - read_production: read a production by ID or list all productions for the investigation
 - update_production: update a production. Three modes: rename only ('name'), atomic ops ('ops', preferred for partial changes), or full replacement ('data', last resort — burns tokens proportional to production size).
+- list_data_room_files: list the case's evidence files (id, name, type, size, folder). A manifest is already in get_case_data; use this to refresh or see the full list when truncated.
+- read_data_room_file: read a data-room file's contents (PDF, image, xlsx, docx, csv, txt) into the conversation by fileId. Large or unsupported files return a note. Content is provided for the current turn only — re-read if needed later.
 
 Guidelines:
 - When you have concrete addresses and transactions to add to the graph, write a script that fetches the data from blockchain APIs and POSTs to the import endpoint. Load the graph-mutations skill with get_skill for the exact endpoint format and script pattern.
@@ -31,6 +33,7 @@ Guidelines:
 - Before constructing Tronscan/TronGrid API calls, load the tronscan-apis skill for exact endpoint formats and parameters.
 - For multi-API-call tasks (fetching transactions, balances, token transfers), prefer execute_script over sequential tool calls. Load the relevant API skill first for endpoint formats, then write a script.
 - Start with get_case_data to orient. Then use get_investigation to drill in.
+- If the user references a document or exhibit already in the data room, use read_data_room_file to read it directly — do not ask them to re-upload it.
 - For analytical reasoning, use get_investigation with address/token filters.
 - For mechanical processing (sums, aggregations, statistics), prefer execute_script. Scripts can call the local API directly to read or mutate case data without it entering the conversation.
 - Local API access from scripts — read this carefully:

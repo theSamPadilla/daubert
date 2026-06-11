@@ -18,6 +18,7 @@ const mockService = {
   getFileForDownload: jest.fn(),
   deleteFile: jest.fn(),
   importFromDrive: jest.fn(),
+  exportToDrive: jest.fn(),
   listContents: jest.fn(),
   createFolder: jest.fn(),
   deleteFolder: jest.fn(),
@@ -90,6 +91,11 @@ describe('DataRoomController', () => {
         controller.importFromDrive,
       );
       expect(role).toBe('editor');
+    });
+
+    it('POST export/google-drive requires viewer', () => {
+      const role = Reflect.getMetadata(REQUIRED_ROLE_KEY, controller.exportToDrive);
+      expect(role).toBe('viewer');
     });
 
     it('GET contents requires viewer', () => {
@@ -251,6 +257,47 @@ describe('DataRoomController', () => {
       await controller.importFromDrive(MOCK_CASE_ID, dto as any, req);
 
       expect(mockService.importFromDrive).toHaveBeenCalledWith(
+        MOCK_CASE_ID,
+        'u1',
+        't',
+        ['a'],
+        MOCK_FOLDER_ID,
+      );
+    });
+  });
+
+  // ----------------------------------------------------------------
+  // exportToDrive
+  // ----------------------------------------------------------------
+
+  describe('exportToDrive', () => {
+    it('delegates to service.exportToDrive and returns the result', async () => {
+      const mockResult = { exported: [{ id: MOCK_FILE_ID, name: 'doc.pdf' }], failed: [] };
+      mockService.exportToDrive.mockResolvedValueOnce(mockResult);
+
+      const dto = { accessToken: 't', fileIds: ['a', 'b'] };
+      const req: any = { user: { id: 'u1' } };
+      const result = await controller.exportToDrive(MOCK_CASE_ID, dto as any, req);
+
+      expect(mockService.exportToDrive).toHaveBeenCalledWith(
+        MOCK_CASE_ID,
+        'u1',
+        't',
+        ['a', 'b'],
+        null,
+      );
+      expect(result).toBe(mockResult);
+    });
+
+    it('passes destinationFolderId to service.exportToDrive when provided', async () => {
+      const mockResult = { exported: [], failed: [] };
+      mockService.exportToDrive.mockResolvedValueOnce(mockResult);
+
+      const dto = { accessToken: 't', fileIds: ['a'], destinationFolderId: MOCK_FOLDER_ID };
+      const req: any = { user: { id: 'u1' } };
+      await controller.exportToDrive(MOCK_CASE_ID, dto as any, req);
+
+      expect(mockService.exportToDrive).toHaveBeenCalledWith(
         MOCK_CASE_ID,
         'u1',
         't',

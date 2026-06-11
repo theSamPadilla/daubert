@@ -239,3 +239,57 @@ export async function pickDriveFiles(): Promise<
     },
   );
 }
+
+/**
+ * Let the user pick a single Google Drive FOLDER using the `drive.file` scope.
+ * Resolves with the short-lived access token and the selected folder ID, or
+ * `null` if the user cancelled. Rejects on SDK load or OAuth failure.
+ *
+ * The returned `accessToken` is forwarded to the backend export endpoint so
+ * it can write the exported file into the chosen folder.
+ */
+export async function pickDriveFolderForExport(): Promise<
+  { accessToken: string; destinationFolderId: string } | null
+> {
+  await loadGis();
+  const accessToken = await requestDriveFileToken();
+
+  await loadGapiAndPicker();
+  const picker = window.google?.picker;
+  if (!picker) {
+    throw new Error('Google Picker SDK unavailable after load');
+  }
+
+  const appId = (process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID ?? '').split('-')[0];
+
+  return new Promise<{ accessToken: string; destinationFolderId: string } | null>(
+    (resolve, reject) => {
+      try {
+        // SAFE folder-select form: setSelectFolderEnabled(true) + folder mime filter.
+        // Do NOT use picker.ViewId.FOLDERS (untyped global, not used elsewhere here).
+        const view = new picker.DocsView()
+          .setSelectFolderEnabled(true)
+          .setMimeTypes('application/vnd.google-apps.folder');
+
+        const picked = new picker.PickerBuilder()
+          .addView(view)
+          .setOAuthToken(accessToken)
+          .setDeveloperKey(process.env.NEXT_PUBLIC_DRIVE_PICKER_KEY)
+          .setAppId(appId)
+          .setCallback((data: any) => {
+            if (data.action === picker.Action.PICKED) {
+              const destinationFolderId = (data.docs ?? [])[0]?.id;
+              resolve(destinationFolderId ? { accessToken, destinationFolderId } : null);
+            } else if (data.action === picker.Action.CANCEL) {
+              resolve(null);
+            }
+            // Other actions (e.g. 'loaded') are no-ops — keep the promise open.
+          });
+
+        picked.build().setVisible(true);
+      } catch (err) {
+        reject(err);
+      }
+    },
+  );
+}

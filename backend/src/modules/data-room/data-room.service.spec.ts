@@ -8,6 +8,7 @@ import { DataRoomAccessLogEntity } from '../../database/entities/data-room-acces
 import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { DataRoomFolderEntity } from '../../database/entities/data-room-folder.entity';
 import { DataRoomService } from './data-room.service';
+import { GoogleDriveExportService } from './google-drive-export.service';
 import { GoogleDriveImportService } from './google-drive-import.service';
 import { STORAGE_PROVIDER } from './storage/storage-provider.interface';
 
@@ -20,6 +21,7 @@ interface MockRepo {
   save: jest.Mock;
   remove: jest.Mock;
   delete: jest.Mock;
+  count: jest.Mock;
 }
 
 interface MockStorage {
@@ -32,6 +34,10 @@ interface MockDriveImport {
   fetchForImport: jest.Mock;
 }
 
+interface MockDriveExport {
+  uploadToFolder: jest.Mock;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 describe('DataRoomService', () => {
@@ -42,6 +48,7 @@ describe('DataRoomService', () => {
   let folderRepo: MockRepo;
   let storage: MockStorage;
   let driveImport: MockDriveImport;
+  let driveExport: MockDriveExport;
 
   function makeRepo(): MockRepo {
     return {
@@ -54,6 +61,7 @@ describe('DataRoomService', () => {
       save: jest.fn(),
       remove: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     };
   }
 
@@ -68,6 +76,7 @@ describe('DataRoomService', () => {
       delete: jest.fn(),
     };
     driveImport = { fetchForImport: jest.fn() };
+    driveExport = { uploadToFolder: jest.fn() };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
@@ -84,6 +93,7 @@ describe('DataRoomService', () => {
         },
         { provide: STORAGE_PROVIDER, useValue: storage },
         { provide: GoogleDriveImportService, useValue: driveImport },
+        { provide: GoogleDriveExportService, useValue: driveExport },
       ],
     }).compile();
 
@@ -751,6 +761,75 @@ describe('DataRoomService', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // getManifest
+  // ---------------------------------------------------------------------------
+  describe('getManifest', () => {
+    it('resolves folder paths and respects the limit/truncation', async () => {
+      folderRepo.find.mockResolvedValue([
+        { id: 'f1', caseId: 'c1', parentFolderId: null, name: 'Bank Statements' },
+        { id: 'f2', caseId: 'c1', parentFolderId: 'f1', name: '2024' },
+      ]);
+      fileRepo.find.mockResolvedValue([
+        { id: 'a', caseId: 'c1', name: 'stmt.pdf', mimeType: 'application/pdf', size: '10', folderId: 'f2' },
+        { id: 'b', caseId: 'c1', name: 'root.csv', mimeType: 'text/csv', size: '20', folderId: null },
+      ]);
+      fileRepo.count.mockResolvedValue(2);
+
+      const res = await service.getManifest('c1', 25);
+
+      expect(res.total).toBe(2);
+      expect(res.truncated).toBe(false);
+      expect(res.files).toEqual([
+        { id: 'a', name: 'stmt.pdf', mimeType: 'application/pdf', size: 10, folder: '/Bank Statements/2024' },
+        { id: 'b', name: 'root.csv', mimeType: 'text/csv', size: 20, folder: '/' },
+      ]);
+      expect(fileRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { caseId: 'c1' }, order: { createdAt: 'DESC' }, take: 25 }),
+      );
+    });
+
+    it('flags truncated when total exceeds the limit', async () => {
+      folderRepo.find.mockResolvedValue([]);
+      fileRepo.find.mockResolvedValue([{ id: 'a', caseId: 'c1', name: 'x', mimeType: 'text/plain', size: '1', folderId: null }]);
+      fileRepo.count.mockResolvedValue(40);
+      const res = await service.getManifest('c1', 1);
+      expect(res.truncated).toBe(true);
+      expect(res.total).toBe(40);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getFileForAgentRead
+  // ---------------------------------------------------------------------------
+  describe('getFileForAgentRead', () => {
+    const fileRow = { id: 'a', caseId: 'c1', name: 'doc.pdf', mimeType: 'application/pdf', size: '100', objectKey: 'org/o/case/c1/a' };
+
+    it('streams the object and writes an agent_read audit row', async () => {
+      fileRepo.findOne.mockResolvedValue(fileRow);
+      storage.download.mockResolvedValue({ stream: Readable.from(['x']) });
+      const res = await service.getFileForAgentRead('c1', 'u1', 'a', 5 * 1024 * 1024);
+      expect(res).toMatchObject({ name: 'doc.pdf', mimeType: 'application/pdf', size: 100, tooLarge: false });
+      expect(storage.download).toHaveBeenCalledWith('org/o/case/c1/a');
+      expect(logRepo.save).toHaveBeenCalled();
+      expect(logRepo.create).toHaveBeenCalledWith(expect.objectContaining({ action: 'agent_read', fileId: 'a', caseId: 'c1', userId: 'u1' }));
+    });
+
+    it('throws NotFound for a file from another case', async () => {
+      fileRepo.findOne.mockResolvedValue(null);
+      await expect(service.getFileForAgentRead('c1', 'u1', 'a', 5 * 1024 * 1024)).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns tooLarge without downloading or logging when size exceeds the cap', async () => {
+      fileRepo.findOne.mockResolvedValue({ ...fileRow, size: String(99 * 1024 * 1024) });
+      const res = await service.getFileForAgentRead('c1', 'u1', 'a', 5 * 1024 * 1024);
+      expect(res.tooLarge).toBe(true);
+      expect(res.stream).toBeUndefined();
+      expect(storage.download).not.toHaveBeenCalled();
+      expect(logRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // uploadFromStream with folderId
   // ---------------------------------------------------------------------------
   describe('uploadFromStream with folderId', () => {
@@ -793,6 +872,59 @@ describe('DataRoomService', () => {
 
       expect(folderRepo.findOneBy).not.toHaveBeenCalled();
       expect(fileRepo.save.mock.calls[0][0].folderId).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // exportToDrive
+  // ---------------------------------------------------------------------------
+  describe('exportToDrive', () => {
+    const fileRow = (id: string) => ({ id, caseId: 'c1', name: `${id}.pdf`, mimeType: 'application/pdf', size: '10', objectKey: `k/${id}` });
+    beforeEach(() => {
+      logRepo.save.mockResolvedValue(undefined);
+      logRepo.create.mockImplementation((e: any) => e);
+    });
+
+    it('streams each file to Drive, logs export, returns exported list', async () => {
+      fileRepo.findOne.mockImplementation(({ where: { id } }: any) => Promise.resolve(fileRow(id)));
+      storage.download.mockResolvedValue({ stream: Readable.from(['x']) });
+      driveExport.uploadToFolder.mockResolvedValue({ id: 'd1', webViewLink: 'https://v/1' });
+
+      const res = await service.exportToDrive('c1', 'u1', 'tok', ['a', 'b'], 'folderX');
+
+      expect(res.exported).toEqual([
+        { fileId: 'a', name: 'a.pdf', webViewLink: 'https://v/1' },
+        { fileId: 'b', name: 'b.pdf', webViewLink: 'https://v/1' },
+      ]);
+      expect(res.failed).toEqual([]);
+      expect(driveExport.uploadToFolder).toHaveBeenCalledWith('tok', 'a.pdf', 'application/pdf', expect.anything(), 'folderX');
+      expect(logRepo.create).toHaveBeenCalledWith(expect.objectContaining({ action: 'export', fileId: 'a', caseId: 'c1', userId: 'u1' }));
+      expect(logRepo.create).toHaveBeenCalledWith(expect.objectContaining({ action: 'export', fileId: 'b' }));
+    });
+
+    it('reports a cross-case / missing file as failed without aborting the batch', async () => {
+      fileRepo.findOne.mockImplementation(({ where: { id } }: any) =>
+        Promise.resolve(id === 'missing' ? null : fileRow(id)));
+      storage.download.mockResolvedValue({ stream: Readable.from(['x']) });
+      driveExport.uploadToFolder.mockResolvedValue({ id: 'd', webViewLink: null });
+
+      const res = await service.exportToDrive('c1', 'u1', 'tok', ['missing', 'ok'], null);
+
+      expect(res.exported.map((e: any) => e.fileId)).toEqual(['ok']);
+      expect(res.failed).toEqual([{ fileId: 'missing', error: expect.any(String) }]);
+      expect(driveExport.uploadToFolder).toHaveBeenCalledWith('tok', 'ok.pdf', 'application/pdf', expect.anything(), null);
+    });
+
+    it('isolates a Drive upload failure to that file', async () => {
+      fileRepo.findOne.mockImplementation(({ where: { id } }: any) => Promise.resolve(fileRow(id)));
+      storage.download.mockResolvedValue({ stream: Readable.from(['x']) });
+      driveExport.uploadToFolder
+        .mockResolvedValueOnce({ id: 'd1', webViewLink: null })
+        .mockRejectedValueOnce(new Error('drive boom'));
+
+      const res = await service.exportToDrive('c1', 'u1', 'tok', ['a', 'b'], 'f');
+      expect(res.exported.map((e: any) => e.fileId)).toEqual(['a']);
+      expect(res.failed).toEqual([{ fileId: 'b', error: 'drive boom' }]);
     });
   });
 

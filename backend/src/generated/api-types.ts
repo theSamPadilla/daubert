@@ -626,6 +626,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{caseId}/data-room/export/google-drive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export files from the data room to Google Drive */
+        post: operations["dataRoomExportToGoogleDrive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{caseId}/data-room/contents": {
         parameters: {
             query?: never;
@@ -1590,6 +1607,22 @@ export interface components {
         };
         ImportFromDriveResponse: {
             imported: components["schemas"]["DataRoomFile"][];
+            failed: {
+                fileId: string;
+                error: string;
+            }[];
+        };
+        ExportToDriveRequest: {
+            accessToken: string;
+            fileIds: string[];
+            destinationFolderId?: string | null;
+        };
+        ExportToDriveResponse: {
+            exported: {
+                fileId: string;
+                name: string;
+                webViewLink: string | null;
+            }[];
             failed: {
                 fileId: string;
                 error: string;
@@ -3517,6 +3550,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImportFromDriveResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Case not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    dataRoomExportToGoogleDrive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportToDriveRequest"];
+            };
+        };
+        responses: {
+            /** @description Export results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportToDriveResponse"];
                 };
             };
             /** @description Invalid input */

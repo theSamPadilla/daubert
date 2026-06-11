@@ -153,6 +153,55 @@
             schema:
               $ref: '../schemas/common.yaml#/ErrorResponse'
 
+/cases/{caseId}/data-room/export/google-drive:
+  post:
+    summary: Export files from the data room to Google Drive
+    operationId: dataRoomExportToGoogleDrive
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/data-room.yaml#/ExportToDriveRequest'
+    responses:
+      '200':
+        description: Export results
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/data-room.yaml#/ExportToDriveResponse'
+      '400':
+        description: Invalid input
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Case not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
 /cases/{caseId}/data-room/contents:
   get:
     summary: Get data room contents for a folder (or root)

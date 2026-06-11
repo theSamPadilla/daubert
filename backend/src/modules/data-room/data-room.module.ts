@@ -8,6 +8,7 @@ import { AuthModule } from '../auth/auth.module';
 import { DataRoomController } from './data-room.controller';
 import { DataRoomService } from './data-room.service';
 import { GoogleDriveImportService } from './google-drive-import.service';
+import { GoogleDriveExportService } from './google-drive-export.service';
 import { storageProvider } from './storage/storage.factory';
 
 @Module({
@@ -23,7 +24,7 @@ import { storageProvider } from './storage/storage.factory';
     AuthModule,
   ],
   controllers: [DataRoomController],
-  providers: [DataRoomService, GoogleDriveImportService, storageProvider],
+  providers: [DataRoomService, GoogleDriveImportService, GoogleDriveExportService, storageProvider],
   exports: [DataRoomService],
 })
 export class DataRoomModule {}

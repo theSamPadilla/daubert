@@ -68,6 +68,69 @@ The `fileId` is the `data_room_files` row's primary key, so storage and database
 
 **What is and is not logged:** upload, download, and delete each write a log row as part of the operation — a log failure fails the operation. Listing files is not logged (browsing is not access).
 
+## Folders
+
+Files can be organised into a folder tree. Folders are pure metadata — GCS object keys stay flat (`org/<orgId>/case/<caseId>/<fileId>`) — so moving a file or folder is a single `folderId` update; no object is ever moved or recopied.
+
+### Data model
+
+**`data_room_folders`**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID | PK |
+| `case_id` | UUID | FK → cases (indexed) |
+| `parent_folder_id` | UUID | Nullable FK → self — null means root |
+| `name` | varchar | Display name |
+| `created_by_user_id` | varchar | Firebase UID of creator |
+| `created_at` | timestamp | Auto |
+
+**`data_room_files.folder_id`** — nullable UUID FK → `data_room_folders`. `null` means the file sits at the root of the case data room.
+
+### Nesting and breadcrumbs
+
+`parent_folder_id` supports arbitrary nesting depth. The contents endpoint (`GET .../contents`) returns a `breadcrumb` array of `{ id, name }` ancestors from root to the requested folder, so the frontend can render a path bar without additional requests.
+
+### Endpoints
+
+| Method | Path | Role | Notes |
+|--------|------|------|-------|
+| `GET` | `/cases/:caseId/data-room/contents?folderId=` | viewer+ | Returns `{ breadcrumb, folders, files }` for the given folder; omit `folderId` for root |
+| `POST` | `/cases/:caseId/data-room/folders` | editor+ | Create folder (name + optional parentFolderId) |
+| `DELETE` | `/cases/:caseId/data-room/folders/:folderId` | editor+ | Cascade delete (see below) |
+| `PATCH` | `/cases/:caseId/data-room/files/:fileId/move` | editor+ | Set file's `folderId` |
+| `PATCH` | `/cases/:caseId/data-room/folders/:folderId/move` | editor+ | Set folder's `parentFolderId` |
+
+Upload (`POST .../files`) and Drive import (`POST .../import/google-drive`) both accept an optional `folderId` body field so new files land in the caller's current folder.
+
+### Cascade delete
+
+Deleting a folder recursively removes all descendant folders and files. For every file removed the backend:
+
+1. Writes a `delete` access-log row (chain-of-custody, same as a direct file delete).
+2. Issues a GCS `delete` for the object.
+
+GCS delete failures are non-fatal: the DB row is removed and the GCS object becomes a reclaimable orphan. This ensures the cascade never aborts mid-way and never leaves half-removed database rows.
+
+### Move and cycle prevention
+
+Files can be moved to any folder (or back to root). Folders can be moved to any other folder. Before persisting a folder move the backend walks the target's ancestry to confirm the destination is not the folder itself or any of its descendants — a cycle would make the subtree unreachable and is rejected with a 400.
+
+### Roles
+
+Reads (contents listing, download) require `viewer` role or above. Creating, deleting, or moving folders, and moving files, requires `editor` role or above — the same gate as file upload and delete.
+
+### Operator migration note
+
+The prod migration adds the `data_room_folders` table and the `folder_id` column on `data_room_files`. Both changes are additive (no existing rows are altered). Generate and apply via `./migrations.sh` as usual:
+
+```bash
+./migrations.sh --prod --generate AddDataRoomFolders
+./migrations.sh --prod --run
+```
+
+Dev auto-syncs via `synchronize: true` — no manual step needed.
+
 ## Backend-brokered access
 
 There are no public GCS objects and no presigned URLs. Every file access goes through the NestJS backend:

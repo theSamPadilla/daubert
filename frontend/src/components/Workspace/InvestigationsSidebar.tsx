@@ -101,10 +101,10 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           <FaArrowLeft size={12} />
         </button>
         <div className="flex items-baseline gap-2 min-w-0 flex-1">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
+          <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
             Case
           </span>
-          <p className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate">
+          <p className="text-[16px] font-semibold tracking-tight text-[#0B1220] truncate">
             {caseName || 'Loading...'}
           </p>
         </div>
@@ -116,7 +116,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
         {canMutate && (
           <button
             onClick={() => ctx.openNewPrimary('investigation')}
-            className="text-ink-faint hover:text-ink text-xs transition-colors"
+            className="text-ink-faint hover:text-ink text-sm transition-colors"
             title="New investigation"
           >
             +
@@ -155,7 +155,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                     ? <FaChevronDown size={9} />
                     : <FaChevronRight size={9} />}
                 </button>
-                <span className="truncate flex-1 text-xs font-medium">{inv.name}</span>
+                <span className="truncate flex-1 text-sm font-medium">{inv.name}</span>
                 {canMutate && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onEditInvestigation?.(inv); }}
@@ -184,7 +184,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                         className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: trace.color || '#3b82f6' }}
                       />
-                      <span className="flex-1 truncate text-xs">{trace.name}</span>
+                      <span className="flex-1 truncate text-sm">{trace.name}</span>
                       <button
                         onClick={(e) => { e.stopPropagation(); onToggleVisibility?.(trace.id); }}
                         className={`flex items-center ${trace.visible ? 'text-ink-faint hover:text-ink' : 'text-ink-faint/40 hover:text-ink-faint'}`}
@@ -199,8 +199,8 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                       onClick={onAddTrace}
                       className="flex items-center gap-1.5 pl-3 pr-2 py-1 w-full text-left text-ink-faint/60 hover:text-ink-faint transition-colors"
                     >
-                      <span className="text-xs">+</span>
-                      <span className="text-xs">Add trace</span>
+                      <span className="text-sm">+</span>
+                      <span className="text-sm">Add trace</span>
                     </button>
                   )}
                 </div>
@@ -210,7 +210,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
         })}
 
         {investigations.length === 0 && (
-          <p className="text-ink-faint text-xs p-3">No investigations yet.</p>
+          <p className="text-ink-faint text-sm p-3">No investigations yet.</p>
         )}
 
         {/* Productions */}
@@ -220,7 +220,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
             {canMutate && (
               <button
                 onClick={() => ctx.openNewPrimary('production')}
-                className="text-ink-faint hover:text-ink text-xs transition-colors"
+                className="text-ink-faint hover:text-ink text-sm transition-colors"
                 title="New production"
               >
                 +
@@ -230,7 +230,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           {(() => {
             const list = productions || [];
             if (list.length === 0) {
-              return <p className="text-ink-faint text-xs px-3 py-1">No productions yet.</p>;
+              return <p className="text-ink-faint text-sm px-3 py-1">No productions yet.</p>;
             }
             // Preserve creation order within each type; only render non-empty groups.
             const byType: Record<string, typeof list> = {};
@@ -248,7 +248,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                   <span className="shrink-0 text-ink-faint">
                     {PRODUCTION_TYPE_ICONS[type] ?? <FaFileLines className="w-3 h-3" />}
                   </span>
-                  <span className="text-[11px] font-medium tracking-tight">
+                  <span className="text-[12px] font-medium tracking-tight">
                     {PRODUCTION_TYPE_LABEL[type] ?? type}
                   </span>
                 </div>
@@ -260,7 +260,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                         key={prod.id}
                         onClick={() => router.push(`/cases/${caseId}/productions?id=${prod.id}`)}
                         title={prod.name}
-                        className={`flex items-center px-3 py-1 cursor-pointer text-xs transition-colors ${
+                        className={`flex items-center px-3 py-1 cursor-pointer text-sm transition-colors ${
                           active
                             ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand-ink)]'
                             : 'hover:bg-surface-raised text-ink-muted hover:text-ink'
@@ -291,7 +291,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                   e.preventDefault();
                   router.push(dataRoomHref);
                 }}
-                className={`block px-3 py-1.5 cursor-pointer text-xs transition-colors ${
+                className={`block px-3 py-1.5 cursor-pointer text-sm transition-colors ${
                   dataRoomActive
                     ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand-ink)]'
                     : 'hover:bg-surface-raised text-ink-muted'
@@ -308,7 +308,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           <div className="mt-3 px-3 pb-3">
             <button
               onClick={() => setExhibitOpen(true)}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-brand-soft text-ink shadow-[inset_0_0_0_1px_var(--brand-ink)] hover:bg-brand hover:text-white transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-brand-soft text-ink shadow-[inset_0_0_0_1px_var(--brand-ink)] hover:bg-brand hover:text-white transition-colors"
               title="Create exhibit from investigations and productions"
             >
               <FaPlus size={10} />
@@ -323,7 +323,7 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
         <div className="border-t border-line-strong px-3 py-2.5 shrink-0">
           <button
             onClick={() => router.push(`/cases/${caseId}/settings`)}
-            className="flex items-center gap-2 text-ink-faint hover:text-ink text-xs w-full transition-colors"
+            className="flex items-center gap-2 text-ink-faint hover:text-ink text-sm w-full transition-colors"
             title="Case settings"
           >
             <FaGear size={14} />

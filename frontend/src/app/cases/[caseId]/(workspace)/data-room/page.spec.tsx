@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import type { DataRoomFile } from '@/lib/api-client';
+import type { DataRoomContents, DataRoomFile, DataRoomFolder } from '@/lib/api-client';
 
 // --- Mock next/navigation ------------------------------------------------
 jest.mock('next/navigation', () => ({
@@ -19,19 +19,27 @@ jest.mock('@/contexts/CaseContext', () => ({
 }));
 
 // --- Mock api-client -------------------------------------------------------
-const mockDataRoomListFiles = jest.fn<Promise<DataRoomFile[]>, [string]>();
+const mockDataRoomContents = jest.fn<Promise<DataRoomContents>, [string, (string | null)?]>();
 const mockDataRoomDeleteFile = jest.fn<Promise<void>, [string, string]>();
 const mockDataRoomDownload = jest.fn<Promise<void>, [string, string, string]>();
 const mockDataRoomUpload = jest.fn();
 const mockDataRoomImportFromDrive = jest.fn();
+const mockDataRoomCreateFolder = jest.fn();
+const mockDataRoomDeleteFolder = jest.fn();
+const mockDataRoomMoveFile = jest.fn();
+const mockDataRoomMoveFolder = jest.fn();
 
 jest.mock('@/lib/api-client', () => ({
   apiClient: {
-    dataRoomListFiles: (...args: [string]) => mockDataRoomListFiles(...args),
+    dataRoomContents: (...args: [string, (string | null)?]) => mockDataRoomContents(...args),
     dataRoomDeleteFile: (...args: [string, string]) => mockDataRoomDeleteFile(...args),
     dataRoomDownload: (...args: [string, string, string]) => mockDataRoomDownload(...args),
     dataRoomUpload: (...args: unknown[]) => mockDataRoomUpload(...args),
     dataRoomImportFromDrive: (...args: unknown[]) => mockDataRoomImportFromDrive(...args),
+    dataRoomCreateFolder: (...args: unknown[]) => mockDataRoomCreateFolder(...args),
+    dataRoomDeleteFolder: (...args: unknown[]) => mockDataRoomDeleteFolder(...args),
+    dataRoomMoveFile: (...args: unknown[]) => mockDataRoomMoveFile(...args),
+    dataRoomMoveFolder: (...args: unknown[]) => mockDataRoomMoveFolder(...args),
   },
 }));
 
@@ -73,6 +81,22 @@ const FAKE_FILES: DataRoomFile[] = [
   },
 ];
 
+const FAKE_FOLDER: DataRoomFolder = {
+  id: 'folder-1',
+  caseId: 'case-123',
+  parentFolderId: null,
+  name: 'Discovery',
+  createdByUserId: 'user-abc',
+  createdAt: '2024-01-10T08:00:00Z',
+};
+
+const contents = (over: Partial<DataRoomContents> = {}): DataRoomContents => ({
+  breadcrumb: [],
+  folders: [],
+  files: FAKE_FILES,
+  ...over,
+});
+
 // Import the page AFTER all mocks are set up
 import DataRoomPage from './page';
 
@@ -81,11 +105,15 @@ import DataRoomPage from './page';
 beforeEach(() => {
   jest.clearAllMocks();
   mockViewerRole = 'owner';
-  mockDataRoomListFiles.mockResolvedValue(FAKE_FILES);
+  mockDataRoomContents.mockResolvedValue(contents());
   mockDataRoomDeleteFile.mockResolvedValue(undefined);
   mockDataRoomDownload.mockResolvedValue(undefined);
   mockPickDriveFiles.mockResolvedValue({ accessToken: 't', fileIds: ['a', 'b'] });
   mockDataRoomImportFromDrive.mockResolvedValue({ imported: FAKE_FILES, failed: [] });
+  mockDataRoomCreateFolder.mockResolvedValue(FAKE_FOLDER);
+  mockDataRoomDeleteFolder.mockResolvedValue(undefined);
+  mockDataRoomMoveFile.mockResolvedValue(undefined);
+  mockDataRoomMoveFolder.mockResolvedValue(undefined);
   // Suppress confirm() in jsdom
   global.confirm = jest.fn().mockReturnValue(true);
 });
@@ -143,7 +171,7 @@ describe('DataRoomPage', () => {
 
   // Empty state
   it('shows empty state when no files', async () => {
-    mockDataRoomListFiles.mockResolvedValue([]);
+    mockDataRoomContents.mockResolvedValue(contents({ files: [], folders: [] }));
     render(<DataRoomPage />);
 
     await waitFor(() => {
@@ -153,7 +181,7 @@ describe('DataRoomPage', () => {
 
   // Empty state with upload hint for mutators
   it('shows upload hint in empty state for owner', async () => {
-    mockDataRoomListFiles.mockResolvedValue([]);
+    mockDataRoomContents.mockResolvedValue(contents({ files: [], folders: [] }));
     mockViewerRole = 'owner';
     render(<DataRoomPage />);
 
@@ -175,12 +203,12 @@ describe('DataRoomPage', () => {
     fireEvent.click(driveButton);
 
     await waitFor(() => {
-      expect(mockDataRoomImportFromDrive).toHaveBeenCalledWith('case-123', 't', ['a', 'b']);
+      expect(mockDataRoomImportFromDrive).toHaveBeenCalledWith('case-123', 't', ['a', 'b'], null);
     });
 
-    // dataRoomListFiles should have been called again after the import
+    // dataRoomContents should have been called again after the import
     await waitFor(() => {
-      expect(mockDataRoomListFiles.mock.calls.length).toBeGreaterThan(1);
+      expect(mockDataRoomContents.mock.calls.length).toBeGreaterThan(1);
     });
   });
 
@@ -192,5 +220,36 @@ describe('DataRoomPage', () => {
     await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
 
     expect(screen.queryByText('Add from Google Drive')).toBeNull();
+  });
+
+  // Folders render and clicking a folder navigates into it
+  it('renders a folder and navigates into it on click', async () => {
+    mockDataRoomContents.mockResolvedValue(contents({ folders: [FAKE_FOLDER] }));
+    render(<DataRoomPage />);
+
+    await waitFor(() => expect(screen.getByText('Discovery')).toBeTruthy());
+
+    fireEvent.click(screen.getByText('Discovery'));
+
+    await waitFor(() => {
+      expect(mockDataRoomContents).toHaveBeenCalledWith('case-123', 'folder-1');
+    });
+  });
+
+  // New folder — prompt for name, create folder, refetch
+  it('creates a folder via "New folder" button', async () => {
+    mockViewerRole = 'owner';
+    const promptSpy = jest.spyOn(window, 'prompt').mockReturnValue('Exhibits');
+    render(<DataRoomPage />);
+
+    await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
+
+    fireEvent.click(screen.getByText('New folder'));
+
+    await waitFor(() => {
+      expect(mockDataRoomCreateFolder).toHaveBeenCalledWith('case-123', 'Exhibits', null);
+    });
+
+    promptSpy.mockRestore();
   });
 });

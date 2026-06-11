@@ -1,0 +1,167 @@
+- generic [ref=e1]:
+  - alert [ref=e10]
+  - generic [ref=e11]:
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - button "Back to cases" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+        - generic [ref=e18]:
+          - generic [ref=e19]: Case
+          - paragraph [ref=e20]: Test Case 2
+      - generic [ref=e21]:
+        - generic [ref=e22]: Investigations
+        - button "+" [ref=e23] [cursor=pointer]
+      - generic [ref=e24]:
+        - generic [ref=e26] [cursor=pointer]:
+          - button [ref=e27]:
+            - img [ref=e28]
+          - generic [ref=e30]: Test Investigation
+          - button "Edit investigation" [ref=e31]:
+            - img [ref=e32]
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - generic [ref=e36]: Productions
+            - button "+" [ref=e37] [cursor=pointer]
+          - paragraph [ref=e38]: No productions yet.
+        - generic [ref=e39]:
+          - generic [ref=e41]: Data Room
+          - link "Files" [ref=e42] [cursor=pointer]:
+            - /url: /cases/4bec0fa7-ab52-4af2-9ad6-54e5f5b9d990/data-room
+        - button "Exhibit" [ref=e44] [cursor=pointer]:
+          - img [ref=e45]
+          - generic [ref=e47]: Exhibit
+      - button "Settings" [ref=e49] [cursor=pointer]:
+        - img [ref=e50]
+        - generic [ref=e52]: Settings
+    - generic [ref=e54]:
+      - button "Collapse sidebar" [ref=e55] [cursor=pointer]:
+        - img [ref=e56]
+      - button "Collapse chat" [ref=e58] [cursor=pointer]:
+        - img [ref=e59]
+      - generic [ref=e61]:
+        - banner [ref=e62]:
+          - heading "Data Room" [level=1] [ref=e64]
+          - button "Sam Padilla Sam Padilla" [ref=e67] [cursor=pointer]:
+            - img "Sam Padilla" [ref=e68]
+            - generic [ref=e69]: Sam Padilla
+            - img [ref=e70]
+        - generic [ref=e73]:
+          - navigation [ref=e245]:
+            - generic [ref=e246]: Data Room
+          - generic [ref=e247]:
+            - button "Upload file" [ref=e248] [cursor=pointer]:
+              - img [ref=e249]
+              - text: Upload file
+            - button "Add from Google Drive" [ref=e251] [cursor=pointer]:
+              - img [ref=e252]
+              - text: Add from Google Drive
+            - button "New folder" [ref=e254] [cursor=pointer]:
+              - img [ref=e255]
+              - text: New folder
+            - paragraph [ref=e257]: Max 50MB per upload.
+          - generic [ref=e258]:
+            - generic [ref=e259]: 1 folder · 1 file
+            - generic [ref=e260]:
+              - button "List view" [ref=e261] [cursor=pointer]:
+                - img [ref=e262]
+              - button "Grid view" [ref=e264] [cursor=pointer]:
+                - img [ref=e265]
+          - generic [ref=e267]:
+            - generic [ref=e268]:
+              - button "Exhibits Folder" [ref=e269] [cursor=pointer]:
+                - img [ref=e272]
+                - generic [ref=e274]:
+                  - generic "Exhibits" [ref=e275]
+                  - generic [ref=e276]: Folder
+              - generic [ref=e277]:
+                - button "Move folder" [ref=e278] [cursor=pointer]:
+                  - img [ref=e279]
+                - button "Delete folder" [ref=e281] [cursor=pointer]:
+                  - img [ref=e282]
+            - generic [ref=e284]:
+              - img [ref=e287]
+              - generic [ref=e289]:
+                - generic "sun_wallet_transaction_chronology.xlsx" [ref=e290]
+                - generic [ref=e291]: Spreadsheet · 23.7 KB
+              - generic [ref=e292]:
+                - button "Download" [ref=e293] [cursor=pointer]:
+                  - img [ref=e294]
+                - button "Move" [active] [ref=e296] [cursor=pointer]:
+                  - img [ref=e297]
+                - button "Delete" [ref=e299] [cursor=pointer]:
+                  - img [ref=e300]
+        - generic [ref=e303]:
+          - generic [ref=e304]:
+            - heading "Move file “sun_wallet_transaction_chronology.xlsx”" [level=2] [ref=e305]
+            - paragraph [ref=e306]: Choose a destination folder.
+          - list [ref=e307]:
+            - listitem [ref=e308]:
+              - button "Data Room (root)" [ref=e309] [cursor=pointer]:
+                - img [ref=e311]
+                - generic [ref=e313]: Data Room (root)
+            - listitem [ref=e314]:
+              - button "Exhibits" [ref=e315] [cursor=pointer]:
+                - img [ref=e317]
+                - generic [ref=e319]: Exhibits
+          - button "Cancel" [ref=e321] [cursor=pointer]
+    - generic [ref=e117]:
+      - generic [ref=e118]:
+        - generic [ref=e120]: Adding Random Node to Test
+        - generic [ref=e121]:
+          - combobox [ref=e122] [cursor=pointer]:
+            - option "Opus 4.7" [selected]
+            - option "Opus 4.6"
+            - option "Sonnet 4.6"
+            - option "Haiku 4.5"
+          - button "Conversation history" [ref=e123] [cursor=pointer]:
+            - img [ref=e124]
+          - button "+" [ref=e127] [cursor=pointer]
+      - generic [ref=e128]:
+        - generic [ref=e130]: Can you add a random node in the test investigation?
+        - paragraph [ref=e134]: Let me first get the case data to find the investigation ID and load the graph-mutations skill for the correct endpoint format.
+        - paragraph [ref=e138]:
+          - text: I can see the
+          - strong [ref=e139]: Test Investigation
+          - text: (
+          - code [ref=e140]: 065c7c01-6cd9-437d-9bcc-ce20c4dc9820
+          - text: ) exists but has
+          - strong [ref=e141]: 0 traces
+          - text: . I'll need to create a trace first, then add a node to it. Let me write a script to do both.
+        - generic [ref=e144]:
+          - paragraph [ref=e145]:
+            - text: Done! Here's what I added to the
+            - strong [ref=e146]: Test Investigation
+            - text: ":"
+          - list [ref=e147]:
+            - listitem [ref=e148]:
+              - strong [ref=e149]: Created a new trace
+              - text: called "Test Trace"
+            - listitem [ref=e150]:
+              - strong [ref=e151]: Imported 2 nodes
+              - text: "connected by 1 edge:"
+              - list [ref=e152]:
+                - listitem [ref=e153]:
+                  - link "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" [ref=e154] [cursor=pointer]:
+                    - /url: https://etherscan.io/address/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+                  - text: — Vitalik Buterin's well-known address
+                - listitem [ref=e155]:
+                  - link "0x00000000219ab540356cBB839Cbe05303d7705Fa" [ref=e156] [cursor=pointer]:
+                    - /url: https://etherscan.io/address/0x00000000219ab540356cBB839Cbe05303d7705Fa
+                  - text: — the Ethereum Beacon Deposit Contract
+                - listitem [ref=e157]:
+                  - text: A
+                  - strong [ref=e158]: 1.0 ETH
+                  - text: transaction between them
+          - paragraph [ref=e159]: You should see the nodes and edge appear on the graph now. Let me know if you'd like to modify anything!
+        - generic [ref=e161]: What model are you?
+        - generic [ref=e164]:
+          - paragraph [ref=e165]: I'm Claude, made by Anthropic. I don't have specific information about which exact version of Claude I am. If you need that detail, you might be able to find it in the Daubert app's settings or documentation.
+          - paragraph [ref=e166]: Is there anything else you'd like me to help with on the investigation?
+      - generic [ref=e168]:
+        - button "Attach image or PDF" [ref=e169] [cursor=pointer]:
+          - img [ref=e170]
+        - generic [ref=e172]:
+          - textbox "Ask me anything…" [ref=e173]
+          - button "Expand" [ref=e174] [cursor=pointer]:
+            - img [ref=e175]
+        - button "Send" [disabled] [ref=e177]

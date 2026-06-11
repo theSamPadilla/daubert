@@ -34,17 +34,16 @@ daubert/
 | `FIREBASE_PROJECT_ID` | Firebase Auth |
 | `FIREBASE_CLIENT_EMAIL` | Firebase Auth |
 | `FIREBASE_PRIVATE_KEY` | Firebase Auth |
-| `DATAROOM_ENCRYPTION_KEY` | AES-256-GCM key for Drive token encryption (64 hex chars) |
-| `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth for Data Room |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth for Data Room |
-| `GOOGLE_OAUTH_REDIRECT_URI` | Google OAuth for Data Room |
-| `FRONTEND_URL` | Frontend base URL (for OAuth redirects) |
+| `GCS_DATA_ROOM_BUCKET` | Data Room file storage bucket (required in production) |
+| `DATA_ROOM_LOCAL_DIR` | Optional local-disk storage dir (non-prod fallback) |
+| `FRONTEND_URL` | Frontend base URL (used to build links in transactional email) |
 
 ### Frontend
 
 | Variable | Purpose |
 |----------|---------|
 | `NEXT_PUBLIC_API_URL` | Backend base URL (defaults `http://localhost:8081`) |
+| `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` | OAuth client ID for the Drive Picker's `drive.file` token (GIS) |
 | `NEXT_PUBLIC_DRIVE_PICKER_KEY` | Google Drive Picker API key |
 
 ## Backend

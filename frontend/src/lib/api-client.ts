@@ -206,6 +206,21 @@ export interface DataRoomFile {
   createdAt: string;
 }
 
+export interface DataRoomFolder {
+  id: string;
+  caseId: string;
+  parentFolderId: string | null;
+  name: string;
+  createdByUserId: string;
+  createdAt: string;
+}
+
+export interface DataRoomContents {
+  breadcrumb: { id: string; name: string }[];
+  folders: DataRoomFolder[];
+  files: DataRoomFile[];
+}
+
 // Invites
 export interface CaseInvite {
   id: string;
@@ -590,10 +605,32 @@ export const apiClient = {
   dataRoomDeleteFile: (caseId: string, fileId: string): Promise<void> =>
     request<void>(`/cases/${caseId}/data-room/files/${fileId}`, { method: 'DELETE' }),
 
-  dataRoomImportFromDrive: (caseId: string, accessToken: string, fileIds: string[]) =>
+  dataRoomContents: (caseId: string, folderId?: string | null) =>
+    request<DataRoomContents>(
+      `/cases/${caseId}/data-room/contents${folderId ? `?folderId=${encodeURIComponent(folderId)}` : ''}`,
+    ),
+  dataRoomCreateFolder: (caseId: string, name: string, parentFolderId: string | null) =>
+    request<DataRoomFolder>(`/cases/${caseId}/data-room/folders`, {
+      method: 'POST',
+      body: JSON.stringify({ name, parentFolderId }),
+    }),
+  dataRoomDeleteFolder: (caseId: string, folderId: string): Promise<void> =>
+    request<void>(`/cases/${caseId}/data-room/folders/${folderId}`, { method: 'DELETE' }),
+  dataRoomMoveFile: (caseId: string, fileId: string, targetFolderId: string | null): Promise<void> =>
+    request<void>(`/cases/${caseId}/data-room/files/${fileId}/move`, {
+      method: 'PATCH',
+      body: JSON.stringify({ targetFolderId }),
+    }),
+  dataRoomMoveFolder: (caseId: string, folderId: string, targetFolderId: string | null): Promise<void> =>
+    request<void>(`/cases/${caseId}/data-room/folders/${folderId}/move`, {
+      method: 'PATCH',
+      body: JSON.stringify({ targetFolderId }),
+    }),
+
+  dataRoomImportFromDrive: (caseId: string, accessToken: string, fileIds: string[], folderId?: string | null) =>
     request<{ imported: DataRoomFile[]; failed: { fileId: string; error: string }[] }>(
       `/cases/${caseId}/data-room/import/google-drive`,
-      { method: 'POST', body: JSON.stringify({ accessToken, fileIds }) },
+      { method: 'POST', body: JSON.stringify({ accessToken, fileIds, folderId }) },
     ),
 
   /**
@@ -605,6 +642,7 @@ export const apiClient = {
     caseId: string,
     file: File,
     onProgress?: (loaded: number, total: number) => void,
+    folderId?: string | null,
   ): Promise<DataRoomFile> => {
     let token: string | null = null;
     try {
@@ -619,7 +657,10 @@ export const apiClient = {
 
     return new Promise<DataRoomFile>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${API_BASE}/cases/${caseId}/data-room/files`);
+      const uploadUrl = folderId
+        ? `${API_BASE}/cases/${caseId}/data-room/files?folderId=${encodeURIComponent(folderId)}`
+        : `${API_BASE}/cases/${caseId}/data-room/files`;
+      xhr.open('POST', uploadUrl);
       if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
       if (onProgress) {

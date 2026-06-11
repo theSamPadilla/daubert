@@ -32,6 +32,12 @@
         schema:
           type: string
           format: uuid
+      - name: folderId
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
     requestBody:
       required: true
       content:
@@ -142,6 +148,236 @@
               $ref: '../schemas/common.yaml#/ErrorResponse'
       '404':
         description: Case not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/cases/{caseId}/data-room/contents:
+  get:
+    summary: Get data room contents for a folder (or root)
+    operationId: dataRoomGetContents
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: folderId
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+    responses:
+      '200':
+        description: Contents of the requested folder
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/data-room.yaml#/DataRoomContents'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Case or folder not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/cases/{caseId}/data-room/folders:
+  post:
+    summary: Create a folder in the data room
+    operationId: dataRoomCreateFolder
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/data-room.yaml#/CreateFolderRequest'
+    responses:
+      '201':
+        description: Created folder
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/data-room.yaml#/DataRoomFolder'
+      '400':
+        description: Invalid input
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Case not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/cases/{caseId}/data-room/folders/{folderId}:
+  delete:
+    summary: Delete a folder from the data room
+    operationId: dataRoomDeleteFolder
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: folderId
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: No Content
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Case or folder not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/cases/{caseId}/data-room/files/{fileId}/move:
+  patch:
+    summary: Move a file to a different folder
+    operationId: dataRoomMoveFile
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/data-room.yaml#/MoveRequest'
+    responses:
+      '204':
+        description: No Content
+      '400':
+        description: Invalid input
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Case or file not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/cases/{caseId}/data-room/folders/{folderId}/move:
+  patch:
+    summary: Move a folder to a different parent folder
+    operationId: dataRoomMoveFolder
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: folderId
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/data-room.yaml#/MoveRequest'
+    responses:
+      '204':
+        description: No Content
+      '400':
+        description: Invalid input
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Case or folder not found
         content:
           application/json:
             schema:

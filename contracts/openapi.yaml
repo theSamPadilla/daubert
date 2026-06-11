@@ -121,6 +121,16 @@ paths:
     $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1files~1{fileId}'
   /cases/{caseId}/data-room/import/google-drive:
     $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1import~1google-drive'
+  /cases/{caseId}/data-room/contents:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1contents'
+  /cases/{caseId}/data-room/folders:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1folders'
+  /cases/{caseId}/data-room/folders/{folderId}:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1folders~1{folderId}'
+  /cases/{caseId}/data-room/files/{fileId}/move:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1files~1{fileId}~1move'
+  /cases/{caseId}/data-room/folders/{folderId}/move:
+    $ref: './paths/data-room.yaml#/~1cases~1{caseId}~1data-room~1folders~1{folderId}~1move'
   /orgs/{org}:
     $ref: './paths/organizations.yaml#/~1orgs~1{org}'
   /orgs/{org}/members:
@@ -264,6 +274,14 @@ components:
       $ref: './schemas/auth-email.yaml#/VerifyOtpResponse'
     DataRoomFile:
       $ref: './schemas/data-room.yaml#/DataRoomFile'
+    DataRoomFolder:
+      $ref: './schemas/data-room.yaml#/DataRoomFolder'
+    DataRoomContents:
+      $ref: './schemas/data-room.yaml#/DataRoomContents'
+    CreateFolderRequest:
+      $ref: './schemas/data-room.yaml#/CreateFolderRequest'
+    MoveRequest:
+      $ref: './schemas/data-room.yaml#/MoveRequest'
     ImportFromDriveRequest:
       $ref: './schemas/data-room.yaml#/ImportFromDriveRequest'
     ImportFromDriveResponse:

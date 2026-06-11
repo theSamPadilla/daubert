@@ -22,4 +22,8 @@ export class DataRoomFileEntity extends BaseEntity {
 
   @Column({ name: 'uploaded_by_user_id' })
   uploadedByUserId: string;
+
+  @Index()
+  @Column({ name: 'folder_id', type: 'varchar', nullable: true }) // null = root
+  folderId: string | null;
 }

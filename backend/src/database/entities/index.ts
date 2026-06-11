@@ -4,6 +4,7 @@ import { CaseMemberEntity } from './case-member.entity';
 import { ConversationEntity } from './conversation.entity';
 import { DataRoomAccessLogEntity } from './data-room-access-log.entity';
 import { DataRoomFileEntity } from './data-room-file.entity';
+import { DataRoomFolderEntity } from './data-room-folder.entity';
 import { InvestigationEntity } from './investigation.entity';
 import { LabeledEntityEntity } from './labeled-entity.entity';
 import { MessageEntity } from './message.entity';
@@ -25,6 +26,7 @@ export const entities = [
   ConversationEntity,
   DataRoomAccessLogEntity,
   DataRoomFileEntity,
+  DataRoomFolderEntity,
   InvestigationEntity,
   LabeledEntityEntity,
   MessageEntity,

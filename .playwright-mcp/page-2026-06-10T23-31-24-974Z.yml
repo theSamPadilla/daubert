@@ -1,0 +1,134 @@
+- generic [ref=e1]:
+  - alert [ref=e10]
+  - generic [ref=e11]:
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - button "Back to cases" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+        - generic [ref=e18]:
+          - generic [ref=e19]: Case
+          - paragraph [ref=e20]: Test Case 2
+      - generic [ref=e21]:
+        - generic [ref=e22]: Investigations
+        - button "+" [ref=e23] [cursor=pointer]
+      - generic [ref=e24]:
+        - generic [ref=e26] [cursor=pointer]:
+          - button [ref=e27]:
+            - img [ref=e28]
+          - generic [ref=e30]: Test Investigation
+          - button "Edit investigation" [ref=e31]:
+            - img [ref=e32]
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - generic [ref=e36]: Productions
+            - button "+" [ref=e37] [cursor=pointer]
+          - paragraph [ref=e38]: No productions yet.
+        - generic [ref=e39]:
+          - generic [ref=e41]: Data Room
+          - link "Files" [ref=e42] [cursor=pointer]:
+            - /url: /cases/4bec0fa7-ab52-4af2-9ad6-54e5f5b9d990/data-room
+        - button "Exhibit" [ref=e44] [cursor=pointer]:
+          - img [ref=e45]
+          - generic [ref=e47]: Exhibit
+      - button "Settings" [ref=e49] [cursor=pointer]:
+        - img [ref=e50]
+        - generic [ref=e52]: Settings
+    - generic [ref=e54]:
+      - button "Collapse sidebar" [ref=e55] [cursor=pointer]:
+        - img [ref=e56]
+      - button "Collapse chat" [ref=e58] [cursor=pointer]:
+        - img [ref=e59]
+      - generic [ref=e61]:
+        - banner [ref=e62]:
+          - heading "Data Room" [level=1] [ref=e64]
+          - button "Sam Padilla Sam Padilla" [ref=e67] [cursor=pointer]:
+            - img "Sam Padilla" [ref=e68]
+            - generic [ref=e69]: Sam Padilla
+            - img [ref=e70]
+        - generic [ref=e73]:
+          - generic [ref=e74]:
+            - button "Upload file" [ref=e75] [cursor=pointer]:
+              - img [ref=e76]
+              - text: Upload file
+            - button "Add from Google Drive" [ref=e78] [cursor=pointer]:
+              - img [ref=e79]
+              - text: Add from Google Drive
+            - paragraph [ref=e81]: Max 50MB per upload.
+          - generic [ref=e82]:
+            - generic [ref=e83]: 1 file
+            - generic [ref=e84]:
+              - button "List view" [ref=e85] [cursor=pointer]:
+                - img [ref=e86]
+              - button "Grid view" [active] [ref=e88] [cursor=pointer]:
+                - img [ref=e89]
+          - generic [ref=e92]:
+            - img [ref=e95]
+            - generic [ref=e97]:
+              - generic "sun_wallet_transaction_chronology.xlsx" [ref=e98]
+              - generic [ref=e99]: Spreadsheet · 23.7 KB
+            - generic [ref=e100]:
+              - button "Download" [ref=e101] [cursor=pointer]:
+                - img [ref=e102]
+              - button "Delete" [ref=e104] [cursor=pointer]:
+                - img [ref=e105]
+    - generic [ref=e109]:
+      - generic [ref=e110]:
+        - generic [ref=e112]: Adding Random Node to Test
+        - generic [ref=e113]:
+          - combobox [ref=e114] [cursor=pointer]:
+            - option "Opus 4.7" [selected]
+            - option "Opus 4.6"
+            - option "Sonnet 4.6"
+            - option "Haiku 4.5"
+          - button "Conversation history" [ref=e115] [cursor=pointer]:
+            - img [ref=e116]
+          - button "+" [ref=e119] [cursor=pointer]
+      - generic [ref=e120]:
+        - generic [ref=e122]: Can you add a random node in the test investigation?
+        - paragraph [ref=e126]: Let me first get the case data to find the investigation ID and load the graph-mutations skill for the correct endpoint format.
+        - paragraph [ref=e130]:
+          - text: I can see the
+          - strong [ref=e131]: Test Investigation
+          - text: (
+          - code [ref=e132]: 065c7c01-6cd9-437d-9bcc-ce20c4dc9820
+          - text: ) exists but has
+          - strong [ref=e133]: 0 traces
+          - text: . I'll need to create a trace first, then add a node to it. Let me write a script to do both.
+        - generic [ref=e136]:
+          - paragraph [ref=e137]:
+            - text: Done! Here's what I added to the
+            - strong [ref=e138]: Test Investigation
+            - text: ":"
+          - list [ref=e139]:
+            - listitem [ref=e140]:
+              - strong [ref=e141]: Created a new trace
+              - text: called "Test Trace"
+            - listitem [ref=e142]:
+              - strong [ref=e143]: Imported 2 nodes
+              - text: "connected by 1 edge:"
+              - list [ref=e144]:
+                - listitem [ref=e145]:
+                  - link "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" [ref=e146] [cursor=pointer]:
+                    - /url: https://etherscan.io/address/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+                  - text: — Vitalik Buterin's well-known address
+                - listitem [ref=e147]:
+                  - link "0x00000000219ab540356cBB839Cbe05303d7705Fa" [ref=e148] [cursor=pointer]:
+                    - /url: https://etherscan.io/address/0x00000000219ab540356cBB839Cbe05303d7705Fa
+                  - text: — the Ethereum Beacon Deposit Contract
+                - listitem [ref=e149]:
+                  - text: A
+                  - strong [ref=e150]: 1.0 ETH
+                  - text: transaction between them
+          - paragraph [ref=e151]: You should see the nodes and edge appear on the graph now. Let me know if you'd like to modify anything!
+        - generic [ref=e153]: What model are you?
+        - generic [ref=e156]:
+          - paragraph [ref=e157]: I'm Claude, made by Anthropic. I don't have specific information about which exact version of Claude I am. If you need that detail, you might be able to find it in the Daubert app's settings or documentation.
+          - paragraph [ref=e158]: Is there anything else you'd like me to help with on the investigation?
+      - generic [ref=e160]:
+        - button "Attach image or PDF" [ref=e161] [cursor=pointer]:
+          - img [ref=e162]
+        - generic [ref=e164]:
+          - textbox "Ask me anything…" [ref=e165]
+          - button "Expand" [ref=e166] [cursor=pointer]:
+            - img [ref=e167]
+        - button "Send" [disabled] [ref=e169]

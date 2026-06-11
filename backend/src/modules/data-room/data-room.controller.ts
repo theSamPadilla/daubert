@@ -6,7 +6,9 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
+  Query,
   Req,
   Res,
   StreamableFile,
@@ -18,6 +20,7 @@ import busboy = require('busboy');
 import { RequireRole } from '../auth/require-role.decorator';
 import { DataRoomService } from './data-room.service';
 import { ImportFromDriveDto } from './dto/import-drive.dto';
+import { CreateFolderDto, MoveRequestDto } from './dto/folder.dto';
 
 const UPLOAD_LIMIT_BYTES = 50 * 1024 * 1024; // 50 MiB
 
@@ -78,6 +81,7 @@ export class DataRoomController {
   @Post('cases/:caseId/data-room/files')
   async upload(
     @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Query('folderId') folderId: string | undefined,
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
@@ -117,6 +121,7 @@ export class DataRoomController {
           info.filename,
           info.mimeType,
           fileStream,
+          folderId ?? null,
         );
         if (oversize) return; // 413 already sent; don't double-respond
         safeRespond(200, file);
@@ -152,7 +157,13 @@ export class DataRoomController {
     @Body() dto: ImportFromDriveDto,
     @Req() req: Request,
   ) {
-    return this.service.importFromDrive(caseId, (req as any).user.id, dto.accessToken, dto.fileIds);
+    return this.service.importFromDrive(
+      caseId,
+      (req as any).user.id,
+      dto.accessToken,
+      dto.fileIds,
+      dto.folderId ?? null,
+    );
   }
 
   @RequireRole('editor')
@@ -164,6 +175,69 @@ export class DataRoomController {
     @Req() req: Request,
   ): Promise<void> {
     await this.service.deleteFile(caseId, (req as any).user.id, fileId);
+  }
+
+  // ----------------------------- Contents -----------------------------
+
+  @RequireRole('viewer')
+  @Get('cases/:caseId/data-room/contents')
+  async listContents(
+    @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Query('folderId') folderId?: string,
+  ) {
+    return this.service.listContents(caseId, folderId ?? null);
+  }
+
+  // ----------------------------- Folders -----------------------------
+
+  @RequireRole('editor')
+  @Post('cases/:caseId/data-room/folders')
+  async createFolder(
+    @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Body() dto: CreateFolderDto,
+    @Req() req: Request,
+  ) {
+    return this.service.createFolder(
+      caseId,
+      (req as any).user.id,
+      dto.name,
+      dto.parentFolderId ?? null,
+    );
+  }
+
+  @RequireRole('editor')
+  @Delete('cases/:caseId/data-room/folders/:folderId')
+  @HttpCode(204)
+  async deleteFolder(
+    @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Param('folderId') folderId: string,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.service.deleteFolder(caseId, (req as any).user.id, folderId);
+  }
+
+  @RequireRole('editor')
+  @Patch('cases/:caseId/data-room/files/:fileId/move')
+  @HttpCode(204)
+  async moveFile(
+    @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Param('fileId') fileId: string,
+    @Body() dto: MoveRequestDto,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.service.moveFile(caseId, (req as any).user.id, fileId, dto.targetFolderId);
+  }
+
+  @RequireRole('editor')
+  @Patch('cases/:caseId/data-room/folders/:folderId/move')
+  @HttpCode(204)
+  async moveFolder(
+    @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Param('folderId') folderId: string,
+    @Body() dto: MoveRequestDto,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.service.moveFolder(caseId, (req as any).user.id, folderId, dto.targetFolderId);
   }
 }
 

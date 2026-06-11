@@ -16,6 +16,66 @@ DataRoomFile:
       type: string
       format: date-time
 
+DataRoomFolder:
+  type: object
+  required: [id, caseId, name, createdByUserId, createdAt]
+  properties:
+    id:
+      type: string
+    caseId:
+      type: string
+    parentFolderId:
+      type: string
+      nullable: true
+    name:
+      type: string
+    createdByUserId:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+
+DataRoomContents:
+  type: object
+  required: [breadcrumb, folders, files]
+  properties:
+    breadcrumb:
+      type: array
+      items:
+        type: object
+        required: [id, name]
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+    folders:
+      type: array
+      items:
+        $ref: './data-room.yaml#/DataRoomFolder'
+    files:
+      type: array
+      items:
+        $ref: './data-room.yaml#/DataRoomFile'
+
+CreateFolderRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+    parentFolderId:
+      type: string
+      nullable: true
+
+MoveRequest:
+  type: object
+  required: [targetFolderId]
+  properties:
+    targetFolderId:
+      type: string
+      nullable: true
+
 ImportFromDriveRequest:
   type: object
   required: [accessToken, fileIds]
@@ -28,6 +88,9 @@ ImportFromDriveRequest:
         type: string
       minItems: 1
       maxItems: 25
+    folderId:
+      type: string
+      nullable: true
 
 ImportFromDriveResponse:
   type: object

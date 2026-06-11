@@ -267,6 +267,47 @@ describe('DataRoomController', () => {
   });
 
   // ----------------------------------------------------------------
+  // exportToDrive
+  // ----------------------------------------------------------------
+
+  describe('exportToDrive', () => {
+    it('delegates to service.exportToDrive and returns the result', async () => {
+      const mockResult = { exported: [{ id: MOCK_FILE_ID, name: 'doc.pdf' }], failed: [] };
+      mockService.exportToDrive.mockResolvedValueOnce(mockResult);
+
+      const dto = { accessToken: 't', fileIds: ['a', 'b'] };
+      const req: any = { user: { id: 'u1' } };
+      const result = await controller.exportToDrive(MOCK_CASE_ID, dto as any, req);
+
+      expect(mockService.exportToDrive).toHaveBeenCalledWith(
+        MOCK_CASE_ID,
+        'u1',
+        't',
+        ['a', 'b'],
+        null,
+      );
+      expect(result).toBe(mockResult);
+    });
+
+    it('passes destinationFolderId to service.exportToDrive when provided', async () => {
+      const mockResult = { exported: [], failed: [] };
+      mockService.exportToDrive.mockResolvedValueOnce(mockResult);
+
+      const dto = { accessToken: 't', fileIds: ['a'], destinationFolderId: MOCK_FOLDER_ID };
+      const req: any = { user: { id: 'u1' } };
+      await controller.exportToDrive(MOCK_CASE_ID, dto as any, req);
+
+      expect(mockService.exportToDrive).toHaveBeenCalledWith(
+        MOCK_CASE_ID,
+        'u1',
+        't',
+        ['a'],
+        MOCK_FOLDER_ID,
+      );
+    });
+  });
+
+  // ----------------------------------------------------------------
   // listContents
   // ----------------------------------------------------------------
 

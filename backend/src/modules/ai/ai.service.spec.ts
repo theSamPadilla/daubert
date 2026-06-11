@@ -11,9 +11,9 @@ import { AnthropicProvider } from './providers/anthropic.provider';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
-import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { ConversationEntity } from '../../database/entities/conversation.entity';
 import { TokenUsageService } from '../superadmin/token-usage/token-usage.service';
+import { DataRoomService } from '../data-room/data-room.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { AGENT_TOOLS, READ_ONLY_AGENT_TOOLS } from './tools';
 import { CaseRole } from '../../database/entities/case-member.entity';
@@ -29,7 +29,7 @@ const mockAnthropicProvider = { streamChat: jest.fn(), generateText: jest.fn() }
 const mockMessageRepo = { find: jest.fn(), save: jest.fn((e: any) => Promise.resolve({ id: 'msg-saved-id', ...e })), create: jest.fn((e: any) => e) };
 const mockInvestigationRepo = { find: jest.fn(), findOneBy: jest.fn() };
 const mockTraceRepo = { findOneBy: jest.fn(), save: jest.fn() };
-const mockDataRoomRepo = { find: jest.fn(), count: jest.fn().mockResolvedValue(0) };
+const mockDataRoomService = { getManifest: jest.fn(), getFileForAgentRead: jest.fn() };
 const mockConversationRepo = { findOne: jest.fn() };
 const mockTokenUsageService = { record: jest.fn() };
 
@@ -59,11 +59,12 @@ function makeTrace(overrides: Partial<TraceEntity> = {}): TraceEntity {
 
 describe('AiService — executeTool label cases', () => {
   let aiService: AiService;
+  let module: TestingModule;
 
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         AiService,
         { provide: ConversationsService, useValue: mockConversationsService },
@@ -76,7 +77,7 @@ describe('AiService — executeTool label cases', () => {
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
-        { provide: getRepositoryToken(DataRoomFileEntity), useValue: mockDataRoomRepo },
+        { provide: DataRoomService, useValue: mockDataRoomService },
         { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
       ],
     }).compile();
@@ -260,6 +261,27 @@ describe('AiService — executeTool label cases', () => {
       expect(savedData.labels[0].anchor).toMatchObject({ type: 'node', anchorId: 'n1' });
     });
   });
+
+  // ── get_case_data ──────────────────────────────────────────────────────────
+
+  describe('get_case_data', () => {
+    it('includes the data-room manifest in get_case_data', async () => {
+      mockInvestigationRepo.find.mockResolvedValue([]);
+      mockProductionsService.findAllForCase.mockResolvedValue([]);
+
+      const dataRoomService = module.get(DataRoomService);
+      (dataRoomService.getManifest as jest.Mock).mockResolvedValue({
+        files: [{ id: 'a', name: 'x.pdf', mimeType: 'application/pdf', size: 10, folder: '/' }],
+        total: 1,
+        truncated: false,
+      });
+      const result: any = await (aiService as any).executeTool(
+        toolUse('get_case_data', {}), 'case1', undefined, 'viewer',
+      );
+      expect(result.dataRoom).toMatchObject({ available: true, fileCount: 1, truncated: false });
+      expect(result.dataRoom.files).toHaveLength(1);
+    });
+  });
 });
 
 // ── Role-based tool registry ───────────────────────────────────────────────
@@ -283,7 +305,7 @@ describe('AiService — pickToolsForRole', () => {
         { provide: getRepositoryToken(MessageEntity), useValue: { find: jest.fn() } },
         { provide: getRepositoryToken(InvestigationEntity), useValue: { find: jest.fn(), findOneBy: jest.fn() } },
         { provide: getRepositoryToken(TraceEntity), useValue: { findOneBy: jest.fn(), save: jest.fn() } },
-        { provide: getRepositoryToken(DataRoomFileEntity), useValue: { find: jest.fn(), count: jest.fn().mockResolvedValue(0) } },
+        { provide: DataRoomService, useValue: { getManifest: jest.fn(), getFileForAgentRead: jest.fn() } },
         { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
       ],
     }).compile();
@@ -382,7 +404,7 @@ describe('AiService — token usage metering', () => {
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
-        { provide: getRepositoryToken(DataRoomFileEntity), useValue: mockDataRoomRepo },
+        { provide: DataRoomService, useValue: mockDataRoomService },
         { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
       ],
     }).compile();

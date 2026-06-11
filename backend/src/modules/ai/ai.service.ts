@@ -6,7 +6,6 @@ import Anthropic from '@anthropic-ai/sdk';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
-import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { ConversationEntity } from '../../database/entities/conversation.entity';
 import { TokenUsageService } from '../superadmin/token-usage/token-usage.service';
 import { INVESTIGATOR_PROMPT } from '../../prompts/investigator';
@@ -17,6 +16,7 @@ import { EntityCategory } from '../../database/entities/labeled-entity.entity';
 import { ProductionsService } from '../productions/productions.service';
 import { ProductionType } from '../../database/entities/production.entity';
 import { TracesService } from '../traces/traces.service';
+import { DataRoomService } from '../data-room/data-room.service';
 import { LabelAnchor } from '../traces/label-schema';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import {
@@ -266,6 +266,8 @@ export interface SseEvent {
 }
 
 const MAX_ITERATIONS = 10;
+const DATA_ROOM_MANIFEST_LIMIT = 25;
+const MAX_AGENT_READ_BYTES = 5 * 1024 * 1024; // 5 MB raw; buildAttachmentBlocks caps base64 beyond this
 
 @Injectable()
 export class AiService {
@@ -278,6 +280,7 @@ export class AiService {
     private readonly labeledEntitiesService: LabeledEntitiesService,
     private readonly productionsService: ProductionsService,
     private readonly tracesService: TracesService,
+    private readonly dataRoomService: DataRoomService,
     private readonly tokenUsageService: TokenUsageService,
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
@@ -285,8 +288,6 @@ export class AiService {
     private readonly investigationRepo: Repository<InvestigationEntity>,
     @InjectRepository(TraceEntity)
     private readonly traceRepo: Repository<TraceEntity>,
-    @InjectRepository(DataRoomFileEntity)
-    private readonly dataRoomFileRepo: Repository<DataRoomFileEntity>,
     @InjectRepository(ConversationEntity)
     private readonly conversationRepo: Repository<ConversationEntity>,
   ) {}
@@ -886,8 +887,13 @@ export class AiService {
       type: p.type,
     }));
 
-    const fileCount = await this.dataRoomFileRepo.count({ where: { caseId } });
-    const dataRoom = { available: true, fileCount };
+    const manifest = await this.dataRoomService.getManifest(caseId, DATA_ROOM_MANIFEST_LIMIT);
+    const dataRoom = {
+      available: true,
+      fileCount: manifest.total,
+      truncated: manifest.truncated,
+      files: manifest.files,
+    };
 
     return { investigations: investigationSummaries, productions: productionSummaries, dataRoom };
   }

@@ -35,6 +35,7 @@ import { pickDriveFiles } from '@/lib/google-picker';
 import { Loader } from '@/components/Common/Loader';
 import { PageHeader } from '@/components/Common/PageHeader';
 import UserMenu from '@/components/Auth/UserMenu';
+import { useConfirm } from '@/components/Common/ConfirmProvider';
 import { useCaseContext } from '@/contexts/CaseContext';
 
 function formatBytes(raw: string | undefined): string {
@@ -84,6 +85,7 @@ export default function DataRoomPage() {
   const caseId = params.caseId as string;
   const { viewerRole } = useCaseContext();
   const canMutate = viewerRole === 'owner' || viewerRole === 'editor';
+  const confirm = useConfirm();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +191,17 @@ export default function DataRoomPage() {
   };
 
   const handleDelete = async (file: DataRoomFile) => {
-    if (!confirm(`Delete "${file.name}"? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: 'Delete file?',
+      message: (
+        <>
+          Delete <span className="text-white">{file.name}</span>. This cannot be undone.
+        </>
+      ),
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await apiClient.dataRoomDeleteFile(caseId, file.id);
       await fetchContents();
@@ -238,12 +250,18 @@ export default function DataRoomPage() {
   };
 
   const handleDeleteFolder = async (folder: DataRoomFolder) => {
-    if (
-      !confirm(
-        `Delete folder "${folder.name}" and everything inside it? This permanently deletes all files and subfolders within. This cannot be undone.`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: 'Delete folder?',
+      message: (
+        <>
+          Delete folder <span className="text-white">{folder.name}</span> and everything inside it.
+          This permanently deletes all files and subfolders within and cannot be undone.
+        </>
+      ),
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await apiClient.dataRoomDeleteFolder(caseId, folder.id);
       await fetchContents();

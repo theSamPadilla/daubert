@@ -18,6 +18,7 @@ const mockService = {
   getFileForDownload: jest.fn(),
   deleteFile: jest.fn(),
   importFromDrive: jest.fn(),
+  exportToDrive: jest.fn(),
   listContents: jest.fn(),
   createFolder: jest.fn(),
   deleteFolder: jest.fn(),
@@ -90,6 +91,11 @@ describe('DataRoomController', () => {
         controller.importFromDrive,
       );
       expect(role).toBe('editor');
+    });
+
+    it('POST export/google-drive requires viewer', () => {
+      const role = Reflect.getMetadata(REQUIRED_ROLE_KEY, controller.exportToDrive);
+      expect(role).toBe('viewer');
     });
 
     it('GET contents requires viewer', () => {

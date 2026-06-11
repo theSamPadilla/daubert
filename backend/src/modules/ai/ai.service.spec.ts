@@ -282,6 +282,50 @@ describe('AiService — executeTool label cases', () => {
       expect(result.dataRoom.files).toHaveLength(1);
     });
   });
+
+  // ── data-room tools ──────────────────────────────────────────────────────────
+
+  describe('data-room tools', () => {
+    it('list_data_room_files returns the manifest', async () => {
+      const dataRoomService = module.get(DataRoomService);
+      (dataRoomService.getManifest as jest.Mock).mockResolvedValue({ files: [{ id: 'a', name: 'x', mimeType: 'text/csv', size: 1, folder: '/' }], total: 1, truncated: false });
+      const res: any = await (aiService as any).executeTool(toolUse('list_data_room_files', {}), 'case1', undefined, 'viewer');
+      expect(res.files).toHaveLength(1);
+      expect(dataRoomService.getManifest).toHaveBeenCalledWith('case1'); // no limit = full list
+    });
+
+    it('read_data_room_file returns a sentinel with content blocks for a supported file', async () => {
+      const dataRoomService = module.get(DataRoomService);
+      const { Readable } = require('stream');
+      (dataRoomService.getFileForAgentRead as jest.Mock).mockResolvedValue({
+        tooLarge: false, name: 'data.csv', mimeType: 'text/csv', size: 3, stream: Readable.from([Buffer.from('a,b')]),
+      });
+      const res: any = await (aiService as any).executeTool(toolUse('read_data_room_file', { fileId: 'a' }), 'case1', undefined, 'viewer');
+      expect(res.__agentReadBlocks).toBeDefined();
+      expect(Array.isArray(res.__agentReadBlocks)).toBe(true);
+      expect(res.__agentReadBlocks.length).toBeGreaterThan(0);
+      expect(res.summary).toMatchObject({ name: 'data.csv', mimeType: 'text/csv' });
+    });
+
+    it('read_data_room_file returns a too-large note without content blocks', async () => {
+      const dataRoomService = module.get(DataRoomService);
+      (dataRoomService.getFileForAgentRead as jest.Mock).mockResolvedValue({ tooLarge: true, name: 'big.pdf', mimeType: 'application/pdf', size: 99 * 1024 * 1024 });
+      const res: any = await (aiService as any).executeTool(toolUse('read_data_room_file', { fileId: 'a' }), 'case1', undefined, 'viewer');
+      expect(res.__agentReadBlocks).toBeUndefined();
+      expect(res.error || res.note).toBeTruthy();
+    });
+
+    it('read_data_room_file returns an unsupported note when the extractor yields no blocks', async () => {
+      const dataRoomService = module.get(DataRoomService);
+      const { Readable } = require('stream');
+      (dataRoomService.getFileForAgentRead as jest.Mock).mockResolvedValue({
+        tooLarge: false, name: 'sheet.gdoc', mimeType: 'application/vnd.google-apps.document', size: 5, stream: Readable.from([Buffer.from('x')]),
+      });
+      const res: any = await (aiService as any).executeTool(toolUse('read_data_room_file', { fileId: 'a' }), 'case1', undefined, 'viewer');
+      expect(res.__agentReadBlocks).toBeUndefined();
+      expect(res.error || res.note).toBeTruthy();
+    });
+  });
 });
 
 // ── Role-based tool registry ───────────────────────────────────────────────

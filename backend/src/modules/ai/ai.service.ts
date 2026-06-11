@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
+import { Readable } from 'stream';
 import Anthropic from '@anthropic-ai/sdk';
 import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
@@ -36,6 +37,8 @@ import {
   DELETE_LABEL_TOOL,
   MOVE_LABEL_TOOL,
   TETHER_LABEL_TOOL,
+  LIST_DATA_ROOM_FILES_TOOL,
+  READ_DATA_ROOM_FILE_TOOL,
   SKILL_NAMES,
   getSkillContent,
 } from './tools';
@@ -222,6 +225,14 @@ function mergeConsecutiveRoles(
     }
   }
   return merged;
+}
+
+/** Buffer a readable stream fully into memory. Used to materialise a data-room
+ *  file before handing it to buildAttachmentBlocks (which needs base64). */
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  return Buffer.concat(chunks);
 }
 
 /**
@@ -524,10 +535,14 @@ export class AiService {
         // Execute tools — keep full results in memory, slim versions for DB
         const toolResults: Anthropic.ToolResultBlockParam[] = [];
         const slimResults: Anthropic.ToolResultBlockParam[] = [];
+        // File content from read_data_room_file goes into its OWN user turn (see
+        // below) — the compact-2026-01-12 beta forbids non-tool_result blocks in
+        // a tool-responding user turn.
+        const extraUserBlocks: Anthropic.Beta.BetaContentBlockParam[] = [];
         for (const toolUse of toolUseBlocks) {
           yield { type: 'tool_start', data: { name: toolUse.name, input: toolUse.input } };
 
-          const result = await this.executeTool(toolUse, caseId, investigationId, viewerRole);
+          const result = await this.executeTool(toolUse, caseId, investigationId, viewerRole, userId);
 
           yield { type: 'tool_done', data: { name: toolUse.name } };
 
@@ -540,6 +555,19 @@ export class AiService {
             toolUse.name === UPDATE_PRODUCTION_TOOL.name
           ) {
             yield { type: 'production_updated', data: {} };
+          }
+
+          // read_data_room_file sentinel: the tool_result carries only a slim
+          // summary; the actual file content is queued for a SEPARATE user turn
+          // (the beta forbids mixing it into the tool_result turn) and is never
+          // persisted, so a large file doesn't reload on every future turn.
+          if (result && typeof result === 'object' && '__agentReadBlocks' in (result as any)) {
+            const r = result as { __agentReadBlocks: Anthropic.Beta.BetaContentBlockParam[]; summary: unknown };
+            const summary = JSON.stringify(r.summary);
+            toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: summary });
+            slimResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: summary });
+            extraUserBlocks.push(...r.__agentReadBlocks);
+            continue;
           }
 
           const fullContent = JSON.stringify(result);
@@ -591,6 +619,15 @@ export class AiService {
         if (toolResults.length > 0) {
           messages.push({ role: 'user', content: toolResults });
         }
+        if (extraUserBlocks.length > 0) {
+          // The compact-2026-01-12 beta forbids non-tool_result blocks in a
+          // tool-responding user turn, so file content goes in its own user turn,
+          // separated by a synthetic assistant message (same pattern as
+          // mergeConsecutiveRoles). In-memory only — never persisted, so a large
+          // file does not reload on every future turn.
+          messages.push({ role: 'assistant', content: [{ type: 'text', text: '(file content follows)' }] });
+          messages.push({ role: 'user', content: extraUserBlocks });
+        }
 
       }
 
@@ -626,6 +663,7 @@ export class AiService {
     caseId: string | undefined,
     investigationId: string | undefined,
     viewerRole: CaseRole,
+    userId: string,
   ): Promise<unknown> {
     switch (toolUse.name) {
       case GET_CASE_DATA_TOOL.name: {
@@ -849,9 +887,60 @@ export class AiService {
         } catch (e) { return { error: (e as Error).message }; }
       }
 
+      case LIST_DATA_ROOM_FILES_TOOL.name: {
+        if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
+        return this.dataRoomService.getManifest(caseId); // full manifest: { files, total, truncated }
+      }
+
+      case READ_DATA_ROOM_FILE_TOOL.name: {
+        if (!caseId) return { error: 'No case context. Ask the user to open a case.' };
+        const { fileId } = toolUse.input as { fileId?: string };
+        if (!fileId) return { error: 'fileId is required.' };
+        return this.executeReadDataRoomFile(caseId, userId, fileId);
+      }
+
       default:
         return { error: `Unknown tool: ${toolUse.name}` };
     }
+  }
+
+  private async executeReadDataRoomFile(
+    caseId: string,
+    userId: string,
+    fileId: string,
+  ): Promise<unknown> {
+    let read;
+    try {
+      read = await this.dataRoomService.getFileForAgentRead(caseId, userId, fileId, MAX_AGENT_READ_BYTES);
+    } catch (e) {
+      if (e instanceof NotFoundException) return { error: 'File not found in this case.' };
+      throw e;
+    }
+    if (read.tooLarge) {
+      return {
+        error: `File "${read.name}" is too large to read inline (${(read.size / (1024 * 1024)).toFixed(1)} MB). Ask the user to extract the relevant portion, or use execute_script for bulk processing.`,
+        name: read.name, mimeType: read.mimeType, size: read.size,
+      };
+    }
+    const buffer = await streamToBuffer(read.stream!);
+    const blocks = await buildAttachmentBlocks([
+      { name: read.name, mediaType: read.mimeType, data: buffer.toString('base64') },
+    ]);
+    if (blocks.length === 0) {
+      return {
+        error: `File "${read.name}" (${read.mimeType}) is not a readable type. Supported: PDF, images, xlsx, docx, csv, txt.`,
+        name: read.name, mimeType: read.mimeType,
+      };
+    }
+    return {
+      __agentReadBlocks: blocks,
+      summary: {
+        name: read.name,
+        mimeType: read.mimeType,
+        size: read.size,
+        note: 'File content provided below for this turn only; it is not retained in history. Call read_data_room_file again if you need it later.',
+      },
+    };
   }
 
   // ---- Tool implementations ----

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
 import {
   FaPen, FaChevronRight, FaChevronDown, FaArrowLeft,
-  FaFileLines, FaChartLine, FaTableList, FaGear, FaPlus,
+  FaFileLines, FaChartLine, FaTableList, FaGear, FaPlus, FaFolder,
 } from 'react-icons/fa6';
 
 const PRODUCTION_TYPE_ORDER = ['report', 'chart', 'chronology'] as const;
@@ -276,51 +276,43 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           })()}
         </div>
 
-        {/* Data Room */}
+        {/* Data Room — single nav destination (no section header) */}
         {(() => {
           const dataRoomHref = `/cases/${caseId}/data-room`;
           const dataRoomActive = pathname === dataRoomHref || pathname?.startsWith(dataRoomHref + '/');
           return (
-            <div className="mt-2 border-t border-line-strong">
-              <div className="px-3 py-2 flex items-center justify-between border-b border-line-strong">
-                <span className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.14em]">Data Room</span>
-              </div>
+            <div className="mt-2 pt-2 border-t border-line-strong">
               <a
                 href={dataRoomHref}
                 onClick={(e) => {
                   e.preventDefault();
                   router.push(dataRoomHref);
                 }}
-                className={`block px-3 py-1.5 cursor-pointer text-sm transition-colors ${
+                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer text-sm transition-colors ${
                   dataRoomActive
                     ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand-ink)]'
-                    : 'hover:bg-surface-raised text-ink-muted'
+                    : 'hover:bg-surface-raised text-ink-muted hover:text-ink'
                 }`}
               >
-                <span className="font-medium">Files</span>
+                <FaFolder size={12} className="shrink-0 text-ink-faint" />
+                <span className="font-medium">Data Room</span>
               </a>
             </div>
           );
         })()}
-
-        {/* Exhibit CTA — case-level action, bottom of main content */}
-        {canMutate && (
-          <div className="mt-3 px-3 pb-3">
-            <button
-              onClick={() => setExhibitOpen(true)}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-brand-soft text-ink shadow-[inset_0_0_0_1px_var(--brand-ink)] hover:bg-brand hover:text-white transition-colors"
-              title="Create exhibit from investigations and productions"
-            >
-              <FaPlus size={10} />
-              <span>Exhibit</span>
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* Footer actions — visible to owners and editors */}
+      {/* Footer actions — Exhibit + Settings, pinned to the bottom (owners + editors) */}
       {canMutate && (
-        <div className="border-t border-line-strong px-3 py-2.5 shrink-0">
+        <div className="border-t border-line-strong px-3 py-2.5 shrink-0 space-y-2">
+          <button
+            onClick={() => setExhibitOpen(true)}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-brand-soft text-ink shadow-[inset_0_0_0_1px_var(--brand-ink)] hover:bg-brand hover:text-white transition-colors"
+            title="Create exhibit from investigations and productions"
+          >
+            <FaPlus size={10} />
+            <span>Exhibit</span>
+          </button>
           <button
             onClick={() => router.push(`/cases/${caseId}/settings`)}
             className="flex items-center gap-2 text-ink-faint hover:text-ink text-sm w-full transition-colors"

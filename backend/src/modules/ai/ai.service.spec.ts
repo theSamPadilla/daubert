@@ -300,11 +300,12 @@ describe('AiService — executeTool label cases', () => {
       (dataRoomService.getFileForAgentRead as jest.Mock).mockResolvedValue({
         tooLarge: false, name: 'data.csv', mimeType: 'text/csv', size: 3, stream: Readable.from([Buffer.from('a,b')]),
       });
-      const res: any = await (aiService as any).executeTool(toolUse('read_data_room_file', { fileId: 'a' }), 'case1', undefined, 'viewer');
+      const res: any = await (aiService as any).executeTool(toolUse('read_data_room_file', { fileId: 'a' }), 'case1', undefined, 'viewer', 'u1');
       expect(res.__agentReadBlocks).toBeDefined();
       expect(Array.isArray(res.__agentReadBlocks)).toBe(true);
       expect(res.__agentReadBlocks.length).toBeGreaterThan(0);
       expect(res.summary).toMatchObject({ name: 'data.csv', mimeType: 'text/csv' });
+      expect(dataRoomService.getFileForAgentRead).toHaveBeenCalledWith('case1', 'u1', 'a', 5 * 1024 * 1024);
     });
 
     it('read_data_room_file returns a too-large note without content blocks', async () => {

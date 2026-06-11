@@ -926,10 +926,16 @@ export class AiService {
     const blocks = await buildAttachmentBlocks([
       { name: read.name, mediaType: read.mimeType, data: buffer.toString('base64') },
     ]);
-    if (blocks.length === 0) {
+    const hasReadableContent = blocks.some((b) => b.type === 'document' || b.type === 'image');
+    if (!hasReadableContent) {
+      // Empty (unsupported type) or text-only (size/parse stub from
+      // buildAttachmentBlocks) — the agent can't use it. Return a note instead of
+      // injecting a stub that contradicts the "content follows" summary.
       return {
-        error: `File "${read.name}" (${read.mimeType}) is not a readable type. Supported: PDF, images, xlsx, docx, csv, txt.`,
-        name: read.name, mimeType: read.mimeType,
+        error: `File "${read.name}" (${read.mimeType}) could not be read inline — it is an unsupported type, too large for its format, or failed to parse. Supported: PDF, images, xlsx, docx, csv, txt.`,
+        name: read.name,
+        mimeType: read.mimeType,
+        size: read.size,
       };
     }
     return {

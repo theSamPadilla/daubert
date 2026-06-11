@@ -20,6 +20,7 @@ interface MockRepo {
   save: jest.Mock;
   remove: jest.Mock;
   delete: jest.Mock;
+  count: jest.Mock;
 }
 
 interface MockStorage {
@@ -54,6 +55,7 @@ describe('DataRoomService', () => {
       save: jest.fn(),
       remove: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     };
   }
 
@@ -747,6 +749,75 @@ describe('DataRoomService', () => {
       expect(fileRepo.delete).not.toHaveBeenCalled();
       expect(folderRepo.delete).toHaveBeenCalled();
       expect(storage.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getManifest
+  // ---------------------------------------------------------------------------
+  describe('getManifest', () => {
+    it('resolves folder paths and respects the limit/truncation', async () => {
+      folderRepo.find.mockResolvedValue([
+        { id: 'f1', caseId: 'c1', parentFolderId: null, name: 'Bank Statements' },
+        { id: 'f2', caseId: 'c1', parentFolderId: 'f1', name: '2024' },
+      ]);
+      fileRepo.find.mockResolvedValue([
+        { id: 'a', caseId: 'c1', name: 'stmt.pdf', mimeType: 'application/pdf', size: '10', folderId: 'f2' },
+        { id: 'b', caseId: 'c1', name: 'root.csv', mimeType: 'text/csv', size: '20', folderId: null },
+      ]);
+      fileRepo.count.mockResolvedValue(2);
+
+      const res = await service.getManifest('c1', 25);
+
+      expect(res.total).toBe(2);
+      expect(res.truncated).toBe(false);
+      expect(res.files).toEqual([
+        { id: 'a', name: 'stmt.pdf', mimeType: 'application/pdf', size: 10, folder: '/Bank Statements/2024' },
+        { id: 'b', name: 'root.csv', mimeType: 'text/csv', size: 20, folder: '/' },
+      ]);
+      expect(fileRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { caseId: 'c1' }, order: { createdAt: 'DESC' }, take: 25 }),
+      );
+    });
+
+    it('flags truncated when total exceeds the limit', async () => {
+      folderRepo.find.mockResolvedValue([]);
+      fileRepo.find.mockResolvedValue([{ id: 'a', caseId: 'c1', name: 'x', mimeType: 'text/plain', size: '1', folderId: null }]);
+      fileRepo.count.mockResolvedValue(40);
+      const res = await service.getManifest('c1', 1);
+      expect(res.truncated).toBe(true);
+      expect(res.total).toBe(40);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getFileForAgentRead
+  // ---------------------------------------------------------------------------
+  describe('getFileForAgentRead', () => {
+    const fileRow = { id: 'a', caseId: 'c1', name: 'doc.pdf', mimeType: 'application/pdf', size: '100', objectKey: 'org/o/case/c1/a' };
+
+    it('streams the object and writes an agent_read audit row', async () => {
+      fileRepo.findOne.mockResolvedValue(fileRow);
+      storage.download.mockResolvedValue({ stream: Readable.from(['x']) });
+      const res = await service.getFileForAgentRead('c1', 'u1', 'a', 5 * 1024 * 1024);
+      expect(res).toMatchObject({ name: 'doc.pdf', mimeType: 'application/pdf', size: 100, tooLarge: false });
+      expect(storage.download).toHaveBeenCalledWith('org/o/case/c1/a');
+      expect(logRepo.save).toHaveBeenCalled();
+      expect(logRepo.create).toHaveBeenCalledWith(expect.objectContaining({ action: 'agent_read', fileId: 'a', caseId: 'c1', userId: 'u1' }));
+    });
+
+    it('throws NotFound for a file from another case', async () => {
+      fileRepo.findOne.mockResolvedValue(null);
+      await expect(service.getFileForAgentRead('c1', 'u1', 'a', 5 * 1024 * 1024)).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns tooLarge without downloading or logging when size exceeds the cap', async () => {
+      fileRepo.findOne.mockResolvedValue({ ...fileRow, size: String(99 * 1024 * 1024) });
+      const res = await service.getFileForAgentRead('c1', 'u1', 'a', 5 * 1024 * 1024);
+      expect(res.tooLarge).toBe(true);
+      expect(res.stream).toBeUndefined();
+      expect(storage.download).not.toHaveBeenCalled();
+      expect(logRepo.save).not.toHaveBeenCalled();
     });
   });
 

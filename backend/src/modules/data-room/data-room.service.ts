@@ -16,6 +16,7 @@ import {
 } from '../../database/entities/data-room-access-log.entity';
 import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { DataRoomFolderEntity } from '../../database/entities/data-room-folder.entity';
+import { GoogleDriveExportService } from './google-drive-export.service';
 import { GoogleDriveImportService } from './google-drive-import.service';
 import {
   STORAGE_PROVIDER,
@@ -73,6 +74,11 @@ export interface AgentReadResult {
   stream?: Readable;
 }
 
+export interface DriveExportResult {
+  exported: { fileId: string; name: string; webViewLink: string | null }[];
+  failed: { fileId: string; error: string }[];
+}
+
 /**
  * Manages a case's built-in data room: files live in object storage (via the
  * injected {@link StorageProvider}) and are described by `data_room_files` rows.
@@ -101,6 +107,7 @@ export class DataRoomService {
     @Inject(STORAGE_PROVIDER)
     private readonly storage: StorageProvider,
     private readonly driveImport: GoogleDriveImportService,
+    private readonly driveExport: GoogleDriveExportService,
   ) {}
 
   // --------------------------- File ops ---------------------------
@@ -266,6 +273,44 @@ export class DataRoomService {
       mimeType: row.mimeType,
       size: Number(row.size),
     };
+  }
+
+  /**
+   * Export stored files to the user's Google Drive. Browser-supplied `accessToken`
+   * (drive.file scope) authorizes the writes; storage creds authorize the reads.
+   * Each file: tenancy-scoped lookup → stream from storage → drive.files.create →
+   * `export` audit row. One file failing does not abort the batch. `destinationFolderId`
+   * null → My Drive root.
+   */
+  async exportToDrive(
+    caseId: string,
+    userId: string,
+    accessToken: string,
+    fileIds: string[],
+    destinationFolderId: string | null,
+  ): Promise<DriveExportResult> {
+    const exported: DriveExportResult['exported'] = [];
+    const failed: DriveExportResult['failed'] = [];
+
+    for (const fileId of fileIds) {
+      try {
+        const row = await this.fileRepo.findOne({ where: { id: fileId, caseId } });
+        if (!row) {
+          failed.push({ fileId, error: 'file_not_found' });
+          continue;
+        }
+        const { stream } = await this.storage.download(row.objectKey);
+        const created = await this.driveExport.uploadToFolder(
+          accessToken, row.name, row.mimeType, stream, destinationFolderId,
+        );
+        await this.log(caseId, userId, 'export', fileId);
+        this.logger.log(`export caseId=${caseId} fileId=${fileId} driveId=${created.id}`);
+        exported.push({ fileId, name: row.name, webViewLink: created.webViewLink });
+      } catch (e) {
+        failed.push({ fileId, error: e instanceof Error ? e.message : 'export_failed' });
+      }
+    }
+    return { exported, failed };
   }
 
   /**

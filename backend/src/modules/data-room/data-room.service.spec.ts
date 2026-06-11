@@ -8,6 +8,7 @@ import { DataRoomAccessLogEntity } from '../../database/entities/data-room-acces
 import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { DataRoomFolderEntity } from '../../database/entities/data-room-folder.entity';
 import { DataRoomService } from './data-room.service';
+import { GoogleDriveExportService } from './google-drive-export.service';
 import { GoogleDriveImportService } from './google-drive-import.service';
 import { STORAGE_PROVIDER } from './storage/storage-provider.interface';
 
@@ -33,6 +34,10 @@ interface MockDriveImport {
   fetchForImport: jest.Mock;
 }
 
+interface MockDriveExport {
+  uploadToFolder: jest.Mock;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 describe('DataRoomService', () => {
@@ -43,6 +48,7 @@ describe('DataRoomService', () => {
   let folderRepo: MockRepo;
   let storage: MockStorage;
   let driveImport: MockDriveImport;
+  let driveExport: MockDriveExport;
 
   function makeRepo(): MockRepo {
     return {
@@ -70,6 +76,7 @@ describe('DataRoomService', () => {
       delete: jest.fn(),
     };
     driveImport = { fetchForImport: jest.fn() };
+    driveExport = { uploadToFolder: jest.fn() };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
@@ -86,6 +93,7 @@ describe('DataRoomService', () => {
         },
         { provide: STORAGE_PROVIDER, useValue: storage },
         { provide: GoogleDriveImportService, useValue: driveImport },
+        { provide: GoogleDriveExportService, useValue: driveExport },
       ],
     }).compile();
 
@@ -864,6 +872,59 @@ describe('DataRoomService', () => {
 
       expect(folderRepo.findOneBy).not.toHaveBeenCalled();
       expect(fileRepo.save.mock.calls[0][0].folderId).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // exportToDrive
+  // ---------------------------------------------------------------------------
+  describe('exportToDrive', () => {
+    const fileRow = (id: string) => ({ id, caseId: 'c1', name: `${id}.pdf`, mimeType: 'application/pdf', size: '10', objectKey: `k/${id}` });
+    beforeEach(() => {
+      logRepo.save.mockResolvedValue(undefined);
+      logRepo.create.mockImplementation((e: any) => e);
+    });
+
+    it('streams each file to Drive, logs export, returns exported list', async () => {
+      fileRepo.findOne.mockImplementation(({ where: { id } }: any) => Promise.resolve(fileRow(id)));
+      storage.download.mockResolvedValue({ stream: Readable.from(['x']) });
+      driveExport.uploadToFolder.mockResolvedValue({ id: 'd1', webViewLink: 'https://v/1' });
+
+      const res = await service.exportToDrive('c1', 'u1', 'tok', ['a', 'b'], 'folderX');
+
+      expect(res.exported).toEqual([
+        { fileId: 'a', name: 'a.pdf', webViewLink: 'https://v/1' },
+        { fileId: 'b', name: 'b.pdf', webViewLink: 'https://v/1' },
+      ]);
+      expect(res.failed).toEqual([]);
+      expect(driveExport.uploadToFolder).toHaveBeenCalledWith('tok', 'a.pdf', 'application/pdf', expect.anything(), 'folderX');
+      expect(logRepo.create).toHaveBeenCalledWith(expect.objectContaining({ action: 'export', fileId: 'a', caseId: 'c1', userId: 'u1' }));
+      expect(logRepo.create).toHaveBeenCalledWith(expect.objectContaining({ action: 'export', fileId: 'b' }));
+    });
+
+    it('reports a cross-case / missing file as failed without aborting the batch', async () => {
+      fileRepo.findOne.mockImplementation(({ where: { id } }: any) =>
+        Promise.resolve(id === 'missing' ? null : fileRow(id)));
+      storage.download.mockResolvedValue({ stream: Readable.from(['x']) });
+      driveExport.uploadToFolder.mockResolvedValue({ id: 'd', webViewLink: null });
+
+      const res = await service.exportToDrive('c1', 'u1', 'tok', ['missing', 'ok'], null);
+
+      expect(res.exported.map((e: any) => e.fileId)).toEqual(['ok']);
+      expect(res.failed).toEqual([{ fileId: 'missing', error: expect.any(String) }]);
+      expect(driveExport.uploadToFolder).toHaveBeenCalledWith('tok', 'ok.pdf', 'application/pdf', expect.anything(), null);
+    });
+
+    it('isolates a Drive upload failure to that file', async () => {
+      fileRepo.findOne.mockImplementation(({ where: { id } }: any) => Promise.resolve(fileRow(id)));
+      storage.download.mockResolvedValue({ stream: Readable.from(['x']) });
+      driveExport.uploadToFolder
+        .mockResolvedValueOnce({ id: 'd1', webViewLink: null })
+        .mockRejectedValueOnce(new Error('drive boom'));
+
+      const res = await service.exportToDrive('c1', 'u1', 'tok', ['a', 'b'], 'f');
+      expect(res.exported.map((e: any) => e.fileId)).toEqual(['a']);
+      expect(res.failed).toEqual([{ fileId: 'b', error: 'drive boom' }]);
     });
   });
 

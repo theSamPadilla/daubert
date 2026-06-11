@@ -13,7 +13,7 @@ export const WEB_SEARCH_TOOL = {
 export const GET_CASE_DATA_TOOL: Anthropic.Tool = {
   name: 'get_case_data',
   description:
-    'Get a high-level overview of this case: investigations (names, trace counts), productions (names, types), and data room connection status. Does NOT return graph data — use get_investigation for that.',
+    'Get a high-level overview of this case: investigations (names, trace counts), productions (names, types), and data room file manifest (names, types, sizes, folders). Does NOT return graph data — use get_investigation for that.',
   input_schema: {
     type: 'object' as const,
     properties: {},
@@ -165,6 +165,35 @@ export const READ_PRODUCTION_TOOL: Anthropic.Tool = {
       },
     },
     required: [],
+  },
+};
+
+// ---------- Data room ----------
+
+export const LIST_DATA_ROOM_FILES_TOOL: Anthropic.Tool = {
+  name: 'list_data_room_files',
+  description:
+    "List all the case's data-room files (evidence locker): id, name, mimeType, size (bytes), and folder path. Use the id with read_data_room_file to read a file's contents. A summary manifest is already provided by get_case_data; use this tool to refresh it or see the full list when it was truncated.",
+  input_schema: {
+    type: 'object' as const,
+    properties: {},
+    required: [],
+  },
+};
+
+export const READ_DATA_ROOM_FILE_TOOL: Anthropic.Tool = {
+  name: 'read_data_room_file',
+  description:
+    "Read a data-room file's contents into the conversation. Pass a fileId from get_case_data's manifest or list_data_room_files. PDFs and images are read natively; spreadsheets (xlsx) and Word docs (docx) are converted to text; CSV/TXT are read as text. Very large files and unsupported types (e.g. un-exported Google-Workspace files) cannot be read inline and return a note instead. The content is provided to you for THIS turn only — it is not retained in conversation history, so call this again if you need the file in a later turn.",
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      fileId: {
+        type: 'string',
+        description: 'The data-room file id to read.',
+      },
+    },
+    required: ['fileId'],
   },
 };
 

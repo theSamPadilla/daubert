@@ -31,7 +31,7 @@ import {
   type DataRoomFile,
   type DataRoomFolder,
 } from '@/lib/api-client';
-import { pickDriveFiles } from '@/lib/google-picker';
+import { pickDriveFiles, pickDriveFolderForExport } from '@/lib/google-picker';
 import { Loader } from '@/components/Common/Loader';
 import { PageHeader } from '@/components/Common/PageHeader';
 import UserMenu from '@/components/Auth/UserMenu';
@@ -120,6 +120,10 @@ export default function DataRoomPage() {
   // Google Drive import state
   const [importing, setImporting] = useState(false);
 
+  // Google Drive export (multi-select) state. Only FILE ids are selectable.
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
+
   // Move-to picker modal state. `target` is the file or folder being moved.
   const [moveTarget, setMoveTarget] = useState<
     { kind: 'file'; item: DataRoomFile } | { kind: 'folder'; item: DataRoomFolder } | null
@@ -149,6 +153,23 @@ export default function DataRoomPage() {
       cancelled = true;
     };
   }, [fetchContents]);
+
+  // Selection is folder-scoped — reset it whenever we navigate folders.
+  useEffect(() => {
+    setSelectedFileIds(new Set());
+  }, [currentFolderId]);
+
+  const toggleFileSelected = (fileId: string) => {
+    setSelectedFileIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(fileId)) {
+        next.delete(fileId);
+      } else {
+        next.add(fileId);
+      }
+      return next;
+    });
+  };
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -229,6 +250,29 @@ export default function DataRoomPage() {
       setError(err instanceof Error ? err.message : 'Drive import failed');
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleExportToDrive = async (fileIds: string[]) => {
+    if (fileIds.length === 0) return;
+    const picked = await pickDriveFolderForExport();
+    if (!picked) return; // user cancelled
+    setExporting(true);
+    try {
+      const res = await apiClient.dataRoomExportToDrive(
+        caseId,
+        picked.accessToken,
+        fileIds,
+        picked.destinationFolderId,
+      );
+      if (res.failed.length) {
+        setError(`${res.failed.length} file(s) couldn't be exported to Drive`);
+      }
+      setSelectedFileIds(new Set());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Drive export failed');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -436,6 +480,30 @@ export default function DataRoomPage() {
                 </div>
               ) : (
                 <>
+                  {/* Multi-select action bar — appears once one or more files are selected. */}
+                  {selectedFileIds.size > 0 && (
+                    <div className="mb-3 flex items-center gap-2.5 rounded-md border border-line-strong bg-surface-panel px-3.5 py-2">
+                      <span className="text-sm text-ink-muted">
+                        {selectedFileIds.size} selected
+                      </span>
+                      <button
+                        onClick={() => handleExportToDrive([...selectedFileIds])}
+                        disabled={exporting}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium border border-line-strong bg-surface-raised text-ink hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <FaGoogle className="w-3.5 h-3.5" /> Save {selectedFileIds.size} to Google
+                        Drive
+                      </button>
+                      <button
+                        onClick={() => setSelectedFileIds(new Set())}
+                        disabled={exporting}
+                        className="px-3 py-1.5 rounded-md text-sm text-ink-muted hover:text-ink hover:bg-surface-raised disabled:opacity-50 transition-colors"
+                      >
+                        Clear selection
+                      </button>
+                    </div>
+                  )}
+
                   <div className="mb-2 flex items-center justify-between">
                     <span className="text-xs text-ink-faint">
                       {folders.length > 0 && (
@@ -522,6 +590,17 @@ export default function DataRoomPage() {
                             key={file.id}
                             className="group relative rounded-xl border border-line-strong bg-surface-panel/30 overflow-hidden hover:bg-surface-raised/30 transition-colors"
                           >
+                            <label
+                              className={`absolute top-2 left-2 z-10 transition-opacity ${selectedFileIds.has(file.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                            >
+                              <input
+                                type="checkbox"
+                                aria-label={`Select ${file.name}`}
+                                checked={selectedFileIds.has(file.id)}
+                                onChange={() => toggleFileSelected(file.id)}
+                                className="w-4 h-4 accent-brand cursor-pointer"
+                              />
+                            </label>
                             <div className="aspect-[4/3] flex items-center justify-center bg-surface/40 border-b border-line/60">
                               <span className={`w-12 h-12 rounded-xl flex items-center justify-center ${tint}`}>
                                 <Icon className="w-6 h-6" />
@@ -543,6 +622,15 @@ export default function DataRoomPage() {
                                 aria-label="Download"
                               >
                                 <FaDownload className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => handleExportToDrive([file.id])}
+                                disabled={exporting}
+                                className="p-1.5 rounded-md bg-surface/80 text-ink-faint hover:text-brand-ink disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                title="Save to Google Drive"
+                                aria-label="Save to Google Drive"
+                              >
+                                <FaGoogle className="w-3 h-3" />
                               </button>
                               {canMutate && (
                                 <button
@@ -635,6 +723,13 @@ export default function DataRoomPage() {
                             <tr key={file.id} className="group hover:bg-surface-raised/30 transition-colors">
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-3 min-w-0">
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Select ${file.name}`}
+                                    checked={selectedFileIds.has(file.id)}
+                                    onChange={() => toggleFileSelected(file.id)}
+                                    className={`w-4 h-4 accent-brand cursor-pointer shrink-0 transition-opacity ${selectedFileIds.has(file.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                                  />
                                   <span
                                     className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${tint}`}
                                   >
@@ -661,6 +756,15 @@ export default function DataRoomPage() {
                                     aria-label="Download"
                                   >
                                     <FaDownload className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleExportToDrive([file.id])}
+                                    disabled={exporting}
+                                    className="p-2 rounded-md text-ink-faint hover:text-brand-ink hover:bg-surface-raised disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    title="Save to Google Drive"
+                                    aria-label="Save to Google Drive"
+                                  >
+                                    <FaGoogle className="w-3.5 h-3.5" />
                                   </button>
                                   {canMutate && (
                                     <button

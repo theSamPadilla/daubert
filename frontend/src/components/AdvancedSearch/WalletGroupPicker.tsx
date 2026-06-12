@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { FaLayerGroup, FaWallet, FaPlus } from 'react-icons/fa6';
+import { FaLayerGroup, FaWallet, FaPlus, FaXmark } from 'react-icons/fa6';
 import { Investigation, Trace, WalletNode, Group } from '../../types/investigation';
 import { useLabeledEntities } from '@/hooks/useLabeledEntities';
 import { ADDRESS_RE, normalizeAddressForChain } from '../../generated/shared/address';
@@ -413,7 +413,7 @@ function AddressInput({ selected, chain, atCap, onToggle }: AddressInputProps) {
                 className="hover:text-redline transition-colors"
                 aria-label={`Remove ${addr}`}
               >
-                ×
+                <FaXmark className="w-2.5 h-2.5" />
               </button>
             </span>
           ))}

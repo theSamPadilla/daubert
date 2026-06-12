@@ -44,9 +44,9 @@ export function LabelColorPicker({ color, onChange, fallback }: LabelColorPicker
       />
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onMouseDown={() => setOpen(false)} />
+          <div className="fixed inset-0 z-20" onMouseDown={() => setOpen(false)} />
           <div
-            className="absolute right-0 top-6 z-50 bg-canvas border border-canvas-line rounded-xl p-2 shadow-2xl"
+            className="absolute right-0 top-6 z-30 bg-canvas border border-canvas-line rounded-xl p-2 shadow-2xl"
             style={{ width: '130px' }}
           >
             {/* "No color" option */}

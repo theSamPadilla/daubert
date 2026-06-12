@@ -57,7 +57,7 @@ function DeleteCaseConfirmModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-case-title"
-      className="fixed inset-0 bg-ink/30 flex items-center justify-center z-[60] px-4"
+      className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 px-4"
       onClick={(e) => {
         if (e.target === e.currentTarget && !working) onCancel();
       }}

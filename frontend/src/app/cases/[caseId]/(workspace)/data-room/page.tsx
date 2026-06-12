@@ -810,7 +810,7 @@ export default function DataRoomPage() {
       {/* Move-to picker modal */}
       {moveTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
           onClick={() => {
             if (!moving) setMoveTarget(null);
           }}

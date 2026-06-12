@@ -26,7 +26,7 @@ export function CreationPanels({
 }: CreationPanelsProps) {
   if (panelMode.type === 'createWallet') {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40">
+      <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50">
         <div className="bg-canvas/90 backdrop-blur border border-canvas-line text-canvas-ink rounded-xl p-6 w-96 max-h-[80vh] overflow-y-auto">
           <h3 className="text-sm font-semibold text-canvas-muted uppercase mb-4">New Address</h3>
           <WalletForm
@@ -44,7 +44,7 @@ export function CreationPanels({
 
   if (panelMode.type === 'createTransaction') {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40">
+      <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50">
         <div className="bg-canvas/90 backdrop-blur border border-canvas-line text-canvas-ink rounded-xl p-6 w-[480px] max-h-[80vh] overflow-y-auto">
           <h3 className="text-sm font-semibold text-canvas-muted uppercase mb-4">New Transaction</h3>
           <TransactionForm

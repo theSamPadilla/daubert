@@ -12,7 +12,7 @@ import { OrgSwitcher } from '@/components/Layout/OrgSwitcher';
 import { apiClient, type Case } from '@/lib/api-client';
 import { Loader } from '@/components/Common/Loader';
 import { NewCaseModal } from '@/components/Cases/NewCaseModal';
-import { Badge, Button } from '@/components/ui';
+import { Badge, Button, Kicker } from '@/components/ui';
 import { FaGear, FaLock, FaPlus } from 'react-icons/fa6';
 
 function CaseSelector() {
@@ -64,6 +64,7 @@ function CaseSelector() {
       {/* Case grid */}
       <main className="relative max-w-5xl mx-auto px-6 py-14">
         <div className="mb-10">
+          <Kicker className="block mb-3">Workspace</Kicker>
           <h2 className="text-4xl font-bold tracking-tight text-ink">
             Your{' '}
             <span className="bg-gradient-to-r from-brand to-accent bg-clip-text text-transparent">

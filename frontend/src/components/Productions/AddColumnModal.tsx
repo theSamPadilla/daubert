@@ -79,7 +79,7 @@ export function AddColumnModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50">
       <div className="bg-surface-panel rounded-lg p-6 w-[440px] border border-line-strong shadow-xl">
         <h3 className="text-sm font-semibold text-ink uppercase tracking-wider mb-4">
           Add column

@@ -7,18 +7,7 @@ import { FaArrowLeft } from 'react-icons/fa6';
 import Link from 'next/link';
 import { Loader } from '@/components/Common/Loader';
 import { Panel } from '@/components/ui';
-
-const CATEGORY_COLORS: Record<string, string> = {
-  exchange: 'bg-blue-100 text-blue-700',
-  mixer: 'bg-red-100 text-red-700',
-  bridge: 'bg-purple-100 text-purple-700',
-  protocol: 'bg-green-100 text-green-700',
-  individual: 'bg-yellow-100 text-yellow-700',
-  contract: 'bg-cyan-100 text-cyan-700',
-  government: 'bg-orange-100 text-orange-700',
-  custodian: 'bg-indigo-100 text-indigo-700',
-  other: 'bg-surface-raised text-ink-muted',
-};
+import { CATEGORY_COLORS, type Category } from '@/lib/labeled-entities';
 
 export default function EntityDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -52,7 +41,7 @@ export default function EntityDetailPage() {
     );
   }
 
-  const catColor = CATEGORY_COLORS[entity.category] || CATEGORY_COLORS.other;
+  const catColor = CATEGORY_COLORS[entity.category as Category] || CATEGORY_COLORS.other;
 
   return (
     <div className="min-h-screen bg-surface p-6">

@@ -148,7 +148,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
   const itemCount = composition.length;
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4">
       <div className="bg-surface-panel border border-line-strong rounded-lg shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col">
         <header className="px-6 py-4 border-b border-line-strong flex items-center justify-between">
           <div className="flex items-center gap-3">

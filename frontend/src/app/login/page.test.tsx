@@ -2,9 +2,11 @@
  * Unit tests for login page return_to handling.
  *
  * Tests that:
- * - Valid same-origin relative paths are preserved
+ * - Valid same-origin relative paths are preserved (including raw ':' in
+ *   query strings, which RFC 3986 permits)
  * - Protocol-relative URLs (//evil.com) are rejected
- * - Absolute URLs with schemes (http://, javascript:) are rejected
+ * - Absolute URLs with schemes (http://, javascript:) are rejected — they
+ *   don't start with '/', so the prefix rule catches them
  * - Invalid/missing return_to falls back to '/'
  */
 
@@ -13,9 +15,11 @@
 // The validateReturnTo function is a pure function that:
 // 1. Returns '/' if input is null/undefined
 // 2. Returns '/' if input doesn't start with '/'
-// 3. Returns '/' if input starts with '//'
-// 4. Returns '/' if input contains a ':' (scheme)
-// 5. Returns the input if it passes all checks
+// 3. Returns '/' if input starts with '//' (protocol-relative)
+// 4. Returns the input if it passes all checks
+// Note: raw ':' is allowed — a value starting with a single '/' can never
+// carry a scheme (schemes must begin with a letter), and RFC 3986 permits
+// ':' in query strings (e.g. ?state=abc:def).
 
 describe('validateReturnTo', () => {
   // Helper function copied from the component for testing
@@ -25,9 +29,6 @@ describe('validateReturnTo', () => {
       return '/';
     }
     if (returnTo.startsWith('//')) {
-      return '/';
-    }
-    if (returnTo.includes(':')) {
       return '/';
     }
     return returnTo;
@@ -63,6 +64,12 @@ describe('validateReturnTo', () => {
         '/oauth/consent?bag=x#top',
       );
     });
+
+    it('preserves raw colons in query strings (RFC 3986)', () => {
+      expect(validateReturnTo('/oauth/authorize?state=abc:def')).toBe(
+        '/oauth/authorize?state=abc:def',
+      );
+    });
   });
 
   describe('rejects protocol-relative URLs', () => {
@@ -75,6 +82,8 @@ describe('validateReturnTo', () => {
     });
   });
 
+  // These don't start with '/', so the prefix rule rejects them — no
+  // dedicated scheme check is needed.
   describe('rejects absolute URLs with schemes', () => {
     it('rejects http://evil.com', () => {
       expect(validateReturnTo('http://evil.com')).toBe('/');

@@ -11,7 +11,10 @@ import { RequestAccessModal } from '@/components/Auth/RequestAccessModal';
 
 /**
  * Validate that return_to is a safe same-origin relative URL.
- * Must start with `/`, not `//`, and not contain a scheme.
+ * Must start with `/` and not `//` (protocol-relative). A value starting
+ * with a single `/` can never carry a scheme (schemes must begin with a
+ * letter), so these two checks alone enforce same-origin. Raw `:` is
+ * allowed — RFC 3986 permits it in query strings (e.g. ?state=abc:def).
  * @param returnTo - The URL to validate
  * @returns The validated returnTo, or '/' if invalid
  */
@@ -25,11 +28,6 @@ function validateReturnTo(returnTo: string | null): string {
 
   // Reject protocol-relative URLs (//evil.com)
   if (returnTo.startsWith('//')) {
-    return '/';
-  }
-
-  // Reject URLs with a scheme (http://, https://, javascript:, etc.)
-  if (returnTo.includes(':')) {
     return '/';
   }
 

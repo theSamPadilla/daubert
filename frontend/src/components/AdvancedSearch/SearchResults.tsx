@@ -107,7 +107,7 @@ export function SearchResults({ investigation, defaultTargetTraceId, results, on
     <div className="flex flex-col gap-2">
       {/* Success banner */}
       {importSuccess && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-green-900/30 border border-green-700/50 rounded text-xs text-green-400">
+        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-300 rounded-lg text-xs text-emerald-700">
           <FaCheck className="w-3 h-3 shrink-0" />
           {importSuccess}
         </div>
@@ -115,16 +115,16 @@ export function SearchResults({ investigation, defaultTargetTraceId, results, on
 
       {/* Error banner */}
       {importError && (
-        <div className="px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
+        <div className="px-3 py-2 bg-redline/10 border border-redline/40 rounded-lg text-xs text-redline">
           {importError}
         </div>
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto border border-line-strong rounded-lg">
+      <div className="overflow-x-auto border border-line rounded-lg">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-line-strong bg-surface-panel">
+            <tr className="border-b border-line bg-surface-raised/50">
               <th className="w-8 px-2 py-2 text-center">
                 <input
                   type="checkbox"
@@ -165,8 +165,8 @@ export function SearchResults({ investigation, defaultTargetTraceId, results, on
                 <tr
                   key={idx}
                   onClick={() => toggleRow(idx)}
-                  className={`border-b border-line-strong last:border-0 cursor-pointer transition-colors ${
-                    isSelected ? 'bg-brand/5' : 'hover:bg-surface-raised/30'
+                  className={`border-b border-line last:border-0 cursor-pointer transition-colors ${
+                    isSelected ? 'bg-brand/5' : 'hover:bg-surface-raised/40'
                   }`}
                 >
                   <td className="w-8 px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -200,7 +200,7 @@ export function SearchResults({ investigation, defaultTargetTraceId, results, on
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1 text-brand-ink hover:text-white hover:underline"
+                        className="flex items-center gap-1 text-brand hover:text-brand-strong hover:underline"
                       >
                         {truncateTx(item.txHash)}
                         <FaArrowUpRightFromSquare className="w-2.5 h-2.5 shrink-0" />
@@ -230,7 +230,7 @@ export function SearchResults({ investigation, defaultTargetTraceId, results, on
               <select
                 value={targetTraceId}
                 onChange={(e) => setTargetTraceId(e.target.value)}
-                className="bg-surface border border-line-strong rounded px-2 py-1 text-xs"
+                className="bg-surface border border-line-strong rounded-lg px-2 py-1 text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               >
                 {investigation.traces.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -245,7 +245,7 @@ export function SearchResults({ investigation, defaultTargetTraceId, results, on
             type="button"
             onClick={handleImport}
             disabled={selected.size === 0 || importing || !targetTraceId}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed rounded text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-brand text-white hover:bg-brand-strong disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-semibold transition-colors"
           >
             {importing ? (
               <>

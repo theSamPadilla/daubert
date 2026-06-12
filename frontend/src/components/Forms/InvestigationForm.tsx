@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { type Investigation, type Trace } from '@/lib/api-client';
 
+const inputClass =
+  'w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
+
 interface InvestigationFormProps {
   investigation: Investigation;
   traces?: Trace[];
@@ -28,49 +31,49 @@ export function InvestigationForm({ investigation, traces, onSave, onDelete, onC
   return (
     <form onSubmit={handleSubmit} className="p-3 space-y-3">
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Name</label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Name</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
+          className={inputClass}
           required
           autoFocus
         />
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Notes</label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Notes</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           placeholder="Add notes..."
-          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm resize-none text-ink-muted placeholder-ink-faint"
+          className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 resize-none"
         />
       </div>
 
       {traces && traces.length > 0 && (
         <div>
-          <label className="text-xs font-semibold text-ink-muted uppercase block mb-1.5">Traces</label>
+          <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1.5">Traces</label>
           <div className="space-y-1">
             {traces.map((t) => (
               <div key={t.id} className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: t.color || '#3b82f6' }} />
-                <span className="text-xs text-ink-muted truncate">{t.name}</span>
+                <span className="text-xs text-canvas-muted truncate">{t.name}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div className="text-xs text-ink-faint">Created {createdAt}</div>
+      <div className="text-xs text-canvas-muted/60">Created {createdAt}</div>
 
       <div className="flex gap-2 pt-1">
-        <button type="submit" className="px-3 py-1.5 bg-brand hover:bg-brand/90 rounded text-sm transition-colors">
+        <button type="submit" className="px-3 py-1.5 bg-brand text-white hover:bg-brand-strong rounded-lg text-sm transition-colors">
           Save
         </button>
-        <button type="button" onClick={onCancel} className="px-3 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm transition-colors">
+        <button type="button" onClick={onCancel} className="px-3 py-1.5 border border-canvas-line text-canvas-muted hover:text-canvas-ink hover:bg-canvas-fill rounded-lg text-sm transition-colors">
           Cancel
         </button>
         {onDuplicate && (
@@ -85,7 +88,7 @@ export function InvestigationForm({ investigation, traces, onSave, onDelete, onC
                 setDuplicating(false);
               }
             }}
-            className="px-3 py-1.5 bg-surface-raised hover:bg-surface-raised/80 disabled:opacity-50 rounded text-sm transition-colors"
+            className="px-3 py-1.5 border border-canvas-line text-canvas-muted hover:text-canvas-ink hover:bg-canvas-fill disabled:opacity-50 rounded-lg text-sm transition-colors"
             title="Create a copy with the same traces"
           >
             {duplicating ? 'Duplicating…' : 'Duplicate'}
@@ -94,7 +97,7 @@ export function InvestigationForm({ investigation, traces, onSave, onDelete, onC
         <button
           type="button"
           onClick={onDelete}
-          className="px-3 py-1.5 text-red-400 hover:text-red-300 rounded text-sm ml-auto transition-colors"
+          className="px-3 py-1.5 text-redline hover:text-redline/80 rounded-lg text-sm ml-auto transition-colors"
         >
           Delete
         </button>

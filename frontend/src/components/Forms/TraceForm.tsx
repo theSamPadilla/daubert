@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { Trace } from '@/types/investigation';
 import { ColorPicker } from '@/components/Common/ColorPicker';
 
+const inputClass =
+  'w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
+
 interface TraceFormProps {
   trace?: Trace;
   onSave: (data: Partial<Trace>) => void;
@@ -36,22 +39,22 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Name</label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Name</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
+          className={inputClass}
           required
         />
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Type</label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Type</label>
         <select
           value={type}
           onChange={(e) => setType(e.target.value as typeof type)}
-          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
+          className={inputClass}
         >
           <option value="custom">Custom</option>
           <option value="time">Time Range</option>
@@ -62,39 +65,39 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
       {type === 'time' && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-xs text-ink-muted block mb-1">Start</label>
+            <label className="text-xs text-canvas-muted block mb-1">Start</label>
             <input
               type="date"
               value={startDate}
               max={today}
               onChange={(e) => { setStartDate(e.target.value); if (endDate && e.target.value > endDate) setEndDate(''); }}
-              className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-xs"
+              className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-xs text-canvas-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
             />
           </div>
           <div>
-            <label className="text-xs text-ink-muted block mb-1">End</label>
+            <label className="text-xs text-canvas-muted block mb-1">End</label>
             <input
               type="date"
               value={endDate}
               min={startDate || undefined}
               max={today}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-xs"
+              className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-xs text-canvas-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
             />
           </div>
         </div>
       )}
 
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Color</label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Color</label>
         <ColorPicker value={color} onChange={setColor} allowNone />
       </div>
 
       <div className="flex gap-2 pt-2">
-        <button type="submit" className="px-3 py-1.5 bg-brand hover:bg-brand/90 rounded text-sm">
+        <button type="submit" className="px-3 py-1.5 bg-brand text-white hover:bg-brand-strong rounded-lg text-sm transition-colors">
           Save
         </button>
-        <button type="button" onClick={onCancel} className="px-3 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm">
+        <button type="button" onClick={onCancel} className="px-3 py-1.5 border border-canvas-line text-canvas-muted hover:text-canvas-ink hover:bg-canvas-fill rounded-lg text-sm transition-colors">
           Cancel
         </button>
         {onDelete && (
@@ -103,7 +106,7 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
               <button
                 type="button"
                 onClick={onDelete}
-                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded text-sm ml-auto"
+                className="px-3 py-1.5 bg-redline text-white hover:bg-redline/90 rounded-lg text-sm ml-auto transition-colors"
               >
                 Confirm Delete
               </button>
@@ -111,7 +114,7 @@ export function TraceForm({ trace, onSave, onDelete, onCancel }: TraceFormProps)
               <button
                 type="button"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="px-3 py-1.5 text-red-400 hover:text-red-300 rounded text-sm ml-auto"
+                className="px-3 py-1.5 text-redline hover:text-redline/80 rounded-lg text-sm ml-auto transition-colors"
               >
                 Delete
               </button>

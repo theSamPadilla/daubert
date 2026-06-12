@@ -85,7 +85,7 @@ export function WorkspaceModals(props: WorkspaceModalsProps) {
           expectedText={deletingInvestigation.name}
           message={
             <>
-              This will permanently delete <span className="text-gray-200 font-medium">{deletingInvestigation.name}</span> and all of its traces, nodes, edges, and scripts. This cannot be undone.
+              This will permanently delete <span className="text-ink font-medium">{deletingInvestigation.name}</span> and all of its traces, nodes, edges, and scripts. This cannot be undone.
             </>
           }
           onConfirm={async () => {

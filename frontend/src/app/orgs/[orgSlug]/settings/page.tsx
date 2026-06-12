@@ -238,15 +238,17 @@ function MembersSection({
                     </td>
                     <td className="px-4 py-3">
                       {isAdmin && !isSelf ? (
-                        <Select
-                          value={m.role}
-                          onChange={(e) => handleRoleChange(m.userId, e.target.value as OrgMemberRole)}
-                          className="w-auto text-xs py-1 px-2"
-                        >
-                          <option value="admin">admin</option>
-                          <option value="member">member</option>
-                          <option value="guest">guest</option>
-                        </Select>
+                        <div className="w-32">
+                          <Select
+                            value={m.role}
+                            onChange={(e) => handleRoleChange(m.userId, e.target.value as OrgMemberRole)}
+                            className="text-xs py-1 px-2"
+                          >
+                            <option value="admin">admin</option>
+                            <option value="member">member</option>
+                            <option value="guest">guest</option>
+                          </Select>
+                        </div>
                       ) : (
                         <Badge tone={roleBadgeTone(m.role)}>{m.role}</Badge>
                       )}

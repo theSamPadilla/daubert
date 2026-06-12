@@ -322,15 +322,16 @@ function InvitesSection({ caseId }: { caseId: string }) {
             required
             className="flex-1"
           />
-          <Select
-            value={role}
-            onChange={(e) => setRole(e.target.value as 'owner' | 'editor' | 'viewer')}
-            className="w-auto"
-          >
-            <option value="viewer">Viewer</option>
-            <option value="editor">Editor</option>
-            <option value="owner">Owner</option>
-          </Select>
+          <div className="w-32 shrink-0">
+            <Select
+              value={role}
+              onChange={(e) => setRole(e.target.value as 'owner' | 'editor' | 'viewer')}
+            >
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
+              <option value="owner">Owner</option>
+            </Select>
+          </div>
         </div>
         <Input
           type="text"

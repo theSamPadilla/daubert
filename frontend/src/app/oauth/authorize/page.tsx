@@ -44,18 +44,16 @@ import { _authorizeNav } from './nav';
  */
 function AuthorizeErrorState({ message }: { message: string }) {
   return (
-    <div className="relative min-h-screen bg-surface text-white overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
+    <div className="relative min-h-screen bg-surface-panel overflow-hidden">
       <main className="relative mx-auto flex min-h-screen w-full max-w-xl flex-col items-stretch justify-center px-6 py-10">
         <div className="mb-8 flex items-center justify-center gap-2.5">
           <Image src="/logo-light.png" alt="Daubert" width={26} height={26} priority />
-          <span className="text-base font-semibold tracking-tight text-white">Daubert</span>
+          <span className="text-base font-semibold tracking-tight text-ink">Daubert</span>
         </div>
-        <div className="relative rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] p-6 overflow-hidden">
-          <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+        <div className="relative rounded-xl bg-surface border border-line shadow-[0_24px_60px_-30px_rgba(11,18,32,0.18)] p-6 overflow-hidden">
           <div
             role="alert"
-            className="flex items-start gap-3 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300"
+            className="flex items-start gap-3 rounded-lg border border-redline/30 bg-redline/10 px-4 py-3 text-sm text-redline"
           >
             <FaTriangleExclamation size={14} className="mt-0.5 shrink-0" />
             <div>

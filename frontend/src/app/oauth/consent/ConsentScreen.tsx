@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { FaFolderOpen, FaLink, FaPenToSquare, FaShield, FaTriangleExclamation } from 'react-icons/fa6';
 import { apiClient, ApiError } from '@/lib/api-client';
 import type { components } from '@/generated/api-types';
+import { Button } from '@/components/ui/Button';
+import { Select } from '@/components/ui/Select';
 
 type Preview = components['schemas']['OAuthConsentPreview'];
 type EligibleOrg = components['schemas']['EligibleOrgSummary'];
@@ -84,8 +86,7 @@ export function ConsentScreen({ bag, preview }: ConsentScreenProps) {
   }
 
   return (
-    <div className="relative min-h-screen bg-surface text-white overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
+    <div className="relative min-h-screen bg-surface-panel overflow-hidden">
       <div className="pointer-events-none absolute -right-32 -top-16 -z-10 opacity-[0.05] select-none">
         <Image src="/logo-light.png" alt="" width={640} height={640} priority />
       </div>
@@ -94,7 +95,7 @@ export function ConsentScreen({ bag, preview }: ConsentScreenProps) {
         {/* App brand */}
         <div className="mb-10 flex items-center justify-center gap-2.5">
           <Image src="/logo-light.png" alt="Daubert" width={26} height={26} priority />
-          <span className="text-base font-semibold tracking-tight text-white">Daubert</span>
+          <span className="text-base font-semibold tracking-tight text-ink">Daubert</span>
         </div>
 
         {/* Header */}
@@ -103,21 +104,19 @@ export function ConsentScreen({ bag, preview }: ConsentScreenProps) {
             <FaShield size={11} />
             <span>Authorize agent</span>
           </div>
-          <h1 className="text-2xl font-semibold leading-snug tracking-tight text-white">
-            <strong className="font-bold text-white">{preview.clientDisplayName}</strong>{' '}
-            <span className="text-ink">wants to act as you in Daubert.</span>
+          <h1 className="text-2xl font-semibold leading-snug tracking-tight text-ink">
+            <strong className="font-bold text-ink">{preview.clientDisplayName}</strong>{' '}
+            <span className="text-ink-muted">wants to act as you in Daubert.</span>
           </h1>
         </div>
 
         {/* Main card */}
-        <div className="relative rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden">
-          <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-
+        <div className="rounded-xl bg-surface border border-line shadow-[0_24px_60px_-30px_rgba(11,18,32,0.18)] overflow-hidden">
           <div className="space-y-6 p-6">
             {noEligibleOrgs ? (
               <div
                 role="alert"
-                className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+                className="flex items-start gap-3 rounded-lg border border-redline/30 bg-redline/10 px-4 py-3 text-sm text-redline"
               >
                 <FaTriangleExclamation size={14} className="mt-0.5 shrink-0" />
                 <p>
@@ -137,12 +136,11 @@ export function ConsentScreen({ bag, preview }: ConsentScreenProps) {
                   The agent will be bound to this organization. It can only see cases that belong
                   to it.
                 </p>
-                <select
+                <Select
                   id="consent-org-select"
                   value={selectedOrgId}
                   onChange={(e) => setSelectedOrgId(e.target.value)}
                   disabled={submitting !== null}
-                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-white focus:outline-none focus:border-brand transition-colors disabled:opacity-50"
                 >
                   {preview.eligibleOrgs.length !== 1 && (
                     <option value="" disabled>
@@ -154,7 +152,7 @@ export function ConsentScreen({ bag, preview }: ConsentScreenProps) {
                       {orgOptionLabel(org)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             )}
 
@@ -183,7 +181,7 @@ export function ConsentScreen({ bag, preview }: ConsentScreenProps) {
             {error && (
               <div
                 role="alert"
-                className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300"
+                className="rounded-lg border border-redline/30 bg-redline/10 px-3 py-2 text-sm text-redline"
               >
                 {error}
               </div>
@@ -191,23 +189,23 @@ export function ConsentScreen({ bag, preview }: ConsentScreenProps) {
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-2">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={handleDeny}
                 disabled={submitting !== null}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-ink-muted hover:text-white border border-line-strong hover:border-line disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting === 'deny' ? 'Cancelling…' : 'Deny'}
-              </button>
+              </Button>
               {!noEligibleOrgs && (
-                <button
+                <Button
                   type="button"
+                  variant="primary"
                   onClick={handleAllow}
                   disabled={!canAllow}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-brand hover:bg-brand/90 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {submitting === 'allow' ? 'Connecting…' : 'Allow'}
-                </button>
+                </Button>
               )}
             </div>
           </div>

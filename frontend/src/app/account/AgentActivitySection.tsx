@@ -5,6 +5,7 @@ import { apiClient } from '@/lib/api-client';
 import type { components } from '@/generated/api-types';
 import { Loader } from '@/components/Common/Loader';
 import { useAuth } from '@/components/Auth/AuthProvider';
+import { Badge, Panel } from '@/components/ui';
 
 type AgentAction = components['schemas']['AgentActionSummary'];
 
@@ -50,16 +51,15 @@ export function AgentActivitySection() {
   };
 
   return (
-    <div className="relative mt-6 p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden">
-      <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-      <h3 className="text-base font-semibold text-white mb-1">Agent activity</h3>
+    <Panel className="mt-6 overflow-hidden" padded>
+      <h3 className="text-base font-semibold text-ink mb-1">Agent activity</h3>
       <p className="text-xs text-ink-muted mb-5">
         Every change a connected agent makes (or is denied) is recorded here, including from
         disconnected agents.
       </p>
 
       {error && (
-        <p className="text-sm text-red-300 mb-4">{error}</p>
+        <p className="text-sm text-redline mb-4">{error}</p>
       )}
 
       {loading ? (
@@ -70,25 +70,25 @@ export function AgentActivitySection() {
           transactions, editing productions — will appear here.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line-strong">
+        <div className="overflow-hidden rounded-lg border border-line -mx-5">
           <table className="w-full">
             <thead>
-              <tr className="bg-surface/60 text-left text-xs text-ink-faint uppercase tracking-wider">
-                <th className="px-4 py-2.5">When</th>
-                <th className="px-4 py-2.5">Agent</th>
-                <th className="px-4 py-2.5">Organization</th>
-                <th className="px-4 py-2.5">Action</th>
-                <th className="px-4 py-2.5">Target</th>
-                <th className="px-4 py-2.5">Status</th>
+              <tr className="bg-surface-panel text-left">
+                <th className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">When</th>
+                <th className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Agent</th>
+                <th className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Organization</th>
+                <th className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Action</th>
+                <th className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Target</th>
+                <th className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Status</th>
               </tr>
             </thead>
             <tbody>
               {actions.map((a) => (
-                <tr key={a.id} className="border-t border-line-strong/50">
+                <tr key={a.id} className="border-b border-line hover:bg-surface-panel transition-colors">
                   <td className="px-4 py-3 text-sm text-ink-muted whitespace-nowrap">
                     {formatDateTime(a.createdAt)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-white">{a.agentLabel}</td>
+                  <td className="px-4 py-3 text-sm text-ink">{a.agentLabel}</td>
                   <td className="px-4 py-3 text-sm text-ink-muted">{orgName(a.organizationId)}</td>
                   <td className="px-4 py-3 text-sm text-ink-muted capitalize">
                     {humanizeAction(a.action)}
@@ -97,16 +97,9 @@ export function AgentActivitySection() {
                     {formatTarget(a.targetRef)}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={
-                        'text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold ' +
-                        (a.status === 'ok'
-                          ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-red-500/15 text-red-300 border border-red-500/30')
-                      }
-                    >
+                    <Badge tone={a.status === 'ok' ? 'accent' : 'danger'}>
                       {a.status === 'ok' ? 'ok' : 'denied'}
-                    </span>
+                    </Badge>
                   </td>
                 </tr>
               ))}
@@ -114,6 +107,6 @@ export function AgentActivitySection() {
           </table>
         </div>
       )}
-    </div>
+    </Panel>
   );
 }

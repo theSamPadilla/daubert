@@ -1,14 +1,13 @@
-import { ReactNode } from 'react';
+import { HTMLAttributes, ReactNode } from 'react';
 
-type Props = {
+type Props = HTMLAttributes<HTMLDivElement> & {
   padded?: boolean;
-  className?: string;
   children: ReactNode;
 };
 
-export function Panel({ padded = false, className = '', children }: Props) {
+export function Panel({ padded = false, className = '', children, ...rest }: Props) {
   return (
-    <div className={`bg-surface rounded-xl border border-line ${padded ? 'p-5' : ''} ${className}`}>
+    <div className={`bg-surface rounded-xl border border-line ${padded ? 'p-5' : ''} ${className}`} {...rest}>
       {children}
     </div>
   );

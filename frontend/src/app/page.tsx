@@ -12,6 +12,7 @@ import { OrgSwitcher } from '@/components/Layout/OrgSwitcher';
 import { apiClient, type Case } from '@/lib/api-client';
 import { Loader } from '@/components/Common/Loader';
 import { NewCaseModal } from '@/components/Cases/NewCaseModal';
+import { Badge, Button } from '@/components/ui';
 import { FaGear, FaLock, FaPlus } from 'react-icons/fa6';
 
 function CaseSelector() {
@@ -38,31 +39,11 @@ function CaseSelector() {
       : allCases;
 
   return (
-    <div className="relative min-h-screen bg-surface text-white overflow-hidden">
-      {/* faint grid overlay — adds texture without competing with content */}
-      <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
-
-      {/* Soft ambient brand glow — single light source from top-right */}
-      <div
-        className="pointer-events-none absolute -top-48 -right-48 w-[960px] h-[960px] -z-10 blur-3xl"
-        style={{ background: 'radial-gradient(circle, rgba(31,58,147,0.95), rgba(31,58,147,0.35) 35%, transparent 70%)' }}
-      />
-
-      {/* Large logo watermark — anchors bottom-right canvas */}
-      <div className="pointer-events-none absolute -bottom-48 -right-48 -z-10 opacity-[0.04] select-none">
-        <Image src="/logo-light.png" alt="" width={960} height={960} priority />
-      </div>
-
-      {/* Hero header band — soft surface tint behind the heading, hairline divider at its base */}
-      <div className="pointer-events-none absolute left-0 right-0 top-14 -z-10">
-        <div className="h-64 bg-gradient-to-b from-surface-panel/45 via-surface-panel/15 to-transparent" />
-        <div className="h-px bg-gradient-to-r from-transparent via-brand-ink/20 to-transparent" />
-      </div>
-
-      {/* Header */}
-      <header className="relative z-10 bg-surface-panel/70 backdrop-blur-md border-b border-line/60 h-14 px-5 flex items-center justify-between shrink-0">
+    <div className="relative min-h-screen bg-surface overflow-hidden">
+      {/* Sticky top nav — website nav pattern */}
+      <header className="sticky top-0 z-10 bg-surface/80 backdrop-blur-md border-b border-line h-14 px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
+          <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
             <Image
               src="/logo-light.png"
               alt="Daubert"
@@ -70,7 +51,7 @@ function CaseSelector() {
               height={26}
               priority
             />
-            <h1 className="text-base font-semibold tracking-tight text-white">Daubert</h1>
+            <h1 className="text-base font-semibold tracking-tight text-ink">Daubert</h1>
           </Link>
           <OrgSwitcher />
         </div>
@@ -83,14 +64,11 @@ function CaseSelector() {
       {/* Case grid */}
       <main className="relative max-w-5xl mx-auto px-6 py-14">
         <div className="mb-10">
-          <div className="flex items-center gap-3">
-            <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
-              Workspace
+          <h2 className="text-4xl font-bold tracking-tight text-ink">
+            Your{' '}
+            <span className="bg-gradient-to-r from-brand to-accent bg-clip-text text-transparent">
+              cases
             </span>
-          </div>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight text-white">
-            Your cases
           </h2>
           {!loading && (
             <p className="mt-2 text-sm text-ink-muted">
@@ -123,15 +101,15 @@ function CaseSelector() {
                     key={c.id}
                     title="You're not a member of this case. Ask an org admin to add you."
                     className="relative p-5 min-h-[128px] rounded-xl
-                      bg-surface-panel/40 border border-dashed border-line-strong/50
-                      cursor-not-allowed overflow-hidden"
+                      bg-surface-panel border border-dashed border-line
+                      cursor-not-allowed overflow-hidden opacity-60"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="font-semibold text-base text-ink-muted line-clamp-1 flex-1">
                         {c.name}
                       </h3>
                       <span
-                        className="flex-shrink-0 w-7 h-7 rounded-md bg-surface/60 border border-line-strong/60 flex items-center justify-center"
+                        className="flex-shrink-0 w-7 h-7 rounded-md bg-surface border border-line flex items-center justify-center"
                         aria-label="Locked"
                       >
                         <FaLock size={10} className="text-ink-faint" />
@@ -154,41 +132,34 @@ function CaseSelector() {
                   <button
                     onClick={() => router.push(`/cases/${c.id}/investigations`)}
                     className="w-full text-left p-5 min-h-[128px] rounded-xl
-                      bg-surface-panel border border-line-strong/60
-                      shadow-[0_2px_12px_rgba(0,0,0,0.35)]
-                      hover:bg-surface-raised hover:border-brand-ink/40
-                      hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(31,58,147,0.35)]
-                      transition-all duration-200 relative overflow-hidden"
+                      bg-surface border border-line
+                      hover:border-line-strong hover:-translate-y-0.5
+                      hover:shadow-[0_24px_60px_-30px_rgba(11,18,32,0.18)]
+                      transition-all duration-200 relative overflow-hidden
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                   >
-                    {/* subtle top inner-highlight to give the card a raised edge */}
-                    <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-
                     <div className="flex items-start justify-between gap-3 pr-7">
-                      <h3 className="font-semibold text-base text-white group-hover:text-brand-ink transition-colors line-clamp-1 flex-1">
+                      <h3 className="text-[15px] font-medium text-ink line-clamp-1 flex-1">
                         {c.name}
                       </h3>
-                      <span
-                        className={
-                          'text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold flex-shrink-0 ' +
-                          (isOwner
-                            ? 'bg-brand text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]'
-                            : 'bg-surface text-ink-muted border border-line-strong')
-                        }
-                      >
+                      <Badge tone={isOwner ? 'brand' : 'neutral'} className="flex-shrink-0 uppercase">
                         {c.role}
-                      </span>
+                      </Badge>
                     </div>
                     {c.summary && (
                       <p className="text-sm text-ink-muted mt-2 line-clamp-2 leading-relaxed">
                         {c.summary}
                       </p>
                     )}
+                    <p className="font-mono text-[11px] text-ink-faint mt-3">
+                      {c.id.slice(0, 8)}
+                    </p>
                   </button>
                   {canAccessSettings && (
                     <button
                       onClick={(e) => { e.stopPropagation(); router.push(`/cases/${c.id}/settings`); }}
                       title="Case settings"
-                      className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center text-ink-faint hover:text-white opacity-0 group-hover:opacity-100 transition-all rounded-md hover:bg-white/5"
+                      className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center text-ink-faint hover:text-ink opacity-0 group-hover:opacity-100 transition-all rounded-md hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                     >
                       <FaGear size={13} />
                     </button>
@@ -197,16 +168,17 @@ function CaseSelector() {
               );
             })}
             {canCreate && (
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setNewCaseOpen(true)}
-                className="group flex flex-col items-center justify-center gap-2 p-5 min-h-[128px] rounded-xl border-2 border-dashed border-line-strong/70 hover:border-brand-ink/40 hover:bg-brand/10 transition-colors"
+                className="group flex-col gap-2 min-h-[128px] rounded-xl border-dashed hover:border-brand/40 hover:bg-brand-soft"
               >
-                <div className="w-10 h-10 rounded-full bg-brand/20 group-hover:bg-brand/40 flex items-center justify-center transition-colors">
-                  <FaPlus size={16} className="text-brand-ink" />
+                <div className="w-10 h-10 rounded-full bg-surface-raised group-hover:bg-brand/10 flex items-center justify-center transition-colors">
+                  <FaPlus size={16} className="text-ink-muted group-hover:text-brand" />
                 </div>
-                <span className="text-sm font-medium text-ink group-hover:text-white transition-colors">New case</span>
+                <span className="text-sm font-medium text-ink-muted group-hover:text-brand transition-colors">New case</span>
                 <span className="text-xs text-ink-faint">Start a new investigation</span>
-              </button>
+              </Button>
             )}
           </div>
         )}

@@ -7,6 +7,7 @@ import type { components } from '@/generated/api-types';
 import { Loader } from '@/components/Common/Loader';
 import { useConfirm } from '@/components/Common/ConfirmProvider';
 import { useAuth } from '@/components/Auth/AuthProvider';
+import { Button, Panel, Kicker } from '@/components/ui';
 
 type OAuthSession = components['schemas']['OAuthSessionSummary'];
 type StartConnectResponse = components['schemas']['StartConnectResponse'];
@@ -26,9 +27,9 @@ function formatDate(iso: string): string {
 
 function Banner({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 mb-4 rounded-lg border border-red-500/40 bg-red-500/10 text-red-300 text-sm">
+    <div className="flex items-center gap-3 px-4 py-3 mb-4 rounded-lg border border-redline/30 bg-redline/8 text-redline text-sm">
       <span className="flex-1">{message}</span>
-      <button onClick={onClose} className="hover:text-white transition-colors text-xs">
+      <button onClick={onClose} className="hover:text-ink transition-colors text-xs">
         Dismiss
       </button>
     </div>
@@ -51,7 +52,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="p-1.5 text-ink-faint hover:text-brand-ink transition-colors"
+      className="p-1.5 text-ink-faint hover:text-brand transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded"
       title="Copy"
     >
       {copied ? <FaCheck size={12} /> : <FaCopy size={12} />}
@@ -75,20 +76,18 @@ function ConnectPanel({ response }: ConnectPanelProps) {
   const instructions = response.perSurfaceInstructions[tab];
 
   return (
-    <div className="mt-5 rounded-xl border border-line-strong/60 bg-surface/40 overflow-hidden">
+    <div className="mt-5 rounded-xl border border-line bg-surface-panel overflow-hidden">
       {/* MCP server URL — pinned at top */}
-      <div className="px-5 py-4 border-b border-line-strong/60 bg-surface/30">
-        <p className="text-[10px] text-ink-faint mb-1.5 uppercase tracking-[0.18em] font-semibold">
-          MCP Server URL
-        </p>
-        <div className="flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2">
-          <code className="flex-1 text-sm text-brand-ink font-mono break-all">{response.mcpUrl}</code>
+      <div className="px-5 py-4 border-b border-line bg-surface">
+        <Kicker className="mb-1.5">MCP Server URL</Kicker>
+        <div className="flex items-center gap-2 rounded-lg border border-line bg-surface-raised px-3 py-2">
+          <code className="flex-1 text-sm text-brand font-mono break-all">{response.mcpUrl}</code>
           <CopyButton text={response.mcpUrl} />
         </div>
       </div>
 
       {/* Tabs */}
-      <div role="tablist" className="flex border-b border-line-strong/60 bg-surface/20">
+      <div role="tablist" className="flex border-b border-line bg-surface">
         {CONNECT_TABS.map((t) => (
           <button
             key={t.key}
@@ -96,10 +95,10 @@ function ConnectPanel({ response }: ConnectPanelProps) {
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={
-              'flex-1 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ' +
+              'flex-1 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ' +
               (tab === t.key
-                ? 'border-brand-ink text-white bg-surface/40'
-                : 'border-transparent text-ink-muted hover:text-white hover:bg-surface/30')
+                ? 'border-brand text-ink bg-surface-panel'
+                : 'border-transparent text-ink-muted hover:text-ink hover:bg-surface-raised')
             }
           >
             {t.label}
@@ -115,7 +114,7 @@ function ConnectPanel({ response }: ConnectPanelProps) {
             <li key={i} className="flex items-start gap-3">
               <span
                 aria-hidden
-                className="flex-shrink-0 w-6 h-6 rounded-full bg-brand/15 border border-brand-ink/40 text-brand-ink text-xs font-semibold flex items-center justify-center mt-0.5"
+                className="flex-shrink-0 w-6 h-6 rounded-full bg-brand-soft border border-brand/30 text-brand text-xs font-semibold flex items-center justify-center mt-0.5"
               >
                 {i + 1}
               </span>
@@ -125,8 +124,8 @@ function ConnectPanel({ response }: ConnectPanelProps) {
         </ol>
 
         {instructions.command && (
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5">
-            <code className="flex-1 text-sm text-emerald-200 font-mono break-all">
+          <div className="flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2.5">
+            <code className="flex-1 text-sm text-accent font-mono break-all">
               {instructions.command}
             </code>
             <CopyButton text={instructions.command} />
@@ -134,9 +133,9 @@ function ConnectPanel({ response }: ConnectPanelProps) {
         )}
 
         {instructions.note && (
-          <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5">
-            <FaCircleInfo size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-100/90 leading-relaxed">{instructions.note}</p>
+          <div className="flex items-start gap-2.5 rounded-lg border border-line bg-surface-panel px-3 py-2.5">
+            <FaCircleInfo size={14} className="text-ink-muted flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-ink-muted leading-relaxed">{instructions.note}</p>
           </div>
         )}
       </div>
@@ -220,9 +219,8 @@ export function ConnectedAgentsSection() {
   };
 
   return (
-    <div id="agents" className="relative mt-6 p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden scroll-mt-20">
-      <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-      <h3 className="text-base font-semibold text-white mb-5">Connected agents</h3>
+    <Panel id="agents" className="mt-6 scroll-mt-20 overflow-hidden" padded>
+      <h3 className="text-base font-semibold text-ink mb-5">Connected agents</h3>
 
       {error && <Banner message={error} onClose={() => setError(null)} />}
 
@@ -231,21 +229,21 @@ export function ConnectedAgentsSection() {
       ) : sessions.length === 0 ? (
         <p className="text-sm text-ink-muted">No agents connected.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line-strong mb-4">
+        <div className="overflow-hidden rounded-lg border border-line mb-4 -mx-5">
           <table className="w-full">
             <thead>
-              <tr className="bg-surface/60 text-left text-xs text-ink-faint uppercase tracking-wider">
-                <th className="px-4 py-2.5">Agent</th>
-                <th className="px-4 py-2.5">Organization</th>
-                <th className="px-4 py-2.5">Last used</th>
-                <th className="px-4 py-2.5">Connected</th>
-                <th className="w-12 px-4 py-2.5"></th>
+              <tr className="bg-surface-panel text-left">
+                <th className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Agent</th>
+                <th className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Organization</th>
+                <th className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Last used</th>
+                <th className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Connected</th>
+                <th className="w-12 px-4 py-2.5 border-b border-line"></th>
               </tr>
             </thead>
             <tbody>
               {sessions.map((s) => (
-                <tr key={s.id} className="border-t border-line-strong/50">
-                  <td className="px-4 py-3 text-sm text-white">{s.surfaceLabel}</td>
+                <tr key={s.id} className="border-b border-line hover:bg-surface-panel transition-colors">
+                  <td className="px-4 py-3 text-sm text-ink">{s.surfaceLabel}</td>
                   <td className="px-4 py-3 text-sm text-ink-muted">{orgName(s.organizationId)}</td>
                   <td className="px-4 py-3 text-sm text-ink-muted">
                     {s.lastUsedAt ? formatDate(s.lastUsedAt) : 'Never'}
@@ -254,7 +252,7 @@ export function ConnectedAgentsSection() {
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => handleRevoke(s)}
-                      className="p-1.5 text-ink-faint hover:text-red-400 transition-colors"
+                      className="p-1.5 text-ink-faint hover:text-redline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded"
                       title="Revoke agent access"
                     >
                       <FaTrash size={12} />
@@ -268,17 +266,17 @@ export function ConnectedAgentsSection() {
       )}
 
       <div className="mt-4 flex items-center gap-3">
-        <button
+        <Button
           onClick={handleConnect}
           disabled={connecting}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-brand hover:bg-brand/90 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          size="sm"
         >
           {connecting ? 'Generating…' : 'Connect an agent'}
-        </button>
+        </Button>
         {connectResponse && (
           <button
             onClick={() => setConnectResponse(null)}
-            className="text-xs text-ink-muted hover:text-white transition-colors"
+            className="text-xs text-ink-muted hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded"
           >
             Hide instructions
           </button>
@@ -286,6 +284,6 @@ export function ConnectedAgentsSection() {
       </div>
 
       {connectResponse && <ConnectPanel response={connectResponse} />}
-    </div>
+    </Panel>
   );
 }

@@ -45,9 +45,9 @@ export default function EntitiesPage() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">Labeled Entities</h1>
+            <h1 className="text-2xl font-bold text-ink">Labeled Entities</h1>
             <p className="mt-1 text-sm text-ink-muted">
-              Daubert&apos;s registry of known wallet operators. Read-only view — admins can manage entries from <code className="text-brand-ink">/admin/entities</code>.
+              Daubert&apos;s registry of known wallet operators. Read-only view — admins can manage entries from <code className="text-brand font-mono">/admin/entities</code>.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -56,12 +56,12 @@ export default function EntitiesPage() {
               placeholder="Search entities..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-56 rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+              className="w-56 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 transition-colors"
             />
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="rounded border border-line-strong bg-surface-panel px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+              className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 transition-colors"
             >
               <option value="">All Categories</option>
               {CATEGORIES.map((cat) => (
@@ -74,7 +74,7 @@ export default function EntitiesPage() {
         </div>
 
         {error && (
-          <div className="mb-4 rounded bg-red-900/50 p-3 text-sm text-red-300">{error}</div>
+          <div className="mb-4 rounded-lg border border-redline/30 bg-redline/8 p-3 text-sm text-redline">{error}</div>
         )}
 
         {loading ? (
@@ -82,15 +82,15 @@ export default function EntitiesPage() {
         ) : entities.length === 0 ? (
           <p className="py-12 text-center text-ink-muted">No entities found.</p>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-line-strong">
+          <div className="overflow-hidden rounded-xl border border-line">
             <table className="w-full">
               <thead>
-                <tr className="bg-surface-panel/50 text-left text-sm text-ink-muted">
-                  <th className="w-8 px-4 py-3"></th>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Wallets</th>
-                  <th className="px-4 py-3">Description</th>
+                <tr className="bg-surface-panel text-left">
+                  <th className="w-8 px-4 py-3 border-b border-line"></th>
+                  <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Name</th>
+                  <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Category</th>
+                  <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Wallets</th>
+                  <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-faint border-b border-line">Description</th>
                 </tr>
               </thead>
               <tbody>
@@ -100,15 +100,15 @@ export default function EntitiesPage() {
                   return (
                     <Fragment key={entity.id}>
                       <tr
-                        className="cursor-pointer border-b border-line-strong/50 hover:bg-surface-panel/50"
+                        className="cursor-pointer border-b border-line hover:bg-surface-panel transition-colors"
                         onClick={() => setExpandedId((p) => (p === entity.id ? null : entity.id))}
                       >
                         <td className="px-4 py-3 text-ink-faint">
                           {expanded ? <FaChevronDown className="h-3 w-3" /> : <FaChevronRight className="h-3 w-3" />}
                         </td>
-                        <td className="px-4 py-3 text-sm font-medium text-white">{entity.name}</td>
+                        <td className="px-4 py-3 text-sm font-medium text-ink">{entity.name}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${catColor}`}>
+                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${catColor}`}>
                             {entity.category}
                           </span>
                         </td>
@@ -116,17 +116,17 @@ export default function EntitiesPage() {
                         <td className="px-4 py-3 text-sm text-ink-muted">{truncate(entity.description, 80)}</td>
                       </tr>
                       {expanded && (
-                        <tr className="bg-surface-panel/30">
+                        <tr className="bg-surface-panel">
                           <td colSpan={5} className="px-4 py-4">
                             <div className="space-y-3">
                               {entity.description && (
                                 <div>
-                                  <span className="text-xs uppercase tracking-wider text-ink-faint">Description</span>
+                                  <span className="font-mono text-[11px] uppercase tracking-wider text-ink-faint">Description</span>
                                   <p className="mt-1 text-sm text-ink-muted">{entity.description}</p>
                                 </div>
                               )}
                               <div>
-                                <span className="text-xs uppercase tracking-wider text-ink-faint">
+                                <span className="font-mono text-[11px] uppercase tracking-wider text-ink-faint">
                                   Wallets ({entity.wallets.length})
                                 </span>
                                 {entity.wallets.length > 0 ? (
@@ -134,7 +134,7 @@ export default function EntitiesPage() {
                                     {entity.wallets.map((wallet, i) => (
                                       <li
                                         key={i}
-                                        className="mb-1 mr-2 inline-block rounded bg-surface-panel px-2 py-1 font-mono text-sm text-ink-muted"
+                                        className="mb-1 mr-2 inline-block rounded-lg border border-line bg-surface px-2 py-1 font-mono text-sm text-ink-muted"
                                       >
                                         {wallet}
                                       </li>

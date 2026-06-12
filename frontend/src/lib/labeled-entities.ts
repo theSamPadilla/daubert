@@ -21,13 +21,13 @@ export const CATEGORIES = [
 export type Category = (typeof CATEGORIES)[number];
 
 export const CATEGORY_COLORS: Record<Category, string> = {
-  exchange: 'bg-blue-900/50 text-blue-300',
-  mixer: 'bg-red-900/50 text-red-300',
-  bridge: 'bg-purple-900/50 text-purple-300',
-  protocol: 'bg-green-900/50 text-green-300',
-  individual: 'bg-yellow-900/50 text-yellow-300',
-  contract: 'bg-cyan-900/50 text-cyan-300',
-  government: 'bg-orange-900/50 text-orange-300',
-  custodian: 'bg-indigo-900/50 text-indigo-300',
-  other: 'bg-gray-700 text-gray-300',
+  exchange: 'bg-blue-100 text-blue-700',
+  mixer: 'bg-red-100 text-red-700',
+  bridge: 'bg-purple-100 text-purple-700',
+  protocol: 'bg-green-100 text-green-700',
+  individual: 'bg-yellow-100 text-yellow-700',
+  contract: 'bg-cyan-100 text-cyan-700',
+  government: 'bg-orange-100 text-orange-700',
+  custodian: 'bg-indigo-100 text-indigo-700',
+  other: 'bg-surface-raised text-ink-muted',
 };

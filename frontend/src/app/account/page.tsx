@@ -72,7 +72,7 @@ function AccountInner() {
         <UserMenu />
       </header>
 
-      <main className="relative max-w-2xl mx-auto px-6 py-12">
+      <main className="relative max-w-4xl mx-auto px-6 py-12">
         <button
           onClick={() => router.back()}
           className="inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-white transition-colors mb-8"

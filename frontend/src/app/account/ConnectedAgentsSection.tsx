@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { FaTrash, FaCopy, FaCheck } from 'react-icons/fa6';
+import { FaTrash, FaCopy, FaCheck, FaCircleInfo } from 'react-icons/fa6';
 import { apiClient } from '@/lib/api-client';
 import type { components } from '@/generated/api-types';
 import { Loader } from '@/components/Common/Loader';
@@ -75,57 +75,70 @@ function ConnectPanel({ response }: ConnectPanelProps) {
   const instructions = response.perSurfaceInstructions[tab];
 
   return (
-    <div className="mt-4 space-y-4 rounded-lg border border-line-strong/60 bg-surface/40 p-4">
-      <div>
-        <p className="text-xs text-ink-muted mb-1 uppercase tracking-wider font-semibold">MCP Server URL</p>
+    <div className="mt-5 rounded-xl border border-line-strong/60 bg-surface/40 overflow-hidden">
+      {/* MCP server URL — pinned at top */}
+      <div className="px-5 py-4 border-b border-line-strong/60 bg-surface/30">
+        <p className="text-[10px] text-ink-faint mb-1.5 uppercase tracking-[0.18em] font-semibold">
+          MCP Server URL
+        </p>
         <div className="flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2">
-          <code className="flex-1 text-xs text-white font-mono break-all">{response.mcpUrl}</code>
+          <code className="flex-1 text-sm text-brand-ink font-mono break-all">{response.mcpUrl}</code>
           <CopyButton text={response.mcpUrl} />
         </div>
       </div>
 
-      <div>
-        <div role="tablist" className="flex gap-1 border-b border-line-strong/60">
-          {CONNECT_TABS.map((t) => (
-            <button
-              key={t.key}
-              role="tab"
-              aria-selected={tab === t.key}
-              onClick={() => setTab(t.key)}
-              className={
-                'px-3 py-2 text-xs font-medium rounded-t-md border-b-2 -mb-px transition-colors ' +
-                (tab === t.key
-                  ? 'border-brand-ink text-white bg-surface/60'
-                  : 'border-transparent text-ink-muted hover:text-white')
-              }
-            >
-              {t.label}
-            </button>
+      {/* Tabs */}
+      <div role="tablist" className="flex border-b border-line-strong/60 bg-surface/20">
+        {CONNECT_TABS.map((t) => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={
+              'flex-1 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ' +
+              (tab === t.key
+                ? 'border-brand-ink text-white bg-surface/40'
+                : 'border-transparent text-ink-muted hover:text-white hover:bg-surface/30')
+            }
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div role="tabpanel" className="px-5 py-5 space-y-4">
+        {/* Numbered steps with colored badges */}
+        <ol className="space-y-3">
+          {instructions.steps.map((step, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <span
+                aria-hidden
+                className="flex-shrink-0 w-6 h-6 rounded-full bg-brand/15 border border-brand-ink/40 text-brand-ink text-xs font-semibold flex items-center justify-center mt-0.5"
+              >
+                {i + 1}
+              </span>
+              <span className="flex-1 text-sm text-ink leading-relaxed pt-0.5">{step}</span>
+            </li>
           ))}
-        </div>
+        </ol>
 
-        <div role="tabpanel" className="pt-3 space-y-3">
-          <ol className="list-decimal list-outside ml-5 space-y-1.5">
-            {instructions.steps.map((step, i) => (
-              <li key={i} className="text-sm text-ink leading-relaxed pl-1">
-                {step}
-              </li>
-            ))}
-          </ol>
+        {instructions.command && (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5">
+            <code className="flex-1 text-sm text-emerald-200 font-mono break-all">
+              {instructions.command}
+            </code>
+            <CopyButton text={instructions.command} />
+          </div>
+        )}
 
-          {instructions.command && (
-            <div className="flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2">
-              <code className="flex-1 text-xs text-white font-mono break-all">{instructions.command}</code>
-              <CopyButton text={instructions.command} />
-            </div>
-          )}
-
-          {instructions.note && (
-            <p className="text-xs text-ink-muted rounded-lg border border-line-strong/50 bg-surface/60 px-3 py-2 leading-relaxed">
-              {instructions.note}
-            </p>
-          )}
-        </div>
+        {instructions.note && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5">
+            <FaCircleInfo size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-100/90 leading-relaxed">{instructions.note}</p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import type { components } from '@/generated/api-types';
 import { Loader } from '@/components/Common/Loader';
 import { InviteCreatedModal } from '@/components/Common/InviteCreatedModal';
 import { useConfirm } from '@/components/Common/ConfirmProvider';
+import { OrgCasesAdminSection } from './OrgCasesAdminSection';
 
 type OrgMember = components['schemas']['OrganizationMember'];
 type OrgInvite = components['schemas']['OrganizationInvite'];
@@ -569,6 +570,7 @@ export default function OrgSettingsPage() {
   const orgForThisPage = user?.orgs.find((o) => o.slug === orgSlug);
   const isAdmin = orgForThisPage?.role === 'admin';
   const currentUserId = user?.id ?? '';
+  const orgId = orgForThisPage?.id;
   const orgName = orgForThisPage?.name;
 
   return (
@@ -600,6 +602,7 @@ export default function OrgSettingsPage() {
       <OrgInfoSection orgSlug={orgSlug} isAdmin={isAdmin} />
       <MembersSection orgSlug={orgSlug} isAdmin={isAdmin} currentUserId={currentUserId} />
       {isAdmin && <InvitesSection orgSlug={orgSlug} />}
+      {isAdmin && orgId && <OrgCasesAdminSection orgId={orgId} />}
     </main>
   );
 }

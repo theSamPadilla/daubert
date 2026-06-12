@@ -119,6 +119,7 @@ export interface Case {
   id: string;
   name: string;
   summary: string | null;
+  orgId: string;
   createdAt: string;
   updatedAt: string;
   role?: CaseRole;

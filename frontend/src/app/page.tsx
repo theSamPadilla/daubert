@@ -34,7 +34,7 @@ function CaseSelector() {
 
   const cases =
     activeOrgSlug !== null && activeOrg
-      ? allCases.filter((c) => (c as any).orgId === activeOrg.id)
+      ? allCases.filter((c) => c.orgId === activeOrg.id)
       : allCases;
 
   return (

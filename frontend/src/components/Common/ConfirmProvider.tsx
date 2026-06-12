@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Modal, Button } from '@/components/ui';
 
 interface ConfirmOptions {
   title: string;
@@ -74,55 +75,43 @@ function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const confirmRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    // Focus the confirm button on mount so Enter triggers it.
-    confirmRef.current?.focus();
-  }, []);
 
   const destructive = options.destructive ?? false;
   const confirmLabel = options.confirmLabel ?? (destructive ? 'Delete' : 'Confirm');
   const cancelLabel = options.cancelLabel ?? 'Cancel';
 
-  const confirmClass = destructive
-    ? 'bg-red-600 hover:bg-red-500 text-white'
-    : 'bg-brand hover:bg-brand/90 text-white';
-
   return (
-    <div
-      className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] px-4"
-      onClick={(e) => {
-        // Backdrop click = cancel (safe default — never confirms accidentally).
-        if (e.target === e.currentTarget && !working) onCancel();
-      }}
-    >
-      <div className="bg-surface-panel rounded-lg p-6 w-full max-w-md border border-line-strong shadow-xl space-y-4">
-        <h3 className="text-base font-semibold text-white">{options.title}</h3>
-        {options.message && (
-          <div className="text-sm text-ink-muted leading-relaxed">{options.message}</div>
-        )}
-        <div className="flex items-center justify-end gap-2 pt-2">
-          <button
-            type="button"
+    <Modal
+      open
+      title={options.title}
+      onClose={working ? () => {} : onCancel}
+      maxWidth="max-w-md"
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onCancel}
             disabled={working}
-            className="px-3 py-1.5 rounded bg-surface-raised hover:bg-surface-raised/80 text-sm text-ink-muted transition-colors disabled:opacity-50"
           >
             {cancelLabel}
-          </button>
-          <button
-            ref={confirmRef}
-            type="button"
+          </Button>
+          <Button
+            autoFocus
+            variant={destructive ? 'danger' : 'primary'}
+            size="sm"
             onClick={onConfirm}
             disabled={working}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 ${confirmClass}`}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      }
+    >
+      {options.message && (
+        <div className="text-sm text-ink-muted leading-relaxed">{options.message}</div>
+      )}
+    </Modal>
   );
 }
 

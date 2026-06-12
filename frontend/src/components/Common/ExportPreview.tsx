@@ -50,7 +50,7 @@ export function ExportPreview({ theme, generate }: Props) {
         </div>
       )}
       {!loading && error && (
-        <div className="px-4 text-center text-xs text-red-300">Preview failed: {error}</div>
+        <div className="px-4 text-center text-xs text-redline">Preview failed: {error}</div>
       )}
       {!loading && !error && dataUrl && (
         // eslint-disable-next-line @next/next/no-img-element

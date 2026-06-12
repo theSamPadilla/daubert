@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { FaXmark } from 'react-icons/fa6';
 
 const PRESETS = [
   '#3b82f6', // blue
@@ -26,11 +27,11 @@ export function ColorPicker({ value, onChange, allowNone }: ColorPickerProps) {
         <button
           type="button"
           onClick={() => onChange('')}
-          className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center bg-surface-panel"
-          style={{ borderColor: value === '' ? '#fff' : 'transparent' }}
+          className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center bg-canvas-fill focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          style={{ borderColor: value === '' ? 'white' : 'transparent' }}
           title="No color"
         >
-          <span className="text-ink-faint text-xs leading-none">✕</span>
+          <FaXmark size={10} className="text-canvas-muted" />
         </button>
       )}
       {PRESETS.map((color) => (
@@ -38,19 +39,19 @@ export function ColorPicker({ value, onChange, allowNone }: ColorPickerProps) {
           key={color}
           type="button"
           onClick={() => onChange(color)}
-          className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110"
+          className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           style={{
             backgroundColor: color,
-            borderColor: value === color ? '#fff' : 'transparent',
+            borderColor: value === color ? 'white' : 'transparent',
           }}
         />
       ))}
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="w-6 h-6 rounded-full border-2 border-dashed border-line-strong hover:border-line-strong flex items-center justify-center text-ink-muted text-xs"
+        className="w-6 h-6 rounded-full border-2 border-dashed border-canvas-line hover:border-canvas-muted flex items-center justify-center text-canvas-muted text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         style={
-          value && !PRESETS.includes(value) ? { backgroundColor: value, borderColor: '#fff', borderStyle: 'solid' } : undefined
+          value && !PRESETS.includes(value) ? { backgroundColor: value, borderColor: 'white', borderStyle: 'solid' } : undefined
         }
       >
         {(!value || PRESETS.includes(value)) && '+'}

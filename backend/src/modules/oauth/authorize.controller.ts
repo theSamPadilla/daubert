@@ -257,6 +257,12 @@ export class AuthorizeController {
       // so the FE can re-invoke the OAuth flow after sign-in. NOTE: browser
       // GETs don't carry a Bearer header; this is the path most OAuth
       // clients hit on first connect.
+      // Same-origin assumption: `return_to` is the BE path (e.g.
+      // `/oauth/authorize?client_id=…`). The FE login page replays it via
+      // `router.replace(returnTo)`, which navigates within the same origin.
+      // This breaks if FE and BE split to different origins (e.g. Vercel + Cloud Run
+      // without a shared reverse-proxy domain) — the FE would navigate to an
+      // unknown FE route instead of reaching the BE authorize endpoint.
       const frontendUrl = this.config.getOrThrow<string>('FRONTEND_URL');
       const returnTo = encodeURIComponent(this.buildOriginalUrl(req));
       res.redirect(302, `${frontendUrl}/login?return_to=${returnTo}`);

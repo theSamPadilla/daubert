@@ -42,6 +42,7 @@ import { McpThrottleService } from '../../common/throttle/mcp-throttle';
 import { McpAuthHelper, isAuthSuccess, AuthSuccess, AuthFailure } from './mcp-auth.helper';
 import { McpController } from './mcp.controller';
 import { McpToolsService } from './mcp.tools';
+import { OAuthService } from '../oauth/oauth.service';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -214,6 +215,7 @@ function buildModule(
   mcpAuth: jest.Mocked<McpAuthHelper>,
   throttleSvc: jest.Mocked<McpThrottleService>,
   mcpTools: jest.Mocked<McpToolsService>,
+  oauthService: jest.Mocked<OAuthService>,
 ) {
   const mockConfig = {
     getOrThrow: jest.fn((key: string) => {
@@ -228,6 +230,7 @@ function buildModule(
       { provide: McpAuthHelper, useValue: mcpAuth },
       { provide: McpThrottleService, useValue: throttleSvc },
       { provide: McpToolsService, useValue: mcpTools },
+      { provide: OAuthService, useValue: oauthService },
       { provide: ConfigService, useValue: mockConfig },
       McpIpThrottlerGuard,
       Reflector,
@@ -245,6 +248,7 @@ describe('McpController', () => {
   let mcpAuth: jest.Mocked<McpAuthHelper>;
   let throttleSvc: jest.Mocked<McpThrottleService>;
   let mcpTools: jest.Mocked<McpToolsService>;
+  let oauthService: jest.Mocked<OAuthService>;
 
   beforeEach(async () => {
     mcpAuth = {
@@ -257,10 +261,15 @@ describe('McpController', () => {
 
     mcpTools = makeMockMcpToolsService();
 
+    oauthService = {
+      augmentSurfaceLabel: jest.fn().mockResolvedValue(true),
+    } as unknown as jest.Mocked<OAuthService>;
+
     const module: TestingModule = await buildModule(
       mcpAuth,
       throttleSvc,
       mcpTools,
+      oauthService,
     ).compile();
 
     app = module.createNestApplication();
@@ -345,6 +354,7 @@ describe('McpController', () => {
         { provide: McpAuthHelper, useValue: mcpAuth },
         { provide: McpThrottleService, useValue: throttleSvc },
         { provide: McpToolsService, useValue: mcpTools },
+        { provide: OAuthService, useValue: oauthService },
         {
           provide: ConfigService,
           useValue: {
@@ -389,6 +399,50 @@ describe('McpController', () => {
 
     expect(res.headers['retry-after']).toBe('30');
     expect(mcpAuth.authenticate).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // (f) surfaceLabel augmentation — initialize request triggers augment call
+  // -------------------------------------------------------------------------
+
+  it('(f) initialize request: augmentSurfaceLabel called with session + clientInfo', async () => {
+    throttleSvc.hit.mockReturnValue({ allowed: true });
+    mcpAuth.authenticate.mockResolvedValueOnce(AUTH_SUCCESS);
+
+    await request(app.getHttpServer())
+      .post('/mcp')
+      .set('Accept', MCP_ACCEPT)
+      .send(initializePayload())
+      .expect(200);
+
+    // Give the fire-and-forget promise a tick to settle.
+    await new Promise((r) => setImmediate(r));
+
+    expect(oauthService.augmentSurfaceLabel).toHaveBeenCalledWith(
+      SESSION.id,
+      SESSION.surfaceLabel,
+      expect.stringContaining('test-client'),
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // (g) surfaceLabel augmentation — non-initialize request does NOT call it
+  // -------------------------------------------------------------------------
+
+  it('(g) non-initialize request: augmentSurfaceLabel NOT called', async () => {
+    throttleSvc.hit.mockReturnValue({ allowed: true });
+    mcpAuth.authenticate.mockResolvedValueOnce(AUTH_SUCCESS);
+
+    await request(app.getHttpServer())
+      .post('/mcp')
+      .set('Accept', MCP_ACCEPT)
+      .set('Authorization', 'Bearer good-token')
+      .send(listToolsPayload())
+      .expect(200);
+
+    await new Promise((r) => setImmediate(r));
+
+    expect(oauthService.augmentSurfaceLabel).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------

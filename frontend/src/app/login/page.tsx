@@ -84,7 +84,7 @@ function HeroLogo() {
         <circle cx="100" cy="100" r="78" stroke="currentColor" strokeWidth="1" strokeDasharray="1 5" />
       </svg>
       <Image
-        src="/logo-light.png"
+        src="/logo.png"
         alt="Daubert AI"
         width={340}
         height={340}

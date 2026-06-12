@@ -12,7 +12,7 @@ export function WorkspaceEmptyState() {
         <EmptyState
           icon={
             <img
-              src="/logo-light.png"
+              src="/logo.png"
               alt=""
               aria-hidden="true"
               draggable={false}

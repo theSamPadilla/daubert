@@ -164,7 +164,7 @@ export default function InvitePage() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-surface px-4 py-10">
         <div className="w-full max-w-md flex flex-col items-center gap-8">
           <Image
-            src="/logo-light.png"
+            src="/logo.png"
             alt="Daubert"
             width={72}
             height={72}

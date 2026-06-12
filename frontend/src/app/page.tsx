@@ -45,7 +45,7 @@ function CaseSelector() {
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
             <Image
-              src="/logo-light.png"
+              src="/logo.png"
               alt="Daubert"
               width={26}
               height={26}

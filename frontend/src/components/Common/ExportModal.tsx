@@ -119,7 +119,7 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
           {/* Header */}
           <header className="flex items-center gap-3 px-6 py-4 border-b border-line shrink-0">
             <div className="relative w-7 h-7 shrink-0">
-              <Image src="/logo-light.png" alt="" fill sizes="28px" className="object-contain opacity-90" />
+              <Image src="/logo.png" alt="" fill sizes="28px" className="object-contain opacity-90" />
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-ink leading-tight">Export {kindLabel}</h3>
@@ -153,7 +153,7 @@ export function ExportModal({ open, onClose, kind, defaultFilename, onExport, pr
       {/* Header with logo */}
       <div className="flex items-center gap-3 mb-5">
         <div className="relative w-7 h-7 shrink-0">
-          <Image src="/logo-light.png" alt="" fill sizes="28px" className="object-contain opacity-90" />
+          <Image src="/logo.png" alt="" fill sizes="28px" className="object-contain opacity-90" />
         </div>
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-ink leading-tight">Export {kindLabel}</h3>

@@ -94,7 +94,7 @@ export function ConsentScreen({ bag, preview }: ConsentScreenProps) {
       <main className="relative mx-auto flex min-h-screen w-full max-w-xl flex-col items-stretch px-6 py-10">
         {/* App brand */}
         <div className="mb-10 flex items-center justify-center gap-2.5">
-          <Image src="/logo-light.png" alt="Daubert" width={26} height={26} priority />
+          <Image src="/logo.png" alt="Daubert" width={26} height={26} priority />
           <span className="text-base font-semibold tracking-tight text-ink">Daubert</span>
         </div>
 

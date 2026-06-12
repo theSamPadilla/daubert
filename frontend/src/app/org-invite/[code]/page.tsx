@@ -171,7 +171,7 @@ export default function OrgInvitePage() {
         </div>
         <div className="relative w-full max-w-md flex flex-col items-center gap-8">
           <Image
-            src="/logo-light.png"
+            src="/logo.png"
             alt="Daubert"
             width={72}
             height={72}

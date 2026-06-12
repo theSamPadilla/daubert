@@ -153,7 +153,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
         <header className="px-6 py-4 border-b border-line-strong flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative w-7 h-7 shrink-0">
-              <Image src="/logo-light.png" alt="" fill sizes="28px" className="object-contain opacity-90" />
+              <Image src="/logo.png" alt="" fill sizes="28px" className="object-contain opacity-90" />
             </div>
             <div>
               <h2 className="text-sm font-semibold text-ink">Create Exhibit</h2>

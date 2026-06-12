@@ -47,7 +47,7 @@ function AuthorizeErrorState({ message }: { message: string }) {
     <div className="relative min-h-screen bg-surface-panel overflow-hidden">
       <main className="relative mx-auto flex min-h-screen w-full max-w-xl flex-col items-stretch justify-center px-6 py-10">
         <div className="mb-8 flex items-center justify-center gap-2.5">
-          <Image src="/logo-light.png" alt="Daubert" width={26} height={26} priority />
+          <Image src="/logo.png" alt="Daubert" width={26} height={26} priority />
           <span className="text-base font-semibold tracking-tight text-ink">Daubert</span>
         </div>
         <div className="relative rounded-xl bg-surface border border-line shadow-[0_24px_60px_-30px_rgba(11,18,32,0.18)] p-6 overflow-hidden">

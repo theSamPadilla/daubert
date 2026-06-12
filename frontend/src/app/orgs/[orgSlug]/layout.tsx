@@ -17,7 +17,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-3">
               <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
                 <Image
-                  src="/logo-light.png"
+                  src="/logo.png"
                   alt="Daubert"
                   width={26}
                   height={26}

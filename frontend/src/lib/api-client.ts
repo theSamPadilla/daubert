@@ -703,4 +703,31 @@ export const apiClient = {
       xhr.send(form);
     });
   },
+
+  // OAuth consent flow
+  previewConsent: (bag: string) =>
+    request<components['schemas']['OAuthConsentPreview']>('/oauth/authorize/preview', {
+      method: 'POST',
+      body: JSON.stringify({ bag }),
+    }),
+  completeConsent: (bag: string, organizationId: string) =>
+    request<{ redirectUrl: string }>('/oauth/authorize/complete', {
+      method: 'POST',
+      body: JSON.stringify({ bag, organizationId }),
+    }),
+  denyConsent: (bag: string) =>
+    request<{ redirectUrl: string }>('/oauth/authorize/deny', {
+      method: 'POST',
+      body: JSON.stringify({ bag }),
+    }),
+
+  // User OAuth sessions
+  listOauthSessions: () =>
+    request<components['schemas']['OAuthSessionSummary'][]>('/me/oauth-sessions'),
+  revokeOauthSession: (id: string) =>
+    request<void>(`/me/oauth-sessions/${id}/revoke`, { method: 'POST' }),
+  startConnect: () =>
+    request<components['schemas']['StartConnectResponse']>('/me/oauth/start-connect', {
+      method: 'POST',
+    }),
 };

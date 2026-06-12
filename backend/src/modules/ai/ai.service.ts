@@ -691,18 +691,18 @@ export class AiService {
       }
 
       case EXECUTE_SCRIPT_TOOL.name: {
-        if (!investigationId || !caseId) {
-          return { error: 'No investigation context. Ask the user to select an investigation.' };
+        if (!caseId) {
+          return { error: 'No case context. Ask the user to open a case.' };
         }
         const { name, code } = toolUse.input as { name: string; code: string };
-        return this.scriptExecutionService.execute(investigationId, caseId, name, code, viewerRole);
+        return this.scriptExecutionService.execute(caseId, investigationId, name, code, viewerRole);
       }
 
       case LIST_SCRIPT_RUNS_TOOL.name: {
-        if (!investigationId) {
-          return { error: 'No investigation context. Ask the user to select an investigation.' };
+        if (!caseId) {
+          return { error: 'No case context. Ask the user to open a case.' };
         }
-        const runs = await this.scriptExecutionService.listRuns(investigationId);
+        const runs = await this.scriptExecutionService.listRunsForCase(caseId);
         return runs.map((r) => ({
           id: r.id,
           name: r.name,
@@ -918,14 +918,33 @@ export class AiService {
     }
     if (read.tooLarge) {
       return {
-        error: `File "${read.name}" is too large to read inline (${(read.size / (1024 * 1024)).toFixed(1)} MB). Ask the user to extract the relevant portion, or use execute_script for bulk processing.`,
+        error: `File "${read.name}" is too large to read (${(read.size / (1024 * 1024)).toFixed(1)} MB). PDFs are read in full up to 32 MB / 100 pages; beyond that, or for other types over ${(MAX_AGENT_READ_BYTES / (1024 * 1024)).toFixed(0)} MB, ask the user to extract the relevant portion, or use execute_script for bulk processing.`,
         name: read.name, mimeType: read.mimeType, size: read.size,
       };
     }
-    const buffer = await streamToBuffer(read.stream!);
-    const blocks = await buildAttachmentBlocks([
-      { name: read.name, mediaType: read.mimeType, data: buffer.toString('base64') },
-    ]);
+    // Caching uploader for oversized PDFs: reuse the cached Files API id when
+    // present, otherwise upload once and persist the id on the row.
+    const uploader = async (buf: Buffer, name: string, mime: string): Promise<string> =>
+      read.anthropicFileId ??
+      (await (async () => {
+        const id = await this.llm.uploadFile(buf, name, mime);
+        await this.dataRoomService.setAnthropicFileId(caseId, fileId, id);
+        return id;
+      })());
+    let blocks: Awaited<ReturnType<typeof buildAttachmentBlocks>>;
+    try {
+      const buffer = await streamToBuffer(read.stream!);
+      blocks = await buildAttachmentBlocks(
+        [{ name: read.name, mediaType: read.mimeType, data: buffer.toString('base64') }],
+        uploader,
+      );
+    } catch (e) {
+      this.logger.warn(`read_data_room_file failed for fileId=${fileId}: ${(e as Error).message}`);
+      return {
+        error: `File "${read.name}" could not be read (download or upload failed). Try again, or ask the user to extract the relevant portion.`,
+        name: read.name, mimeType: read.mimeType, size: read.size,
+      };
+    }
     const hasReadableContent = blocks.some((b) => b.type === 'document' || b.type === 'image');
     if (!hasReadableContent) {
       // Empty (unsupported type) or text-only (size/parse stub from

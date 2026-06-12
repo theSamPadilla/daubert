@@ -63,7 +63,7 @@ export const GET_SKILL_TOOL: Anthropic.Tool = {
 export const EXECUTE_SCRIPT_TOOL: Anthropic.Tool = {
   name: 'execute_script',
   description:
-    'Write and execute a JavaScript script with fetch() for HTTP calls. Use for batch API calls, data aggregation, complex queries, and graph mutations (fetch blockchain data → POST to import endpoint). The script runs in a sandboxed V8 isolate with top-level await support. API keys for Etherscan and Tronscan are injected automatically — do NOT include apikey params or TRON-PRO-API-KEY headers, just call the URLs directly. Available env: process.env.API_URL (backend base URL). Use console.log() for output. No filesystem or npm access. 30s timeout, 100KB output limit.',
+    'Write and execute a JavaScript script with fetch() for HTTP calls. Runs for the current case (no investigation required). Use for batch API calls, data aggregation, complex queries, and graph mutations (fetch blockchain data → POST to import endpoint). The script runs in a sandboxed V8 isolate with top-level await support. API keys for Etherscan and Tronscan are injected automatically — do NOT include apikey params or TRON-PRO-API-KEY headers, just call the URLs directly. Available env: process.env.API_URL (backend base URL). Use console.log() for output. No filesystem or npm access. 30s timeout, 100KB output limit.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -85,7 +85,7 @@ export const EXECUTE_SCRIPT_TOOL: Anthropic.Tool = {
 export const LIST_SCRIPT_RUNS_TOOL: Anthropic.Tool = {
   name: 'list_script_runs',
   description:
-    'List recent script runs for the current investigation. Returns the last 20 runs with name, status, duration, and truncated output. Check this before re-running a script to avoid duplicate work.',
+    'List recent script runs for the current case. Returns the last 20 runs with name, status, duration, and truncated output. Check this before re-running a script to avoid duplicate work.',
   input_schema: {
     type: 'object' as const,
     properties: {},
@@ -184,7 +184,7 @@ export const LIST_DATA_ROOM_FILES_TOOL: Anthropic.Tool = {
 export const READ_DATA_ROOM_FILE_TOOL: Anthropic.Tool = {
   name: 'read_data_room_file',
   description:
-    "Read a data-room file's contents into the conversation. Pass a fileId from get_case_data's manifest or list_data_room_files. PDFs and images are read natively; spreadsheets (xlsx) and Word docs (docx) are converted to text; CSV/TXT are read as text. Very large files and unsupported types (e.g. un-exported Google-Workspace files) cannot be read inline and return a note instead. The content is provided to you for THIS turn only — it is not retained in conversation history, so call this again if you need the file in a later turn.",
+    "Read a data-room file's contents into the conversation. Pass a fileId from get_case_data's manifest or list_data_room_files. PDFs of any size up to 32 MB / 100 pages are read in full natively (only files beyond that need a manual excerpt); images are read natively; spreadsheets (xlsx) and Word docs (docx) are converted to text; CSV/TXT are read as text. Files beyond those limits and unsupported types (e.g. un-exported Google-Workspace files) cannot be read inline and return a note instead. The content is provided to you for THIS turn only — it is not retained in conversation history, so call this again if you need the file in a later turn.",
   input_schema: {
     type: 'object' as const,
     properties: {

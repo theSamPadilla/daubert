@@ -26,4 +26,9 @@ export class DataRoomFileEntity extends BaseEntity {
   @Index()
   @Column({ name: 'folder_id', type: 'varchar', nullable: true }) // null = root
   folderId: string | null;
+
+  // Cached Anthropic Files API id, set the first time an oversized PDF is read
+  // by the AI agent. Lets repeat reads reference the upload instead of re-sending.
+  @Column({ name: 'anthropic_file_id', type: 'varchar', nullable: true })
+  anthropicFileId: string | null;
 }

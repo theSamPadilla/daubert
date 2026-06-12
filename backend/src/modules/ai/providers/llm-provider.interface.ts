@@ -25,4 +25,6 @@ export interface LlmProvider {
     maxTokens: number;
     messages: Anthropic.MessageParam[];
   }): Promise<GeneratedText>;
+
+  uploadFile(buffer: Buffer, filename: string, mimeType: string): Promise<string>;
 }

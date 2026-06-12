@@ -2,7 +2,6 @@ import { Controller, Param, Post, Req, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ScriptRunEntity } from '../../database/entities/script-run.entity';
-import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { ScriptExecutionService } from './services/script-execution.service';
 import { CaseAccessService } from '../auth/case-access.service';
 import { getPrincipal } from '../auth/access-principal';
@@ -15,8 +14,6 @@ export class AiController {
     private readonly caseAccess: CaseAccessService,
     @InjectRepository(ScriptRunEntity)
     private readonly scriptRunRepo: Repository<ScriptRunEntity>,
-    @InjectRepository(InvestigationEntity)
-    private readonly invRepo: Repository<InvestigationEntity>,
   ) {}
 
   @Post('script-runs/:id/rerun')
@@ -24,19 +21,16 @@ export class AiController {
     const run = await this.scriptRunRepo.findOneBy({ id });
     if (!run) throw new NotFoundException(`Script run ${id} not found`);
 
-    const inv = await this.invRepo.findOneBy({ id: run.investigationId });
-    if (!inv) throw new NotFoundException(`Investigation ${run.investigationId} not found`);
-
     const principal = getPrincipal(req);
-    const membership = await this.caseAccess.assertRole(principal, inv.caseId, 'editor');
+    const membership = await this.caseAccess.assertRole(principal, run.caseId, 'editor');
     // For user principals, assertRole returned the membership; for script
     // principals it returned null and the role lives on the principal itself.
     const role: CaseRole =
       principal.kind === 'script' ? principal.role : membership!.role;
 
     const { savedRun } = await this.scriptExecutionService.execute(
-      run.investigationId,
-      inv.caseId,
+      run.caseId,
+      run.investigationId ?? undefined,
       run.name,
       run.code,
       role,

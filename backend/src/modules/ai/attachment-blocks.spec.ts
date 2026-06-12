@@ -54,7 +54,7 @@ describe('buildAttachmentBlocks', () => {
       expect(b.title).toBe('doc.pdf');
     });
 
-    it('oversize → size stub mentioning PDF', async () => {
+    it('oversize WITHOUT uploader → size stub mentioning PDF', async () => {
       const blocks = await buildAttachmentBlocks([
         { name: 'big.pdf', mediaType: 'application/pdf', data: makeOversizeB64(PDF_B64_LIMIT + 1) },
       ]);
@@ -64,6 +64,24 @@ describe('buildAttachmentBlocks', () => {
       expect(b.text).toContain('PDF');
       expect(b.text).toContain('big.pdf');
       expect(b.text).toContain('too large');
+    });
+
+    it('oversize WITH uploader → document block with file source', async () => {
+      const uploader = jest.fn().mockResolvedValue('file_abc123');
+      const blocks = await buildAttachmentBlocks(
+        [{ name: 'big.pdf', mediaType: 'application/pdf', data: makeOversizeB64(PDF_B64_LIMIT + 1) }],
+        uploader,
+      );
+      expect(uploader).toHaveBeenCalledTimes(1);
+      const [buf, name, mime] = uploader.mock.calls[0];
+      expect(Buffer.isBuffer(buf)).toBe(true);
+      expect(name).toBe('big.pdf');
+      expect(mime).toBe('application/pdf');
+      expect(blocks).toHaveLength(1);
+      const b: any = blocks[0];
+      expect(b.type).toBe('document');
+      expect(b.source).toMatchObject({ type: 'file', file_id: 'file_abc123' });
+      expect(b.title).toBe('big.pdf');
     });
   });
 

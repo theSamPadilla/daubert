@@ -312,25 +312,27 @@ export function NewCaseModal({ open, orgId, onClose, onCreated }: NewCaseModalPr
     );
   }
 
-  // Summary phase
+  // Summary phase — Esc and overlay-click are intentionally no-ops; user must click "Go to case".
+  // No title prop so Modal renders no header bar (and therefore no X button), matching the
+  // pre-aad2631 layout where summary had a header with no close button.
+  const goToCase = () => { onCreated?.(createdCase!, results); handleClose(); };
   return (
     <Modal
       open
-      title="Case created"
-      onClose={() => { onCreated?.(createdCase!, results); handleClose(); }}
+      onClose={() => {}}
       maxWidth="max-w-md"
       footer={
         <div className="flex items-center justify-end">
-          <Button
-            size="sm"
-            onClick={() => { onCreated?.(createdCase!, results); handleClose(); }}
-          >
+          <Button size="sm" onClick={goToCase}>
             Go to case
           </Button>
         </div>
       }
     >
       <div className="space-y-3">
+        <div className="flex items-center justify-between pb-4 border-b border-line mb-1">
+          <span className="text-[15px] font-medium text-ink">New case</span>
+        </div>
         <p className="text-sm text-ink-muted">
           Case <span className="text-ink font-medium">{createdCase?.name}</span> created.
         </p>

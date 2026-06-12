@@ -234,7 +234,7 @@ function InvestigationsWorkspace() {
                 <FaDownload size={11} /> Export
               </button>
             }
-            rightContent={<UserMenu variant="light" />}
+            rightContent={<UserMenu />}
           />
           <div className="flex-1 bg-surface relative overflow-hidden">
             {investigation && (

@@ -67,7 +67,7 @@ export default function ProductionsPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <PageHeader title="Productions" rightContent={<UserMenu variant="light" />} />
+      <PageHeader title="Productions" rightContent={<UserMenu />} />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto">
         {productions.length === 0 ? (

@@ -6,7 +6,7 @@ import UserMenu from '@/components/Auth/UserMenu';
 export function WorkspaceEmptyState() {
   return (
     <>
-      <PageHeader title="Investigations" rightContent={<UserMenu variant="light" />} />
+      <PageHeader title="Investigations" rightContent={<UserMenu />} />
       <div className="flex-1 flex items-center justify-center bg-surface">
         <div className="flex flex-col items-center text-center">
           <img

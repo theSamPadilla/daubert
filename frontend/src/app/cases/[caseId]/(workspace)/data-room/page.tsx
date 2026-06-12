@@ -355,7 +355,7 @@ export default function DataRoomPage() {
     <div className="flex-1 flex flex-col overflow-hidden">
       <PageHeader
         title="Data Room"
-        rightContent={<UserMenu variant="light" />}
+        rightContent={<UserMenu />}
       />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-6xl mx-auto">

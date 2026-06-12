@@ -60,6 +60,22 @@ OAuthSessionSummary:
       type: string
       format: date-time
 
+SurfaceInstructions:
+  type: object
+  required: [steps]
+  properties:
+    steps:
+      type: array
+      description: Ordered setup steps, rendered as a numbered list.
+      items:
+        type: string
+    note:
+      type: string
+      description: Optional caveat shown below the steps (e.g. Team/Enterprise plans).
+    command:
+      type: string
+      description: Optional copyable terminal command.
+
 StartConnectResponse:
   type: object
   required: [mcpUrl, perSurfaceInstructions]
@@ -71,11 +87,41 @@ StartConnectResponse:
     perSurfaceInstructions:
       type: object
       required: [claudeApps, claudeCode]
-      description: Human-readable setup instructions per surface.
+      description: Structured setup instructions per surface.
       properties:
         claudeApps:
-          type: string
-          description: Setup instructions for Claude Desktop, claude.ai, and Cowork.
+          $ref: '#/SurfaceInstructions'
         claudeCode:
-          type: string
-          description: Copyable terminal command for Claude Code.
+          $ref: '#/SurfaceInstructions'
+
+AgentActionSummary:
+  type: object
+  required: [id, sessionId, agentLabel, organizationId, action, targetRef, status, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    sessionId:
+      type: string
+      format: uuid
+      description: The OAuth session (agent connection) that performed the action.
+    agentLabel:
+      type: string
+      description: Surface label of the session that performed the action ("Unknown agent" if the session row is gone).
+    organizationId:
+      type: string
+      format: uuid
+    action:
+      type: string
+      description: The mutation performed (e.g. create_investigation, import_transactions).
+    targetRef:
+      type: string
+      nullable: true
+      description: Reference to the mutated resource (e.g. "case:<id>", "trace:<id>").
+    status:
+      type: string
+      enum: [ok, error]
+      description: Whether the action succeeded or was denied/failed.
+    createdAt:
+      type: string
+      format: date-time

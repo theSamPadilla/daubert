@@ -71,8 +71,14 @@ const SESSION_2 = {
 const START_CONNECT_RESPONSE = {
   mcpUrl: 'https://mcp.example.com/sse',
   perSurfaceInstructions: {
-    claudeApps: 'Open Claude Desktop and add the server URL.',
-    claudeCode: 'claude mcp add --url https://mcp.example.com/sse',
+    claudeApps: {
+      steps: ['Open Claude Desktop settings.', 'Add a custom connector with the URL above.'],
+      note: 'Team plans need an admin to register the connector first.',
+    },
+    claudeCode: {
+      steps: ['Run the command below in your terminal.'],
+      command: 'claude mcp add --transport http daubert https://mcp.example.com/sse',
+    },
   },
 };
 
@@ -193,9 +199,43 @@ describe('<ConnectedAgentsSection />', () => {
 
     // mcpUrl should be visible in the UI
     expect(screen.getByText('https://mcp.example.com/sse')).not.toBeNull();
-    // Per-surface instructions should also be visible
-    expect(screen.getByText(/Open Claude Desktop/i)).not.toBeNull();
-    expect(screen.getByText(/claude mcp add/i)).not.toBeNull();
+    // Claude Apps tab is active by default: numbered steps + note visible
+    expect(screen.getByText(/Open Claude Desktop settings/i)).not.toBeNull();
+    expect(screen.getByText(/Team plans need an admin/i)).not.toBeNull();
+
+    // Switch to the Claude Code tab: command becomes visible
+    fireEvent.click(screen.getByRole('tab', { name: /claude code/i }));
+    expect(screen.getByText(/claude mcp add --transport http/i)).not.toBeNull();
+    // Claude Apps steps are no longer shown
+    expect(screen.queryByText(/Open Claude Desktop settings/i)).toBeNull();
+  });
+
+  it('auto-opens connect instructions when ?connect=1 is in the URL', async () => {
+    mockListOauthSessions.mockResolvedValue([]);
+    mockStartConnect.mockResolvedValue(START_CONNECT_RESPONSE);
+    window.history.pushState({}, '', '/account?connect=1#agents');
+
+    try {
+      render(<ConnectedAgentsSection />);
+
+      await waitFor(() => {
+        expect(mockStartConnect).toHaveBeenCalledTimes(1);
+      });
+      expect(await screen.findByText('https://mcp.example.com/sse')).not.toBeNull();
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
+
+  it('does not auto-open connect instructions without ?connect=1', async () => {
+    mockListOauthSessions.mockResolvedValue([]);
+
+    render(<ConnectedAgentsSection />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/no agents connected/i)).not.toBeNull();
+    });
+    expect(mockStartConnect).not.toHaveBeenCalled();
   });
 
   it('shows an error banner when listOauthSessions fails', async () => {

@@ -210,6 +210,32 @@
             schema:
               $ref: '../schemas/common.yaml#/ErrorResponse'
 
+/me/agent-actions:
+  get:
+    summary: List recent agent actions
+    operationId: listAgentActions
+    description: >
+      Returns the caller's recent agent-driven mutations from the audit log,
+      newest first, capped at 50. Includes denied attempts (status "error").
+      Each row carries the surface label of the session that performed it,
+      including revoked sessions.
+    tags: [OAuth]
+    responses:
+      '200':
+        description: Array of recent agent actions
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/oauth.yaml#/AgentActionSummary'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
 /me/oauth-sessions/{id}/revoke:
   post:
     summary: Revoke an OAuth session

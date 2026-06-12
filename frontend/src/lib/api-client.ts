@@ -757,4 +757,6 @@ export const apiClient = {
     request<components['schemas']['StartConnectResponse']>('/me/oauth/start-connect', {
       method: 'POST',
     }),
+  listAgentActions: () =>
+    request<components['schemas']['AgentActionSummary'][]>('/me/agent-actions'),
 };

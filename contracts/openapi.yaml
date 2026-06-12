@@ -195,6 +195,8 @@ paths:
     $ref: './paths/oauth.yaml#/~1me~1oauth~1start-connect'
   /me/oauth-sessions:
     $ref: './paths/oauth.yaml#/~1me~1oauth-sessions'
+  /me/agent-actions:
+    $ref: './paths/oauth.yaml#/~1me~1agent-actions'
   /me/oauth-sessions/{id}/revoke:
     $ref: './paths/oauth.yaml#/~1me~1oauth-sessions~1{id}~1revoke'
   /mcp:
@@ -362,3 +364,7 @@ components:
       $ref: './schemas/oauth.yaml#/OAuthSessionSummary'
     StartConnectResponse:
       $ref: './schemas/oauth.yaml#/StartConnectResponse'
+    SurfaceInstructions:
+      $ref: './schemas/oauth.yaml#/SurfaceInstructions'
+    AgentActionSummary:
+      $ref: './schemas/oauth.yaml#/AgentActionSummary'

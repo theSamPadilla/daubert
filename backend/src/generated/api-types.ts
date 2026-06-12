@@ -1288,6 +1288,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/agent-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent agent actions
+         * @description Returns the caller's recent agent-driven mutations from the audit log, newest first, capped at 50. Includes denied attempts (status "error"). Each row carries the surface label of the session that performed it, including revoked sessions.
+         */
+        get: operations["listAgentActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/oauth-sessions/{id}/revoke": {
         parameters: {
             query?: never;
@@ -2083,13 +2103,43 @@ export interface components {
              * @description The MCP server URL to paste into the OAuth client (e.g. Claude Desktop settings).
              */
             mcpUrl: string;
-            /** @description Human-readable setup instructions per surface. */
+            /** @description Structured setup instructions per surface. */
             perSurfaceInstructions: {
-                /** @description Setup instructions for Claude Desktop, claude.ai, and Cowork. */
-                claudeApps: string;
-                /** @description Copyable terminal command for Claude Code. */
-                claudeCode: string;
+                claudeApps: components["schemas"]["SurfaceInstructions"];
+                claudeCode: components["schemas"]["SurfaceInstructions"];
             };
+        };
+        SurfaceInstructions: {
+            /** @description Ordered setup steps, rendered as a numbered list. */
+            steps: string[];
+            /** @description Optional caveat shown below the steps (e.g. Team/Enterprise plans). */
+            note?: string;
+            /** @description Optional copyable terminal command. */
+            command?: string;
+        };
+        AgentActionSummary: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The OAuth session (agent connection) that performed the action.
+             */
+            sessionId: string;
+            /** @description Surface label of the session that performed the action ("Unknown agent" if the session row is gone). */
+            agentLabel: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** @description The mutation performed (e.g. create_investigation, import_transactions). */
+            action: string;
+            /** @description Reference to the mutated resource (e.g. "case:<id>", "trace:<id>"). */
+            targetRef: string | null;
+            /**
+             * @description Whether the action succeeded or was denied/failed.
+             * @enum {string}
+             */
+            status: "ok" | "error";
+            /** Format: date-time */
+            createdAt: string;
         };
         InvestigationSummary: {
             /** Format: uuid */
@@ -5629,6 +5679,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OAuthSessionSummary"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAgentActions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of recent agent actions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentActionSummary"][];
                 };
             };
             /** @description Unauthorized */

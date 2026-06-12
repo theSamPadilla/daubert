@@ -7,6 +7,7 @@ import { FaTriangleExclamation } from 'react-icons/fa6';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/components/Auth/AuthProvider';
 import { Loader } from '@/components/Common/Loader';
+import { _authorizeNav } from './nav';
 
 /**
  * OAuth authorize **bridge page**.
@@ -35,18 +36,6 @@ import { Loader } from '@/components/Common/Loader';
  * Inline error card mirrors `app/oauth/consent/page.tsx`'s
  * `ConsentErrorState` so 400/401 from the BE doesn't crash the page.
  */
-
-/**
- * Navigation seam — kept module-local so tests can spy on it via
- * `jest.spyOn`. jsdom won't let us override `window.location` directly, so
- * the component goes through this helper instead. Mirrors `_consentNav` on
- * the consent screen.
- */
-export const _authorizeNav = {
-  redirect(url: string) {
-    window.location.href = url;
-  },
-};
 
 /**
  * Wraps an error string in a chrome-less card so unauthenticated /

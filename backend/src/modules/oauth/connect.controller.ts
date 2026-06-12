@@ -8,6 +8,7 @@
  * Routes:
  *   - POST /me/oauth/start-connect       — returns MCP URL + setup instructions.
  *   - GET  /me/oauth-sessions            — lists the caller's non-revoked sessions.
+ *   - GET  /me/agent-actions             — caller's recent agent audit rows.
  *   - POST /me/oauth-sessions/:id/revoke — ownership-checked per-session revoke.
  */
 
@@ -25,8 +26,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Request } from 'express';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 
+import { AgentAuditLogEntity } from '../../database/entities/agent-audit-log.entity';
 import { OAuthSessionEntity } from '../../database/entities/oauth-session.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { OAuthService } from './oauth.service';
@@ -35,11 +37,20 @@ import { OAuthService } from './oauth.service';
 // Response shapes
 // ---------------------------------------------------------------------------
 
+export interface SurfaceInstructions {
+  /** Ordered setup steps, rendered as a numbered list. */
+  steps: string[];
+  /** Optional caveat shown below the steps (e.g. Team/Enterprise plans). */
+  note?: string;
+  /** Optional copyable terminal command. */
+  command?: string;
+}
+
 export interface PerSurfaceInstructions {
   /** Setup instructions for Claude Desktop, claude.ai, and Cowork. */
-  claudeApps: string;
-  /** Copyable terminal command for Claude Code. */
-  claudeCode: string;
+  claudeApps: SurfaceInstructions;
+  /** Setup instructions for Claude Code (terminal). */
+  claudeCode: SurfaceInstructions;
 }
 
 export interface StartConnectResponse {
@@ -55,6 +66,18 @@ export interface OAuthSessionSummaryDto {
   createdAt: string;
 }
 
+export interface AgentActionDto {
+  id: string;
+  sessionId: string;
+  /** Surface label of the session that performed the action ('Unknown agent' if the session row is gone). */
+  agentLabel: string;
+  organizationId: string;
+  action: string;
+  targetRef: string | null;
+  status: string;
+  createdAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // Controller
 // ---------------------------------------------------------------------------
@@ -66,6 +89,8 @@ export class OAuthConnectController {
     private readonly oauthService: OAuthService,
     @InjectRepository(OAuthSessionEntity)
     private readonly sessionRepo: Repository<OAuthSessionEntity>,
+    @InjectRepository(AgentAuditLogEntity)
+    private readonly auditRepo: Repository<AgentAuditLogEntity>,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -87,9 +112,24 @@ export class OAuthConnectController {
     return {
       mcpUrl,
       perSurfaceInstructions: {
-        claudeApps:
-          'In Claude (Desktop, claude.ai, or Cowork), open Settings → Connectors. Scroll past the partner Directory and click the "+" button, then choose "Add custom connector". Give it a name (e.g. "Daubert"), paste the URL above, leave Advanced settings empty (Daubert supports Dynamic Client Registration), and click Add. Claude will open a browser tab for sign-in. If your Claude account is on a Team or Enterprise plan, your workspace admin needs to register Daubert from Organization settings → Connectors first; you\'ll then see a "Connect" button on the org-registered entry.',
-        claudeCode: `Run this in your terminal: \`claude mcp add --transport http daubert ${mcpUrl}\``,
+        claudeApps: {
+          steps: [
+            'Open Settings, then Connectors, in Claude Desktop, claude.ai, or Cowork.',
+            'Scroll past the partner Directory and click the "+" (Add custom connector) button.',
+            'Name it "Daubert" and paste the MCP server URL above.',
+            'Leave Advanced settings empty. Daubert supports Dynamic Client Registration, so no client ID is needed.',
+            'Click Add. Claude opens a browser tab where you sign in and approve access.',
+          ],
+          note:
+            'On a Team or Enterprise plan? Your workspace admin must first register Daubert under Organization settings → Connectors; you\'ll then see a "Connect" button on the org-registered entry.',
+        },
+        claudeCode: {
+          steps: [
+            'Run the command below in your terminal.',
+            'Then run /mcp inside Claude Code and pick "daubert" to sign in via your browser.',
+          ],
+          command: `claude mcp add --transport http daubert ${mcpUrl}`,
+        },
       },
     };
   }
@@ -124,6 +164,47 @@ export class OAuthConnectController {
       surfaceLabel: s.surfaceLabel,
       lastUsedAt: s.lastUsedAt ? s.lastUsedAt.toISOString() : null,
       createdAt: s.createdAt.toISOString(),
+    }));
+  }
+
+  // -------------------------------------------------------------------------
+  // GET /me/agent-actions
+  // -------------------------------------------------------------------------
+
+  /**
+   * Returns the caller's recent agent-driven actions (mutations) from the
+   * audit log, newest first, capped at 50. Each row is resolved to the
+   * surface label of the session that performed it — including revoked
+   * sessions, since audit history outlives the session.
+   */
+  @Get('me/agent-actions')
+  async listAgentActions(@Req() req: Request): Promise<AgentActionDto[]> {
+    const user = (req as unknown as { user?: UserEntity }).user;
+    if (!user?.id) {
+      throw new UnauthorizedException('No authenticated user on request');
+    }
+
+    const rows = await this.auditRepo.find({
+      where: { userId: user.id },
+      order: { createdAt: 'DESC' },
+      take: 50,
+    });
+
+    const sessionIds = [...new Set(rows.map((r) => r.sessionId))];
+    const sessions = sessionIds.length
+      ? await this.sessionRepo.find({ where: { id: In(sessionIds) } })
+      : [];
+    const labelById = new Map(sessions.map((s) => [s.id, s.surfaceLabel]));
+
+    return rows.map((r) => ({
+      id: r.id,
+      sessionId: r.sessionId,
+      agentLabel: labelById.get(r.sessionId) ?? 'Unknown agent',
+      organizationId: r.organizationId,
+      action: r.action,
+      targetRef: r.targetRef,
+      status: r.status,
+      createdAt: r.createdAt.toISOString(),
     }));
   }
 

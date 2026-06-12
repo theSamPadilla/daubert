@@ -63,7 +63,17 @@ interface ConnectPanelProps {
   response: StartConnectResponse;
 }
 
+type ConnectTab = 'claudeApps' | 'claudeCode';
+
+const CONNECT_TABS: { key: ConnectTab; label: string }[] = [
+  { key: 'claudeApps', label: 'Claude Desktop / claude.ai' },
+  { key: 'claudeCode', label: 'Claude Code (terminal)' },
+];
+
 function ConnectPanel({ response }: ConnectPanelProps) {
+  const [tab, setTab] = useState<ConnectTab>('claudeApps');
+  const instructions = response.perSurfaceInstructions[tab];
+
   return (
     <div className="mt-4 space-y-4 rounded-lg border border-line-strong/60 bg-surface/40 p-4">
       <div>
@@ -75,22 +85,46 @@ function ConnectPanel({ response }: ConnectPanelProps) {
       </div>
 
       <div>
-        <p className="text-xs text-ink-muted mb-1 uppercase tracking-wider font-semibold">Claude Apps (Desktop / claude.ai)</p>
-        <div className="relative rounded-lg border border-line-strong bg-surface px-3 py-2">
-          <pre className="text-xs text-white font-mono whitespace-pre-wrap pr-8">{response.perSurfaceInstructions.claudeApps}</pre>
-          <div className="absolute top-1.5 right-1.5">
-            <CopyButton text={response.perSurfaceInstructions.claudeApps} />
-          </div>
+        <div role="tablist" className="flex gap-1 border-b border-line-strong/60">
+          {CONNECT_TABS.map((t) => (
+            <button
+              key={t.key}
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              className={
+                'px-3 py-2 text-xs font-medium rounded-t-md border-b-2 -mb-px transition-colors ' +
+                (tab === t.key
+                  ? 'border-brand-ink text-white bg-surface/60'
+                  : 'border-transparent text-ink-muted hover:text-white')
+              }
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-      </div>
 
-      <div>
-        <p className="text-xs text-ink-muted mb-1 uppercase tracking-wider font-semibold">Claude Code (terminal)</p>
-        <div className="relative rounded-lg border border-line-strong bg-surface px-3 py-2">
-          <pre className="text-xs text-white font-mono whitespace-pre-wrap pr-8">{response.perSurfaceInstructions.claudeCode}</pre>
-          <div className="absolute top-1.5 right-1.5">
-            <CopyButton text={response.perSurfaceInstructions.claudeCode} />
-          </div>
+        <div role="tabpanel" className="pt-3 space-y-3">
+          <ol className="list-decimal list-outside ml-5 space-y-1.5">
+            {instructions.steps.map((step, i) => (
+              <li key={i} className="text-sm text-ink leading-relaxed pl-1">
+                {step}
+              </li>
+            ))}
+          </ol>
+
+          {instructions.command && (
+            <div className="flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2">
+              <code className="flex-1 text-xs text-white font-mono break-all">{instructions.command}</code>
+              <CopyButton text={instructions.command} />
+            </div>
+          )}
+
+          {instructions.note && (
+            <p className="text-xs text-ink-muted rounded-lg border border-line-strong/50 bg-surface/60 px-3 py-2 leading-relaxed">
+              {instructions.note}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -126,6 +160,16 @@ export function ConnectedAgentsSection() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Deep link from the cases-page agent button: /account?connect=1#agents
+  // auto-opens the connect instructions. Read via window.location (client-only)
+  // to avoid the useSearchParams Suspense requirement.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('connect') === '1') {
+      handleConnect();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRevoke = async (session: OAuthSession) => {
     const ok = await confirm({
@@ -163,7 +207,7 @@ export function ConnectedAgentsSection() {
   };
 
   return (
-    <div className="relative mt-6 p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden">
+    <div id="agents" className="relative mt-6 p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden scroll-mt-20">
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
       <h3 className="text-base font-semibold text-white mb-5">Connected agents</h3>
 

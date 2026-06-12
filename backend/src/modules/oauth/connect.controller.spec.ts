@@ -25,6 +25,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { IsNull } from 'typeorm';
 import * as request from 'supertest';
 
+import { AgentAuditLogEntity } from '../../database/entities/agent-audit-log.entity';
 import { OAuthSessionEntity } from '../../database/entities/oauth-session.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { OAuthConnectController } from './connect.controller';
@@ -134,6 +135,40 @@ function makeSessionRepo(
   };
 }
 
+type MockAuditRepo = {
+  find: jest.Mock;
+};
+
+function makeAuditRepo(findResult: unknown[] = []): MockAuditRepo {
+  return {
+    find: jest.fn().mockResolvedValue(findResult),
+  };
+}
+
+const AUDIT_ROW_OK = {
+  id: 'audit-001',
+  sessionId: SESSION_A.id,
+  userId: MOCK_USER.id,
+  organizationId: 'org-001',
+  action: 'create_investigation',
+  targetRef: 'case:case-001',
+  status: 'ok',
+  detail: null,
+  createdAt: NOW,
+} as unknown as AgentAuditLogEntity;
+
+const AUDIT_ROW_ORPHAN = {
+  id: 'audit-002',
+  sessionId: 'session-gone',
+  userId: MOCK_USER.id,
+  organizationId: 'org-001',
+  action: 'import_transactions',
+  targetRef: 'trace:trace-001',
+  status: 'error',
+  detail: { message: 'denied' },
+  createdAt: EARLIER,
+} as unknown as AgentAuditLogEntity;
+
 // ---------------------------------------------------------------------------
 // Unit tests — controller methods called directly
 // ---------------------------------------------------------------------------
@@ -143,9 +178,14 @@ describe('OAuthConnectController (unit)', () => {
   let config: jest.Mocked<ConfigService>;
   let oauthService: jest.Mocked<OAuthService>;
   let sessionRepo: MockSessionRepo;
+  let auditRepo: MockAuditRepo;
 
-  async function buildModule(repoOverride?: MockSessionRepo): Promise<void> {
+  async function buildModule(
+    repoOverride?: MockSessionRepo,
+    auditOverride?: MockAuditRepo,
+  ): Promise<void> {
     const repo = repoOverride ?? makeSessionRepo();
+    const audit = auditOverride ?? makeAuditRepo();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [OAuthConnectController],
       providers: [
@@ -154,6 +194,10 @@ describe('OAuthConnectController (unit)', () => {
         {
           provide: getRepositoryToken(OAuthSessionEntity),
           useValue: repo,
+        },
+        {
+          provide: getRepositoryToken(AgentAuditLogEntity),
+          useValue: audit,
         },
       ],
     }).compile();
@@ -164,7 +208,8 @@ describe('OAuthConnectController (unit)', () => {
     config = makeConfig();
     oauthService = makeOAuthService();
     sessionRepo = makeSessionRepo();
-    await buildModule(sessionRepo);
+    auditRepo = makeAuditRepo();
+    await buildModule(sessionRepo, auditRepo);
   });
 
   // -------------------------------------------------------------------------
@@ -186,25 +231,27 @@ describe('OAuthConnectController (unit)', () => {
       expect(Object.keys(result)).toEqual(['mcpUrl', 'perSurfaceInstructions']);
     });
 
-    it('perSurfaceInstructions.claudeApps references Connectors and Add custom connector', () => {
+    it('claudeApps has ordered steps referencing Connectors and Add custom connector, plus a Team/Enterprise note', () => {
       const result = controller.startConnect();
+      const apps = result.perSurfaceInstructions.claudeApps;
 
-      expect(result.perSurfaceInstructions.claudeApps).toContain('Connectors');
-      expect(result.perSurfaceInstructions.claudeApps).toContain(
-        'Add custom connector',
-      );
+      expect(Array.isArray(apps.steps)).toBe(true);
+      expect(apps.steps.length).toBeGreaterThanOrEqual(3);
+      const joined = apps.steps.join(' ');
+      expect(joined).toContain('Connectors');
+      expect(joined).toContain('Add custom connector');
+      expect(apps.note).toContain('Organization settings');
+      expect(apps.command).toBeUndefined();
     });
 
-    it('perSurfaceInstructions.claudeCode contains the correct CLI command with --transport http', () => {
+    it('claudeCode carries the CLI command with --transport http and the mcpUrl', () => {
       const result = controller.startConnect();
+      const code = result.perSurfaceInstructions.claudeCode;
 
-      expect(result.perSurfaceInstructions.claudeCode).toContain(
-        'claude mcp add',
-      );
-      expect(result.perSurfaceInstructions.claudeCode).toContain(
-        '--transport http',
-      );
-      expect(result.perSurfaceInstructions.claudeCode).toContain(MCP_URL);
+      expect(Array.isArray(code.steps)).toBe(true);
+      expect(code.command).toContain('claude mcp add');
+      expect(code.command).toContain('--transport http');
+      expect(code.command).toContain(MCP_URL);
     });
 
     it('exposes exactly two surface keys (claudeApps + claudeCode)', () => {
@@ -287,6 +334,65 @@ describe('OAuthConnectController (unit)', () => {
   });
 
   // -------------------------------------------------------------------------
+  // listAgentActions
+  // -------------------------------------------------------------------------
+
+  describe('listAgentActions()', () => {
+    it("queries only the caller's rows, newest first, capped at 50", async () => {
+      auditRepo.find.mockResolvedValueOnce([AUDIT_ROW_OK]);
+      sessionRepo.find.mockResolvedValueOnce([SESSION_A]);
+
+      const result = await controller.listAgentActions({
+        user: MOCK_USER,
+      } as any);
+
+      expect(auditRepo.find).toHaveBeenCalledWith({
+        where: { userId: MOCK_USER.id },
+        order: { createdAt: 'DESC' },
+        take: 50,
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: AUDIT_ROW_OK.id,
+        sessionId: SESSION_A.id,
+        agentLabel: SESSION_A.surfaceLabel,
+        action: 'create_investigation',
+        targetRef: 'case:case-001',
+        status: 'ok',
+      });
+    });
+
+    it("resolves a missing session to 'Unknown agent'", async () => {
+      auditRepo.find.mockResolvedValueOnce([AUDIT_ROW_ORPHAN]);
+      sessionRepo.find.mockResolvedValueOnce([]);
+
+      const result = await controller.listAgentActions({
+        user: MOCK_USER,
+      } as any);
+
+      expect(result[0].agentLabel).toBe('Unknown agent');
+      expect(result[0].status).toBe('error');
+    });
+
+    it('returns empty array without a session lookup when there are no rows', async () => {
+      auditRepo.find.mockResolvedValueOnce([]);
+
+      const result = await controller.listAgentActions({
+        user: MOCK_USER,
+      } as any);
+
+      expect(result).toEqual([]);
+      expect(sessionRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException when user is undefined', async () => {
+      await expect(
+        controller.listAgentActions({ user: undefined } as any),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // revokeSession
   // -------------------------------------------------------------------------
 
@@ -352,6 +458,7 @@ async function buildApp(
   config: jest.Mocked<ConfigService>,
   oauthService: jest.Mocked<OAuthService>,
   sessionRepo: MockSessionRepo,
+  auditRepo: MockAuditRepo = makeAuditRepo(),
 ): Promise<INestApplication> {
   const mod = await Test.createTestingModule({
     controllers: [OAuthConnectController],
@@ -361,6 +468,10 @@ async function buildApp(
       {
         provide: getRepositoryToken(OAuthSessionEntity),
         useValue: sessionRepo,
+      },
+      {
+        provide: getRepositoryToken(AgentAuditLogEntity),
+        useValue: auditRepo,
       },
     ],
   }).compile();

@@ -141,12 +141,16 @@ export class StateBagService implements OnModuleInit {
     const expiresAt = new Date(payload.requestedAt + BAG_TTL_MS);
 
     try {
-      const row = this.consumedStateRepo.create({
+      // Use insert() (plain SQL INSERT) instead of save() (SELECT-then-UPDATE
+      // upsert) so that a second insertion of the same bagId immediately throws
+      // a PK unique-violation (SQLSTATE 23505), which we catch below.
+      // save() performs TypeORM's upsert semantics and silently overwrites the
+      // existing row, making the replay check ineffective.
+      await this.consumedStateRepo.insert({
         bagId,
         consumedAt: new Date(),
         expiresAt,
       });
-      await this.consumedStateRepo.save(row);
     } catch (err: unknown) {
       // TypeORM wraps PK violations — check the code/constraint to distinguish
       // replay from an unexpected DB error.
@@ -235,13 +239,27 @@ export class StateBagService implements OnModuleInit {
 
   /**
    * Checks whether an error is a PostgreSQL unique-constraint violation
-   * (SQLSTATE 23505). TypeORM surfaces this as a `QueryFailedError` with
-   * `code = '23505'`.
+   * (SQLSTATE 23505).
+   *
+   * TypeORM surfaces this as a `QueryFailedError`. The pg driver attaches
+   * `code` to the inner `driverError`; TypeORM also copies enumerable props
+   * from the driver error onto the `QueryFailedError` itself. We check both
+   * locations defensively so the detection works regardless of TypeORM version
+   * and whether we're running against a real Postgres driver or a test stub
+   * that only sets one of them.
    */
   private isUniqueConstraintError(err: unknown): boolean {
     if (err !== null && typeof err === 'object') {
       const e = err as Record<string, unknown>;
-      return e['code'] === '23505';
+      if (e['code'] === '23505') return true;
+      const driverError = e['driverError'];
+      if (
+        driverError !== null &&
+        typeof driverError === 'object' &&
+        (driverError as Record<string, unknown>)['code'] === '23505'
+      ) {
+        return true;
+      }
     }
     return false;
   }

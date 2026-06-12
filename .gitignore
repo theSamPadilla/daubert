@@ -38,5 +38,9 @@ backups/
 # QA brief (local-only, read by the qa skill)
 QA.md
 
+# Browser-QA artifacts (Playwright MCP snapshots/logs + screenshots)
+.playwright-mcp/
+qa-*.png
+
 # Fullsend worktrees (local-only isolation)
 .worktrees/

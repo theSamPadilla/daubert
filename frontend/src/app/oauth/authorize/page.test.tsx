@@ -75,7 +75,8 @@ jest.mock('next/image', () => ({
 }));
 
 // --- Import the page AFTER mocks ------------------------------------------
-import OAuthAuthorizeBridgePage, { _authorizeNav } from './page';
+import OAuthAuthorizeBridgePage from './page';
+import { _authorizeNav } from './nav';
 
 // jsdom's `window.location` is non-configurable in jsdom 26+, so the page
 // routes its outbound hop through `_authorizeNav.redirect`. We spy there.

@@ -43,7 +43,8 @@ const SAMPLE_PAYLOAD: StateBagPayload = {
 function makeMockConsumedStateRepo() {
   return {
     create: jest.fn((dto: Partial<OAuthConsumedStateEntity>) => dto),
-    save: jest.fn().mockResolvedValue(undefined),
+    // insert() is used by verify() — plain INSERT that throws on PK collision.
+    insert: jest.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -174,10 +175,11 @@ describe('StateBagService', () => {
       const svc = await buildService(undefined, repo);
       const bag = svc.sign(SAMPLE_PAYLOAD);
       await svc.verify(bag);
-      expect(repo.save).toHaveBeenCalledTimes(1);
-      const saved = repo.create.mock.calls[0][0] as Partial<OAuthConsumedStateEntity>;
-      expect(typeof saved.bagId).toBe('string');
-      expect(saved.bagId!.length).toBe(64); // SHA-256 hex
+      // Service uses insert() (plain INSERT), not save() (upsert).
+      expect(repo.insert).toHaveBeenCalledTimes(1);
+      const inserted = repo.insert.mock.calls[0][0] as Partial<OAuthConsumedStateEntity>;
+      expect(typeof inserted.bagId).toBe('string');
+      expect(inserted.bagId!.length).toBe(64); // SHA-256 hex
     });
   });
 
@@ -267,7 +269,7 @@ describe('StateBagService', () => {
       expect(result.ownerUserId).toBe(SAMPLE_PAYLOAD.ownerUserId);
       expect(result.clientId).toBe(SAMPLE_PAYLOAD.clientId);
       // No DB write: peek must NOT consume the bag.
-      expect(repo.save).not.toHaveBeenCalled();
+      expect(repo.insert).not.toHaveBeenCalled();
     });
 
     it('peek does not prevent a subsequent verify on the same bag', async () => {
@@ -277,10 +279,10 @@ describe('StateBagService', () => {
       // peek twice — neither call writes to the consumed-state table.
       svc.peek(bag);
       svc.peek(bag);
-      expect(repo.save).not.toHaveBeenCalled();
+      expect(repo.insert).not.toHaveBeenCalled();
       // verify works afterwards.
       await svc.verify(bag);
-      expect(repo.save).toHaveBeenCalledTimes(1);
+      expect(repo.insert).toHaveBeenCalledTimes(1);
     });
 
     it('throws invalid_or_expired_bag for a tampered payload', async () => {
@@ -317,18 +319,20 @@ describe('StateBagService', () => {
   // =========================================================================
 
   describe('replay rejection', () => {
-    it('throws bag_already_consumed when the PK already exists in the DB', async () => {
+    it('throws bag_already_consumed when insert() rejects with code=23505 on the error itself', async () => {
       const repo = makeMockConsumedStateRepo();
 
-      // First call succeeds; second simulates a PK violation.
+      // First call succeeds; second simulates a PK violation with code on the
+      // error object directly (TypeORM copies enumerable driverError props onto
+      // QueryFailedError).
       let callCount = 0;
-      repo.save.mockImplementation(() => {
+      repo.insert.mockImplementation(() => {
         callCount++;
         if (callCount > 1) {
           const pkError = Object.assign(new Error('duplicate key'), {
             code: '23505',
           });
-          throw pkError;
+          return Promise.reject(pkError);
         }
         return Promise.resolve(undefined);
       });
@@ -340,6 +344,34 @@ describe('StateBagService', () => {
       await svc.verify(bag);
 
       // Second verify with same bag: PK violation → bag_already_consumed.
+      await expect(svc.verify(bag)).rejects.toThrow(BadRequestException);
+      await expect(svc.verify(bag)).rejects.toMatchObject({
+        message: 'bag_already_consumed',
+      });
+    });
+
+    it('throws bag_already_consumed when insert() rejects with code=23505 on driverError', async () => {
+      const repo = makeMockConsumedStateRepo();
+
+      // Variant: pg driver attaches code to driverError; TypeORM may NOT copy
+      // it to the top-level error in all versions. Verify our defensive check.
+      let callCount = 0;
+      repo.insert.mockImplementation(() => {
+        callCount++;
+        if (callCount > 1) {
+          const pkError = Object.assign(new Error('duplicate key'), {
+            driverError: { code: '23505' },
+          });
+          return Promise.reject(pkError);
+        }
+        return Promise.resolve(undefined);
+      });
+
+      const svc = await buildService(undefined, repo);
+      const bag = svc.sign(SAMPLE_PAYLOAD);
+
+      await svc.verify(bag);
+
       await expect(svc.verify(bag)).rejects.toThrow(BadRequestException);
       await expect(svc.verify(bag)).rejects.toMatchObject({
         message: 'bag_already_consumed',

@@ -9,6 +9,7 @@ import { AuthGuard } from '@/components/Auth/AuthGuard';
 import { useAuth } from '@/components/Auth/AuthProvider';
 import UserMenu from '@/components/Auth/UserMenu';
 import { apiClient } from '@/lib/api-client';
+import { AgentActivitySection } from './AgentActivitySection';
 import { ConnectedAgentsSection } from './ConnectedAgentsSection';
 
 const inputClass =
@@ -149,6 +150,7 @@ function AccountInner() {
         </div>
 
         <ConnectedAgentsSection />
+        <AgentActivitySection />
       </main>
     </div>
   );

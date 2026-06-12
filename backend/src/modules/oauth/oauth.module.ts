@@ -42,6 +42,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { McpIpThrottlerGuard } from '../../common/guards/mcp-ip-throttler.guard';
 import { McpThrottleService } from '../../common/throttle/mcp-throttle';
+import { AgentAuditLogEntity } from '../../database/entities/agent-audit-log.entity';
 import { OAuthClientEntity } from '../../database/entities/oauth-client.entity';
 import { OAuthCodeEntity } from '../../database/entities/oauth-code.entity';
 import { OAuthConsumedStateEntity } from '../../database/entities/oauth-consumed-state.entity';
@@ -63,6 +64,7 @@ import { StateBagService } from './state-bag.service';
       OAuthCodeEntity,
       OAuthConsumedStateEntity,
       OrganizationMemberEntity,
+      AgentAuditLogEntity,
     ]),
     AuthModule,
     UsersModule,

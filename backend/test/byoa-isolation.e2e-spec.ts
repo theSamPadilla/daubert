@@ -734,6 +734,53 @@ describe('BYOA isolation, eligibility, PKCE, full flow (e2e)', () => {
   // OAuth fidelity (criterion #3)
   // =========================================================================
 
+  // =========================================================================
+  // State-bag replay protection (regression for save→insert fix)
+  // =========================================================================
+
+  it('criterion #3 — replaying a consumed state-bag at /oauth/authorize/complete returns 400 bag_already_consumed', async () => {
+    // Obtain a fresh bag by calling GET /oauth/authorize (does NOT consume the bag).
+    const verifier = newPkceVerifier();
+    const challenge = pkceChallenge(verifier);
+
+    const authRes = await request(app.getHttpServer())
+      .get('/oauth/authorize')
+      .query({
+        response_type: 'code',
+        client_id: oauthClient.clientId,
+        redirect_uri: REDIRECT_URI,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+        state: 'bag-replay-test',
+      })
+      .set('Authorization', `Bearer firebase-uid:${userU.firebaseUid}`);
+
+    expect(authRes.status).toBe(302);
+    const bag = extractBagFromConsentUrl(authRes.headers.location as string);
+
+    // First POST /oauth/authorize/complete — should succeed and consume the bag.
+    const first = await request(app.getHttpServer())
+      .post('/oauth/authorize/complete')
+      .set('Authorization', `Bearer firebase-uid:${userU.firebaseUid}`)
+      .set('Content-Type', 'application/json')
+      .send({ bag, organizationId: orgA.id });
+
+    expect(first.status).toBe(200);
+    expect((first.body as { redirectUrl: string }).redirectUrl).toContain('code=');
+
+    // Second POST /oauth/authorize/complete with the SAME bag — must be rejected.
+    const second = await request(app.getHttpServer())
+      .post('/oauth/authorize/complete')
+      .set('Authorization', `Bearer firebase-uid:${userU.firebaseUid}`)
+      .set('Content-Type', 'application/json')
+      .send({ bag, organizationId: orgA.id });
+
+    expect(second.status).toBe(400);
+    // BadRequestException('bag_already_consumed') → NestJS renders the string
+    // message as the top-level `message` field.
+    expect((second.body as { message: string }).message).toBe('bag_already_consumed');
+  });
+
   it('criterion #3 — re-using a consumed authorization code returns invalid_grant', async () => {
     const { code, verifier } = await runOAuthFlow();
     // runOAuthFlow already consumed `code` once via /oauth/token. Now try

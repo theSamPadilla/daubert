@@ -10,6 +10,10 @@ const requiredEnvVars = [
   'TRONSCAN_API_KEY',
   // Required by email.service.ts to build links sent to users.
   'FRONTEND_URL',
+  // OAuth authorization server — public base URL of this backend.
+  'OAUTH_ISSUER_URL',
+  // OAuth authorization server — signs state params; must be ≥32 chars.
+  'OAUTH_STATE_SECRET',
 ];
 
 // These become required once auth is enabled
@@ -33,6 +37,10 @@ export function validateEnv(env: Record<string, string>): Record<string, string>
   // Format checks
   if (env.ANTHROPIC_API_KEY && !env.ANTHROPIC_API_KEY.startsWith('sk-ant-')) {
     warnings.push('ANTHROPIC_API_KEY does not start with "sk-ant-" — may be invalid');
+  }
+
+  if (env.OAUTH_STATE_SECRET && env.OAUTH_STATE_SECRET.length < 32) {
+    missing.push('OAUTH_STATE_SECRET (must be at least 32 characters — generate with: openssl rand -hex 32)');
   }
 
   // Firebase vars: warn if partially set

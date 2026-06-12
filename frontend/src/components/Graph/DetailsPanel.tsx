@@ -89,7 +89,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
 
   if (!selectedItem) {
     return (
-      <div className="p-4 text-ink-muted text-sm">
+      <div className="p-4 text-canvas-muted text-sm">
         Select an address, transaction, or trace to view details
       </div>
     );
@@ -99,7 +99,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
     const wallet = selectedItem.data as WalletNode;
     return (
       <div className="p-4">
-        <h3 className="text-sm font-semibold text-ink-muted uppercase mb-4">Edit Address</h3>
+        <h3 className="text-sm font-semibold text-canvas-muted uppercase mb-4">Edit Address</h3>
         <WalletForm
           wallet={wallet}
           traces={traces}
@@ -124,7 +124,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
     const traceId = traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
     return (
       <div className="p-4">
-        <h3 className="text-sm font-semibold text-ink-muted uppercase mb-4">Edit Transaction</h3>
+        <h3 className="text-sm font-semibold text-canvas-muted uppercase mb-4">Edit Transaction</h3>
         <TransactionForm
           transaction={tx}
           traces={traces}
@@ -149,7 +149,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
     const trace = selectedItem.data as Trace;
     return (
       <div className="p-4">
-        <h3 className="text-sm font-semibold text-ink-muted uppercase mb-4">Edit Trace</h3>
+        <h3 className="text-sm font-semibold text-canvas-muted uppercase mb-4">Edit Trace</h3>
         <TraceForm
           trace={trace}
           onSave={(updates) => {

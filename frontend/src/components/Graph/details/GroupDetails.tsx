@@ -74,10 +74,10 @@ export function GroupDetails({
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-semibold text-ink-muted uppercase">Subgroup</h4>
+        <h4 className="text-xs font-semibold text-canvas-muted uppercase">Subgroup</h4>
         <button
           onClick={() => onUpdate({ collapsed: !group.collapsed })}
-          className="flex items-center gap-1 text-xs text-ink-muted hover:text-ink transition-colors"
+          className="flex items-center gap-1 text-xs text-canvas-muted hover:text-canvas-ink transition-colors"
           title={group.collapsed ? 'Expand group in graph' : 'Collapse group in graph'}
         >
           {group.collapsed
@@ -92,26 +92,26 @@ export function GroupDetails({
         onChange={(e) => setName(e.target.value)}
         onBlur={() => { if (name.trim() && name !== group.name) onUpdate({ name: name.trim() }); }}
         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-        className="w-full bg-surface-raised border border-line-strong rounded px-2 py-1 text-sm text-ink focus:outline-none focus:border-brand"
+        className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-2 py-1 text-sm text-canvas-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
       />
 
       {/* Color */}
       <div>
-        <h4 className="text-xs font-semibold text-ink-muted uppercase mb-2">Color</h4>
+        <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-2">Color</h4>
         <GroupColorPicker color={group.color ?? undefined} onChange={(c) => onUpdate({ color: c ?? null })} />
       </div>
 
       {/* Tab toggle */}
-      <div className="flex gap-0.5 bg-surface-raised/50 rounded p-0.5">
+      <div className="flex gap-0.5 bg-canvas-fill rounded-lg p-0.5">
         <button
           onClick={() => setView('members')}
-          className={`flex-1 py-1 text-xs rounded transition-colors ${view === 'members' ? 'bg-surface-raised text-ink' : 'text-ink-muted hover:text-ink'}`}
+          className={`flex-1 py-1 text-xs rounded-lg transition-colors ${view === 'members' ? 'bg-white/10 text-canvas-ink' : 'text-canvas-muted hover:text-canvas-ink'}`}
         >
           Members ({members.length})
         </button>
         <button
           onClick={() => setView('flows')}
-          className={`flex-1 py-1 text-xs rounded transition-colors ${view === 'flows' ? 'bg-surface-raised text-ink' : 'text-ink-muted hover:text-ink'}`}
+          className={`flex-1 py-1 text-xs rounded-lg transition-colors ${view === 'flows' ? 'bg-white/10 text-canvas-ink' : 'text-canvas-muted hover:text-canvas-ink'}`}
         >
           Flows
         </button>
@@ -122,17 +122,17 @@ export function GroupDetails({
         <div className="space-y-0.5 max-h-40 overflow-y-auto [scrollbar-width:thin]">
           {members.map((n) => (
             <div key={n.id} className="flex items-center justify-between py-0.5 group/member">
-              <span className="text-xs text-ink-muted truncate flex-1">{n.label || n.address}</span>
+              <span className="text-xs text-canvas-muted truncate flex-1">{n.label || n.address}</span>
               <button
                 onClick={() => onSetNodeGroup(group.traceId, [n.id], null)}
-                className="text-ink-faint hover:text-red-400 opacity-0 group-hover/member:opacity-100 ml-2 shrink-0 transition-opacity"
+                className="text-canvas-muted hover:text-red-400 opacity-0 group-hover/member:opacity-100 ml-2 shrink-0 transition-opacity"
                 title="Remove from group"
               >
                 <FaXmark size={10} />
               </button>
             </div>
           ))}
-          {members.length === 0 && <p className="text-xs text-ink-faint">No members</p>}
+          {members.length === 0 && <p className="text-xs text-canvas-muted">No members</p>}
         </div>
       )}
 
@@ -145,7 +145,7 @@ export function GroupDetails({
               <div className="space-y-1">
                 {inflows.map((f, i) => (
                   <div key={i} className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-ink-muted truncate">{f.label}</span>
+                    <span className="text-xs text-canvas-muted truncate">{f.label}</span>
                     <span className="text-xs text-emerald-300 shrink-0 font-mono">+{fmtFlow(f.amount)} {f.symbol}</span>
                   </div>
                 ))}
@@ -158,7 +158,7 @@ export function GroupDetails({
               <div className="space-y-1">
                 {outflows.map((f, i) => (
                   <div key={i} className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-ink-muted truncate">{f.label}</span>
+                    <span className="text-xs text-canvas-muted truncate">{f.label}</span>
                     <span className="text-xs text-red-300 shrink-0 font-mono">-{fmtFlow(f.amount)} {f.symbol}</span>
                   </div>
                 ))}
@@ -166,18 +166,18 @@ export function GroupDetails({
             </div>
           )}
           {inflows.length === 0 && outflows.length === 0 && (
-            <p className="text-xs text-ink-faint">No external flows for this group</p>
+            <p className="text-xs text-canvas-muted">No external flows for this group</p>
           )}
         </div>
       )}
 
       {/* Dissolve */}
-      <div className="pt-2 border-t border-line-strong">
+      <div className="pt-2 border-t border-canvas-line">
         {confirmDelete ? (
           <div className="flex items-center gap-2">
             <span className="text-xs text-red-400">Dissolve group?</span>
             <button onClick={() => { onDelete(); setConfirmDelete(false); }} className="px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs text-white">Confirm</button>
-            <button onClick={() => setConfirmDelete(false)} className="text-xs text-ink-muted hover:text-ink">Cancel</button>
+            <button onClick={() => setConfirmDelete(false)} className="text-xs text-canvas-muted hover:text-canvas-ink">Cancel</button>
           </div>
         ) : (
           <button onClick={() => setConfirmDelete(true)} className="w-full px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 hover:text-red-300 rounded text-xs">

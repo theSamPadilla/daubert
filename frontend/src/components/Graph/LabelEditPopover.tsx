@@ -145,80 +145,32 @@ export function LabelEditPopover({ initialLabel, position, onSave, onCancel, onD
     if (deleteResetTimeoutRef.current) clearTimeout(deleteResetTimeoutRef.current);
   }, []);
 
-  const toolbarBtnStyle: React.CSSProperties = {
-    background: '#1f2937',
-    border: '1px solid #374151',
-    borderRadius: 4,
-    color: '#d1d5db',
-    cursor: 'pointer',
-    padding: 0,
-    fontSize: 11,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 26,
-    height: 26,
-    transition: 'background 0.12s, border-color 0.12s',
-  };
-
-  const selectStyle: React.CSSProperties = {
-    background: '#1f2937',
-    border: '1px solid #374151',
-    borderRadius: 4,
-    color: '#d1d5db',
-    fontSize: 11,
-    padding: '0 6px',
-    height: 26,
-    cursor: 'pointer',
-    transition: 'border-color 0.12s',
-  };
-
-  const dividerStyle: React.CSSProperties = {
-    width: 1,
-    height: 18,
-    background: '#374151',
-    margin: '0 4px',
-    flexShrink: 0,
-  };
-
-  // Color group: an icon + a color swatch grouped into a single bordered unit
-  // so each picker reads as one labeled control rather than a bare circle.
-  const colorGroupStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '0 8px',
-    height: 26,
-    border: '1px solid #374151',
-    borderRadius: 4,
-    background: '#1f2937',
-  };
+  // Shared chrome classes — canvas-token treatment so the popover stays dark over the canvas.
+  const toolbarBtnClass =
+    'flex items-center justify-center w-[26px] h-[26px] rounded-lg border border-canvas-line bg-canvas-fill text-canvas-ink p-0 cursor-pointer transition-colors hover:bg-white/10';
+  const selectClass =
+    'h-[26px] px-1.5 rounded-lg border border-canvas-line bg-canvas-fill text-canvas-ink text-[11px] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
+  const colorGroupClass =
+    'flex items-center gap-1.5 px-2 h-[26px] rounded-lg border border-canvas-line bg-canvas-fill';
 
   return (
     <div
       ref={wrapRef}
+      className="absolute z-30 w-[380px] rounded-xl border border-canvas-line bg-canvas/90 backdrop-blur text-canvas-ink p-3 shadow-2xl"
       style={{
-        position: 'absolute',
         left: position.x,
         top: position.y + 20,
-        zIndex: 50,
-        width: 380,
-        background: '#0b1220',
-        border: '1px solid #4b5563',
-        borderRadius: 8,
-        padding: 12,
-        boxShadow: '0 10px 30px rgba(0,0,0,0.55)',
       }}
     >
       {/* Toolbar — three groups separated by dividers:
           1) inline markdown   (B / I / Link)
           2) colors            (text + background, each labeled by an icon)
           3) typography/shape  (size + shape dropdowns) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
+      <div className="flex items-center gap-1 mb-2.5 flex-wrap">
         <button
           type="button"
           title="Bold"
-          style={{ ...toolbarBtnStyle, fontWeight: 700 }}
+          className={`${toolbarBtnClass} font-bold`}
           onMouseDown={(e) => { e.preventDefault(); wrapSelection('**', '**', 'bold'); }}
         >
           <FaBold size={11} />
@@ -226,7 +178,7 @@ export function LabelEditPopover({ initialLabel, position, onSave, onCancel, onD
         <button
           type="button"
           title="Italic"
-          style={{ ...toolbarBtnStyle, fontStyle: 'italic' }}
+          className={`${toolbarBtnClass} italic`}
           onMouseDown={(e) => { e.preventDefault(); wrapSelection('*', '*', 'italic'); }}
         >
           <FaItalic size={11} />
@@ -234,33 +186,33 @@ export function LabelEditPopover({ initialLabel, position, onSave, onCancel, onD
         <button
           type="button"
           title="Link"
-          style={toolbarBtnStyle}
+          className={toolbarBtnClass}
           onMouseDown={(e) => { e.preventDefault(); wrapSelection('[', '](url)', 'text'); }}
         >
           <FaLink size={11} />
         </button>
 
-        <div style={dividerStyle} />
+        <div className="w-px h-[18px] bg-canvas-line mx-1 shrink-0" />
 
         {/* Text color: "A" glyph + swatch grouped together */}
-        <div style={colorGroupStyle} title="Text color">
-          <FaFont size={10} color="#9ca3af" />
+        <div className={colorGroupClass} title="Text color">
+          <FaFont size={10} className="text-canvas-muted" />
           <LabelColorPicker color={color} onChange={setColor} />
         </div>
 
         {/* Background color: fill-bucket glyph + swatch grouped together */}
-        <div style={colorGroupStyle} title="Background color">
-          <FaFillDrip size={10} color="#9ca3af" />
+        <div className={colorGroupClass} title="Background color">
+          <FaFillDrip size={10} className="text-canvas-muted" />
           <LabelColorPicker color={bgColor} onChange={setBgColor} />
         </div>
 
-        <div style={dividerStyle} />
+        <div className="w-px h-[18px] bg-canvas-line mx-1 shrink-0" />
 
         {/* Font size dropdown */}
         <select
           value={fontSize}
           onChange={(e) => setFontSize(e.target.value as LabelFontSize)}
-          style={selectStyle}
+          className={selectClass}
           title="Font size"
         >
           {FONT_SIZE_OPTIONS.map((o) => (
@@ -272,16 +224,7 @@ export function LabelEditPopover({ initialLabel, position, onSave, onCancel, onD
         <div
           role="radiogroup"
           aria-label="Shape"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            padding: 2,
-            height: 26,
-            border: '1px solid #374151',
-            borderRadius: 4,
-            background: '#1f2937',
-          }}
+          className="flex items-center gap-0.5 p-0.5 h-[26px] rounded-lg border border-canvas-line bg-canvas-fill"
         >
           {SHAPE_OPTIONS.map((o) => {
             const active = shape === o.value;
@@ -293,29 +236,11 @@ export function LabelEditPopover({ initialLabel, position, onSave, onCancel, onD
                 aria-checked={active}
                 title={o.label}
                 onClick={() => setShape(o.value)}
-                style={{
-                  width: 22,
-                  height: 20,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: active ? '#374151' : 'transparent',
-                  border: 'none',
-                  borderRadius: 3,
-                  cursor: 'pointer',
-                  padding: 0,
-                  transition: 'background 0.12s',
-                }}
+                className={`flex items-center justify-center w-[22px] h-5 rounded p-0 cursor-pointer transition-colors ${active ? 'bg-white/15' : 'bg-transparent'}`}
               >
                 <span
-                  style={{
-                    width: 14,
-                    height: 10,
-                    background: active ? '#f3f4f6' : '#9ca3af',
-                    borderRadius: o.borderRadius,
-                    display: 'block',
-                    transition: 'background 0.12s',
-                  }}
+                  className={`block w-[14px] h-2.5 transition-colors ${active ? 'bg-canvas-ink' : 'bg-canvas-muted'}`}
+                  style={{ borderRadius: o.borderRadius }}
                 />
               </button>
             );
@@ -329,56 +254,29 @@ export function LabelEditPopover({ initialLabel, position, onSave, onCancel, onD
         autoFocus
         value={text}
         onChange={(e) => setText(e.target.value)}
-        style={{
-          width: '100%',
-          minHeight: 90,
-          background: '#111827',
-          color: '#f3f4f6',
-          border: '1px solid #374151',
-          borderRadius: 6,
-          padding: 8,
-          fontSize: 12,
-          fontFamily: 'ui-monospace,SFMono-Regular,monospace',
-          boxSizing: 'border-box',
-          resize: 'vertical',
-          outline: 'none',
-        }}
+        className="w-full min-h-[90px] box-border resize-y rounded-lg border border-canvas-line bg-canvas-fill text-canvas-ink text-xs font-mono p-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 placeholder:text-canvas-muted"
         placeholder="Markdown supported. Esc to cancel."
       />
 
       {/* Preview header */}
-      <div
-        style={{
-          marginTop: 10,
-          marginBottom: 4,
-          fontSize: 10,
-          fontWeight: 600,
-          letterSpacing: 0.5,
-          textTransform: 'uppercase',
-          color: '#6b7280',
-        }}
-      >
+      <div className="mt-2.5 mb-1 text-[10px] font-semibold uppercase tracking-wide text-canvas-muted">
         Preview
       </div>
 
-      {/* Preview — applies the chosen text + bg color so the user can verify pairings */}
+      {/* Preview — applies the chosen text + bg color so the user can verify pairings.
+          bgColor/color are user content; fallbacks use canvas tokens. */}
       <div
+        className="px-2.5 py-2 rounded-lg border border-canvas-line text-[11px] leading-snug min-h-[28px]"
         style={{
-          padding: '8px 10px',
-          background: bgColor || '#111827',
-          border: '1px solid #1f2937',
-          borderRadius: 6,
-          fontSize: 11,
-          color: color || '#d1d5db',
-          lineHeight: 1.4,
-          minHeight: 28,
+          background: bgColor || 'var(--canvas-fill)',
+          color: color || 'var(--canvas-ink)',
         }}
       >
         <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{text || '*preview*'}</ReactMarkdown>
       </div>
 
       {/* Footer: [Delete] (left)   [Cancel] [Save] (right) */}
-      <div style={{ display: 'flex', gap: 6, marginTop: 12, alignItems: 'center' }}>
+      <div className="flex items-center gap-1.5 mt-3">
         <button
           type="button"
           onClick={handleDeleteClick}
@@ -389,37 +287,27 @@ export function LabelEditPopover({ initialLabel, position, onSave, onCancel, onD
             }
           }}
           title={deleteArmed ? 'Click again to confirm' : 'Delete label'}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 12,
-            padding: '6px 12px',
-            borderRadius: 6,
-            border: deleteArmed ? '1px solid #ef4444' : '1px solid #374151',
-            background: deleteArmed ? '#7f1d1d' : '#1f2937',
-            color: deleteArmed ? '#fecaca' : '#d1d5db',
-            cursor: 'pointer',
-            transition: 'background 0.12s, border-color 0.12s, color 0.12s',
-          }}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+            deleteArmed
+              ? 'border-red-500 bg-red-900/40 text-red-200'
+              : 'border-canvas-line bg-canvas-fill text-canvas-muted hover:text-red-300'
+          }`}
         >
           <FaTrash size={10} />
           {deleteArmed ? 'Confirm delete' : 'Delete'}
         </button>
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         <button
           type="button"
           onClick={onCancel}
-          className="px-3 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm"
-          style={{ fontSize: 12 }}
+          className="px-3 py-1.5 text-xs rounded-lg border border-canvas-line text-canvas-muted hover:text-canvas-ink hover:bg-canvas-fill transition-colors"
         >
           Cancel
         </button>
         <button
           type="button"
           onClick={handleSave}
-          className="px-3 py-1.5 bg-brand hover:bg-brand/90 rounded text-sm"
-          style={{ fontSize: 12 }}
+          className="px-3 py-1.5 text-xs rounded-lg bg-brand text-white hover:bg-brand-strong transition-colors"
         >
           Save
         </button>

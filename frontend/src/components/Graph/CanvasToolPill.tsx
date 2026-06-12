@@ -16,11 +16,11 @@ export function CanvasToolPill({
   canRedo,
 }: CanvasToolPillProps) {
   return (
-    <div className="absolute top-3 left-3 z-20 bg-surface-panel/90 border border-line-strong rounded-full shadow-lg flex items-center gap-1 px-1.5 py-1">
+    <div className="absolute top-3 left-3 z-20 bg-canvas/90 backdrop-blur border border-canvas-line rounded-full shadow-lg flex items-center gap-1 px-1.5 py-1">
       <button
         onClick={onRefresh}
         title="Refresh"
-        className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-raised transition-colors text-ink-muted hover:text-ink"
+        className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-canvas-fill transition-colors text-canvas-muted hover:text-canvas-ink"
       >
         <FaArrowsRotate size={13} />
       </button>
@@ -29,7 +29,7 @@ export function CanvasToolPill({
         onClick={onUndo}
         disabled={!canUndo}
         title="Undo (⌘Z)"
-        className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-raised transition-colors text-ink-muted hover:text-ink disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+        className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-canvas-fill transition-colors text-canvas-muted hover:text-canvas-ink disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-canvas-muted"
       >
         <FaRotateLeft size={13} />
       </button>
@@ -38,7 +38,7 @@ export function CanvasToolPill({
         onClick={onRedo}
         disabled={!canRedo}
         title="Redo (⌘⇧Z)"
-        className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-raised transition-colors text-ink-muted hover:text-ink disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+        className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-canvas-fill transition-colors text-canvas-muted hover:text-canvas-ink disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-canvas-muted"
       >
         <FaRotateRight size={13} />
       </button>

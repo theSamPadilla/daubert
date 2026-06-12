@@ -13,7 +13,7 @@ const ADDRESS_TYPE_LABELS: Record<string, string> = {
 const ADDRESS_TYPE_COLORS: Record<string, string> = {
   wallet: 'bg-brand text-white',
   contract: 'bg-purple-500/20 text-purple-300',
-  unknown: 'bg-surface-raised/50 text-ink-muted',
+  unknown: 'bg-canvas-fill text-canvas-muted',
 };
 
 const NODE_SHAPES: { value: WalletNode['shape']; label: string; icon: string }[] = [
@@ -35,7 +35,7 @@ function getCategoryStyle(category: string): string {
     case 'contract': return 'bg-cyan-900/50 text-cyan-300';
     case 'government': return 'bg-orange-900/50 text-orange-300';
     case 'custodian': return 'bg-indigo-900/50 text-indigo-300';
-    default: return 'bg-surface-raised text-ink-muted';
+    default: return 'bg-canvas-fill text-canvas-muted';
   }
 }
 
@@ -89,7 +89,7 @@ export function WalletDetails({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <h4 className="text-xs font-semibold text-ink-muted uppercase">{hasAddress ? 'Address' : 'Node'}</h4>
+        <h4 className="text-xs font-semibold text-canvas-muted uppercase">{hasAddress ? 'Address' : 'Node'}</h4>
         {hasAddress && (
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${ADDRESS_TYPE_COLORS[addrType]}`}>
             {ADDRESS_TYPE_LABELS[addrType]}
@@ -99,19 +99,19 @@ export function WalletDetails({
       <p className="text-sm font-semibold">{wallet.label}</p>
       {hasAddress && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Address</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Address</h4>
           <div className="flex items-start gap-1.5">
             {wallet.explorerUrl ? (
               <a
                 href={wallet.explorerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-mono text-brand-ink hover:text-white break-all underline decoration-brand-ink/40 hover:decoration-brand-ink/70 transition-colors"
+                className="text-xs font-mono text-accent hover:text-canvas-ink break-all underline decoration-accent/40 hover:decoration-accent/70 transition-colors"
               >
                 {wallet.address}
               </a>
             ) : (
-              <p className="text-xs font-mono text-ink-muted break-all">{wallet.address}</p>
+              <p className="text-xs font-mono text-canvas-muted break-all">{wallet.address}</p>
             )}
             <CopyButton text={wallet.address} />
           </div>
@@ -123,7 +123,7 @@ export function WalletDetails({
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getCategoryStyle(matchedEntity.category)}`}>
                   {matchedEntity.category}
                 </span>
-                <span className="text-sm text-ink-muted">{matchedEntity.name}</span>
+                <span className="text-sm text-canvas-muted">{matchedEntity.name}</span>
               </div>
             );
           })()}
@@ -131,33 +131,33 @@ export function WalletDetails({
       )}
       {hasAddress && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Chain</h4>
-          <p className="text-sm text-ink-muted">{wallet.chain}</p>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Chain</h4>
+          <p className="text-sm text-canvas-muted">{wallet.chain}</p>
         </div>
       )}
       {wallet.tags.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Tags</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Tags</h4>
           <div className="flex flex-wrap gap-1">
             {wallet.tags.map((tag) => (
-              <span key={tag} className="px-2 py-0.5 bg-surface-raised rounded text-xs">{tag}</span>
+              <span key={tag} className="px-2 py-0.5 bg-canvas-fill rounded text-xs">{tag}</span>
             ))}
           </div>
         </div>
       )}
       {onUpdate && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Shape</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Shape</h4>
           <div className="grid grid-cols-3 gap-1">
             {NODE_SHAPES.map(({ value, label, icon }) => (
               <button
                 key={value}
                 onClick={() => onUpdate({ shape: value })}
                 title={label}
-                className={`py-1.5 rounded text-xs transition-colors border flex flex-col items-center gap-0.5 ${
+                className={`py-1.5 rounded-lg text-xs transition-colors border flex flex-col items-center gap-0.5 ${
                   (wallet.shape || 'ellipse') === value
                     ? 'border-brand bg-brand text-white'
-                    : 'border-line-strong text-ink-muted hover:border-line-strong hover:text-ink'
+                    : 'border-canvas-line text-canvas-muted hover:border-white/25 hover:text-canvas-ink'
                 }`}
               >
                 <span className="text-base leading-none">{icon}</span>
@@ -168,7 +168,7 @@ export function WalletDetails({
         </div>
       )}
       <div>
-        <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Notes</h4>
+        <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Notes</h4>
         <textarea
           value={notes}
           onChange={(e) => {
@@ -183,14 +183,14 @@ export function WalletDetails({
           }}
           placeholder="Add notes…"
           rows={3}
-          className="w-full bg-surface-raised/50 border border-line-strong rounded px-2 py-1.5 text-sm text-ink-muted placeholder-ink-faint focus:outline-none focus:border-brand resize-none overflow-hidden"
+          className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-2 py-1.5 text-sm text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 resize-none overflow-hidden"
         />
       </div>
       {hasAddress && (
-        <div className="pt-2 border-t border-line-strong space-y-1.5">
+        <div className="pt-2 border-t border-canvas-line space-y-1.5">
           <button
             onClick={() => onFetchHistory(wallet.address, wallet.chain)}
-            className="w-full px-3 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm transition-colors text-left"
+            className="w-full px-3 py-1.5 bg-canvas-fill hover:bg-white/10 text-canvas-ink rounded-lg text-sm transition-colors text-left"
           >
             Fetch Transactions
           </button>
@@ -200,7 +200,7 @@ export function WalletDetails({
               {onBundleAllInbound && (
                 <button
                   onClick={() => setPickingInboundBundleColor(true)}
-                  className="px-3 py-1.5 bg-surface-raised hover:bg-emerald-900/40 hover:text-emerald-300 rounded text-sm transition-colors flex items-center justify-center gap-1.5 border border-emerald-500/30"
+                  className="px-3 py-1.5 bg-canvas-fill hover:bg-emerald-900/40 hover:text-emerald-300 rounded-lg text-sm transition-colors flex items-center justify-center gap-1.5 border border-emerald-500/30"
                 >
                   <FaArrowRightToBracket className="text-emerald-400" />
                   <span>Bundle IN</span>
@@ -209,7 +209,7 @@ export function WalletDetails({
               {onBundleAllOutbound && (
                 <button
                   onClick={() => setPickingBundleColor(true)}
-                  className="px-3 py-1.5 bg-surface-raised hover:bg-amber-900/40 hover:text-amber-300 rounded text-sm transition-colors flex items-center justify-center gap-1.5 border border-amber-500/30"
+                  className="px-3 py-1.5 bg-canvas-fill hover:bg-amber-900/40 hover:text-amber-300 rounded-lg text-sm transition-colors flex items-center justify-center gap-1.5 border border-amber-500/30"
                 >
                   <FaArrowRightFromBracket className="text-amber-400" />
                   <span>Bundle OUT</span>
@@ -218,7 +218,7 @@ export function WalletDetails({
             </div>
           )}
           {onBundleAllInbound && pickingInboundBundleColor && (
-            <div className="w-full px-3 py-1.5 bg-surface-raised rounded text-sm flex items-center gap-2 border border-emerald-500/30">
+            <div className="w-full px-3 py-1.5 bg-canvas-fill rounded-lg text-sm flex items-center gap-2 border border-emerald-500/30">
               <FaArrowRightToBracket className="text-emerald-400" />
               <span className="text-emerald-300 text-xs font-medium">IN color:</span>
               <div className="flex items-center gap-1.5 flex-1">
@@ -236,7 +236,7 @@ export function WalletDetails({
               </div>
               <button
                 onClick={() => setPickingInboundBundleColor(false)}
-                className="text-ink-muted hover:text-ink text-xs"
+                className="text-canvas-muted hover:text-canvas-ink text-xs"
                 title="Cancel"
               >
                 <FaXmark />
@@ -244,7 +244,7 @@ export function WalletDetails({
             </div>
           )}
           {onBundleAllOutbound && pickingBundleColor && (
-            <div className="w-full px-3 py-1.5 bg-surface-raised rounded text-sm flex items-center gap-2 border border-amber-500/30">
+            <div className="w-full px-3 py-1.5 bg-canvas-fill rounded-lg text-sm flex items-center gap-2 border border-amber-500/30">
               <FaArrowRightFromBracket className="text-amber-400" />
               <span className="text-amber-300 text-xs font-medium">OUT color:</span>
               <div className="flex items-center gap-1.5 flex-1">
@@ -262,7 +262,7 @@ export function WalletDetails({
               </div>
               <button
                 onClick={() => setPickingBundleColor(false)}
-                className="text-ink-muted hover:text-ink text-xs"
+                className="text-canvas-muted hover:text-canvas-ink text-xs"
                 title="Cancel"
               >
                 <FaXmark />
@@ -276,7 +276,7 @@ export function WalletDetails({
               {onDeleteAllInbound && (
                 <button
                   onClick={() => setConfirmDeleteInbound(true)}
-                  className="px-3 py-1.5 bg-surface-raised hover:bg-red-900/40 hover:text-red-300 rounded text-sm transition-colors flex items-center justify-center gap-1.5 border border-emerald-500/30"
+                  className="px-3 py-1.5 bg-canvas-fill hover:bg-red-900/40 hover:text-red-300 rounded-lg text-sm transition-colors flex items-center justify-center gap-1.5 border border-emerald-500/30"
                 >
                   <FaArrowRightToBracket className="text-emerald-400" />
                   <span>Delete IN</span>
@@ -285,7 +285,7 @@ export function WalletDetails({
               {onDeleteAllOutbound && (
                 <button
                   onClick={() => setConfirmDeleteOutbound(true)}
-                  className="px-3 py-1.5 bg-surface-raised hover:bg-red-900/40 hover:text-red-300 rounded text-sm transition-colors flex items-center justify-center gap-1.5 border border-amber-500/30"
+                  className="px-3 py-1.5 bg-canvas-fill hover:bg-red-900/40 hover:text-red-300 rounded-lg text-sm transition-colors flex items-center justify-center gap-1.5 border border-amber-500/30"
                 >
                   <FaArrowRightFromBracket className="text-amber-400" />
                   <span>Delete OUT</span>
@@ -294,9 +294,9 @@ export function WalletDetails({
             </div>
           )}
           {onDeleteAllInbound && confirmDeleteInbound && (
-            <div className="w-full px-3 py-1.5 bg-surface-raised rounded text-sm flex items-center gap-2 border border-emerald-500/30">
+            <div className="w-full px-3 py-1.5 bg-canvas-fill rounded-lg text-sm flex items-center gap-2 border border-emerald-500/30">
               <FaArrowRightToBracket className="text-emerald-400 shrink-0" />
-              <span className="text-ink-muted text-xs flex-1">Delete all <span className="text-emerald-300 font-medium">INBOUND</span> transactions?</span>
+              <span className="text-canvas-muted text-xs flex-1">Delete all <span className="text-emerald-300 font-medium">INBOUND</span> transactions?</span>
               <button
                 onClick={() => {
                   onDeleteAllInbound(wallet.id);
@@ -308,16 +308,16 @@ export function WalletDetails({
               </button>
               <button
                 onClick={() => setConfirmDeleteInbound(false)}
-                className="text-[11px] text-ink-muted hover:text-ink"
+                className="text-[11px] text-canvas-muted hover:text-canvas-ink"
               >
                 Cancel
               </button>
             </div>
           )}
           {onDeleteAllOutbound && confirmDeleteOutbound && (
-            <div className="w-full px-3 py-1.5 bg-surface-raised rounded text-sm flex items-center gap-2 border border-amber-500/30">
+            <div className="w-full px-3 py-1.5 bg-canvas-fill rounded-lg text-sm flex items-center gap-2 border border-amber-500/30">
               <FaArrowRightFromBracket className="text-amber-400 shrink-0" />
-              <span className="text-ink-muted text-xs flex-1">Delete all <span className="text-amber-300 font-medium">OUTBOUND</span> transactions?</span>
+              <span className="text-canvas-muted text-xs flex-1">Delete all <span className="text-amber-300 font-medium">OUTBOUND</span> transactions?</span>
               <button
                 onClick={() => {
                   onDeleteAllOutbound(wallet.id);
@@ -329,7 +329,7 @@ export function WalletDetails({
               </button>
               <button
                 onClick={() => setConfirmDeleteOutbound(false)}
-                className="text-[11px] text-ink-muted hover:text-ink"
+                className="text-[11px] text-canvas-muted hover:text-canvas-ink"
               >
                 Cancel
               </button>

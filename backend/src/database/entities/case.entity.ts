@@ -5,6 +5,7 @@ import { OrganizationEntity } from './organization.entity';
 import { ProductionEntity } from './production.entity';
 import { UserEntity } from './user.entity';
 import { CaseMemberEntity } from './case-member.entity';
+import { ScriptRunEntity } from './script-run.entity';
 
 @Entity('cases')
 export class CaseEntity extends BaseEntity {
@@ -30,6 +31,9 @@ export class CaseEntity extends BaseEntity {
 
   @OneToMany(() => ProductionEntity, (p) => p.case, { cascade: true })
   productions: ProductionEntity[];
+
+  @OneToMany(() => ScriptRunEntity, (s) => s.case)
+  scriptRuns: ScriptRunEntity[];
 
   @Column({ name: 'organization_id' })
   orgId: string;

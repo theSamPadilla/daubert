@@ -3,8 +3,10 @@ import * as mammoth from 'mammoth';
 import type Anthropic from '@anthropic-ai/sdk';
 
 /** Anthropic's hard limits on raw bytes (×0.75 of base64 char count). */
-const PDF_B64_LIMIT = 6_200_000;   // ~4.5 MB raw
+const PDF_B64_LIMIT = 6_200_000;   // ~4.5 MB raw — inline base64 document ceiling
 const IMG_B64_LIMIT = 6_800_000;   // ~5 MB raw
+/** Anthropic's PDF *processing* ceiling (raw bytes) when uploaded via the Files API. */
+const PDF_FILES_API_LIMIT = 32 * 1024 * 1024;   // 32 MB raw
 /** XLSX/DOCX are compressed binaries; cap the *upload* generously and gate truncation
  *  on the post-extraction text length below. */
 const COMPRESSED_B64_LIMIT = 6_200_000;
@@ -84,8 +86,16 @@ function classify(att: AttachmentInput): 'pdf' | 'image' | 'xlsx' | 'docx' | 'cs
   return null;
 }
 
+/**
+ * Uploads raw bytes to a file store (e.g. the Anthropic Files API) and returns
+ * an opaque file id. Supplied for oversized PDFs that exceed the inline base64
+ * ceiling but fit within {@link PDF_FILES_API_LIMIT}.
+ */
+export type AttachmentUploader = (buf: Buffer, name: string, mime: string) => Promise<string>;
+
 export async function buildAttachmentBlocks(
   attachments: AttachmentInput[] | undefined,
+  uploader?: AttachmentUploader,
 ): Promise<Anthropic.Beta.BetaContentBlockParam[]> {
   if (!attachments?.length) return [];
   const out: Anthropic.Beta.BetaContentBlockParam[] = [];
@@ -108,7 +118,22 @@ export async function buildAttachmentBlocks(
     if (!kind) continue; // DTO whitelist already rejects unknowns; defensive only.
 
     if (kind === 'pdf') {
-      if (att.data.length > PDF_B64_LIMIT) { out.push(sizeStub(att.name, att.data.length, 'PDF')); continue; }
+      if (att.data.length > PDF_B64_LIMIT) {
+        // Too big for inline base64. If an uploader is available and the raw
+        // size is within Anthropic's PDF processing ceiling, route through the
+        // Files API and reference the file by id (full vision, no base64 cap).
+        if (uploader && att.data.length * 0.75 <= PDF_FILES_API_LIMIT) {
+          const fileId = await uploader(Buffer.from(att.data, 'base64'), att.name, 'application/pdf');
+          out.push({
+            type: 'document',
+            source: { type: 'file', file_id: fileId },
+            title: att.name,
+          } as any);
+          continue;
+        }
+        out.push(sizeStub(att.name, att.data.length, 'PDF'));
+        continue;
+      }
       out.push({
         type: 'document',
         source: { type: 'base64', media_type: 'application/pdf', data: att.data },

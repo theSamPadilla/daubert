@@ -21,15 +21,15 @@ import { CaseRole } from '../../database/entities/case-member.entity';
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockConversationsService = { findOne: jest.fn(), getMessages: jest.fn(), updateTitle: jest.fn() };
-const mockScriptExecutionService = { execute: jest.fn(), listRuns: jest.fn() };
+const mockScriptExecutionService = { execute: jest.fn(), listRunsForCase: jest.fn() };
 const mockLabeledEntitiesService = { lookupByAddress: jest.fn(), findAll: jest.fn() };
 const mockProductionsService = { create: jest.fn(), findOne: jest.fn(), findAllForCase: jest.fn(), update: jest.fn() };
 const mockTracesService = { findOne: jest.fn(), update: jest.fn() };
-const mockAnthropicProvider = { streamChat: jest.fn(), generateText: jest.fn() };
+const mockAnthropicProvider = { streamChat: jest.fn(), generateText: jest.fn(), uploadFile: jest.fn() };
 const mockMessageRepo = { find: jest.fn(), save: jest.fn((e: any) => Promise.resolve({ id: 'msg-saved-id', ...e })), create: jest.fn((e: any) => e) };
 const mockInvestigationRepo = { find: jest.fn(), findOneBy: jest.fn() };
 const mockTraceRepo = { findOneBy: jest.fn(), save: jest.fn() };
-const mockDataRoomService = { getManifest: jest.fn(), getFileForAgentRead: jest.fn() };
+const mockDataRoomService = { getManifest: jest.fn(), getFileForAgentRead: jest.fn(), setAnthropicFileId: jest.fn() };
 const mockConversationRepo = { findOne: jest.fn() };
 const mockTokenUsageService = { record: jest.fn() };
 
@@ -298,7 +298,7 @@ describe('AiService — executeTool label cases', () => {
       const dataRoomService = module.get(DataRoomService);
       const { Readable } = require('stream');
       (dataRoomService.getFileForAgentRead as jest.Mock).mockResolvedValue({
-        tooLarge: false, name: 'data.csv', mimeType: 'text/csv', size: 3, stream: Readable.from([Buffer.from('a,b')]),
+        tooLarge: false, name: 'data.csv', mimeType: 'text/csv', size: 3, stream: Readable.from([Buffer.from('a,b')]), anthropicFileId: null,
       });
       const res: any = await (aiService as any).executeTool(toolUse('read_data_room_file', { fileId: 'a' }), 'case1', undefined, 'viewer', 'u1');
       expect(res.__agentReadBlocks).toBeDefined();
@@ -310,21 +310,109 @@ describe('AiService — executeTool label cases', () => {
 
     it('read_data_room_file returns a too-large note without content blocks', async () => {
       const dataRoomService = module.get(DataRoomService);
-      (dataRoomService.getFileForAgentRead as jest.Mock).mockResolvedValue({ tooLarge: true, name: 'big.pdf', mimeType: 'application/pdf', size: 99 * 1024 * 1024 });
+      (dataRoomService.getFileForAgentRead as jest.Mock).mockResolvedValue({ tooLarge: true, name: 'big.pdf', mimeType: 'application/pdf', size: 99 * 1024 * 1024, anthropicFileId: null });
       const res: any = await (aiService as any).executeTool(toolUse('read_data_room_file', { fileId: 'a' }), 'case1', undefined, 'viewer');
       expect(res.__agentReadBlocks).toBeUndefined();
       expect(res.error || res.note).toBeTruthy();
+    });
+
+    it('read_data_room_file uploads an oversized PDF and returns a file-source document block', async () => {
+      const dataRoomService = module.get(DataRoomService);
+      const llm = module.get(AnthropicProvider);
+      const { Readable } = require('stream');
+      // PDF bytes whose base64 length exceeds PDF_B64_LIMIT (~6.2M chars) but
+      // whose raw size is well within the 32 MB Files API ceiling.
+      const bigPdfBytes = Buffer.alloc(5 * 1024 * 1024, 0x41); // ~5 MB raw → ~6.6M b64 chars
+      (dataRoomService.getFileForAgentRead as jest.Mock).mockResolvedValue({
+        tooLarge: false, name: 'big.pdf', mimeType: 'application/pdf', size: bigPdfBytes.length,
+        stream: Readable.from([bigPdfBytes]), anthropicFileId: null,
+      });
+      (llm.uploadFile as jest.Mock).mockResolvedValue('file_xyz789');
+
+      const res: any = await (aiService as any).executeTool(toolUse('read_data_room_file', { fileId: 'a' }), 'case1', undefined, 'viewer', 'u1');
+
+      expect(res.__agentReadBlocks).toBeDefined();
+      const docBlock = res.__agentReadBlocks.find((b: any) => b.type === 'document');
+      expect(docBlock).toBeDefined();
+      expect(docBlock.source).toMatchObject({ type: 'file', file_id: 'file_xyz789' });
+      expect(llm.uploadFile).toHaveBeenCalledTimes(1);
+      expect(dataRoomService.setAnthropicFileId).toHaveBeenCalledWith('case1', 'a', 'file_xyz789');
     });
 
     it('read_data_room_file returns an unsupported note when the extractor yields no blocks', async () => {
       const dataRoomService = module.get(DataRoomService);
       const { Readable } = require('stream');
       (dataRoomService.getFileForAgentRead as jest.Mock).mockResolvedValue({
-        tooLarge: false, name: 'sheet.gdoc', mimeType: 'application/vnd.google-apps.document', size: 5, stream: Readable.from([Buffer.from('x')]),
+        tooLarge: false, name: 'sheet.gdoc', mimeType: 'application/vnd.google-apps.document', size: 5, stream: Readable.from([Buffer.from('x')]), anthropicFileId: null,
       });
       const res: any = await (aiService as any).executeTool(toolUse('read_data_room_file', { fileId: 'a' }), 'case1', undefined, 'viewer');
       expect(res.__agentReadBlocks).toBeUndefined();
       expect(res.error || res.note).toBeTruthy();
+    });
+  });
+
+  // ── execute_script / list_script_runs ─────────────────────────────────────
+
+  describe('execute_script', () => {
+    it('succeeds with caseId and no investigationId — does not return error', async () => {
+      mockScriptExecutionService.execute.mockResolvedValue({
+        status: 'success',
+        output: 'done',
+        durationMs: 10,
+        savedRun: { id: 'run-1' },
+      });
+
+      const result = await (aiService as any).executeTool(
+        toolUse('execute_script', { name: 'test', code: 'console.log(1)' }),
+        CASE_ID,
+        undefined, // no investigation
+        'editor',
+      );
+
+      expect(result).not.toHaveProperty('error');
+      expect(mockScriptExecutionService.execute).toHaveBeenCalledWith(
+        CASE_ID,
+        undefined,
+        'test',
+        'console.log(1)',
+        'editor',
+      );
+    });
+
+    it('without caseId returns error containing "case context"', async () => {
+      const result = await (aiService as any).executeTool(
+        toolUse('execute_script', { name: 'test', code: 'console.log(1)' }),
+        undefined, // no case
+        undefined,
+        'editor',
+      );
+      expect(result).toEqual({ error: expect.stringMatching(/case context/i) });
+    });
+  });
+
+  describe('list_script_runs', () => {
+    it('calls listRunsForCase with caseId', async () => {
+      mockScriptExecutionService.listRunsForCase.mockResolvedValue([]);
+
+      const result = await (aiService as any).executeTool(
+        toolUse('list_script_runs', {}),
+        CASE_ID,
+        undefined,
+        'viewer',
+      );
+
+      expect(mockScriptExecutionService.listRunsForCase).toHaveBeenCalledWith(CASE_ID);
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('without caseId returns error containing "case context"', async () => {
+      const result = await (aiService as any).executeTool(
+        toolUse('list_script_runs', {}),
+        undefined,
+        undefined,
+        'viewer',
+      );
+      expect(result).toEqual({ error: expect.stringMatching(/case context/i) });
     });
   });
 });
@@ -341,7 +429,7 @@ describe('AiService — pickToolsForRole', () => {
       providers: [
         AiService,
         { provide: ConversationsService, useValue: { findOne: jest.fn() } },
-        { provide: ScriptExecutionService, useValue: { execute: jest.fn(), listRuns: jest.fn() } },
+        { provide: ScriptExecutionService, useValue: { execute: jest.fn(), listRunsForCase: jest.fn() } },
         { provide: LabeledEntitiesService, useValue: { lookupByAddress: jest.fn(), findAll: jest.fn() } },
         { provide: ProductionsService, useValue: { create: jest.fn(), findOne: jest.fn(), findAllForCase: jest.fn(), update: jest.fn() } },
         { provide: TracesService, useValue: { findOne: jest.fn(), update: jest.fn() } },

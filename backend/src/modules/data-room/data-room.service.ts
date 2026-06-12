@@ -23,6 +23,13 @@ import {
   StorageProvider,
 } from './storage/storage-provider.interface';
 
+/**
+ * Files-API ceiling for AI-agent PDF reads. PDFs upload by `file_id` (full
+ * vision, no inline base64 cap) up to Anthropic's 32 MB processing limit;
+ * other types stay on the caller-supplied (smaller) inline ceiling.
+ */
+const PDF_AGENT_READ_BYTES = 32 * 1024 * 1024;
+
 /** Shape returned to callers for a single data-room file. */
 export interface DataRoomFileDto {
   id: string;
@@ -72,6 +79,8 @@ export interface AgentReadResult {
   mimeType: string;
   size: number;
   stream?: Readable;
+  /** Cached Anthropic Files API id, if a prior oversized-PDF read uploaded it. */
+  anthropicFileId: string | null;
 }
 
 export interface DriveExportResult {
@@ -315,10 +324,14 @@ export class DataRoomService {
 
   /**
    * Resolve a file for the AI agent to read. Scoped by `{ id, caseId }` so a
-   * file from a different case reads as not found. Files larger than `maxBytes`
+   * file from a different case reads as not found. Files larger than the ceiling
    * short-circuit to `{ tooLarge: true }` WITHOUT a download or audit row —
    * nothing was read. A successful read opens the storage stream and writes an
    * `agent_read` audit row (custody) before returning.
+   *
+   * `maxBytes` is the ceiling for non-PDF types; PDFs use the 32 MB Files-API
+   * ceiling instead (they upload by `file_id` rather than inline base64). The
+   * mime is only known after the row is fetched, so the ceiling is chosen here.
    */
   async getFileForAgentRead(
     caseId: string,
@@ -331,13 +344,40 @@ export class DataRoomService {
       throw new NotFoundException('file_not_found');
     }
     const size = Number(row.size);
-    if (size > maxBytes) {
-      return { tooLarge: true, name: row.name, mimeType: row.mimeType, size };
+    const ceiling =
+      row.mimeType === 'application/pdf' ? PDF_AGENT_READ_BYTES : maxBytes;
+    if (size > ceiling) {
+      return {
+        tooLarge: true,
+        name: row.name,
+        mimeType: row.mimeType,
+        size,
+        anthropicFileId: row.anthropicFileId,
+      };
     }
     const { stream } = await this.storage.download(row.objectKey);
     await this.log(caseId, userId, 'agent_read', fileId);
     this.logger.log(`agent_read caseId=${caseId} fileId=${fileId}`);
-    return { tooLarge: false, name: row.name, mimeType: row.mimeType, size, stream };
+    return {
+      tooLarge: false,
+      name: row.name,
+      mimeType: row.mimeType,
+      size,
+      stream,
+      anthropicFileId: row.anthropicFileId,
+    };
+  }
+
+  /**
+   * Cache the Anthropic Files API id on a file row so repeat oversized-PDF reads
+   * reference the existing upload instead of re-uploading. Scoped by `{ id, caseId }`.
+   */
+  async setAnthropicFileId(
+    caseId: string,
+    fileId: string,
+    anthropicFileId: string,
+  ): Promise<void> {
+    await this.fileRepo.update({ id: fileId, caseId }, { anthropicFileId });
   }
 
   /**

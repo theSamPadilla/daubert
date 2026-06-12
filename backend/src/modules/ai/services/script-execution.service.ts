@@ -91,8 +91,8 @@ export class ScriptExecutionService {
   }
 
   async execute(
-    investigationId: string,
     caseId: string,
+    investigationId: string | undefined,
     name: string,
     code: string,
     role: CaseRole,
@@ -102,7 +102,8 @@ export class ScriptExecutionService {
 
     const savedRun = await this.scriptRunRepo.save(
       this.scriptRunRepo.create({
-        investigationId,
+        caseId,
+        investigationId: investigationId ?? null,
         name,
         code,
         output: result.output,
@@ -114,9 +115,9 @@ export class ScriptExecutionService {
     return { ...result, savedRun };
   }
 
-  async listRuns(investigationId: string): Promise<ScriptRunEntity[]> {
+  async listRunsForCase(caseId: string): Promise<ScriptRunEntity[]> {
     return this.scriptRunRepo.find({
-      where: { investigationId },
+      where: { caseId },
       order: { createdAt: 'DESC' },
       take: 20,
     });

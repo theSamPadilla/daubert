@@ -29,28 +29,37 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { McpIpThrottlerGuard } from '../../common/guards/mcp-ip-throttler.guard';
 import { OrganizationMemberEntity } from '../../database/entities/organization-member.entity';
+import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { AuthModule } from '../auth/auth.module';
 import { CasesModule } from '../cases/cases.module';
 import { InvestigationsModule } from '../investigations/investigations.module';
+import { ProductionsModule } from '../productions/productions.module';
+import { DataRoomModule } from '../data-room/data-room.module';
+import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
 import { OAuthModule } from '../oauth/oauth.module';
 import { McpAuthHelper } from './mcp-auth.helper';
 import { McpController } from './mcp.controller';
 import { McpToolsService } from './mcp.tools';
 import { NavigateToolsService } from './tools/navigate-tools';
+import { ReadToolsService } from './tools/read-tools';
 
 @Module({
   imports: [
-    OAuthModule, // exports OAuthService + McpThrottleService
-    TypeOrmModule.forFeature([OrganizationMemberEntity]),
-    AuthModule, // exports CaseAccessService
-    CasesModule, // exports CasesService
+    OAuthModule,          // exports OAuthService + McpThrottleService
+    TypeOrmModule.forFeature([OrganizationMemberEntity, InvestigationEntity]),
+    AuthModule,           // exports CaseAccessService
+    CasesModule,          // exports CasesService
     InvestigationsModule, // exports InvestigationsService
+    ProductionsModule,    // exports ProductionsService
+    DataRoomModule,       // exports DataRoomService
+    LabeledEntitiesModule, // exports LabeledEntitiesService
   ],
   controllers: [McpController],
   providers: [
     McpAuthHelper,
     McpToolsService,
     NavigateToolsService,
+    ReadToolsService,
     McpIpThrottlerGuard,
   ],
 })

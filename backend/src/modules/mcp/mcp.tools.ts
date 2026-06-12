@@ -27,10 +27,14 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import type { AuthSuccess } from './mcp-auth.helper';
 import { NavigateToolsService } from './tools/navigate-tools';
+import { ReadToolsService } from './tools/read-tools';
 
 @Injectable()
 export class McpToolsService {
-  constructor(private readonly navigate: NavigateToolsService) {}
+  constructor(
+    private readonly navigate: NavigateToolsService,
+    private readonly read: ReadToolsService,
+  ) {}
 
   /**
    * Register all MCP tools appropriate for the authenticated session on `server`.
@@ -40,6 +44,7 @@ export class McpToolsService {
    */
   registerForScope(server: McpServer, auth: AuthSuccess): void {
     this.navigate.registerAll(server, auth);
+    this.read.registerAll(server, auth);
   }
 
   /**

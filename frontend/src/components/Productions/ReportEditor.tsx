@@ -185,7 +185,7 @@ export function ReportEditor({
     editorProps: {
       attributes: {
         class: [
-          'prose prose-sm prose-invert max-w-none outline-none min-h-[200px] p-4',
+          'prose prose-sm max-w-none outline-none min-h-[200px] p-4',
           'prose-headings:text-ink',
           'prose-p:text-ink-muted',
           'prose-strong:text-ink',

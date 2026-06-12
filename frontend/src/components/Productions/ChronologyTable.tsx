@@ -289,7 +289,7 @@ export function ChronologyTable({
     !!onColumnAdd || (isCustom && !!onColumnResize) || selectionEnabled || colEditEnabled;
 
   const toolbarBtn =
-    'h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md text-xs font-medium bg-surface-panel/70 border border-line-strong text-ink-muted hover:bg-surface-raised hover:text-gray-100 hover:border-line-strong transition-colors';
+    'h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md text-xs font-medium bg-surface-panel/70 border border-line-strong text-ink-muted hover:bg-surface-raised hover:text-ink hover:border-line-strong transition-colors';
 
   return (
     <div>
@@ -357,7 +357,7 @@ export function ChronologyTable({
           </span>
           <button
             onClick={allColsSelected ? clearColSelection : selectAllCols}
-            className="text-xs text-ink-muted hover:text-gray-200"
+            className="text-xs text-ink-muted hover:text-ink"
           >
             {allColsSelected ? 'Deselect all' : 'Select all'}
           </button>
@@ -381,7 +381,7 @@ export function ChronologyTable({
           </span>
           <button
             onClick={allSelected ? clearSelection : selectAll}
-            className="text-xs text-ink-muted hover:text-gray-200"
+            className="text-xs text-ink-muted hover:text-ink"
           >
             {allSelected ? 'Deselect all' : 'Select all'}
           </button>
@@ -679,7 +679,7 @@ function ResizableTh({
             if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
             if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
           }}
-          className="w-full bg-surface text-gray-100 px-1 py-0.5 rounded border border-brand focus:outline-none focus:ring-1 focus:ring-brand text-xs font-normal"
+          className="w-full bg-surface text-ink px-1 py-0.5 rounded border border-brand focus:outline-none focus:ring-2 focus:ring-brand/40 text-xs font-normal"
         />
       ) : (
         <span className="inline-flex items-center gap-2">
@@ -696,7 +696,7 @@ function ResizableTh({
             </span>
           )}
           <span
-            className={labelClickable ? 'cursor-pointer hover:text-gray-200 transition-colors' : ''}
+            className={labelClickable ? 'cursor-pointer hover:text-ink transition-colors' : ''}
             onClick={handleLabelClick}
             title={labelTitle}
           >
@@ -791,7 +791,7 @@ function EditableCell({
       onBlur: commit,
       onKeyDown: onKey,
       className:
-        'w-full bg-surface text-gray-100 px-2 py-1 rounded border border-brand focus:outline-none focus:ring-1 focus:ring-brand',
+        'w-full bg-surface text-ink px-2 py-1 rounded border border-brand focus:outline-none focus:ring-2 focus:ring-brand/40',
     };
     return multiline ? (
       <textarea

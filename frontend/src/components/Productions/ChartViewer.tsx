@@ -30,7 +30,7 @@ interface ChartViewerProps {
   theme?: ExportTheme;
 }
 
-export function ChartViewer({ data, theme = 'dark' }: ChartViewerProps) {
+export function ChartViewer({ data, theme = 'light' }: ChartViewerProps) {
   if (!Array.isArray(data.datasets) || !Array.isArray(data.labels)) {
     return <div className="text-red-400 text-sm">Invalid chart data: datasets and labels must be arrays.</div>;
   }

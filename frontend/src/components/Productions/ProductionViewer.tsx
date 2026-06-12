@@ -338,9 +338,9 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="h-12 px-4 border-b border-[#E5E7EB] bg-[#F7F8FB] flex items-center justify-between gap-4 shrink-0">
+      <div className="h-12 px-4 border-b border-line bg-surface-panel flex items-center justify-between gap-4 shrink-0">
         <div className="flex items-baseline gap-3 shrink-0 min-w-0">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted shrink-0">
             Production
           </span>
           {onUpdate && editingName ? (
@@ -354,18 +354,18 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
                 if (e.key === 'Enter') commitName();
                 if (e.key === 'Escape') { setNameDraft(production.name); setEditingName(false); }
               }}
-              className="text-[15px] font-semibold tracking-tight text-[#0B1220] bg-white border border-brand rounded px-2 py-0.5 min-w-0 focus:outline-none"
+              className="text-[15px] font-semibold tracking-tight text-ink bg-surface border border-brand rounded px-2 py-0.5 min-w-0 focus:outline-none focus:ring-2 focus:ring-brand/40"
             />
           ) : (
             <h2
               onClick={onUpdate ? () => { setNameDraft(production.name); setEditingName(true); } : undefined}
               title={onUpdate ? 'Click to rename' : undefined}
-              className={`text-[15px] font-semibold tracking-tight text-[#0B1220] truncate ${onUpdate ? 'cursor-pointer hover:text-brand transition-colors' : ''}`}
+              className={`text-[15px] font-semibold tracking-tight text-ink truncate ${onUpdate ? 'cursor-pointer hover:text-brand transition-colors' : ''}`}
             >
               {production.name}
             </h2>
           )}
-          <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider shrink-0 ${TYPE_COLORS[production.type] || 'bg-[#F1F4FA] text-[#5B6473]'}`}>
+          <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider shrink-0 ${TYPE_COLORS[production.type] || 'bg-surface-raised text-ink-muted'}`}>
             {production.type}
           </span>
         </div>
@@ -374,7 +374,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
             onClick={handleRefresh}
             disabled={refreshing}
             title="Reload from server"
-            className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#5B6473]"
+            className="px-3 h-8 bg-surface hover:bg-surface-raised border border-line hover:border-line-strong text-ink-muted hover:text-ink rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-surface disabled:hover:text-ink-muted"
           >
             <FaArrowsRotate className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing…' : 'Refresh'}
@@ -382,14 +382,14 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
           <button
             onClick={() => setExportOpen(true)}
             disabled={refreshing}
-            className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#5B6473]"
+            className="px-3 h-8 bg-surface hover:bg-surface-raised border border-line hover:border-line-strong text-ink-muted hover:text-ink rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-surface disabled:hover:text-ink-muted"
           >
             <FaDownload className="w-3 h-3" /> Export
           </button>
           {onUpdate && production.type === 'report' && (
             <button
               onClick={() => setEditing(!editing)}
-              className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"
+              className="px-3 h-8 bg-surface hover:bg-surface-raised border border-line hover:border-line-strong text-ink-muted hover:text-ink rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"
             >
               {editing ? <FaEye className="w-3.5 h-3.5" /> : <FaPenToSquare className="w-3.5 h-3.5" />}
               {editing ? 'View' : 'Edit'}
@@ -406,7 +406,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
-                  className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors"
+                  className="px-3 h-8 bg-surface hover:bg-surface-raised border border-line hover:border-line-strong text-ink-muted hover:text-ink rounded-md text-xs font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -415,7 +415,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
               <button
                 onClick={() => setConfirmDelete(true)}
                 title="Delete production"
-                className="px-3 h-8 bg-white hover:bg-red-50 border border-[#E5E7EB] hover:border-red-300 text-[#5B6473] hover:text-red-600 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"
+                className="px-3 h-8 bg-surface hover:bg-red-50 border border-line hover:border-red-300 text-ink-muted hover:text-red-600 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"
               >
                 <FaTrash className="w-3 h-3" /> Delete
               </button>

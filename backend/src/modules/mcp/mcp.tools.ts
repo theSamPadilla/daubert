@@ -30,6 +30,19 @@ import { NavigateToolsService } from './tools/navigate-tools';
 import { ReadToolsService } from './tools/read-tools';
 import { BlockchainToolsService } from './tools/blockchain-tools';
 import { WriteToolsService } from './tools/write-tools';
+import { getSkillContent, SKILL_REGISTRY } from '../../skills/skill-registry';
+
+/**
+ * Skill handles registered as MCP prompts for every authenticated session.
+ * Order determines the order they appear in the MCP prompt list.
+ */
+const PROMPT_SKILL_HANDLES = [
+  'daubert-overview',
+  'graph-mutations',
+  'etherscan-apis',
+  'tronscan-apis',
+  'productions',
+] as const;
 
 @Injectable()
 export class McpToolsService {
@@ -57,15 +70,47 @@ export class McpToolsService {
    * Register MCP prompts for the authenticated session on `server`.
    * Called once per MCP request, after registerForScope.
    *
-   * @param _baseUrl The OAUTH_ISSUER_URL from config — used for {BASE_URL}
-   *   interpolation in prompt bodies. Passed through from the controller.
+   * Each skill in PROMPT_SKILL_HANDLES becomes one MCP prompt:
+   *   - name        = skill handle (filename without .md)
+   *   - description = skill frontmatter `description` field
+   *   - callback    = returns messages:[{ role:'user', content:{ type:'text', text } }]
+   *
+   * Skills whose file is missing (getSkillContent returns null) are skipped
+   * silently — the session continues without that prompt rather than crashing.
+   *
+   * V1: no argsSchema — prompts are informational only, no parameters.
+   *
+   * @param server  The McpServer instance for this request.
+   * @param _auth   The authenticated session (unused in V1 — all prompts are
+   *                scope-independent; kept for future role-gated prompt filtering).
+   * @param _baseUrl Reserved for future {BASE_URL} interpolation (not used in
+   *                 current skill bodies).
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  registerPromptsForScope(
-    _server: McpServer,
-    _auth: AuthSuccess,
-    _baseUrl: string,
-  ): void {
-    // Stub — real prompt registrations added in later tasks.
+  registerPromptsForScope(server: McpServer, _auth: AuthSuccess, _baseUrl: string): void {
+    for (const handle of PROMPT_SKILL_HANDLES) {
+      const content = getSkillContent(handle);
+      if (content === null) {
+        // Skill file missing — skip silently rather than crashing the session.
+        continue;
+      }
+      // getSkillContent confirmed the skill exists, so its registry entry is
+      // guaranteed present here. Fall back to the handle if somehow missing.
+      const description =
+        SKILL_REGISTRY.find((s) => s.name === handle)?.description ?? handle;
+
+      server.registerPrompt(
+        handle,
+        { description },
+        () => ({
+          messages: [
+            {
+              role: 'user' as const,
+              content: { type: 'text' as const, text: content },
+            },
+          ],
+        }),
+      );
+    }
   }
 }

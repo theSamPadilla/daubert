@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { FaArrowLeft, FaPlus, FaClockRotateLeft, FaXmark, FaChevronUp, FaChevronDown, FaPaperclip, FaTrash, FaArrowUp } from 'react-icons/fa6';
 import { apiClient, type Conversation, type ChatMessage } from '@/lib/api-client';
 import { useCaseContext } from '@/contexts/CaseContext';
+import { Kicker } from '@/components/ui';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
@@ -91,9 +93,9 @@ function formatToolStatus(tool: ToolStatus): string {
 
 function StatusMessage({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2 text-[11px] text-ink-faint py-1 px-1">
+    <div className="flex items-center gap-2 font-mono text-[11px] text-accent py-1 px-1">
       <span
-        className="w-1.5 h-1.5 rounded-full bg-brand inline-block shrink-0"
+        className="w-1.5 h-1.5 rounded-full bg-accent inline-block shrink-0"
         style={{ animation: 'toolPulse 1.5s ease-in-out infinite' }}
       />
       <span>{text}</span>
@@ -133,7 +135,7 @@ function InlineCode({ children, ...props }: React.HTMLAttributes<HTMLElement>) {
         href={link.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-brand-ink hover:text-white underline decoration-brand-ink/40 hover:decoration-brand-ink/70 transition-colors"
+        className="text-brand hover:text-brand-strong underline decoration-brand/40 hover:decoration-brand/70 transition-colors"
       >
         {text}
       </a>
@@ -259,10 +261,11 @@ function AttachmentChip({
       )}
       <button
         onClick={onRemove}
-        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-surface-raised hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-[10px] leading-none"
+        aria-label="Remove attachment"
+        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-surface-raised border border-line-strong text-ink-muted hover:bg-redline hover:text-white hover:border-redline flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all leading-none"
         title="Remove"
       >
-        ×
+        <FaXmark className="w-2.5 h-2.5" />
       </button>
     </div>
   );
@@ -281,12 +284,12 @@ function MessageAttachments({
             key={i}
             src={att.previewUrl}
             alt={att.name}
-            className="max-w-[180px] max-h-[160px] rounded-lg object-cover border border-white/10"
+            className="max-w-[180px] max-h-[160px] rounded-lg object-cover border border-line"
           />
         ) : (
           <div
             key={i}
-            className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2.5 py-1.5 text-xs font-medium"
+            className="flex items-center gap-1.5 bg-surface border border-line rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-soft"
           >
             {iconForMediaType(att.mediaType, att.name)}
             <span className="truncate max-w-[120px]">{att.name}</span>
@@ -731,7 +734,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
 
   return (
     <div
-      className="w-full h-full bg-surface-panel border-l border-line-strong flex flex-col relative"
+      className="w-full h-full bg-surface border-l border-line flex flex-col relative"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -740,7 +743,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
       {/* Drag overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-50 pointer-events-none border-2 border-brand rounded-none bg-brand/10 flex items-center justify-center">
-          <div className="bg-surface-panel border border-brand-ink rounded-xl px-6 py-4 text-brand-ink font-semibold text-sm shadow-xl">
+          <div className="bg-surface border border-brand rounded-xl px-6 py-4 text-brand font-semibold text-sm shadow-[0_24px_60px_-30px_rgba(11,18,32,0.18)]">
             Drop images or PDFs here
           </div>
         </div>
@@ -757,31 +760,32 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between px-3 h-12 border-b border-[#E5E7EB] bg-[#F7F8FB] shrink-0">
+      <div className="flex items-center justify-between px-3 h-12 border-b border-line shrink-0">
         {showHistory ? (
           <>
             <button
               onClick={() => setShowHistory(false)}
-              className="w-8 h-8 flex items-center justify-center text-[#5B6473] hover:text-[#0B1220] hover:bg-[#F1F4FA] rounded-lg transition-colors"
+              className="h-8 w-8 inline-flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-raised rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               aria-label="Back to chat"
             >
-              ←
+              <FaArrowLeft className="w-3.5 h-3.5" />
             </button>
-            <span className="text-sm font-semibold text-[#0B1220]">Conversations</span>
+            <Kicker index={3}>Conversations</Kicker>
             <button
               onClick={handleNewConversation}
               disabled={!activeCaseId}
               title={activeCaseId ? 'New conversation' : 'Select a case to start a conversation'}
-              className="w-8 h-8 flex items-center justify-center text-[#5B6473] hover:text-[#0B1220] hover:bg-[#F1F4FA] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#5B6473]"
+              className="h-8 w-8 inline-flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-raised rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink-muted"
               aria-label="New conversation"
             >
-              +
+              <FaPlus className="w-3 h-3" />
             </button>
           </>
         ) : (
           <>
-            <div className="flex-1 min-w-0">
-              <span className="text-[15px] font-semibold tracking-tight text-[#0B1220] truncate block">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Kicker index={3}>Agent</Kicker>
+              <span className="text-sm font-semibold tracking-tight text-ink truncate block">
                 {conversations.find((c) => c.id === activeConvId)?.title || 'Daubert'}
               </span>
             </div>
@@ -790,7 +794,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value as ModelId)}
                 disabled={streaming}
-                className="text-xs font-semibold bg-white border border-[#E5E7EB] text-[#5B6473] rounded-md px-2 py-1 focus:outline-none focus:border-brand hover:border-[#CFD4DD] transition-colors disabled:opacity-50 cursor-pointer"
+                className="text-xs font-semibold bg-surface border border-line text-ink-muted hover:text-ink rounded-lg px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 hover:border-line-strong transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {MODELS.map((m) => (
                   <option key={m.id} value={m.id}>{m.label}</option>
@@ -798,21 +802,20 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
               </select>
               <button
                 onClick={() => setShowHistory(true)}
-                className="w-8 h-8 flex items-center justify-center text-[#5B6473] hover:text-[#0B1220] hover:bg-[#F1F4FA] rounded-lg transition-colors"
+                aria-label="Conversation history"
+                className="h-8 w-8 inline-flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-raised rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                 title="Conversation history"
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/>
-                  <path d="M8 5v3.5L10.5 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
+                <FaClockRotateLeft className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={handleNewConversation}
                 disabled={!activeCaseId}
                 title={activeCaseId ? 'New conversation' : 'Select a case to start a conversation'}
-                className="w-8 h-8 flex items-center justify-center text-[#5B6473] hover:text-[#0B1220] hover:bg-[#F1F4FA] rounded-lg transition-colors text-lg leading-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#5B6473]"
+                aria-label="New conversation"
+                className="h-8 w-8 inline-flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-raised rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink-muted"
               >
-                +
+                <FaPlus className="w-3 h-3" />
               </button>
             </div>
           </>
@@ -829,14 +832,16 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
               <div
                 key={conv.id}
                 className={`group flex items-center gap-1 px-3 py-2.5 rounded-lg mx-1 transition-colors ${
-                  activeConvId === conv.id ? 'bg-surface-raised' : 'hover:bg-surface-raised/60'
+                  activeConvId === conv.id
+                    ? 'bg-surface border border-line-strong'
+                    : 'hover:bg-surface-raised'
                 }`}
               >
                 <button
                   onClick={() => handleLoadConversation(conv.id)}
                   className="flex-1 text-left flex flex-col gap-0.5 min-w-0"
                 >
-                  <span className="text-sm font-semibold text-ink truncate">
+                  <span className={`text-sm font-semibold truncate ${activeConvId === conv.id ? 'text-ink' : 'text-ink-soft'}`}>
                     {conv.title || 'New conversation'}
                   </span>
                   <span className="text-xs text-ink-faint font-medium">
@@ -845,12 +850,11 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv.id); }}
-                  className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center text-ink-faint hover:text-red-400 rounded transition-all shrink-0"
+                  aria-label="Delete conversation"
+                  className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center text-ink-faint hover:text-redline rounded transition-all shrink-0"
                   title="Delete conversation"
                 >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path d="M5 2V1h6v1h4v1.5H1V2h4zM3 5h10l-.8 9.4a1 1 0 01-1 .9H4.8a1 1 0 01-1-.9L3 5z" fill="currentColor"/>
-                  </svg>
+                  <FaTrash className="w-3 h-3" />
                 </button>
               </div>
             ))
@@ -879,10 +883,10 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
               return (
                 <div key={m.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
                   <div
-                    className={`max-w-[85%] px-3.5 py-2.5 text-sm leading-relaxed font-medium break-words overflow-hidden ${
+                    className={`max-w-[85%] px-3 py-2 text-sm leading-relaxed font-medium break-words overflow-hidden text-ink-soft ${
                       isUser
-                        ? 'bg-brand text-ink rounded-2xl rounded-br-md'
-                        : 'bg-surface-raised text-ink rounded-2xl rounded-bl-md border border-line-strong'
+                        ? 'bg-surface-raised rounded-xl'
+                        : 'bg-surface border border-line rounded-xl'
                     }`}
                   >
                     {m.attachments && m.attachments.length > 0 && (
@@ -892,7 +896,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                       isUser ? (
                         <span className="whitespace-pre-wrap">{m.text}</span>
                       ) : (
-                        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-pre:my-2 prose-pre:bg-surface-raised prose-pre:text-ink-muted prose-code:text-ink-muted prose-code:before:content-none prose-code:after:content-none prose-a:text-brand-ink prose-strong:text-ink prose-td:p-1.5 prose-th:p-1.5">
+                        <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-pre:my-2 prose-pre:bg-surface-raised prose-pre:text-ink-soft prose-pre:rounded-lg prose-code:bg-surface-raised prose-code:text-ink-soft prose-code:rounded prose-code:px-1 prose-code:before:content-none prose-code:after:content-none prose-a:text-brand prose-headings:text-ink prose-strong:text-ink prose-p:text-ink-soft prose-li:text-ink-soft prose-td:p-1.5 prose-th:p-1.5 prose-th:text-ink prose-td:text-ink-soft">
                           <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: InlineCode }}>{m.text}</ReactMarkdown>
                         </div>
                       )
@@ -907,7 +911,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
           </div>
 
           {/* Input area */}
-          <div className="px-4 pt-2 pb-3 border-t border-line-strong shrink-0">
+          <div className="px-4 pt-2 pb-3 border-t border-line shrink-0">
             {/* Attachment previews */}
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
@@ -923,7 +927,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
 
             {/* Error */}
             {fileError && (
-              <p className="text-xs text-red-400 mb-1.5 font-medium">{fileError}</p>
+              <p className="text-xs text-redline mb-1.5 font-medium">{fileError}</p>
             )}
 
             {/* Read-only mode note for viewers */}
@@ -933,18 +937,17 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
               </p>
             )}
 
-            {/* Input row */}
-            <div className="flex items-end gap-2">
+            {/* Composer */}
+            <div className="flex items-end gap-1.5 border border-line-strong rounded-xl bg-surface px-1.5 py-1.5 focus-within:ring-2 focus-within:ring-brand/40 transition-shadow">
               {/* Attach button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={streaming}
-                className="w-9 h-9 flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-raised disabled:opacity-40 rounded-xl transition-colors shrink-0 border border-line-strong"
+                aria-label="Attach image or PDF"
+                className="w-8 h-8 flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-raised disabled:opacity-40 rounded-lg transition-colors shrink-0"
                 title="Attach image or PDF"
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M13.5 7.5L7.5 13.5C6.12 14.88 3.88 14.88 2.5 13.5C1.12 12.12 1.12 9.88 2.5 8.5L8.5 2.5C9.33 1.67 10.67 1.67 11.5 2.5C12.33 3.33 12.33 4.67 11.5 5.5L5.5 11.5C5.08 11.92 4.42 11.92 4 11.5C3.58 11.08 3.58 10.42 4 10L9.5 4.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+                <FaPaperclip className="w-3.5 h-3.5" />
               </button>
 
               <div className="relative flex-1">
@@ -956,40 +959,37 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                   placeholder="Ask me anything…"
                   rows={1}
                   disabled={streaming}
-                  className="w-full bg-surface border-2 border-line-strong focus:border-brand focus:outline-none rounded-xl px-3.5 py-2.5 text-sm text-ink placeholder-ink-faint resize-none disabled:opacity-50 transition-colors font-medium leading-relaxed"
-                  style={{ maxHeight: expanded ? '320px' : '140px', minHeight: '44px', overflowY: 'auto' }}
+                  className="w-full bg-transparent outline-none px-1.5 py-1.5 pr-7 text-sm text-ink placeholder:text-ink-faint resize-none disabled:opacity-50 font-medium leading-relaxed"
+                  style={{ maxHeight: expanded ? '320px' : '140px', minHeight: '32px', overflowY: 'auto' }}
                 />
                 <button
                   type="button"
                   onClick={() => setExpanded((v) => !v)}
-                  className="absolute bottom-2 right-2 w-5 h-5 flex items-center justify-center text-ink-faint hover:text-ink-muted transition-colors"
+                  aria-label={expanded ? 'Collapse composer' : 'Expand composer'}
+                  className="absolute bottom-1.5 right-1 w-5 h-5 flex items-center justify-center text-ink-faint hover:text-ink-muted transition-colors"
                   title={expanded ? 'Collapse' : 'Expand'}
                 >
-                  {expanded ? (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M2 8l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  ) : (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
+                  {expanded ? <FaChevronUp className="w-2.5 h-2.5" /> : <FaChevronDown className="w-2.5 h-2.5" />}
                 </button>
               </div>
               {streaming ? (
                 <button
                   onClick={() => abortRef.current?.abort()}
-                  className="px-4 py-2.5 bg-red-600 hover:bg-red-500 rounded-xl text-sm font-bold text-white transition-all hover:-translate-y-px shrink-0"
+                  aria-label="Stop generating"
+                  className="w-8 h-8 flex items-center justify-center bg-redline hover:bg-redline/90 rounded-lg text-white transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                  title="Stop"
                 >
-                  Stop
+                  <FaXmark className="w-3.5 h-3.5" />
                 </button>
               ) : (
                 <button
                   onClick={handleSend}
                   disabled={!canSend}
-                  className="px-4 py-2.5 bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-bold text-ink transition-all hover:-translate-y-px disabled:transform-none shrink-0"
+                  aria-label="Send message"
+                  className="w-8 h-8 flex items-center justify-center text-brand hover:bg-surface-raised disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded-lg transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                  title="Send"
                 >
-                  Send
+                  <FaArrowUp className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>

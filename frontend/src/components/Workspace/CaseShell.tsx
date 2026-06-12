@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from 'react';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa6';
+import { IconButton } from '@/components/ui';
 import { useCaseContext } from '@/contexts/CaseContext';
 import { InvestigationsSidebar } from '@/components/Workspace/InvestigationsSidebar';
 import { AIChat } from '@/components/Workspace/AIChat';
@@ -71,7 +72,7 @@ export function CaseShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="h-screen flex bg-surface text-white">
+    <div className="h-screen flex bg-surface text-ink">
       {/* Sidebar */}
       <div
         className={`relative flex-shrink-0 overflow-hidden h-full ${sidebarOpen ? '' : 'w-0'}`}
@@ -81,7 +82,7 @@ export function CaseShell({ children }: { children: React.ReactNode }) {
         {/* Right-edge drag handle */}
         {sidebarOpen && (
           <div
-            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors"
+            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize z-10 bg-line hover:bg-line-strong transition-colors"
             onMouseDown={(e) => startDrag('sidebar', e)}
           />
         )}
@@ -90,21 +91,23 @@ export function CaseShell({ children }: { children: React.ReactNode }) {
       {/* Center content */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {/* Sidebar toggle */}
-        <button
+        <IconButton
           onClick={() => setSidebarOpen((v: boolean) => !v)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-4 h-10 bg-surface-raised hover:bg-surface-raised/80 border border-line-strong rounded-r flex items-center justify-center transition-colors"
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-30 h-6 w-6 bg-surface border border-line text-ink-muted hover:text-ink rounded-full shadow-sm"
           title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >
-          {sidebarOpen ? <FaChevronLeft size={8} /> : <FaChevronRight size={8} />}
-        </button>
+          {sidebarOpen ? <FaChevronLeft size={9} /> : <FaChevronRight size={9} />}
+        </IconButton>
         {/* Chat toggle */}
-        <button
+        <IconButton
           onClick={() => setChatOpen((v: boolean) => !v)}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-4 h-10 bg-surface-raised hover:bg-surface-raised/80 border border-line-strong rounded-l flex items-center justify-center transition-colors"
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-30 h-6 w-6 bg-surface border border-line text-ink-muted hover:text-ink rounded-full shadow-sm"
           title={chatOpen ? 'Collapse chat' : 'Expand chat'}
+          aria-label={chatOpen ? 'Collapse chat' : 'Expand chat'}
         >
-          {chatOpen ? <FaChevronRight size={8} /> : <FaChevronLeft size={8} />}
-        </button>
+          {chatOpen ? <FaChevronRight size={9} /> : <FaChevronLeft size={9} />}
+        </IconButton>
 
         {children}
       </div>
@@ -116,7 +119,7 @@ export function CaseShell({ children }: { children: React.ReactNode }) {
       >
         {chatOpen && (
           <div
-            className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors"
+            className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 bg-line hover:bg-line-strong transition-colors"
             onMouseDown={(e) => startDrag('chat', e)}
           />
         )}

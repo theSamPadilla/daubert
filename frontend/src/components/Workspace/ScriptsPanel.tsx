@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { FaChevronRight, FaChevronDown } from 'react-icons/fa6';
+import { Kicker } from '@/components/ui';
 import { type ScriptRun } from '@/lib/api-client';
 
 const STATUS_DOT: Record<string, string> = {
@@ -35,17 +36,17 @@ export function ScriptsPanel({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border-t border-line-strong flex flex-col">
+    <div className="border-t border-line flex flex-col">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex items-center gap-1.5 w-full px-3 py-2 hover:bg-surface-raised/40 transition-colors text-left"
+        className="flex items-center gap-1.5 w-full px-3 py-2 hover:bg-surface-raised transition-colors text-left"
         title={expanded ? 'Collapse scripts' : 'Expand scripts'}
       >
         <span className="text-ink-faint">
           {expanded ? <FaChevronDown size={9} /> : <FaChevronRight size={9} />}
         </span>
-        <h3 className="text-xs font-semibold text-ink-muted uppercase tracking-wider flex-1">Scripts</h3>
+        <Kicker index={3} className="flex-1">Scripts</Kicker>
         <span className="text-[10px] text-ink-faint">{scriptRuns.length}</span>
       </button>
       {expanded && (

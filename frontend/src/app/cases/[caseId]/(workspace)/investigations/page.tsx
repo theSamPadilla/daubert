@@ -18,6 +18,7 @@ import { ErrorModal } from '@/components/Common/ErrorModal';
 import { WorkspaceModals } from '@/components/Workspace/WorkspaceModals';
 import { WorkspaceEmptyState } from '@/components/Workspace/WorkspaceEmptyState';
 import { FaMagnifyingGlass, FaDownload } from 'react-icons/fa6';
+import { Button } from '@/components/ui';
 import { QuickAddInput } from '@/components/Graph/QuickAddInput';
 import { TransactionEdge, Trace } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
@@ -227,16 +228,13 @@ function InvestigationsWorkspace() {
             eyebrow="Investigation"
             title={investigation.name || 'Daubert'}
             actions={
-              <button
-                onClick={() => setExportModalOpen(true)}
-                className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"
-              >
+              <Button variant="secondary" size="sm" onClick={() => setExportModalOpen(true)}>
                 <FaDownload size={11} /> Export
-              </button>
+              </Button>
             }
             rightContent={<UserMenu />}
           />
-          <div className="flex-1 bg-surface relative overflow-hidden">
+          <div className="flex-1 bg-canvas bg-grid-canvas relative overflow-hidden">
             {investigation && (
               <CanvasToolPill
                 onRefresh={reloadCurrent}

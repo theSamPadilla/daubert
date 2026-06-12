@@ -1,0 +1,245 @@
+/oauth/authorize/preview:
+  post:
+    summary: Preview the OAuth consent screen
+    operationId: previewOAuthConsent
+    description: >
+      Called by the frontend consent page on mount. Peeks the signed state-bag
+      (does not consume it) and returns the client display name, redirect URI,
+      client state, and the authenticated user's eligible organizations for the
+      org picker.
+    tags: [OAuth]
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [bag]
+            properties:
+              bag:
+                type: string
+                description: The signed state-bag token issued by GET /oauth/authorize.
+    responses:
+      '200':
+        description: Consent preview payload
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/oauth.yaml#/OAuthConsentPreview'
+      '400':
+        description: Missing or invalid bag
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '401':
+        description: Firebase session absent or invalid
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Bag owner mismatch
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/oauth/authorize/complete:
+  post:
+    summary: Complete OAuth consent (grant access)
+    operationId: completeOAuthConsent
+    description: >
+      Called by the frontend consent screen after the user picks an org and
+      clicks Allow. Verifies and consumes the signed state-bag (single-use),
+      asserts the caller is admin or member of the chosen organization,
+      issues an auth code, and returns the redirect URL for the OAuth client.
+      The frontend drives `window.location = redirectUrl` after receiving the
+      response — no 302 is issued.
+    tags: [OAuth]
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [bag, organizationId]
+            properties:
+              bag:
+                type: string
+                description: The signed state-bag token issued by GET /oauth/authorize.
+              organizationId:
+                type: string
+                format: uuid
+                description: The organization the user consented to grant access to.
+    responses:
+      '200':
+        description: Auth code issued; redirect URL returned
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [redirectUrl]
+              properties:
+                redirectUrl:
+                  type: string
+                  format: uri
+                  description: The redirect URL containing the auth code (and client state if provided).
+      '400':
+        description: Missing or invalid bag or organizationId
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '401':
+        description: Firebase session absent or invalid
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Bag owner mismatch or caller is not admin/member of the chosen org
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/oauth/authorize/deny:
+  post:
+    summary: Deny OAuth consent (reject access)
+    operationId: denyOAuthConsent
+    description: >
+      Called by the frontend consent screen after the user clicks Deny.
+      Verifies and consumes the signed state-bag (single-use, preventing
+      a race where one tab denies while another allows), then returns
+      the redirect URL with `error=access_denied`.
+    tags: [OAuth]
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [bag]
+            properties:
+              bag:
+                type: string
+                description: The signed state-bag token issued by GET /oauth/authorize.
+    responses:
+      '200':
+        description: Access denied; redirect URL returned
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [redirectUrl]
+              properties:
+                redirectUrl:
+                  type: string
+                  format: uri
+                  description: The redirect URL containing `error=access_denied` (and client state if provided).
+      '400':
+        description: Missing or invalid bag
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '401':
+        description: Firebase session absent or invalid
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Bag owner mismatch
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/me/oauth/start-connect:
+  post:
+    summary: Get MCP server URL and connection instructions
+    operationId: startOAuthConnect
+    description: >
+      Returns the MCP server URL and per-surface paste instructions for
+      connecting a new OAuth client (e.g. Claude Desktop). POST rather than
+      GET to leave room for future telemetry rows. Protected by Firebase auth.
+    tags: [OAuth]
+    responses:
+      '200':
+        description: MCP URL and setup instructions
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/oauth.yaml#/StartConnectResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/me/oauth-sessions:
+  get:
+    summary: List active OAuth sessions
+    operationId: listOAuthSessions
+    description: >
+      Returns the caller's non-revoked OAuth sessions (connected surfaces).
+      Token hashes are never included. Sessions are ordered newest first.
+    tags: [OAuth]
+    responses:
+      '200':
+        description: Array of active sessions
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/oauth.yaml#/OAuthSessionSummary'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/me/oauth-sessions/{id}/revoke:
+  post:
+    summary: Revoke an OAuth session
+    operationId: revokeOAuthSession
+    description: >
+      Revokes a single OAuth session by id (per-device disconnect).
+      Ownership is checked before revocation; returns 404 if the session does
+      not exist or belongs to a different user. Idempotent: already-revoked
+      sessions return 200.
+    tags: [OAuth]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: OAuth session id to revoke.
+    responses:
+      '200':
+        description: Session revoked (or was already revoked)
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Session not found or belongs to a different user
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

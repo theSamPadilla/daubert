@@ -185,6 +185,20 @@ paths:
     $ref: './paths/superadmin.yaml#/~1superadmin~1token-usage~1org-model-matrix'
   /superadmin/token-usage/cache-effectiveness:
     $ref: './paths/superadmin.yaml#/~1superadmin~1token-usage~1cache-effectiveness'
+  /oauth/authorize/preview:
+    $ref: './paths/oauth.yaml#/~1oauth~1authorize~1preview'
+  /oauth/authorize/complete:
+    $ref: './paths/oauth.yaml#/~1oauth~1authorize~1complete'
+  /oauth/authorize/deny:
+    $ref: './paths/oauth.yaml#/~1oauth~1authorize~1deny'
+  /me/oauth/start-connect:
+    $ref: './paths/oauth.yaml#/~1me~1oauth~1start-connect'
+  /me/oauth-sessions:
+    $ref: './paths/oauth.yaml#/~1me~1oauth-sessions'
+  /me/oauth-sessions/{id}/revoke:
+    $ref: './paths/oauth.yaml#/~1me~1oauth-sessions~1{id}~1revoke'
+  /mcp:
+    $ref: './paths/mcp.yaml#/~1mcp'
 
 components:
   schemas:
@@ -340,3 +354,11 @@ components:
       $ref: './schemas/superadmin.yaml#/TokenUsageOrgModelMatrixRow'
     TokenUsageCacheEffectiveness:
       $ref: './schemas/superadmin.yaml#/TokenUsageCacheEffectiveness'
+    OAuthConsentPreview:
+      $ref: './schemas/oauth.yaml#/OAuthConsentPreview'
+    EligibleOrgSummary:
+      $ref: './schemas/oauth.yaml#/EligibleOrgSummary'
+    OAuthSessionSummary:
+      $ref: './schemas/oauth.yaml#/OAuthSessionSummary'
+    StartConnectResponse:
+      $ref: './schemas/oauth.yaml#/StartConnectResponse'

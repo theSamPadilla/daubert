@@ -1,0 +1,81 @@
+OAuthConsentPreview:
+  type: object
+  required: [clientId, clientDisplayName, redirectUri, clientState, eligibleOrgs]
+  properties:
+    clientId:
+      type: string
+      description: The OAuth client identifier.
+    clientDisplayName:
+      type: string
+      description: Human-readable name of the OAuth client shown on the consent screen.
+    redirectUri:
+      type: string
+      format: uri
+      description: The redirect URI the auth code will be sent to.
+    clientState:
+      type: string
+      nullable: true
+      description: The opaque state value the client sent in the original authorization request. Null if not provided.
+    eligibleOrgs:
+      type: array
+      description: Organizations the authenticated user may consent on behalf of (role admin or member only; guests excluded).
+      items:
+        $ref: '#/EligibleOrgSummary'
+
+EligibleOrgSummary:
+  type: object
+  required: [id, slug, name, role]
+  properties:
+    id:
+      type: string
+      format: uuid
+    slug:
+      type: string
+    name:
+      type: string
+    role:
+      type: string
+      enum: [admin, member]
+      description: The caller's role in this organization.
+
+OAuthSessionSummary:
+  type: object
+  required: [id, organizationId, surfaceLabel, lastUsedAt, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      type: string
+      format: uuid
+    surfaceLabel:
+      type: string
+      description: Human-readable label for the connected surface (e.g. "Claude Desktop"). Set at consent time and may be augmented on first MCP initialize.
+    lastUsedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: ISO timestamp of the last authenticated MCP call, or null if never used after connect.
+    createdAt:
+      type: string
+      format: date-time
+
+StartConnectResponse:
+  type: object
+  required: [mcpUrl, perSurfaceInstructions]
+  properties:
+    mcpUrl:
+      type: string
+      format: uri
+      description: The MCP server URL to paste into the OAuth client (e.g. Claude Desktop settings).
+    perSurfaceInstructions:
+      type: object
+      required: [claudeApps, claudeCode]
+      description: Human-readable setup instructions per surface.
+      properties:
+        claudeApps:
+          type: string
+          description: Setup instructions for Claude Desktop, claude.ai, and Cowork.
+        claudeCode:
+          type: string
+          description: Copyable terminal command for Claude Code.

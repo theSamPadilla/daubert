@@ -32,6 +32,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { McpIpThrottlerGuard } from '../../common/guards/mcp-ip-throttler.guard';
 import { OrganizationMemberEntity } from '../../database/entities/organization-member.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
+import { AgentAuditLogEntity } from '../../database/entities/agent-audit-log.entity';
 import { AuthModule } from '../auth/auth.module';
 import { CasesModule } from '../cases/cases.module';
 import { InvestigationsModule } from '../investigations/investigations.module';
@@ -46,11 +47,12 @@ import { McpToolsService } from './mcp.tools';
 import { NavigateToolsService } from './tools/navigate-tools';
 import { ReadToolsService } from './tools/read-tools';
 import { BlockchainToolsService } from './tools/blockchain-tools';
+import { AgentAuditService } from './agent-audit.service';
 
 @Module({
   imports: [
     OAuthModule,          // exports OAuthService + McpThrottleService
-    TypeOrmModule.forFeature([OrganizationMemberEntity, InvestigationEntity]),
+    TypeOrmModule.forFeature([OrganizationMemberEntity, InvestigationEntity, AgentAuditLogEntity]),
     AuthModule,           // exports CaseAccessService
     CasesModule,          // exports CasesService
     InvestigationsModule, // exports InvestigationsService
@@ -66,6 +68,7 @@ import { BlockchainToolsService } from './tools/blockchain-tools';
     NavigateToolsService,
     ReadToolsService,
     BlockchainToolsService,
+    AgentAuditService,
     McpIpThrottlerGuard,
   ],
 })

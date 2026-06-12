@@ -12,6 +12,12 @@ import {
 } from '@/lib/api-client';
 import { InviteCreatedModal } from '@/components/Common/InviteCreatedModal';
 import { useConfirm } from '@/components/Common/ConfirmProvider';
+import { Panel } from '@/components/ui/Panel';
+import { Kicker } from '@/components/ui/Kicker';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -19,20 +25,11 @@ import { useConfirm } from '@/components/Common/ConfirmProvider';
 
 function Banner({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 mb-6 rounded border border-red-500/40 bg-red-500/10 text-red-300 text-sm">
+    <div className="flex items-center gap-3 px-4 py-3 mb-6 rounded-lg border border-redline/30 bg-redline/5 text-redline text-sm">
       <span className="flex-1">{message}</span>
-      <button onClick={onClose} className="hover:text-white transition-colors">
+      <button onClick={onClose} className="hover:text-redline/70 transition-colors">
         <FaXmark size={14} />
       </button>
-    </div>
-  );
-}
-
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-line-strong bg-surface-panel p-6 mb-6">
-      <h2 className="text-base font-semibold text-white mb-4">{title}</h2>
-      {children}
     </div>
   );
 }
@@ -74,16 +71,16 @@ function CaseInfoSection({ caseId }: { caseId: string }) {
   };
 
   return (
-    <SectionCard title="Case info">
+    <Panel padded className="mb-6">
+      <Kicker index={1} className="block mb-3">Case info</Kicker>
       {error && <Banner message={error} onClose={() => setError(null)} />}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm text-ink-muted mb-1">Case name</label>
-          <input
+          <Input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
             required
           />
         </div>
@@ -94,31 +91,31 @@ function CaseInfoSection({ caseId }: { caseId: string }) {
             onChange={(e) => setSummary(e.target.value)}
             rows={4}
             placeholder="What's this case about? Parties, allegations, timeline, anything that helps team members get oriented."
-            className="w-full rounded border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
+            className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 resize-y"
           />
         </div>
         <div className="flex items-center gap-3 pt-1">
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium text-white transition-colors"
-          >
+          <Button type="submit" disabled={saving}>
             {saving ? 'Saving...' : 'Save changes'}
-          </button>
+          </Button>
           {saved && (
-            <span className="flex items-center gap-1.5 text-sm text-green-400">
+            <span className="flex items-center gap-1.5 text-sm text-brand">
               <FaCheck size={12} /> Saved
             </span>
           )}
         </div>
       </form>
-    </SectionCard>
+    </Panel>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Members section (owner + editor)
 // ---------------------------------------------------------------------------
+
+function roleBadgeTone(role: CaseRole): 'brand' | 'neutral' {
+  return role === 'owner' ? 'brand' : 'neutral';
+}
 
 function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: CaseRole }) {
   const [members, setMembers] = useState<CaseMember[]>([]);
@@ -161,65 +158,66 @@ function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: Ca
     }
   };
 
-  const roleLabel = (r: CaseRole) => r.charAt(0).toUpperCase() + r.slice(1);
-
   return (
-    <SectionCard title="Members">
+    <Panel padded className="mb-6">
+      <Kicker index={2} className="block mb-3">Members</Kicker>
       {error && <Banner message={error} onClose={() => setError(null)} />}
-      <div className="mb-4 rounded-md border-l-2 border-brand-ink/40 bg-brand/10 px-4 py-3 space-y-1">
-        <p className="text-[10px] uppercase tracking-wider text-brand-ink font-semibold">
+      <div className="mb-4 rounded-lg border-l-2 border-brand/40 bg-brand-soft px-4 py-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-wider text-brand font-semibold">
           Who sees this case
         </p>
         <p className="text-sm text-ink-muted leading-relaxed">
           Only the people listed below — plus any{' '}
-          <span className="text-white font-medium">org admins</span> of the org this case belongs
+          <span className="text-ink font-medium">org admins</span> of the org this case belongs
           to, who have implicit owner access on every case in their org.
         </p>
       </div>
       {members.length === 0 ? (
         <p className="text-sm text-ink-muted">No members found.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="divide-y divide-line">
           {members.map((m) => {
             const canAct = viewerRole === 'owner' && !isLastOwner(m);
             const isBusy = busy === m.userId;
             return (
               <div
                 key={m.userId}
-                className="flex items-center gap-3 px-3 py-2.5 rounded border border-line-strong bg-surface"
+                className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white font-medium truncate">
+                  <p className="text-sm text-ink font-medium truncate">
                     {m.user?.name ?? m.user?.email ?? m.userId}
                   </p>
                   {m.user?.email && (
-                    <p className="text-xs text-ink-muted truncate">{m.user.email}</p>
+                    <p className="text-[13px] text-ink-muted truncate">{m.user.email}</p>
                   )}
                 </div>
                 {viewerRole === 'owner' ? (
                   <div
                     title={isLastOwner(m) ? 'Cannot change — last owner' : undefined}
                   >
-                    <select
+                    <Select
                       value={m.role}
                       disabled={isBusy || isLastOwner(m)}
                       onChange={(e) => handleRoleChange(m.userId, e.target.value as CaseRole)}
-                      className="rounded border border-line-strong bg-surface px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="w-auto text-xs py-1 px-2"
                     >
                       <option value="owner">Owner</option>
                       <option value="editor">Editor</option>
                       <option value="viewer">Viewer</option>
-                    </select>
+                    </Select>
                   </div>
                 ) : (
-                  <span className="text-xs text-ink-muted">{roleLabel(m.role)}</span>
+                  <Badge tone={roleBadgeTone(m.role)}>
+                    {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
+                  </Badge>
                 )}
                 {viewerRole === 'owner' && (
                   <div title={isLastOwner(m) ? 'Cannot remove — last owner' : 'Remove member'}>
                     <button
-                      disabled={isBusy || isLastOwner(m)}
+                      disabled={isBusy || isLastOwner(m) || !canAct}
                       onClick={() => handleRemove(m.userId)}
-                      className="text-ink-muted hover:text-red-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="text-ink-faint hover:text-redline disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <FaTrash size={12} />
                     </button>
@@ -230,7 +228,7 @@ function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: Ca
           })}
         </div>
       )}
-    </SectionCard>
+    </Panel>
   );
 }
 
@@ -308,54 +306,50 @@ function InvitesSection({ caseId }: { caseId: string }) {
   };
 
   return (
-    <SectionCard title="Invites">
+    <Panel padded className="mb-6">
+      <Kicker index={3} className="block mb-3">Invites</Kicker>
       {error && <Banner message={error} onClose={() => setError(null)} />}
 
       {/* New invite form */}
-      <form onSubmit={handleGenerate} className="space-y-3 mb-5 pb-5 border-b border-line-strong">
-        <p className="text-sm font-medium text-white">Generate invite</p>
+      <form onSubmit={handleGenerate} className="space-y-3 mb-5 pb-5 border-b border-line">
+        <p className="text-sm font-medium text-ink">Generate invite</p>
         <div className="flex gap-2">
-          <input
+          <Input
             type="email"
             placeholder="Email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="flex-1 rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="flex-1"
           />
-          <select
+          <Select
             value={role}
             onChange={(e) => setRole(e.target.value as 'owner' | 'editor' | 'viewer')}
-            className="rounded border border-line-strong bg-surface px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-auto"
           >
             <option value="viewer">Viewer</option>
             <option value="editor">Editor</option>
             <option value="owner">Owner</option>
-          </select>
+          </Select>
         </div>
-        <input
+        <Input
           type="text"
           placeholder="Name (optional) — e.g. Jane Doe"
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={120}
-          className="w-full rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <textarea
           placeholder="Optional message to invitee"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           rows={2}
-          className="w-full rounded border border-line-strong bg-surface px-3 py-1.5 text-sm text-white placeholder-ink-muted focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+          className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 resize-none"
         />
-        <button
-          type="submit"
-          disabled={creating}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-brand hover:bg-brand/90 disabled:opacity-50 text-sm font-medium text-white transition-colors"
-        >
+        <Button type="submit" disabled={creating} size="sm">
           <FaPlus size={11} />
           {creating ? 'Generating…' : 'Generate invite'}
-        </button>
+        </Button>
       </form>
 
       {/* Post-generation modal */}
@@ -371,28 +365,28 @@ function InvitesSection({ caseId }: { caseId: string }) {
       {invites.length === 0 ? (
         <p className="text-sm text-ink-muted">No pending invites.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="divide-y divide-line">
           {invites.map((inv) => (
             <div
               key={inv.id}
-              className="flex items-center gap-3 px-3 py-2.5 rounded border border-line-strong bg-surface"
+              className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
             >
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-white truncate">{inv.email}</p>
-                <p className="text-xs text-ink-muted">
+                <p className="text-sm text-ink truncate">{inv.email}</p>
+                <p className="text-[13px] text-ink-muted">
                   {inv.role.charAt(0).toUpperCase() + inv.role.slice(1)} &middot; expires{' '}
                   {new Date(inv.expiresAt).toLocaleDateString()}
                 </p>
               </div>
               <button
                 onClick={() => copyLink(inv.code, inv.id)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-line-strong bg-surface-panel hover:bg-surface-raised text-brand-ink hover:text-white transition-colors text-xs font-medium"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-line bg-surface hover:bg-surface-raised text-ink-muted hover:text-ink transition-colors text-xs font-medium"
                 title="Copy invite link"
               >
                 {copied === inv.id ? (
                   <>
-                    <FaCheck size={11} className="text-green-400" />
-                    <span className="text-green-400">Copied</span>
+                    <FaCheck size={11} className="text-brand" />
+                    <span className="text-brand">Copied</span>
                   </>
                 ) : (
                   <>
@@ -404,7 +398,7 @@ function InvitesSection({ caseId }: { caseId: string }) {
               <button
                 disabled={revoking === inv.id}
                 onClick={() => handleRevoke(inv.id)}
-                className="text-ink-muted hover:text-red-400 disabled:opacity-40 transition-colors"
+                className="text-ink-faint hover:text-redline disabled:opacity-40 transition-colors"
                 title="Revoke invite"
               >
                 <FaTrash size={12} />
@@ -413,7 +407,7 @@ function InvitesSection({ caseId }: { caseId: string }) {
           ))}
         </div>
       )}
-    </SectionCard>
+    </Panel>
   );
 }
 
@@ -459,8 +453,8 @@ function LeaveCaseSection({
   };
 
   return (
-    <div className="rounded-lg border border-red-500/30 bg-surface-panel p-6 mb-6">
-      <h2 className="text-base font-semibold text-red-400 mb-1">Leave this case</h2>
+    <div className="rounded-xl border border-redline/30 bg-surface p-5 mb-6">
+      <h2 className="text-base font-semibold text-redline mb-1">Leave this case</h2>
       <p className="text-sm text-ink-muted mb-4">
         You will immediately lose access to this case and all its investigations.
       </p>
@@ -473,13 +467,13 @@ function LeaveCaseSection({
         }
         className="inline-block"
       >
-        <button
+        <Button
+          variant="danger"
           onClick={handleLeave}
           disabled={leaving || isOnlyOwner}
-          className="px-4 py-2 rounded border border-red-500/50 text-red-400 text-sm font-medium hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {leaving ? 'Leaving...' : 'Leave case'}
-        </button>
+        </Button>
       </div>
       {isOnlyOwner && (
         <p className="mt-2 text-xs text-ink-muted">
@@ -519,17 +513,17 @@ export default function CaseSettingsPage() {
   if (viewerRole === 'viewer') return null;
 
   return (
-    <div className="min-h-screen bg-surface text-white">
+    <div className="min-h-screen bg-surface-panel">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-surface border-b border-line-strong px-6 py-4 flex items-center gap-4">
+      <div className="sticky top-0 z-10 bg-surface border-b border-line px-6 py-4 flex items-center gap-4">
         <a
           href={`/cases/${caseId}/investigations`}
-          className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-white transition-colors"
+          className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink transition-colors"
         >
           <FaArrowLeft size={12} />
           Back
         </a>
-        <h1 className="text-base font-semibold text-white">Case settings</h1>
+        <h1 className="text-base font-semibold text-ink">Case settings</h1>
       </div>
 
       {/* Body */}

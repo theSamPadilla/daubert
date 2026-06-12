@@ -36,6 +36,7 @@ import { AgentAuditLogEntity } from '../../database/entities/agent-audit-log.ent
 import { AuthModule } from '../auth/auth.module';
 import { CasesModule } from '../cases/cases.module';
 import { InvestigationsModule } from '../investigations/investigations.module';
+import { TracesModule } from '../traces/traces.module';
 import { ProductionsModule } from '../productions/productions.module';
 import { DataRoomModule } from '../data-room/data-room.module';
 import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
@@ -47,6 +48,7 @@ import { McpToolsService } from './mcp.tools';
 import { NavigateToolsService } from './tools/navigate-tools';
 import { ReadToolsService } from './tools/read-tools';
 import { BlockchainToolsService } from './tools/blockchain-tools';
+import { WriteToolsService } from './tools/write-tools';
 import { AgentAuditService } from './agent-audit.service';
 
 @Module({
@@ -56,6 +58,7 @@ import { AgentAuditService } from './agent-audit.service';
     AuthModule,           // exports CaseAccessService
     CasesModule,          // exports CasesService
     InvestigationsModule, // exports InvestigationsService
+    TracesModule,         // exports TracesService (for WriteToolsService)
     ProductionsModule,    // exports ProductionsService
     DataRoomModule,       // exports DataRoomService
     LabeledEntitiesModule, // exports LabeledEntitiesService
@@ -68,6 +71,7 @@ import { AgentAuditService } from './agent-audit.service';
     NavigateToolsService,
     ReadToolsService,
     BlockchainToolsService,
+    WriteToolsService,
     AgentAuditService,
     McpIpThrottlerGuard,
   ],

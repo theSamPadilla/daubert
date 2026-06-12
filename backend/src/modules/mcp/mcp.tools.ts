@@ -29,6 +29,7 @@ import type { AuthSuccess } from './mcp-auth.helper';
 import { NavigateToolsService } from './tools/navigate-tools';
 import { ReadToolsService } from './tools/read-tools';
 import { BlockchainToolsService } from './tools/blockchain-tools';
+import { WriteToolsService } from './tools/write-tools';
 
 @Injectable()
 export class McpToolsService {
@@ -36,6 +37,7 @@ export class McpToolsService {
     private readonly navigate: NavigateToolsService,
     private readonly read: ReadToolsService,
     private readonly blockchain: BlockchainToolsService,
+    private readonly write: WriteToolsService,
   ) {}
 
   /**
@@ -48,6 +50,7 @@ export class McpToolsService {
     this.navigate.registerAll(server, auth);
     this.read.registerAll(server, auth);
     this.blockchain.registerAll(server, auth);
+    this.write.registerAll(server, auth);
   }
 
   /**

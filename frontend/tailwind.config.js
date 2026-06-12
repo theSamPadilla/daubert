@@ -8,6 +8,7 @@ module.exports = {
       colors: {
         ink: {
           DEFAULT: 'var(--ink)',
+          soft: 'var(--ink-soft)',
           muted: 'var(--ink-muted)',
           faint: 'var(--ink-faint)',
         },
@@ -22,11 +23,22 @@ module.exports = {
         },
         brand: {
           DEFAULT: 'var(--brand)',
+          strong: 'var(--brand-strong)',
           soft: 'var(--brand-soft)',
           ink: 'var(--brand-ink)',
         },
         accent: {
           DEFAULT: 'var(--accent)',
+        },
+        redline: {
+          DEFAULT: 'var(--redline)',
+        },
+        canvas: {
+          DEFAULT: 'var(--canvas)',
+          line: 'var(--canvas-line)',
+          fill: 'var(--canvas-fill)',
+          ink: 'var(--canvas-ink)',
+          muted: 'var(--canvas-muted)',
         },
       },
       fontFamily: {

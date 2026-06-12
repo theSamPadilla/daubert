@@ -704,6 +704,33 @@ export const apiClient = {
     });
   },
 
+  // OAuth authorize bridge
+  /**
+   * Bridge call for `GET /oauth/authorize`. Used by `app/oauth/authorize/page.tsx`
+   * to recover the OAuth flow when an MCP client navigated to the backend
+   * authorize endpoint in a browser (which never carries a Bearer token).
+   *
+   * The bridge page:
+   *   1. Mounts in the FE at `/oauth/authorize?...` (same query as the BE).
+   *   2. Reads the Firebase session via `useAuth`.
+   *   3. Calls this method with the raw query string (including `?`).
+   *
+   * The BE returns `{ redirectUrl }` when authenticated — the FE then sets
+   * `window.location.href = redirectUrl` to hop to `/oauth/consent`.
+   *
+   * `search` MUST be the raw `window.location.search` (including the leading
+   * `?` if present) — do not re-encode the params here; the BE expects the
+   * exact same query string the OAuth client sent.
+   *
+   * The `Accept: application/json` header is what flips the BE into JSON
+   * mode (vs. its default 302-redirect behavior for browser navigations).
+   */
+  authorizeAgent: (search: string) =>
+    request<{ redirectUrl: string }>(`/oauth/authorize${search}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    }),
+
   // OAuth consent flow
   previewConsent: (bag: string) =>
     request<components['schemas']['OAuthConsentPreview']>('/oauth/authorize/preview', {

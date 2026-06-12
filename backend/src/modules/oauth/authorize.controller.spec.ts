@@ -465,6 +465,91 @@ describe('AuthorizeController', () => {
       expect(code).toBe(302);
       expect(url).toContain(`${FRONTEND_URL}/login?return_to=`);
     });
+
+    // -----------------------------------------------------------------------
+    // JSON-mode (bridge) behavior — Accept: application/json
+    // -----------------------------------------------------------------------
+
+    it('JSON mode + valid params + authenticated → 200 { redirectUrl } to /oauth/consent (NO 302)', async () => {
+      const stateBag = makeMockStateBag();
+      const controller = await buildModule({ stateBag });
+      const req = makeMockReq(VALID_QUERY, {
+        authorization: 'Bearer firebase-id-token',
+        accept: 'application/json',
+      });
+      const res = makeMockRes();
+
+      await controller.authorize(req, res);
+
+      // No redirect — JSON mode must respond with a payload.
+      expect(res.redirect).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+
+      const json = res.json.mock.calls[0][0] as { redirectUrl: string };
+      expect(typeof json.redirectUrl).toBe('string');
+      expect(json.redirectUrl).toContain(`${FRONTEND_URL}/oauth/consent?bag=`);
+
+      // Bag was signed with the expected fields.
+      expect(stateBag.sign).toHaveBeenCalledTimes(1);
+      const signArg = stateBag.sign.mock.calls[0][0] as StateBagPayload;
+      expect(signArg.ownerUserId).toBe(USER.id);
+      expect(signArg.clientId).toBe('claude-desktop');
+    });
+
+    it('JSON mode + no Authorization header → 401 JSON, NOT a 302', async () => {
+      const controller = await buildModule({});
+      const req = makeMockReq(VALID_QUERY, { accept: 'application/json' });
+      const res = makeMockRes();
+
+      await controller.authorize(req, res);
+
+      expect(res.redirect).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      const json = res.json.mock.calls[0][0] as Record<string, unknown>;
+      expect(json.error).toBe('unauthenticated');
+    });
+
+    it('JSON mode + invalid Firebase token → 401 JSON, NOT a 302', async () => {
+      const firebase = {
+        auth: jest.fn().mockReturnValue({
+          verifyIdToken: jest
+            .fn()
+            .mockRejectedValue(new Error('token expired')),
+        }),
+      };
+      const controller = await buildModule({ firebase });
+      const req = makeMockReq(VALID_QUERY, {
+        authorization: 'Bearer expired-token',
+        accept: 'application/json',
+      });
+      const res = makeMockRes();
+
+      await controller.authorize(req, res);
+
+      expect(res.redirect).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      const json = res.json.mock.calls[0][0] as Record<string, unknown>;
+      expect(json.error).toBe('unauthenticated');
+    });
+
+    it('browser Accept (text/html) keeps the existing 302 to /oauth/consent', async () => {
+      const controller = await buildModule({});
+      const req = makeMockReq(VALID_QUERY, {
+        authorization: 'Bearer firebase-id-token',
+        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      });
+      const res = makeMockRes();
+
+      await controller.authorize(req, res);
+
+      // Old behavior must be untouched for real browsers.
+      expect(res.redirect).toHaveBeenCalledTimes(1);
+      const [code, url] = res.redirect.mock.calls[0] as [number, string];
+      expect(code).toBe(302);
+      expect(url).toContain(`${FRONTEND_URL}/oauth/consent?bag=`);
+      // And we DID NOT respond with a JSON body.
+      expect(res.status).not.toHaveBeenCalled();
+    });
   });
 
   // =========================================================================

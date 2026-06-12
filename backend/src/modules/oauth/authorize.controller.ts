@@ -159,14 +159,32 @@ export class AuthorizeController {
   /**
    * OAuth 2.1 authorization endpoint.
    *
-   * Happy path:
-   *   1. Validate `response_type=code`, `code_challenge_method=S256`,
-   *      `code_challenge`, `client_id` (exists in DB), `redirect_uri`
-   *      (exact match against client's allowlist).
-   *   2. Manually verify Firebase ID token from `Authorization: Bearer`.
-   *      If absent/invalid → `302 ${FRONTEND_URL}/login?return_to=<originalUrl>`.
-   *   3. Sign the state-bag (no scope; org chosen at consent) → `302
-   *      ${FRONTEND_URL}/oauth/consent?bag=<urlencoded bag>`.
+   * Two transport modes, selected by the `Accept` request header:
+   *
+   *   - **Browser mode** (default): the caller is a system browser that
+   *     navigated here on a top-level GET. The caller cannot carry a
+   *     Firebase Bearer header and cannot read a JSON body — so we drive the
+   *     flow with `302` redirects:
+   *       - no session → `302 ${FRONTEND_URL}/login?return_to=...`
+   *       - success    → `302 ${FRONTEND_URL}/oauth/consent?bag=...`
+   *
+   *   - **JSON mode** (`Accept: application/json`): the caller is the FE
+   *     bridge page (`/oauth/authorize`) calling this endpoint via XHR with
+   *     a Bearer token attached. A 302 is useless to XHR, and the bridge
+   *     needs to surface unauthenticated state to React. So we respond:
+   *       - no session → `401 { error: 'unauthenticated' }`
+   *       - success    → `200 { redirectUrl: '${FRONTEND_URL}/oauth/consent?bag=...' }`
+   *
+   * Validation failures (400) are identical across both modes — they're
+   * already JSON and there's nothing to redirect to.
+   *
+   * Why the bridge exists: a real browser navigation to this endpoint NEVER
+   * carries `Authorization: Bearer` (browsers don't attach Firebase tokens
+   * to top-level navigations). Without the bridge the GET would
+   * always-fall-through to the `/login` redirect, and the login page's
+   * `return_to` (the BE `/oauth/authorize?...` URL) would dead-end as an
+   * unknown FE route. The bridge page mounts in the browser, reads the
+   * Firebase token client-side, and calls this endpoint in JSON mode.
    *
    * NOTE: redirect-URI validation runs BEFORE the Firebase lookup so an
    * attacker can't trick the endpoint into acting as an open redirect.
@@ -247,22 +265,33 @@ export class AuthorizeController {
     }
 
     // ------------------------------------------------------------------
-    // 2. Firebase session check.
+    // 2. Decide transport mode from the Accept header.
+    // ------------------------------------------------------------------
+
+    const wantsJson = this.acceptsJson(req);
+
+    // ------------------------------------------------------------------
+    // 3. Firebase session check.
     // ------------------------------------------------------------------
 
     const user = await this.verifyFirebaseSession(req);
 
     if (!user) {
-      // No valid Firebase session → 302 to the FE login page with return_to
-      // so the FE can re-invoke the OAuth flow after sign-in. NOTE: browser
-      // GETs don't carry a Bearer header; this is the path most OAuth
-      // clients hit on first connect.
+      // JSON mode: the FE bridge needs a 401 it can react to (render the
+      // sign-in nudge or punt back to `/login`). A 302 here would be
+      // followed transparently by `fetch`, which is useless to the page.
+      if (wantsJson) {
+        res.status(401).json({ error: 'unauthenticated' });
+        return;
+      }
+      // Browser mode: 302 to the FE login page with return_to so the FE
+      // can re-invoke the OAuth flow after sign-in. NOTE: browser GETs
+      // don't carry a Bearer header; this is the path most OAuth clients
+      // hit on first connect.
       // Same-origin assumption: `return_to` is the BE path (e.g.
       // `/oauth/authorize?client_id=…`). The FE login page replays it via
-      // `router.replace(returnTo)`, which navigates within the same origin.
-      // This breaks if FE and BE split to different origins (e.g. Vercel + Cloud Run
-      // without a shared reverse-proxy domain) — the FE would navigate to an
-      // unknown FE route instead of reaching the BE authorize endpoint.
+      // `router.replace(returnTo)`, which is the FE bridge route at the
+      // same path — same-origin nav within the FE host.
       const frontendUrl = this.config.getOrThrow<string>('FRONTEND_URL');
       const returnTo = encodeURIComponent(this.buildOriginalUrl(req));
       res.redirect(302, `${frontendUrl}/login?return_to=${returnTo}`);
@@ -270,7 +299,7 @@ export class AuthorizeController {
     }
 
     // ------------------------------------------------------------------
-    // 3. Sign state-bag and redirect to the FE consent page.
+    // 4. Sign state-bag.
     // ------------------------------------------------------------------
 
     const bag = this.stateBag.sign({
@@ -284,10 +313,19 @@ export class AuthorizeController {
     });
 
     const frontendUrl = this.config.getOrThrow<string>('FRONTEND_URL');
-    res.redirect(
-      302,
-      `${frontendUrl}/oauth/consent?bag=${encodeURIComponent(bag)}`,
-    );
+    const consentUrl = `${frontendUrl}/oauth/consent?bag=${encodeURIComponent(bag)}`;
+
+    // ------------------------------------------------------------------
+    // 5. Hand off to the consent page (mode-dependent).
+    // ------------------------------------------------------------------
+
+    if (wantsJson) {
+      // FE bridge will set `window.location.href = redirectUrl` itself.
+      res.status(200).json({ redirectUrl: consentUrl });
+      return;
+    }
+
+    res.redirect(302, consentUrl);
   }
 
   // -------------------------------------------------------------------------
@@ -471,6 +509,23 @@ export class AuthorizeController {
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * Returns true if the incoming request asks for `application/json` in its
+   * `Accept` header. Used by `GET /oauth/authorize` to switch between
+   * browser-mode (302 redirects) and bridge-mode (JSON responses).
+   *
+   * Match is substring-based — the FE bridge sends a clean
+   * `Accept: application/json`, but the OAuth/MCP-client browser
+   * navigations send `text/html,application/xhtml+xml,...` which must NOT
+   * be treated as JSON. We deliberately do NOT match `*\/*` for the same
+   * reason.
+   */
+  private acceptsJson(req: Request): boolean {
+    const accept = req.headers?.accept;
+    if (typeof accept !== 'string' || accept.length === 0) return false;
+    return accept.toLowerCase().includes('application/json');
+  }
 
   /**
    * Attempts to verify the Firebase ID token from `Authorization: Bearer

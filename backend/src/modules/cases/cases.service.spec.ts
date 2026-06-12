@@ -460,3 +460,90 @@ describe('CasesService — findAllForUser', () => {
     expect(result[0].role).toBe('viewer');
   });
 });
+
+// ── findAllForUserInOrg ──────────────────────────────────────────────────────
+//
+// Used by the MCP `list_cases` tool: filters findAllForUser's result down to
+// the principal's bound organizationId. This is the org-scoping gate for
+// listing — cases in other orgs the user happens to belong to MUST NOT leak
+// through an MCP session bound to a single org.
+
+describe('CasesService — findAllForUserInOrg', () => {
+  let service: CasesService;
+  const ORG_A = 'org-a';
+  const ORG_B = 'org-b';
+  const USER_ID = 'user-1';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = makeService();
+  });
+
+  function mockOrgMemberships(rows: Array<{ organizationId: string; role: 'admin' | 'member' | 'guest' }>) {
+    mockOrgMemberRepo.createQueryBuilder = jest.fn().mockReturnValue({
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue(rows.map((r) => ({ userId: USER_ID, ...r }))),
+    });
+  }
+
+  function mockOrgCases(orgCases: any[]) {
+    mockRepo.createQueryBuilder = jest.fn().mockReturnValue({
+      where: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue(orgCases),
+    });
+  }
+
+  it('returns only cases in the bound organization', async () => {
+    const a1 = { id: 'a1', name: 'Org A Case', createdAt: new Date(), orgId: ORG_A };
+    const b1 = { id: 'b1', name: 'Org B Case', createdAt: new Date(), orgId: ORG_B };
+    mockMemberRepo.find.mockResolvedValue([]);
+    mockOrgMemberships([
+      { organizationId: ORG_A, role: 'admin' },
+      { organizationId: ORG_B, role: 'admin' },
+    ]);
+    mockOrgCases([a1, b1]);
+
+    const result = await service.findAllForUserInOrg({ id: USER_ID } as any, ORG_A);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('a1');
+    expect(result[0].orgId).toBe(ORG_A);
+  });
+
+  it('returns empty array when user has cases only in other orgs', async () => {
+    const b1 = { id: 'b1', name: 'Org B Case', createdAt: new Date(), orgId: ORG_B };
+    mockMemberRepo.find.mockResolvedValue([]);
+    mockOrgMemberships([{ organizationId: ORG_B, role: 'admin' }]);
+    mockOrgCases([b1]);
+
+    const result = await service.findAllForUserInOrg({ id: USER_ID } as any, ORG_A);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it('drops explicit-membership cases from other orgs (cross-org case_members rows do not leak)', async () => {
+    // A user with an explicit case_members row on a case in org B should NOT
+    // see that case through an MCP session bound to org A.
+    const b1 = { id: 'b1', name: 'Org B Case', createdAt: new Date(), orgId: ORG_B };
+    mockMemberRepo.find.mockResolvedValue([{ case: b1, role: 'viewer', userId: USER_ID }]);
+    mockOrgMemberships([]);
+    mockOrgCases([]);
+
+    const result = await service.findAllForUserInOrg({ id: USER_ID } as any, ORG_A);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it('preserves the per-case role from findAllForUser', async () => {
+    const a1 = { id: 'a1', name: 'Org A Case', createdAt: new Date(), orgId: ORG_A };
+    mockMemberRepo.find.mockResolvedValue([]);
+    mockOrgMemberships([{ organizationId: ORG_A, role: 'member' }]);
+    mockOrgCases([a1]);
+
+    const result = await service.findAllForUserInOrg({ id: USER_ID } as any, ORG_A);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].role).toBe('editor');
+  });
+});

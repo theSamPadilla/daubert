@@ -1,37 +1,50 @@
 /**
- * McpToolsService — scope-gated tool registrar stub (Task 11).
+ * McpToolsService — top-level MCP tool dispatcher.
  *
- * Real tool implementations are added in later tasks. This stub provides
- * the class/method contract that McpController depends on so the module
- * wires correctly and tests can mock it without coupling to real domain services.
+ * Responsibility: own the dispatch from the controller to the per-domain
+ * tool services. Each domain (navigate, graph, members, etc.) gets its own
+ * `*ToolsService` provider that registers a handful of cohesive tools on
+ * the McpServer; this class is a thin coordinator that calls every one of
+ * them in turn with the same (server, auth) pair.
  *
- * Method signatures match belong-mc's McpToolsService so later tasks slot in
- * without renaming anything.
+ * Why split it this way:
+ *   - Each tool group lives next to its dependencies (CasesService,
+ *     InvestigationsService, etc.) and is independently unit-testable.
+ *   - This file becomes a roll-up — the only thing that changes here as the
+ *     tool catalog grows is one extra `service.registerAll(...)` call.
+ *   - Method signatures match belong-mc's `McpToolsService` so the
+ *     controller (Task 11) wires unchanged.
+ *
+ * Task 12 brings the first three tools online via NavigateToolsService:
+ *   - list_cases
+ *   - get_case
+ *   - list_investigations
+ * Later tasks register additional services here.
  */
 
 import { Injectable } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import type { AuthSuccess } from './mcp-auth.helper';
+import { NavigateToolsService } from './tools/navigate-tools';
 
 @Injectable()
 export class McpToolsService {
+  constructor(private readonly navigate: NavigateToolsService) {}
+
   /**
    * Register all MCP tools appropriate for the authenticated session on `server`.
    * Called once per MCP request, after auth succeeds.
    *
-   * Task 11: stub — registers nothing. Real tools are added in later tasks.
+   * Add new tool groups here as additional `registerAll(server, auth)` calls.
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  registerForScope(_server: McpServer, _auth: AuthSuccess): void {
-    // Stub — real tool registrations added in later tasks.
+  registerForScope(server: McpServer, auth: AuthSuccess): void {
+    this.navigate.registerAll(server, auth);
   }
 
   /**
    * Register MCP prompts for the authenticated session on `server`.
    * Called once per MCP request, after registerForScope.
-   *
-   * Task 11: stub — registers nothing. Real prompts added in later tasks.
    *
    * @param _baseUrl The OAUTH_ISSUER_URL from config — used for {BASE_URL}
    *   interpolation in prompt bodies. Passed through from the controller.

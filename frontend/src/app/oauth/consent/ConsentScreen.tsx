@@ -116,7 +116,7 @@ export function ConsentScreen({ bag, preview }: ConsentScreenProps) {
             {noEligibleOrgs ? (
               <div
                 role="alert"
-                className="flex items-start gap-3 rounded-lg border border-redline/30 bg-redline/10 px-4 py-3 text-sm text-redline"
+                className="flex items-start gap-3 rounded-lg border border-amber-400/50 bg-amber-50 px-4 py-3 text-sm text-amber-700"
               >
                 <FaTriangleExclamation size={14} className="mt-0.5 shrink-0" />
                 <p>

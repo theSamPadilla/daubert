@@ -97,7 +97,7 @@ export function InvestigationForm({ investigation, traces, onSave, onDelete, onC
         <button
           type="button"
           onClick={onDelete}
-          className="px-3 py-1.5 text-redline hover:text-redline/80 rounded-lg text-sm ml-auto transition-colors"
+          className="px-3 py-1.5 text-red-400 hover:text-red-300 rounded-lg text-sm ml-auto transition-colors"
         >
           Delete
         </button>

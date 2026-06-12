@@ -142,7 +142,7 @@ export function TransactionDetails({
               ) : (
                 <p className="text-xs font-mono text-canvas-muted break-all min-w-0">{transaction.txHash}</p>
               )}
-              <CopyButton text={transaction.txHash} title="Copy tx hash" />
+              <CopyButton text={transaction.txHash} title="Copy tx hash" className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
             </div>
           </div>
         );
@@ -223,7 +223,7 @@ export function TransactionDetails({
         {fromDisplay.address && (
           <div className="flex items-center gap-1.5">
             <p className="text-[10px] font-mono text-canvas-muted">{fromDisplay.address}</p>
-            <CopyButton text={fromDisplay.fullAddress} />
+            <CopyButton text={fromDisplay.fullAddress} className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
           </div>
         )}
         <p className="text-xs text-canvas-muted my-1">↓</p>
@@ -231,7 +231,7 @@ export function TransactionDetails({
         {toDisplay.address && (
           <div className="flex items-center gap-1.5">
             <p className="text-[10px] font-mono text-canvas-muted">{toDisplay.address}</p>
-            <CopyButton text={toDisplay.fullAddress} />
+            <CopyButton text={toDisplay.fullAddress} className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
           </div>
         )}
       </div>

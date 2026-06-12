@@ -113,7 +113,7 @@ export function WalletDetails({
             ) : (
               <p className="text-xs font-mono text-canvas-muted break-all">{wallet.address}</p>
             )}
-            <CopyButton text={wallet.address} />
+            <CopyButton text={wallet.address} className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
           </div>
           {(() => {
             const matchedEntity = lookupAddress(wallet.address);

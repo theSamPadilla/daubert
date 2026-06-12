@@ -16,7 +16,9 @@
  *
  * Providers:
  *   - McpAuthHelper, McpToolsService — top-level controllers/dispatchers.
- *   - NavigateToolsService — first per-domain tool group (Task 12). Later
+ *   - NavigateToolsService — navigate tool group (Task 12).
+ *   - ReadToolsService — read tool group (Task 13).
+ *   - BlockchainToolsService — blockchain tool group (Task 14). Later
  *     tasks add additional `*ToolsService` providers here and have
  *     `McpToolsService.registerForScope` call into them.
  *   - McpIpThrottlerGuard — declared here so the route-level
@@ -36,12 +38,14 @@ import { InvestigationsModule } from '../investigations/investigations.module';
 import { ProductionsModule } from '../productions/productions.module';
 import { DataRoomModule } from '../data-room/data-room.module';
 import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
+import { BlockchainModule } from '../blockchain/blockchain.module';
 import { OAuthModule } from '../oauth/oauth.module';
 import { McpAuthHelper } from './mcp-auth.helper';
 import { McpController } from './mcp.controller';
 import { McpToolsService } from './mcp.tools';
 import { NavigateToolsService } from './tools/navigate-tools';
 import { ReadToolsService } from './tools/read-tools';
+import { BlockchainToolsService } from './tools/blockchain-tools';
 
 @Module({
   imports: [
@@ -53,6 +57,7 @@ import { ReadToolsService } from './tools/read-tools';
     ProductionsModule,    // exports ProductionsService
     DataRoomModule,       // exports DataRoomService
     LabeledEntitiesModule, // exports LabeledEntitiesService
+    BlockchainModule,      // exports BlockchainService
   ],
   controllers: [McpController],
   providers: [
@@ -60,6 +65,7 @@ import { ReadToolsService } from './tools/read-tools';
     McpToolsService,
     NavigateToolsService,
     ReadToolsService,
+    BlockchainToolsService,
     McpIpThrottlerGuard,
   ],
 })

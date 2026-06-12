@@ -28,12 +28,14 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AuthSuccess } from './mcp-auth.helper';
 import { NavigateToolsService } from './tools/navigate-tools';
 import { ReadToolsService } from './tools/read-tools';
+import { BlockchainToolsService } from './tools/blockchain-tools';
 
 @Injectable()
 export class McpToolsService {
   constructor(
     private readonly navigate: NavigateToolsService,
     private readonly read: ReadToolsService,
+    private readonly blockchain: BlockchainToolsService,
   ) {}
 
   /**
@@ -45,6 +47,7 @@ export class McpToolsService {
   registerForScope(server: McpServer, auth: AuthSuccess): void {
     this.navigate.registerAll(server, auth);
     this.read.registerAll(server, auth);
+    this.blockchain.registerAll(server, auth);
   }
 
   /**

@@ -11,6 +11,9 @@ const BASE_ENV: Record<string, string> = {
   FIREBASE_PROJECT_ID: 'proj',
   FIREBASE_CLIENT_EMAIL: 'svc@proj.iam.gserviceaccount.com',
   FIREBASE_PRIVATE_KEY: '-----BEGIN RSA PRIVATE KEY-----\ndummy\n-----END RSA PRIVATE KEY-----',
+  // OAuth — required
+  OAUTH_ISSUER_URL: 'http://localhost:8081',
+  OAUTH_STATE_SECRET: 'a'.repeat(32),
 };
 
 describe('validateEnv — data-room rules', () => {
@@ -48,5 +51,30 @@ describe('validateEnv — data-room rules', () => {
     expect(env).not.toHaveProperty('GOOGLE_OAUTH_REDIRECT_URI');
     expect(env).not.toHaveProperty('DATAROOM_ENCRYPTION_KEY');
     expect(() => validateEnv(env)).not.toThrow();
+  });
+});
+
+describe('validateEnv — OAuth authorization server rules', () => {
+  // ── OAUTH_ISSUER_URL required ────────────────────────────────────────────
+
+  it('throws when OAUTH_ISSUER_URL is missing', () => {
+    const { OAUTH_ISSUER_URL: _omit, ...envWithoutIssuer } = BASE_ENV;
+    expect(() => validateEnv(envWithoutIssuer as any)).toThrow(/OAUTH_ISSUER_URL/);
+  });
+
+  // ── OAUTH_STATE_SECRET required ──────────────────────────────────────────
+
+  it('throws when OAUTH_STATE_SECRET is missing', () => {
+    const { OAUTH_STATE_SECRET: _omit, ...envWithoutSecret } = BASE_ENV;
+    expect(() => validateEnv(envWithoutSecret as any)).toThrow(/OAUTH_STATE_SECRET/);
+  });
+
+  it('throws when OAUTH_STATE_SECRET is shorter than 32 chars', () => {
+    const env = { ...BASE_ENV, OAUTH_STATE_SECRET: 'short' };
+    expect(() => validateEnv(env)).toThrow(/OAUTH_STATE_SECRET/);
+  });
+
+  it('does not throw when both OAUTH_ISSUER_URL and OAUTH_STATE_SECRET (>=32 chars) are set', () => {
+    expect(() => validateEnv(BASE_ENV)).not.toThrow();
   });
 });

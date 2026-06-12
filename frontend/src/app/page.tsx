@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { AuthGuard } from '@/components/Auth/AuthGuard';
 import UserMenu from '@/components/Auth/UserMenu';
+import { AgentStatusButton } from '@/components/Agents/AgentStatusButton';
 import { useOrgContext } from '@/contexts/OrgContext';
 import { OrgSwitcher } from '@/components/Layout/OrgSwitcher';
 import { apiClient, type Case } from '@/lib/api-client';
@@ -73,7 +74,10 @@ function CaseSelector() {
           </Link>
           <OrgSwitcher />
         </div>
-        <UserMenu />
+        <div className="flex items-center gap-3">
+          <AgentStatusButton />
+          <UserMenu />
+        </div>
       </header>
 
       {/* Case grid */}

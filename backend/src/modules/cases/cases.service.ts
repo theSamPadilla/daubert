@@ -73,6 +73,20 @@ export class CasesService {
     return result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  /**
+   * MCP-scoped variant of `findAllForUser`: filters the result down to cases
+   * whose `orgId` matches `organizationId`. Used by the MCP `list_cases` tool
+   * to enforce the per-session org binding — a user who happens to belong to
+   * multiple orgs MUST only see cases in the org bound to the MCP session.
+   *
+   * This is composed on top of `findAllForUser` rather than reimplemented so
+   * the implicit/explicit role resolution stays in one place.
+   */
+  async findAllForUserInOrg(user: UserEntity, organizationId: string) {
+    const all = await this.findAllForUser(user);
+    return all.filter((c) => c.orgId === organizationId);
+  }
+
   /** Internal helper — returns the raw entity; never exposed over the wire. */
   private async fetchOne(id: string): Promise<CaseEntity> {
     const c = await this.repo.findOne({

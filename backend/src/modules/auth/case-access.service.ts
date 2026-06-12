@@ -65,6 +65,10 @@ export class CaseAccessService {
    * Assert that the principal can access the given case.
    * - User principal: must be a case_members row, OR an org admin of the case's host org.
    * - Script principal: token's caseId must match the resource's caseId.
+   * - MCP principal: case must belong to the principal's bound organization
+   *   (the cross-org gate — single chokepoint for OAuth-authenticated MCP
+   *   sessions); then resolve the user's effective role the same way a user
+   *   principal does (explicit case_members row, then implicit org-admin).
    * Throws ForbiddenException on mismatch.
    */
   async assertAccess(
@@ -76,6 +80,27 @@ export class CaseAccessService {
         throw new ForbiddenException('cross_case_access');
       }
       return null;
+    }
+    if (principal.kind === 'mcp') {
+      const caseEntity = await this.caseRepo.findOne({ where: { id: caseId } });
+      // Opaque not-found — do not leak whether the case exists in another org.
+      if (!caseEntity) {
+        throw new ForbiddenException('case_not_found');
+      }
+      // CROSS-ORG GATE: the principal's bound organization must own the case.
+      if (caseEntity.orgId !== principal.organizationId) {
+        throw new ForbiddenException('cross_org_access');
+      }
+      // Same-org — resolve the user's effective role exactly like a user
+      // principal: explicit case_members row first, then implicit org-admin.
+      const membership = await this.memberRepo.findOneBy({
+        userId: principal.userId,
+        caseId,
+      });
+      if (membership) return membership;
+      const implicit = await this.tryOrgImplicit(principal.userId, caseId);
+      if (implicit) return implicit;
+      throw new ForbiddenException('You do not have access to this case');
     }
     const membership = await this.memberRepo.findOneBy({
       userId: principal.userId,
@@ -106,6 +131,15 @@ export class CaseAccessService {
         throw new ForbiddenException(`Requires role '${minRole}' or higher`);
       }
       return null;
+    }
+    if (principal.kind === 'mcp') {
+      // assertAccess passed the cross-org gate and returned the user's
+      // effective membership (explicit row or synthetic org-admin → owner).
+      // It never returns null on a successful mcp assertAccess.
+      if (!roleAtLeast(membership!.role, minRole)) {
+        throw new ForbiddenException(`Requires role '${minRole}' or higher`);
+      }
+      return membership;
     }
     // User principal — assertAccess returned the membership (or threw).
     if (!roleAtLeast(membership!.role, minRole)) {

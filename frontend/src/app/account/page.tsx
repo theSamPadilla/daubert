@@ -9,6 +9,8 @@ import { AuthGuard } from '@/components/Auth/AuthGuard';
 import { useAuth } from '@/components/Auth/AuthProvider';
 import UserMenu from '@/components/Auth/UserMenu';
 import { apiClient } from '@/lib/api-client';
+import { AgentActivitySection } from './AgentActivitySection';
+import { ConnectedAgentsSection } from './ConnectedAgentsSection';
 
 const inputClass =
   'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-brand transition-colors';
@@ -94,7 +96,7 @@ function AccountInner() {
           </p>
         </div>
 
-        <div className="relative p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden">
+        <div className="relative p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden" id="profile-section">
           <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
           <h3 className="text-base font-semibold text-white mb-5">Profile</h3>
 
@@ -146,6 +148,9 @@ function AccountInner() {
             </div>
           </form>
         </div>
+
+        <ConnectedAgentsSection />
+        <AgentActivitySection />
       </main>
     </div>
   );

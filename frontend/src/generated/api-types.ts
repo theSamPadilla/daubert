@@ -1188,6 +1188,168 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/oauth/authorize/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview the OAuth consent screen
+         * @description Called by the frontend consent page on mount. Peeks the signed state-bag (does not consume it) and returns the client display name, redirect URI, client state, and the authenticated user's eligible organizations for the org picker.
+         */
+        post: operations["previewOAuthConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth/authorize/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete OAuth consent (grant access)
+         * @description Called by the frontend consent screen after the user picks an org and clicks Allow. Verifies and consumes the signed state-bag (single-use), asserts the caller is admin or member of the chosen organization, issues an auth code, and returns the redirect URL for the OAuth client. The frontend drives `window.location = redirectUrl` after receiving the response — no 302 is issued.
+         */
+        post: operations["completeOAuthConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth/authorize/deny": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deny OAuth consent (reject access)
+         * @description Called by the frontend consent screen after the user clicks Deny. Verifies and consumes the signed state-bag (single-use, preventing a race where one tab denies while another allows), then returns the redirect URL with `error=access_denied`.
+         */
+        post: operations["denyOAuthConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/oauth/start-connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get MCP server URL and connection instructions
+         * @description Returns the MCP server URL and per-surface paste instructions for connecting a new OAuth client (e.g. Claude Desktop). POST rather than GET to leave room for future telemetry rows. Protected by Firebase auth.
+         */
+        post: operations["startOAuthConnect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/oauth-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List active OAuth sessions
+         * @description Returns the caller's non-revoked OAuth sessions (connected surfaces). Token hashes are never included. Sessions are ordered newest first.
+         */
+        get: operations["listOAuthSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/agent-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent agent actions
+         * @description Returns the caller's recent agent-driven mutations from the audit log, newest first, capped at 50. Includes denied attempts (status "error"). Each row carries the surface label of the session that performed it, including revoked sessions.
+         */
+        get: operations["listAgentActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/oauth-sessions/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke an OAuth session
+         * @description Revokes a single OAuth session by id (per-device disconnect). Ownership is checked before revocation; returns 404 if the session does not exist or belongs to a different user. Idempotent: already-revoked sessions return 200.
+         */
+        post: operations["revokeOAuthSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * MCP Streamable HTTP endpoint
+         * @description MCP JSON-RPC over Streamable HTTP transport (per MCP spec). This is NOT a typed REST endpoint — the request body is a freeform MCP JSON-RPC message (initialize, tools/call, etc.) and the response is the corresponding MCP JSON-RPC response or SSE stream.
+         *     Authentication: Bearer OAuth access token (RFC 9728). On auth failure returns HTTP 401 with a `WWW-Authenticate` header; no JSON body.
+         *     The endpoint is stateless — no MCP session is maintained between requests. Rate-limited by IP before auth runs.
+         */
+        post: operations["mcpHandler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1893,6 +2055,91 @@ export interface components {
                 /** Format: int64 */
                 outputTokens: number;
             };
+        };
+        OAuthConsentPreview: {
+            /** @description The OAuth client identifier. */
+            clientId: string;
+            /** @description Human-readable name of the OAuth client shown on the consent screen. */
+            clientDisplayName: string;
+            /**
+             * Format: uri
+             * @description The redirect URI the auth code will be sent to.
+             */
+            redirectUri: string;
+            /** @description The opaque state value the client sent in the original authorization request. Null if not provided. */
+            clientState: string | null;
+            /** @description Organizations the authenticated user may consent on behalf of (role admin or member only; guests excluded). */
+            eligibleOrgs: components["schemas"]["EligibleOrgSummary"][];
+        };
+        EligibleOrgSummary: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+            /**
+             * @description The caller's role in this organization.
+             * @enum {string}
+             */
+            role: "admin" | "member";
+        };
+        OAuthSessionSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** @description Human-readable label for the connected surface (e.g. "Claude Desktop"). Set at consent time and may be augmented on first MCP initialize. */
+            surfaceLabel: string;
+            /**
+             * Format: date-time
+             * @description ISO timestamp of the last authenticated MCP call, or null if never used after connect.
+             */
+            lastUsedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        StartConnectResponse: {
+            /**
+             * Format: uri
+             * @description The MCP server URL to paste into the OAuth client (e.g. Claude Desktop settings).
+             */
+            mcpUrl: string;
+            /** @description Structured setup instructions per surface. */
+            perSurfaceInstructions: {
+                claudeApps: components["schemas"]["SurfaceInstructions"];
+                claudeCode: components["schemas"]["SurfaceInstructions"];
+            };
+        };
+        SurfaceInstructions: {
+            /** @description Ordered setup steps, rendered as a numbered list. */
+            steps: string[];
+            /** @description Optional caveat shown below the steps (e.g. Team/Enterprise plans). */
+            note?: string;
+            /** @description Optional copyable terminal command. */
+            command?: string;
+        };
+        AgentActionSummary: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The OAuth session (agent connection) that performed the action.
+             */
+            sessionId: string;
+            /** @description Surface label of the session that performed the action ("Unknown agent" if the session row is gone). */
+            agentLabel: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** @description The mutation performed (e.g. create_investigation, import_transactions). */
+            action: string;
+            /** @description Reference to the mutated resource (e.g. "case:<id>", "trace:<id>"). */
+            targetRef: string | null;
+            /**
+             * @description Whether the action succeeded or was denied/failed.
+             * @enum {string}
+             */
+            status: "ok" | "error";
+            /** Format: date-time */
+            createdAt: string;
         };
         InvestigationSummary: {
             /** Format: uuid */
@@ -5205,6 +5452,354 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
+            };
+        };
+    };
+    previewOAuthConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The signed state-bag token issued by GET /oauth/authorize. */
+                    bag: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Consent preview payload */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthConsentPreview"];
+                };
+            };
+            /** @description Missing or invalid bag */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Firebase session absent or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Bag owner mismatch */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    completeOAuthConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The signed state-bag token issued by GET /oauth/authorize. */
+                    bag: string;
+                    /**
+                     * Format: uuid
+                     * @description The organization the user consented to grant access to.
+                     */
+                    organizationId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Auth code issued; redirect URL returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uri
+                         * @description The redirect URL containing the auth code (and client state if provided).
+                         */
+                        redirectUrl: string;
+                    };
+                };
+            };
+            /** @description Missing or invalid bag or organizationId */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Firebase session absent or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Bag owner mismatch or caller is not admin/member of the chosen org */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    denyOAuthConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The signed state-bag token issued by GET /oauth/authorize. */
+                    bag: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Access denied; redirect URL returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uri
+                         * @description The redirect URL containing `error=access_denied` (and client state if provided).
+                         */
+                        redirectUrl: string;
+                    };
+                };
+            };
+            /** @description Missing or invalid bag */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Firebase session absent or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Bag owner mismatch */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    startOAuthConnect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description MCP URL and setup instructions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartConnectResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listOAuthSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of active sessions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthSessionSummary"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAgentActions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of recent agent actions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentActionSummary"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revokeOAuthSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description OAuth session id to revoke. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session revoked (or was already revoked) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Session not found or belongs to a different user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    mcpHandler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description MCP JSON-RPC response (or streaming SSE response for streaming methods) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                    "text/event-stream": string;
+                };
+            };
+            /** @description OAuth access token absent, expired, or invalid. Returns an empty body with a `WWW-Authenticate` header per RFC 9728. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limited (IP-based throttle applied before auth) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

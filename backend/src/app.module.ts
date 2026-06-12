@@ -20,12 +20,16 @@ import { ScriptModule } from './modules/script/script.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { EmailModule } from './modules/email/email.module';
 import { AuthEmailModule } from './modules/auth-email/auth-email.module';
+import { OAuthModule } from './modules/oauth/oauth.module';
+import { McpModule } from './modules/mcp/mcp.module';
 
 @Module({
   imports: [
     ConfigModule,
     DatabaseModule,
     AuthModule,
+    OAuthModule,
+    McpModule,
     UsersModule,
     CasesModule,
     InvestigationsModule,

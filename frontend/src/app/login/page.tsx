@@ -1,13 +1,38 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { signInWithPopup, type AuthProvider } from 'firebase/auth';
 import { getFirebaseAuth, googleProvider, microsoftProvider } from '@/lib/firebase';
 import { useAuth } from '@/components/Auth/AuthProvider';
 import { EmailLoginForm } from '@/components/Auth/EmailLoginForm';
 import { RequestAccessModal } from '@/components/Auth/RequestAccessModal';
+
+/**
+ * Validate that return_to is a safe same-origin relative URL.
+ * Must start with `/` and not `//` (protocol-relative). A value starting
+ * with a single `/` can never carry a scheme (schemes must begin with a
+ * letter), so these two checks alone enforce same-origin. Raw `:` is
+ * allowed — RFC 3986 permits it in query strings (e.g. ?state=abc:def).
+ * @param returnTo - The URL to validate
+ * @returns The validated returnTo, or '/' if invalid
+ */
+function validateReturnTo(returnTo: string | null): string {
+  if (!returnTo) return '/';
+
+  // Must be a string and start with /
+  if (typeof returnTo !== 'string' || !returnTo.startsWith('/')) {
+    return '/';
+  }
+
+  // Reject protocol-relative URLs (//evil.com)
+  if (returnTo.startsWith('//')) {
+    return '/';
+  }
+
+  return returnTo;
+}
 
 function friendlyAuthError(err: any): string {
   switch (err?.code) {
@@ -105,18 +130,22 @@ function MicrosoftMark({ className }: { className?: string }) {
   );
 }
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, noAccount, loading, signOut } = useAuth();
   const [signingIn, setSigningIn] = useState<'google' | 'microsoft' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showRequestAccess, setShowRequestAccess] = useState<{ source: 'login-email' | 'login-no-account'; email: string } | null>(null);
 
+  // Get and validate return_to from query params
+  const returnTo = validateReturnTo(searchParams.get('return_to'));
+
   useEffect(() => {
     if (user && !loading) {
-      router.replace('/');
+      router.replace(returnTo);
     }
-  }, [user, loading, router, noAccount]);
+  }, [user, loading, router, returnTo]);
 
   async function handleSignIn(provider: AuthProvider, label: 'google' | 'microsoft') {
     setSigningIn(label);
@@ -253,5 +282,13 @@ export default function LoginPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

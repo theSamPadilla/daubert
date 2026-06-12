@@ -1,0 +1,45 @@
+/mcp:
+  post:
+    summary: MCP Streamable HTTP endpoint
+    operationId: mcpHandler
+    description: >
+      MCP JSON-RPC over Streamable HTTP transport (per MCP spec). This is NOT
+      a typed REST endpoint — the request body is a freeform MCP JSON-RPC
+      message (initialize, tools/call, etc.) and the response is the
+      corresponding MCP JSON-RPC response or SSE stream.
+
+      Authentication: Bearer OAuth access token (RFC 9728). On auth failure
+      returns HTTP 401 with a `WWW-Authenticate` header; no JSON body.
+
+      The endpoint is stateless — no MCP session is maintained between requests.
+      Rate-limited by IP before auth runs.
+    tags: [MCP]
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            description: MCP JSON-RPC request message. Structure depends on the method being called.
+            additionalProperties: true
+    responses:
+      '200':
+        description: MCP JSON-RPC response (or streaming SSE response for streaming methods)
+        content:
+          application/json:
+            schema:
+              type: object
+              description: MCP JSON-RPC response message. Structure depends on the method called.
+              additionalProperties: true
+          text/event-stream:
+            schema:
+              type: string
+              description: Server-sent events stream for streaming MCP responses.
+      '401':
+        description: >
+          OAuth access token absent, expired, or invalid. Returns an empty body
+          with a `WWW-Authenticate` header per RFC 9728.
+      '429':
+        description: Rate limited (IP-based throttle applied before auth)

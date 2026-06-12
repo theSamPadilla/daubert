@@ -225,3 +225,169 @@ describe('CaseAccessService.assertRole — script principal role enforcement', (
     ).rejects.toThrow('cross_case_access');
   });
 });
+
+describe('CaseAccessService — mcp principal cross-org chokepoint', () => {
+  let service: CaseAccessService;
+  const memberRepo = { findOneBy: jest.fn() };
+  const caseRepo = { findOne: jest.fn(), findOneBy: jest.fn() };
+  const orgMemberRepo = { findOneBy: jest.fn() };
+  const orgRepo = { findOneBy: jest.fn() };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new CaseAccessService(
+      memberRepo as any,
+      caseRepo as any,
+      orgMemberRepo as any,
+      orgRepo as any,
+    );
+  });
+
+  // ── (a) Cross-org gate ────────────────────────────────────────────────────
+
+  it('mcp principal: rejects when case.orgId !== principal.organizationId (cross_org_access) without leaking case data', async () => {
+    caseRepo.findOne.mockResolvedValue({ id: 'c1', orgId: 'org-OTHER', name: 'Secret Case' });
+
+    const principal = {
+      kind: 'mcp' as const,
+      userId: 'u1',
+      organizationId: 'org-MINE',
+      sessionId: 's1',
+    };
+
+    const promise = service.assertAccess(principal, 'c1');
+
+    await expect(promise).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(promise).rejects.toThrow('cross_org_access');
+
+    // Confirm the error message does NOT leak case data (name, orgId).
+    try {
+      await service.assertAccess(principal, 'c1');
+    } catch (e: any) {
+      expect(e.message).not.toContain('Secret Case');
+      expect(e.message).not.toContain('org-OTHER');
+    }
+
+    // No membership lookup should have happened — gate is the cross-org check.
+    expect(memberRepo.findOneBy).not.toHaveBeenCalled();
+  });
+
+  it('mcp principal: case not found → ForbiddenException (opaque)', async () => {
+    caseRepo.findOne.mockResolvedValue(null);
+
+    const principal = {
+      kind: 'mcp' as const,
+      userId: 'u1',
+      organizationId: 'org-MINE',
+      sessionId: 's1',
+    };
+
+    await expect(service.assertAccess(principal, 'c1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    // Should not leak case existence; matches the file's opaque-not-found convention.
+    expect(memberRepo.findOneBy).not.toHaveBeenCalled();
+  });
+
+  // ── (b) Same-org with explicit case_members row ───────────────────────────
+
+  it('mcp principal: same-org, user has editor case_members row → assertRole returns the membership', async () => {
+    caseRepo.findOne.mockResolvedValue({ id: 'c1', orgId: 'org-MINE' });
+    const membership = { userId: 'u1', caseId: 'c1', role: 'editor' as CaseRole };
+    memberRepo.findOneBy.mockResolvedValue(membership);
+
+    const result = await service.assertRole(
+      {
+        kind: 'mcp',
+        userId: 'u1',
+        organizationId: 'org-MINE',
+        sessionId: 's1',
+      },
+      'c1',
+      'editor' as CaseRole,
+    );
+
+    expect(result).toBe(membership);
+    expect(memberRepo.findOneBy).toHaveBeenCalledWith({
+      userId: 'u1',
+      caseId: 'c1',
+    });
+  });
+
+  // ── (c) Same-org, org-admin with no case_members row → implicit owner ────
+
+  it('mcp principal: same-org, no case_members row, user is org admin → returns synthetic owner via tryOrgImplicit', async () => {
+    caseRepo.findOne.mockResolvedValue({ id: 'c1', orgId: 'org-MINE' });
+    // tryOrgImplicit calls caseRepo.findOneBy as well — return the same case.
+    caseRepo.findOneBy.mockResolvedValue({ id: 'c1', orgId: 'org-MINE' });
+    memberRepo.findOneBy.mockResolvedValue(null);
+    orgMemberRepo.findOneBy.mockResolvedValue({
+      userId: 'u1',
+      organizationId: 'org-MINE',
+      role: 'admin',
+    });
+    orgRepo.findOneBy.mockResolvedValue({ id: 'org-MINE', deletedAt: null });
+
+    const result = await service.assertAccess(
+      {
+        kind: 'mcp',
+        userId: 'u1',
+        organizationId: 'org-MINE',
+        sessionId: 's1',
+      },
+      'c1',
+    );
+
+    expect(result).not.toBeNull();
+    expect(result!.role).toBe('owner');
+    expect(result!.userId).toBe('u1');
+    expect(result!.caseId).toBe('c1');
+  });
+
+  // ── (d) Same-org, no case access and not org-admin → denied ───────────────
+
+  it('mcp principal: same-org but no case_members row and not org-admin → ForbiddenException', async () => {
+    caseRepo.findOne.mockResolvedValue({ id: 'c1', orgId: 'org-MINE' });
+    caseRepo.findOneBy.mockResolvedValue({ id: 'c1', orgId: 'org-MINE' });
+    memberRepo.findOneBy.mockResolvedValue(null);
+    // No org membership at all.
+    orgMemberRepo.findOneBy.mockResolvedValue(null);
+    orgRepo.findOneBy.mockResolvedValue({ id: 'org-MINE', deletedAt: null });
+
+    await expect(
+      service.assertAccess(
+        {
+          kind: 'mcp',
+          userId: 'u1',
+          organizationId: 'org-MINE',
+          sessionId: 's1',
+        },
+        'c1',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  // ── assertRole role-enforcement on mcp branch ─────────────────────────────
+
+  it('mcp principal: assertRole rejects when membership role is below minRole', async () => {
+    caseRepo.findOne.mockResolvedValue({ id: 'c1', orgId: 'org-MINE' });
+    memberRepo.findOneBy.mockResolvedValue({
+      userId: 'u1',
+      caseId: 'c1',
+      role: 'viewer' as CaseRole,
+    });
+
+    await expect(
+      service.assertRole(
+        {
+          kind: 'mcp',
+          userId: 'u1',
+          organizationId: 'org-MINE',
+          sessionId: 's1',
+        },
+        'c1',
+        'editor' as CaseRole,
+      ),
+    ).rejects.toThrow("Requires role 'editor' or higher");
+  });
+});

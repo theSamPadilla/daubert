@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { FaXmark } from 'react-icons/fa6';
+import { IconButton } from '@/components/ui';
 import { apiClient } from '@/lib/api-client';
 import { SUPPORTED_CHAINS } from '@/services/types';
 import { Trace, TransactionEdge } from '@/types/investigation';
@@ -115,18 +117,23 @@ export function FetchModal({
 
   const allNewSelected = newResults.length > 0 && selected.size === newResults.length;
 
+  const fieldClass =
+    'w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-surface-panel border border-line-strong rounded-xl shadow-2xl w-[680px] max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-[2px]">
+      <div className="bg-surface rounded-xl border border-line shadow-[0_24px_60px_-30px_rgba(11,18,32,0.25)] w-[680px] max-h-[80vh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line-strong shrink-0">
-          <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Fetch Transactions</span>
-          <button onClick={onClose} className="text-ink-faint hover:text-ink transition-colors">✕</button>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line shrink-0">
+          <span className="text-[15px] font-medium text-ink">Fetch Transactions</span>
+          <IconButton aria-label="Close" onClick={onClose}>
+            <FaXmark />
+          </IconButton>
         </div>
 
         {/* Configure */}
-        <div className="px-5 py-4 border-b border-line-strong shrink-0">
+        <div className="px-5 py-4 border-b border-line shrink-0">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Address</label>
@@ -135,7 +142,7 @@ export function FetchModal({
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="0x..."
-                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm font-mono focus:border-brand focus:outline-none"
+                className={`${fieldClass} font-mono`}
               />
             </div>
             <div>
@@ -143,7 +150,7 @@ export function FetchModal({
               <select
                 value={chain}
                 onChange={(e) => setChain(e.target.value)}
-                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
+                className={fieldClass}
               >
                 {Object.values(SUPPORTED_CHAINS).map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -155,52 +162,60 @@ export function FetchModal({
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value as 'asc' | 'desc')}
-                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
+                className={fieldClass}
               >
                 <option value="desc">Newest first</option>
                 <option value="asc">Oldest first</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Start Date <span className="text-ink-faint normal-case font-normal">(optional)</span></label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
+                Start Date <span className="text-ink-faint normal-case font-normal">(optional)</span>
+              </label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 max={endDate || undefined}
-                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
+                className={fieldClass}
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">End Date <span className="text-ink-faint normal-case font-normal">(optional)</span></label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
+                End Date <span className="text-ink-faint normal-case font-normal">(optional)</span>
+              </label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 min={startDate || undefined}
-                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
+                className={fieldClass}
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Start Block <span className="text-ink-faint normal-case font-normal">(optional)</span></label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
+                Start Block <span className="text-ink-faint normal-case font-normal">(optional)</span>
+              </label>
               <input
                 type="number"
                 value={startBlock}
                 onChange={(e) => setStartBlock(e.target.value)}
                 placeholder="e.g. 18000000"
                 disabled={!!startDate}
-                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`${fieldClass} disabled:opacity-40 disabled:cursor-not-allowed`}
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">End Block <span className="text-ink-faint normal-case font-normal">(optional)</span></label>
+              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
+                End Block <span className="text-ink-faint normal-case font-normal">(optional)</span>
+              </label>
               <input
                 type="number"
                 value={endBlock}
                 onChange={(e) => setEndBlock(e.target.value)}
                 placeholder="e.g. 19000000"
                 disabled={!!endDate}
-                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`${fieldClass} disabled:opacity-40 disabled:cursor-not-allowed`}
               />
             </div>
             <div>
@@ -208,7 +223,7 @@ export function FetchModal({
               <select
                 value={limit}
                 onChange={(e) => setLimit(Number(e.target.value))}
-                className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
+                className={fieldClass}
               >
                 {[50, 100, 200, 500, 1000, 5000].map((n) => (
                   <option key={n} value={n}>{n} transactions</option>
@@ -219,25 +234,25 @@ export function FetchModal({
               <button
                 onClick={handleFetch}
                 disabled={loading || !address.trim()}
-                className="w-full px-4 py-1.5 bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-semibold transition-colors"
+                className="w-full h-9 px-4 bg-brand text-white hover:bg-brand-strong disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold transition-colors inline-flex items-center justify-center"
               >
                 {loading ? 'Fetching…' : results ? 'Re-fetch' : 'Fetch'}
               </button>
             </div>
           </div>
-          {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+          {error && <p className="mt-2 text-xs text-redline">{error}</p>}
         </div>
 
         {/* Results */}
         {results && (
           <>
-            <div className="flex items-center justify-between px-5 py-2 border-b border-line-strong shrink-0">
+            <div className="flex items-center justify-between px-5 py-2 border-b border-line shrink-0">
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   checked={allNewSelected}
                   onChange={toggleAll}
-                  className="accent-blue-500"
+                  className="accent-brand"
                 />
                 <span className="text-xs text-ink-muted">
                   {results.length} found · {newResults.length} new · {selected.size} selected
@@ -253,7 +268,7 @@ export function FetchModal({
                 <p className="text-ink-faint text-center py-8">No transactions found.</p>
               ) : (
                 <table className="w-full">
-                  <thead className="sticky top-0 bg-surface-panel border-b border-line-strong">
+                  <thead className="sticky top-0 bg-surface border-b border-line">
                     <tr className="text-left text-[10px] font-semibold text-ink-faint uppercase">
                       <th className="px-3 py-2 w-8"></th>
                       <th className="px-3 py-2">Date</th>
@@ -272,7 +287,7 @@ export function FetchModal({
                         <tr
                           key={tx.id}
                           onClick={() => !dup && toggleOne(tx.id)}
-                          className={`border-b border-line-strong/50 transition-colors ${
+                          className={`border-b border-line/50 transition-colors ${
                             dup
                               ? 'opacity-35 cursor-default'
                               : isSelected
@@ -282,14 +297,14 @@ export function FetchModal({
                         >
                           <td className="px-3 py-1.5">
                             {dup ? (
-                              <span className="text-ink-faint text-[10px]">✓</span>
+                              <span className="text-ink-faint text-[10px]">in graph</span>
                             ) : (
                               <input
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleOne(tx.id)}
                                 onClick={(e) => e.stopPropagation()}
-                                className="accent-blue-500"
+                                className="accent-brand"
                               />
                             )}
                           </td>
@@ -309,12 +324,12 @@ export function FetchModal({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center gap-3 px-5 py-3 border-t border-line-strong shrink-0">
+            <div className="flex items-center gap-3 px-5 py-3 border-t border-line shrink-0">
               <label className="text-xs font-semibold text-ink-muted uppercase whitespace-nowrap">Add to</label>
               <select
                 value={targetTraceId}
                 onChange={(e) => setTargetTraceId(e.target.value)}
-                className="flex-1 bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
+                className="flex-1 bg-surface border border-line-strong rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               >
                 {traces.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -323,11 +338,14 @@ export function FetchModal({
               <button
                 onClick={handleAdd}
                 disabled={selected.size === 0 || !targetTraceId}
-                className="px-4 py-1.5 bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-semibold transition-colors whitespace-nowrap"
+                className="px-4 py-1.5 bg-brand text-white hover:bg-brand-strong disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
               >
                 Add {selected.size > 0 ? `${selected.size} ` : ''}to Graph
               </button>
-              <button onClick={onClose} className="px-4 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm transition-colors">
+              <button
+                onClick={onClose}
+                className="px-4 py-1.5 bg-surface text-ink-muted border border-line-strong hover:bg-surface-raised rounded-lg text-sm transition-colors"
+              >
                 Cancel
               </button>
             </div>

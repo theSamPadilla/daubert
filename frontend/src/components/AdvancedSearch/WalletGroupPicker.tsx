@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { FaLayerGroup, FaWallet, FaPlus } from 'react-icons/fa6';
+import { FaLayerGroup, FaWallet, FaPlus, FaXmark } from 'react-icons/fa6';
 import { Investigation, Trace, WalletNode, Group } from '../../types/investigation';
 import { useLabeledEntities } from '@/hooks/useLabeledEntities';
 import { ADDRESS_RE, normalizeAddressForChain } from '../../generated/shared/address';
@@ -34,13 +34,10 @@ export function WalletGroupPicker({ label, investigation, chain, value, onChange
   const [walletSearch, setWalletSearch] = useState('');
 
   // Sync mode when value is driven externally (e.g. parent resets to {}).
-  // Note: wallets[] alone is ambiguous between 'wallets' and 'address' mode —
-  // we keep whichever mode the user is in rather than flipping.
   useEffect(() => {
     if (value.traceId != null || value.groupId != null) {
       setMode('selector');
     }
-    // If value is completely empty ({}) or wallets-only, leave mode as-is.
   }, [value.traceId, value.groupId]);
 
   // Traces that have at least one node on the selected chain
@@ -50,7 +47,6 @@ export function WalletGroupPicker({ label, investigation, chain, value, onChange
   );
 
   // Groups across all traces that have at least one member node on the selected chain.
-  // Each entry carries the parent trace for label disambiguation.
   const filteredGroups: Array<{ group: Group; trace: Trace }> = useMemo(() => {
     const result: Array<{ group: Group; trace: Trace }> = [];
     for (const trace of investigation.traces) {
@@ -92,12 +88,8 @@ export function WalletGroupPicker({ label, investigation, chain, value, onChange
     setWalletSearch('');
   };
 
-  // The "By trace/group" mode has nothing to show when this chain has no traces
-  // *and* no groups — disable the toggle so users aren't dropped into an empty picker.
   const selectorDisabled = filteredTraces.length === 0 && filteredGroups.length === 0;
 
-  // Combined trace+group selector. Each option's value is `"trace:<id>"` or
-  // `"group:<id>"` so a single dropdown can emit either side of the union.
   const selectorOptions = useMemo(() => {
     const opts: Array<{ value: string; label: string }> = [];
     for (const trace of filteredTraces) {
@@ -127,13 +119,10 @@ export function WalletGroupPicker({ label, investigation, chain, value, onChange
     else if (kind === 'group') onChange({ groupId: id });
   };
 
-  // Wallets mode handlers
   const selectedWallets = new Set(value.wallets ?? []);
   const atCap = selectedWallets.size >= MAX_WALLETS;
 
   const toggleWallet = (address: string) => {
-    // Chain-aware normalization: lowercase EVM, preserve Tron base58 case
-    // (Tron is case-sensitive — lowercasing would corrupt the address).
     const normalized = normalizeAddressForChain(address, chain);
     const next = new Set(selectedWallets);
     if (next.has(normalized)) {
@@ -146,13 +135,13 @@ export function WalletGroupPicker({ label, investigation, chain, value, onChange
   };
 
   return (
-    <div className="bg-surface border border-line-strong rounded-lg overflow-hidden flex flex-col">
+    <div className="bg-surface border border-line rounded-lg overflow-hidden flex flex-col">
       {/* Card header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-line-strong bg-surface-panel shrink-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-line bg-surface-raised/30 shrink-0">
         <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">{label}</span>
 
-        {/* Mode toggle — three buttons */}
-        <div className="flex items-center gap-0.5 bg-surface rounded p-0.5 border border-line-strong">
+        {/* Mode toggle */}
+        <div className="flex items-center gap-0.5 bg-surface rounded-lg p-0.5 border border-line">
           <button
             type="button"
             onClick={() => handleModeSwitch('selector')}
@@ -245,7 +234,7 @@ function TraceGroupPicker({ options, value, onSelect }: TraceGroupPickerProps) {
       <select
         value={value}
         onChange={onSelect}
-        className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
+        className="w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
       >
         <option value="">— Select —</option>
         {options.map((opt) => (
@@ -278,13 +267,13 @@ function WalletChecklist({ nodes, selected, chain, atCap, search, onSearchChange
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
         placeholder="Filter investigation wallets…"
-        className="w-full bg-surface border border-line-strong rounded px-2.5 py-1 text-xs mb-1"
+        className="w-full bg-surface border border-line-strong rounded-lg px-3 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 mb-1"
       />
 
       <div className="flex items-center justify-between mb-0.5">
         <label className="text-xs font-semibold text-ink-muted uppercase">Wallets</label>
         {atCap && (
-          <span className="text-xs text-amber-400 font-medium">
+          <span className="text-xs text-amber-600 font-medium">
             Max {MAX_WALLETS} wallets per side.
           </span>
         )}
@@ -311,12 +300,12 @@ function WalletChecklist({ nodes, selected, chain, atCap, search, onSearchChange
             return (
               <label
                 key={node.id}
-                className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer transition-colors select-none ${
+                className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs cursor-pointer transition-colors select-none ${
                   isDisabled
                     ? 'opacity-40 cursor-not-allowed'
                     : isChecked
                     ? 'bg-brand/10 hover:bg-brand/15'
-                    : 'hover:bg-surface-raised/40'
+                    : 'hover:bg-surface-raised/60'
                 }`}
               >
                 <input
@@ -325,7 +314,7 @@ function WalletChecklist({ nodes, selected, chain, atCap, search, onSearchChange
                   disabled={isDisabled}
                   onChange={() => !isDisabled && onToggle(node.address)}
                   onClick={(e) => e.stopPropagation()}
-                  className="accent-blue-500 shrink-0"
+                  className="accent-brand shrink-0"
                 />
                 <span className="flex-1 min-w-0 flex flex-col gap-0">
                   <span className="flex items-center gap-1 min-w-0">
@@ -397,34 +386,34 @@ function AddressInput({ selected, chain, atCap, onToggle }: AddressInputProps) {
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
           placeholder="Paste an address…"
           autoFocus
-          className="flex-1 bg-surface border border-line-strong rounded px-2.5 py-1 text-xs font-mono"
+          className="flex-1 bg-surface border border-line-strong rounded-lg px-3 py-1.5 text-xs text-ink placeholder:text-ink-faint font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         />
         <button
           type="button"
           onClick={handleAdd}
           disabled={!input.trim() || atCap}
-          className="px-2.5 py-1 rounded text-xs font-medium bg-brand hover:bg-brand/90 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand-strong disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Add
         </button>
       </div>
-      {error && <p className="text-[10px] text-red-400">{error}</p>}
+      {error && <p className="text-[10px] text-redline">{error}</p>}
 
       {addresses.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1">
           {addresses.map((addr) => (
             <span
               key={addr}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand/30 text-brand-ink text-[10px] font-mono"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-brand/10 text-brand text-[10px] font-mono"
             >
               {truncateAddress(addr)}
               <button
                 type="button"
                 onClick={() => onToggle(addr)}
-                className="hover:text-red-400 transition-colors"
+                className="hover:text-redline transition-colors"
                 aria-label={`Remove ${addr}`}
               >
-                ×
+                <FaXmark className="w-2.5 h-2.5" />
               </button>
             </span>
           ))}

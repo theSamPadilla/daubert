@@ -171,7 +171,7 @@ export default function OrgInvitePage() {
         </div>
         <div className="relative w-full max-w-md flex flex-col items-center gap-8">
           <Image
-            src="/logo-light.png"
+            src="/logo.png"
             alt="Daubert"
             width={72}
             height={72}
@@ -285,7 +285,7 @@ export default function OrgInvitePage() {
           <p className="text-xs uppercase tracking-widest text-brand-ink font-semibold">
             You&apos;re invited
           </p>
-          <h1 className="mt-3 text-3xl font-bold text-white tracking-tight">
+          <h1 className="mt-3 text-3xl font-bold text-ink tracking-tight">
             {invite.orgName ?? 'an organization'}
           </h1>
           {invite.inviterName && (
@@ -297,7 +297,7 @@ export default function OrgInvitePage() {
 
         {invite.role && (
           <div className="text-center space-y-2">
-            <span className="inline-block px-3 py-1 rounded-full bg-white text-gray-900 text-xs font-semibold">
+            <span className="inline-block px-3 py-1 rounded-full bg-brand-soft text-brand text-xs font-semibold">
               {invite.role === 'member' ? 'Member' : 'Guest'}
             </span>
             <p className="text-ink-muted text-sm">

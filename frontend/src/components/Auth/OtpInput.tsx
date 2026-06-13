@@ -94,8 +94,8 @@ export function OtpInput({ value, onChange, autoFocus = false, disabled = false 
           aria-label={`OTP digit ${index + 1}`}
           className={[
             'h-[52px] w-[52px] rounded-lg border text-center',
-            'font-mono text-3xl tracking-wide text-white',
-            'bg-surface-panel border-line-strong',
+            'font-mono text-3xl tracking-wide text-ink',
+            'bg-surface border-line-strong',
             'focus:outline-none focus:border-brand',
             'transition-colors',
             disabled ? 'opacity-40 cursor-not-allowed' : '',

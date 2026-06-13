@@ -7,6 +7,7 @@ import { FaPenToSquare, FaTrash, FaPlus, FaMinus, FaChevronDown, FaChevronRight 
 import { Loader } from '@/components/Common/Loader';
 import { ErrorModal } from '@/components/Common/ErrorModal';
 import { useConfirm } from '@/components/Common/ConfirmProvider';
+import { Button, IconButton, Input, Select, Kicker, Panel } from '@/components/ui';
 
 interface EntityFormData {
   name: string;
@@ -21,15 +22,6 @@ const emptyForm: EntityFormData = {
   description: '',
   wallets: [''],
 };
-
-const inputClass =
-  'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-brand transition-colors';
-
-const primaryBtn =
-  'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-brand hover:bg-brand/90 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] disabled:opacity-50 disabled:cursor-not-allowed transition-colors';
-
-const secondaryBtn =
-  'px-4 py-2 rounded-lg text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted hover:text-white transition-colors';
 
 export default function AdminEntitiesPage() {
   const confirm = useConfirm();
@@ -96,7 +88,7 @@ export default function AdminEntitiesPage() {
       title: 'Delete entity?',
       message: (
         <>
-          Delete entity <span className="text-white">&ldquo;{entity.name}&rdquo;</span>. This cannot
+          Delete entity <span className="text-ink font-medium">&ldquo;{entity.name}&rdquo;</span>. This cannot
           be undone.
         </>
       ),
@@ -182,13 +174,8 @@ export default function AdminEntitiesPage() {
     <main className="relative max-w-6xl mx-auto px-6 py-12">
       <div className="mb-10 flex items-start justify-between gap-6 flex-wrap">
         <div>
-          <div className="flex items-center gap-3">
-            <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
-              Superadmin
-            </span>
-          </div>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight text-white">
+          <Kicker className="mb-3 block">Superadmin</Kicker>
+          <h2 className="mt-1 text-4xl font-bold tracking-tight text-ink">
             Labeled entities
           </h2>
           <p className="mt-2 text-sm text-ink-muted">
@@ -196,17 +183,17 @@ export default function AdminEntitiesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 mt-1">
-          <input
+          <Input
             type="text"
             placeholder="Search entities..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className={`${inputClass} w-56`}
+            className="w-56"
           />
-          <select
+          <Select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className={inputClass}
+            className="w-44"
           >
             <option value="">All Categories</option>
             {CATEGORIES.map((cat) => (
@@ -214,49 +201,46 @@ export default function AdminEntitiesPage() {
                 {cat.charAt(0).toUpperCase() + cat.slice(1)}
               </option>
             ))}
-          </select>
-          <button onClick={handleAdd} className={`${primaryBtn} shrink-0`}>
+          </Select>
+          <Button onClick={handleAdd} className="shrink-0">
             <FaPlus className="h-3 w-3" /> Add entity
-          </button>
+          </Button>
         </div>
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+        <div className="mb-6 rounded-lg border border-redline/40 bg-redline/10 p-3 text-sm text-redline">
           {error}
         </div>
       )}
 
       {showForm && (
-        <div className="relative mb-6 p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden">
-          <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-          <h3 className="text-base font-semibold text-white mb-5">
+        <Panel padded className="mb-6 border-line-strong">
+          <h3 className="text-base font-semibold text-ink mb-5">
             {editingId ? 'Edit entity' : 'Add entity'}
           </h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm text-ink-muted mb-1">Name</label>
-              <input
+              <Input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                className={inputClass}
                 placeholder="Entity name"
               />
             </div>
             <div>
               <label className="block text-sm text-ink-muted mb-1">Category</label>
-              <select
+              <Select
                 value={formData.category}
                 onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                className={inputClass}
               >
                 {CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat.charAt(0).toUpperCase() + cat.slice(1)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
           <div className="mb-4">
@@ -264,7 +248,7 @@ export default function AdminEntitiesPage() {
             <textarea
               value={formData.description}
               onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-              className={`${inputClass} resize-y`}
+              className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 resize-y"
               rows={3}
               placeholder="Optional description"
             />
@@ -275,7 +259,7 @@ export default function AdminEntitiesPage() {
               <button
                 type="button"
                 onClick={addWalletField}
-                className="flex items-center gap-1 text-xs text-brand-ink hover:text-white transition-colors"
+                className="flex items-center gap-1 text-xs text-brand hover:text-brand-strong transition-colors"
               >
                 <FaPlus className="w-3 h-3" /> Add wallet
               </button>
@@ -283,55 +267,55 @@ export default function AdminEntitiesPage() {
             <div className="space-y-2">
               {formData.wallets.map((wallet, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <input
+                  <Input
                     type="text"
                     value={wallet}
                     onChange={(e) => updateWallet(i, e.target.value)}
-                    className={`${inputClass} font-mono`}
+                    className="font-mono"
                     placeholder="0x..."
                   />
                   {formData.wallets.length > 1 && (
-                    <button
+                    <IconButton
+                      aria-label="Remove wallet"
                       type="button"
                       onClick={() => removeWalletField(i)}
-                      className="p-1.5 text-ink-faint hover:text-red-400 transition-colors"
+                      className="text-ink-faint hover:text-redline hover:bg-redline/10"
                     >
                       <FaMinus className="w-3 h-3" />
-                    </button>
+                    </IconButton>
                   )}
                 </div>
               ))}
             </div>
           </div>
           <div className="flex items-center gap-2 pt-1">
-            <button onClick={handleSave} disabled={saving} className={primaryBtn}>
+            <Button onClick={handleSave} disabled={saving}>
               {saving ? 'Saving...' : editingId ? 'Update' : 'Create'}
-            </button>
-            <button onClick={handleCancel} className={secondaryBtn}>
+            </Button>
+            <Button variant="secondary" onClick={handleCancel}>
               Cancel
-            </button>
+            </Button>
           </div>
-        </div>
+        </Panel>
       )}
 
       {loading ? (
         <Loader inline />
       ) : entities.length === 0 ? (
-        <div className="rounded-xl border border-line-strong/60 bg-surface-panel/50 py-16 text-center">
+        <Panel className="py-16 text-center">
           <p className="text-sm text-ink-muted">No entities found.</p>
-        </div>
+        </Panel>
       ) : (
-        <div className="relative overflow-hidden rounded-xl border border-line-strong/60 bg-surface-panel shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
-          <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+        <Panel className="overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="bg-surface/40 text-left text-xs text-ink-faint uppercase tracking-wider">
+              <tr className="border-b border-line text-left">
                 <th className="px-4 py-3 w-8"></th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3">Wallets</th>
-                <th className="px-4 py-3">Description</th>
-                <th className="px-4 py-3 w-24">Actions</th>
+                <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-faint">Name</th>
+                <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-faint">Category</th>
+                <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-faint">Wallets</th>
+                <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-faint">Description</th>
+                <th className="px-4 py-3 w-24 font-mono text-[11px] uppercase tracking-wider text-ink-faint">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -343,7 +327,7 @@ export default function AdminEntitiesPage() {
                 return (
                   <Fragment key={entity.id}>
                     <tr
-                      className="border-t border-line-strong/40 hover:bg-white/[0.02] cursor-pointer transition-colors"
+                      className="border-b border-line hover:bg-surface-panel cursor-pointer transition-colors"
                       onClick={() => toggleExpand(entity.id)}
                     >
                       <td className="px-4 py-3 text-ink-faint">
@@ -353,7 +337,7 @@ export default function AdminEntitiesPage() {
                           <FaChevronRight className="w-3 h-3" />
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-white font-medium">
+                      <td className="px-4 py-3 text-sm text-ink font-medium">
                         {entity.name}
                       </td>
                       <td className="px-4 py-3">
@@ -363,44 +347,44 @@ export default function AdminEntitiesPage() {
                           {entity.category}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-ink-muted">
+                      <td className="px-4 py-3 text-[13px] text-ink-muted">
                         {entity.wallets.length}
                       </td>
-                      <td className="px-4 py-3 text-sm text-ink-muted">
+                      <td className="px-4 py-3 text-[13px] text-ink-muted">
                         {truncate(entity.description, 80)}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <button
+                        <div className="flex items-center gap-1">
+                          <IconButton
+                            aria-label="Edit entity"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleEdit(entity);
                             }}
-                            className="p-1.5 text-ink-faint hover:text-brand-ink transition-colors"
-                            title="Edit"
+                            className="text-ink-faint hover:text-brand"
                           >
                             <FaPenToSquare className="w-3.5 h-3.5" />
-                          </button>
-                          <button
+                          </IconButton>
+                          <IconButton
+                            aria-label="Delete entity"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDelete(entity);
                             }}
-                            className="p-1.5 text-ink-faint hover:text-red-400 transition-colors"
-                            title="Delete"
+                            className="text-ink-faint hover:text-redline hover:bg-redline/10"
                           >
                             <FaTrash className="w-3.5 h-3.5" />
-                          </button>
+                          </IconButton>
                         </div>
                       </td>
                     </tr>
                     {isExpanded && (
-                      <tr className="bg-surface/30">
+                      <tr className="bg-surface-panel">
                         <td colSpan={6} className="px-4 py-4">
                           <div className="space-y-3">
                             {entity.description && (
                               <div>
-                                <span className="text-[10px] text-ink-muted font-semibold uppercase tracking-[0.18em]">
+                                <span className="text-[10px] text-ink-faint font-semibold uppercase tracking-[0.18em]">
                                   Description
                                 </span>
                                 <p className="text-sm text-ink-muted mt-1">
@@ -409,7 +393,7 @@ export default function AdminEntitiesPage() {
                               </div>
                             )}
                             <div>
-                              <span className="text-[10px] text-ink-muted font-semibold uppercase tracking-[0.18em]">
+                              <span className="text-[10px] text-ink-faint font-semibold uppercase tracking-[0.18em]">
                                 Wallets ({entity.wallets.length})
                               </span>
                               {entity.wallets.length > 0 ? (
@@ -417,7 +401,7 @@ export default function AdminEntitiesPage() {
                                   {entity.wallets.map((wallet, i) => (
                                     <li
                                       key={i}
-                                      className="text-xs text-ink-muted font-mono bg-surface border border-line-strong/60 rounded-md px-2 py-1"
+                                      className="text-xs text-ink-muted font-mono bg-surface border border-line rounded-md px-2 py-1"
                                     >
                                       {wallet}
                                     </li>
@@ -432,10 +416,10 @@ export default function AdminEntitiesPage() {
                             {entity.metadata &&
                               Object.keys(entity.metadata).length > 0 && (
                                 <div>
-                                  <span className="text-[10px] text-ink-muted font-semibold uppercase tracking-[0.18em]">
+                                  <span className="text-[10px] text-ink-faint font-semibold uppercase tracking-[0.18em]">
                                     Metadata
                                   </span>
-                                  <pre className="text-xs text-ink-muted mt-1.5 bg-surface border border-line-strong/60 rounded-lg p-2.5 overflow-x-auto">
+                                  <pre className="text-xs text-ink-muted mt-1.5 bg-surface border border-line rounded-lg p-2.5 overflow-x-auto">
                                     {JSON.stringify(entity.metadata, null, 2)}
                                   </pre>
                                 </div>
@@ -449,7 +433,7 @@ export default function AdminEntitiesPage() {
               })}
             </tbody>
           </table>
-        </div>
+        </Panel>
       )}
 
       <ErrorModal

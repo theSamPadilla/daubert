@@ -79,7 +79,7 @@ export function AddColumnModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50">
       <div className="bg-surface-panel rounded-lg p-6 w-[440px] border border-line-strong shadow-xl">
         <h3 className="text-sm font-semibold text-ink uppercase tracking-wider mb-4">
           Add column
@@ -101,7 +101,7 @@ export function AddColumnModal({
             }
           }}
           placeholder='e.g. "Amount", "Counterparty", "Exhibit #"'
-          className="w-full bg-surface border border-line-strong rounded px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-brand"
+          className="w-full bg-surface border border-line-strong rounded px-3 py-2 text-sm text-ink focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/40"
           autoComplete="off"
           spellCheck={false}
         />
@@ -111,7 +111,7 @@ export function AddColumnModal({
         <select
           value={placement}
           onChange={(e) => setPlacement(e.target.value)}
-          className="w-full bg-surface border border-line-strong rounded px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-brand"
+          className="w-full bg-surface border border-line-strong rounded px-3 py-2 text-sm text-ink focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/40"
         >
           <option value="end">At the end</option>
           <option value="start">At the beginning</option>

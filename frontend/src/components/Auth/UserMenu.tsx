@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 import { FaChevronDown, FaGear, FaUser } from 'react-icons/fa6';
 
-export default function UserMenu({ variant = 'dark' }: { variant?: 'dark' | 'light' } = {}) {
+export default function UserMenu() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -35,11 +35,7 @@ export default function UserMenu({ variant = 'dark' }: { variant?: 'dark' | 'lig
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-2 px-2 py-1 rounded transition-colors ${
-          variant === 'light'
-            ? 'hover:bg-[#F1F4FA]'
-            : 'hover:bg-surface-raised'
-        }`}
+        className="flex items-center gap-2 px-2 py-1 rounded transition-colors hover:bg-surface-raised"
       >
         {user.avatarUrl ? (
           <img
@@ -53,19 +49,19 @@ export default function UserMenu({ variant = 'dark' }: { variant?: 'dark' | 'lig
             {initials}
           </div>
         )}
-        <span className={`text-sm hidden sm:inline ${variant === 'light' ? 'text-[#0B1220]' : 'text-ink-muted'}`}>{user.name}</span>
-        <FaChevronDown className={`w-3 h-3 ${variant === 'light' ? 'text-[#5B6473]' : 'text-ink-muted'}`} />
+        <span className="text-sm hidden sm:inline text-ink-muted">{user.name}</span>
+        <FaChevronDown className="w-3 h-3 text-ink-muted" />
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-48 bg-surface-panel border border-line-strong rounded-lg shadow-xl z-50">
-          <div className="px-3 py-2 border-b border-line-strong">
+        <div className="absolute right-0 mt-1 w-48 bg-surface rounded-xl border border-line shadow-[0_24px_60px_-30px_rgba(11,18,32,0.18)] z-20">
+          <div className="px-3 py-2 border-b border-line">
             <p className="text-sm font-medium text-ink truncate">{user.name}</p>
             <p className="text-xs text-ink-muted truncate">{user.email}</p>
           </div>
           <button
             onClick={() => { setOpen(false); router.push('/account'); }}
-            className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-raised transition-colors flex items-center gap-2"
+            className="w-full text-left text-sm text-ink-soft hover:bg-surface-raised rounded-lg px-3 py-1.5 transition-colors flex items-center gap-2"
           >
             <FaUser className="w-3 h-3 text-ink-faint" />
             Account
@@ -73,7 +69,7 @@ export default function UserMenu({ variant = 'dark' }: { variant?: 'dark' | 'lig
           {isSuperAdmin && (
             <button
               onClick={() => { setOpen(false); router.push('/superadmin/orgs'); }}
-              className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-raised transition-colors flex items-center gap-2"
+              className="w-full text-left text-sm text-ink-soft hover:bg-surface-raised rounded-lg px-3 py-1.5 transition-colors flex items-center gap-2"
             >
               <FaGear className="w-3 h-3 text-ink-faint" />
               Superadmin
@@ -81,7 +77,7 @@ export default function UserMenu({ variant = 'dark' }: { variant?: 'dark' | 'lig
           )}
           <button
             onClick={() => { setOpen(false); signOut(); }}
-            className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-raised rounded-b-lg transition-colors"
+            className="w-full text-left text-sm text-ink-soft hover:bg-surface-raised rounded-lg px-3 py-1.5 transition-colors"
           >
             Sign out
           </button>

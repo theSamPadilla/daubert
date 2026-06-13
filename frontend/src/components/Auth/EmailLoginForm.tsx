@@ -5,6 +5,8 @@ import { signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { apiClient } from '@/lib/api-client';
 import { OtpInput } from './OtpInput';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 
 export interface EmailLoginFormProps {
   defaultEmail?: string;
@@ -93,34 +95,34 @@ export function EmailLoginForm({ defaultEmail = '', lockEmail = false, onVerifie
     return (
       <div className="w-full space-y-3">
         <form onSubmit={handleEmailSubmit} className="space-y-2">
-          <input
+          <Input
             type="email"
             value={emailInput}
             onChange={(e) => setEmailInput(e.target.value)}
             placeholder="you@example.com"
             disabled={isSending || lockEmail}
             autoFocus={!lockEmail}
-            className="w-full px-4 py-2.5 bg-surface-panel border border-line-strong rounded-lg text-white placeholder-ink-faint text-sm focus:outline-none focus:border-brand transition-colors disabled:opacity-50"
           />
-          <button
+          <Button
             type="submit"
             disabled={!emailInput.trim() || isSending}
-            className="w-full flex items-center justify-center px-4 py-2.5 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full"
           >
             {isSending ? 'Sending code…' : 'Continue'}
-          </button>
+          </Button>
         </form>
         {errorMessage && (
-          <div className="bg-red-900/30 border border-red-700/60 rounded-lg p-4 text-center">
-            <p className="text-red-300 text-sm leading-relaxed">{errorMessage}</p>
+          <div className="bg-redline/10 border border-redline/30 rounded-lg p-4 text-center">
+            <p className="text-redline text-sm leading-relaxed">{errorMessage}</p>
             {onRequestAccess && /no account found/i.test(errorMessage) && (
-              <button
+              <Button
                 type="button"
                 onClick={() => onRequestAccess(emailInput.trim())}
-                className="mt-3 inline-flex items-center justify-center px-4 py-2 bg-brand hover:bg-brand/90 rounded text-sm text-white font-medium transition-colors"
+                size="sm"
+                className="mt-3"
               >
                 Request access
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -128,7 +130,7 @@ export function EmailLoginForm({ defaultEmail = '', lockEmail = false, onVerifie
           <button
             type="button"
             onClick={onBack}
-            className="text-sm text-ink-muted hover:text-white underline block mx-auto"
+            className="text-sm text-ink-muted hover:text-ink underline block mx-auto transition-colors"
           >
             Back
           </button>
@@ -148,9 +150,9 @@ export function EmailLoginForm({ defaultEmail = '', lockEmail = false, onVerifie
   return (
     <div className="w-full space-y-5">
       <div className="text-center space-y-1">
-        <p className="text-white font-medium text-base">Check your inbox for a code</p>
+        <p className="text-ink font-medium text-base">Check your inbox for a code</p>
         <p className="text-ink-muted text-sm">
-          We sent a 6-digit code to <span className="text-white">{resolvedEmail}</span>
+          We sent a 6-digit code to <span className="text-ink">{resolvedEmail}</span>
         </p>
       </div>
 
@@ -163,18 +165,18 @@ export function EmailLoginForm({ defaultEmail = '', lockEmail = false, onVerifie
         />
       </div>
 
-      <button
+      <Button
         type="button"
         onClick={() => verifyOtp(resolvedEmail, code)}
         disabled={code.length < 6 || isVerifying}
-        className="w-full flex items-center justify-center px-4 py-2.5 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full"
       >
         {isVerifying ? 'Verifying…' : 'Verify'}
-      </button>
+      </Button>
 
       {errorMessage && (
-        <div className="bg-red-900/30 border border-red-700/60 rounded-lg p-4 text-center">
-          <p className="text-red-300 text-sm leading-relaxed">{errorMessage}</p>
+        <div className="bg-redline/10 border border-redline/30 rounded-lg p-4 text-center">
+          <p className="text-redline text-sm leading-relaxed">{errorMessage}</p>
         </div>
       )}
 
@@ -185,7 +187,7 @@ export function EmailLoginForm({ defaultEmail = '', lockEmail = false, onVerifie
             setCode('');
             setState({ phase: 'email' });
           }}
-          className="text-sm text-ink-muted hover:text-white underline block mx-auto"
+          className="text-sm text-ink-muted hover:text-ink underline block mx-auto transition-colors"
         >
           Use a different email
         </button>

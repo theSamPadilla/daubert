@@ -4,6 +4,9 @@ import { TagInput } from './TagInput';
 import { SUPPORTED_CHAINS } from '@/services/types';
 import { parseAddressInput } from '@/utils/addressParser';
 
+const inputClass =
+  'w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
+
 interface WalletFormProps {
   wallet?: WalletNode;
   traces: Trace[];
@@ -67,7 +70,7 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
     <form onSubmit={handleSubmit} className="space-y-3">
       {!wallet && (
         <div>
-          <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Trace</label>
+          <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Trace</label>
           {traces.length === 0 ? (
             <button
               type="button"
@@ -79,7 +82,7 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
                 setCreatingTrace(false);
                 if (newId) setTraceId(newId);
               }}
-              className="w-full px-2 py-1.5 bg-brand hover:bg-brand/90 disabled:opacity-50 rounded text-sm text-center"
+              className="w-full px-3 py-2 bg-brand text-white hover:bg-brand-strong disabled:opacity-50 rounded-lg text-sm text-center transition-colors"
             >
               {creatingTrace ? 'Creating...' : '+ Create Trace'}
             </button>
@@ -88,7 +91,7 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
               <select
                 value={traceId}
                 onChange={(e) => setTraceId(e.target.value)}
-                className="flex-1 bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
+                className="flex-1 bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               >
                 {traces.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -104,7 +107,7 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
                     setCreatingTrace(false);
                     if (newId) setTraceId(newId);
                   }}
-                  className="px-2 py-1.5 bg-surface-raised hover:bg-surface-raised/80 disabled:opacity-50 rounded text-sm shrink-0"
+                  className="px-3 py-2 border border-canvas-line text-canvas-muted hover:text-canvas-ink hover:bg-canvas-fill disabled:opacity-50 rounded-lg text-sm shrink-0 transition-colors"
                   title="New trace"
                 >
                   +
@@ -116,34 +119,36 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
       )}
 
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Label</label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Label</label>
         <input
           ref={labelRef}
           type="text"
           value={label}
           onChange={(e) => { setLabel(e.target.value); setLabelTouched(true); }}
-          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
+          className={inputClass}
           required
         />
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Address <span className="text-ink-faint normal-case font-normal">(optional)</span></label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">
+          Address <span className="text-canvas-muted/60 normal-case font-normal">(optional)</span>
+        </label>
         <input
           type="text"
           value={address}
           onChange={(e) => handleAddressChange(e.target.value)}
-          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm font-mono"
+          className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink placeholder:text-canvas-muted font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           placeholder="0x... or block explorer URL"
         />
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Chain</label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Chain</label>
         <select
           value={chain}
           onChange={(e) => setChain(e.target.value)}
-          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm"
+          className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
           {Object.values(SUPPORTED_CHAINS).map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
@@ -152,7 +157,7 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Size</label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Size</label>
         <div className="flex items-center gap-2">
           <input
             type="range"
@@ -161,32 +166,32 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
             step={5}
             value={size}
             onChange={(e) => setSize(Number(e.target.value))}
-            className="flex-1 accent-blue-500"
+            className="flex-1 accent-brand"
           />
-          <span className="text-xs text-ink-muted w-8 text-right">{size}</span>
+          <span className="text-xs text-canvas-muted w-8 text-right">{size}</span>
         </div>
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Tags</label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Tags</label>
         <TagInput tags={tags} onChange={setTags} />
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Notes</label>
+        <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Notes</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
-          className="w-full bg-surface border border-line-strong rounded px-2 py-1.5 text-sm resize-none"
+          className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 resize-none"
         />
       </div>
 
       <div className="flex gap-2 pt-2">
-        <button type="submit" className="px-3 py-1.5 bg-brand hover:bg-brand/90 rounded text-sm">
+        <button type="submit" className="px-3 py-1.5 bg-brand text-white hover:bg-brand-strong rounded-lg text-sm transition-colors">
           Save
         </button>
-        <button type="button" onClick={onCancel} className="px-3 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm">
+        <button type="button" onClick={onCancel} className="px-3 py-1.5 border border-canvas-line text-canvas-muted hover:text-canvas-ink hover:bg-canvas-fill rounded-lg text-sm transition-colors">
           Cancel
         </button>
         {onDelete && wallet && (
@@ -195,7 +200,7 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
               <button
                 type="button"
                 onClick={() => onDelete(wallet.parentTrace)}
-                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded text-sm ml-auto"
+                className="px-3 py-1.5 bg-redline text-white hover:bg-redline/90 rounded-lg text-sm ml-auto transition-colors"
               >
                 Confirm Delete
               </button>
@@ -203,7 +208,7 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
               <button
                 type="button"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="px-3 py-1.5 text-red-400 hover:text-red-300 rounded text-sm ml-auto"
+                className="px-3 py-1.5 text-redline hover:text-redline/80 rounded-lg text-sm ml-auto transition-colors"
               >
                 Delete
               </button>

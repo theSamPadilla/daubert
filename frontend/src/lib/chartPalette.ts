@@ -67,9 +67,9 @@ const CHART_CHROME_BY_THEME: Record<ExportTheme, {
     grid: BRAND_PALETTE.line,
   },
   light: {
-    legend: '#374151',
-    tick: '#6b7280',
-    grid: '#e5e7eb',
+    legend: '#374151', // gray-700 — readable on white canvas
+    tick: '#6b7280',   // gray-500 — axis tick color on white canvas
+    grid: '#e5e7eb',   // border-line token (gray-200)
   },
 };
 

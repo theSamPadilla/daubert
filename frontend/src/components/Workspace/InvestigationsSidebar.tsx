@@ -21,6 +21,7 @@ const PRODUCTION_TYPE_ICONS: Record<string, React.ReactNode> = {
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { apiClient, type Investigation } from '@/lib/api-client';
 import type { Trace } from '@/types/investigation';
+import { Button, IconButton, Kicker } from '@/components/ui';
 import { ScriptsPanel } from './ScriptsPanel';
 import { ExhibitBuilder } from '../Productions/ExhibitBuilder';
 import { useCaseContext } from '@/contexts/CaseContext';
@@ -90,29 +91,25 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
   }, [router, caseId]);
 
   return (
-    <div className="w-full bg-surface-panel border-r border-line-strong flex flex-col h-full overflow-hidden">
+    <div className="w-full bg-surface-panel border-r border-line flex flex-col h-full overflow-hidden">
       {/* Case header with back button */}
-      <div className="h-12 px-3 border-b border-[#E5E7EB] bg-[#F7F8FB] flex items-center gap-2 shrink-0">
-        <button
+      <div className="h-12 px-2 border-b border-line flex items-center gap-1.5 shrink-0">
+        <IconButton
           onClick={() => router.push('/')}
-          className="text-[#5B6473] hover:text-[#0B1220] transition-colors shrink-0"
           title="Back to cases"
+          aria-label="Back to cases"
+          className="h-8 w-8 shrink-0"
         >
           <FaArrowLeft size={12} />
-        </button>
-        <div className="flex items-baseline gap-2 min-w-0 flex-1">
-          <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#5B6473] shrink-0">
-            Case
-          </span>
-          <p className="text-[16px] font-semibold tracking-tight text-[#0B1220] truncate">
-            {caseName || 'Loading...'}
-          </p>
-        </div>
+        </IconButton>
+        <p className="text-sm font-medium text-ink truncate min-w-0 flex-1">
+          {caseName || 'Loading...'}
+        </p>
       </div>
 
       {/* Investigation header */}
-      <div className="px-3 py-2 flex items-center justify-between border-b border-line-strong">
-        <span className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.14em]">Investigations</span>
+      <div className="px-3 py-2 flex items-center justify-between border-b border-line">
+        <Kicker index={1}>Investigations</Kicker>
         {canMutate && (
           <button
             onClick={() => ctx.openNewPrimary('investigation')}
@@ -141,10 +138,10 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                     return next;
                   });
                 }}
-                className={`flex items-center group px-3 pr-2 py-1.5 cursor-pointer text-sm transition-colors ${
+                className={`flex items-center group mx-2 px-2 py-1.5 rounded-lg cursor-pointer text-sm transition-colors ${
                   isActive
-                    ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand-ink)]'
-                    : 'hover:bg-surface-raised text-ink-muted'
+                    ? 'bg-surface border border-line-strong text-ink'
+                    : 'text-ink-muted hover:bg-surface-raised'
                 }`}
               >
                 <button
@@ -214,9 +211,9 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
         )}
 
         {/* Productions */}
-        <div className="mt-2 border-t border-line-strong">
-          <div className="px-3 py-2 flex items-center justify-between border-b border-line-strong">
-            <span className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.14em]">Productions</span>
+        <div className="mt-2 border-t border-line">
+          <div className="px-3 py-2 flex items-center justify-between border-b border-line">
+            <Kicker index={2}>Productions</Kicker>
             {canMutate && (
               <button
                 onClick={() => ctx.openNewPrimary('production')}
@@ -260,10 +257,10 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
                         key={prod.id}
                         onClick={() => router.push(`/cases/${caseId}/productions?id=${prod.id}`)}
                         title={prod.name}
-                        className={`flex items-center px-3 py-1 cursor-pointer text-sm transition-colors ${
+                        className={`flex items-center mx-2 px-2 py-1 rounded-lg cursor-pointer text-sm transition-colors ${
                           active
-                            ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand-ink)]'
-                            : 'hover:bg-surface-raised text-ink-muted hover:text-ink'
+                            ? 'bg-surface border border-line-strong text-ink'
+                            : 'text-ink-muted hover:bg-surface-raised hover:text-ink'
                         }`}
                       >
                         <span className="truncate flex-1 font-medium">{prod.name}</span>
@@ -281,17 +278,17 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
           const dataRoomHref = `/cases/${caseId}/data-room`;
           const dataRoomActive = pathname === dataRoomHref || pathname?.startsWith(dataRoomHref + '/');
           return (
-            <div className="mt-2 pt-2 border-t border-line-strong">
+            <div className="mt-2 pt-2 border-t border-line">
               <a
                 href={dataRoomHref}
                 onClick={(e) => {
                   e.preventDefault();
                   router.push(dataRoomHref);
                 }}
-                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer text-sm transition-colors ${
+                className={`flex items-center gap-2 mx-2 px-2 py-1.5 rounded-lg cursor-pointer text-sm transition-colors ${
                   dataRoomActive
-                    ? 'bg-brand-soft text-ink shadow-[inset_2px_0_0_var(--brand-ink)]'
-                    : 'hover:bg-surface-raised text-ink-muted hover:text-ink'
+                    ? 'bg-surface border border-line-strong text-ink'
+                    : 'text-ink-muted hover:bg-surface-raised hover:text-ink'
                 }`}
               >
                 <FaFolder size={12} className="shrink-0 text-ink-faint" />
@@ -304,15 +301,16 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
 
       {/* Footer actions — Exhibit + Settings, pinned to the bottom (owners + editors) */}
       {canMutate && (
-        <div className="border-t border-line-strong px-3 py-2.5 shrink-0 space-y-2">
-          <button
+        <div className="border-t border-line px-3 py-2.5 shrink-0 space-y-2">
+          <Button
+            size="sm"
             onClick={() => setExhibitOpen(true)}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-brand-soft text-ink shadow-[inset_0_0_0_1px_var(--brand-ink)] hover:bg-brand hover:text-white transition-colors"
+            className="w-full"
             title="Create exhibit from investigations and productions"
           >
             <FaPlus size={10} />
             <span>Exhibit</span>
-          </button>
+          </Button>
           <button
             onClick={() => router.push(`/cases/${caseId}/settings`)}
             className="flex items-center gap-2 text-ink-faint hover:text-ink text-sm w-full transition-colors"

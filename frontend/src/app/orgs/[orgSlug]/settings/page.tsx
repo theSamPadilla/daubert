@@ -11,56 +11,33 @@ import type { components } from '@/generated/api-types';
 import { Loader } from '@/components/Common/Loader';
 import { InviteCreatedModal } from '@/components/Common/InviteCreatedModal';
 import { useConfirm } from '@/components/Common/ConfirmProvider';
+import { Panel } from '@/components/ui/Panel';
+import { Kicker } from '@/components/ui/Kicker';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { OrgCasesAdminSection } from './OrgCasesAdminSection';
 
 type OrgMember = components['schemas']['OrganizationMember'];
 type OrgInvite = components['schemas']['OrganizationInvite'];
 type OrgInviteRole = components['schemas']['OrgInviteRole'];
 
-const inputClass =
-  'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-brand disabled:opacity-60 transition-colors';
-
-const primaryBtn =
-  'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-brand hover:bg-brand/90 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] disabled:opacity-50 disabled:cursor-not-allowed transition-colors';
-
-const secondaryBtn =
-  'px-4 py-2 rounded-lg text-sm bg-surface-raised hover:bg-surface-raised/80 text-ink-muted hover:text-white transition-colors';
-
 function Banner({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 mb-6 rounded-lg border border-red-500/40 bg-red-500/10 text-red-300 text-sm">
+    <div className="flex items-center gap-3 px-4 py-3 mb-6 rounded-lg border border-redline/30 bg-redline/5 text-redline text-sm">
       <span className="flex-1">{message}</span>
-      <button onClick={onClose} className="hover:text-white transition-colors">
+      <button onClick={onClose} className="hover:text-redline/70 transition-colors">
         <FaXmark size={14} />
       </button>
     </div>
   );
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="relative mb-6 p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden">
-      {/* subtle top inner-highlight to give the card a raised edge */}
-      <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-      <h2 className="text-base font-semibold text-white mb-4">{title}</h2>
-      {children}
-    </div>
-  );
-}
-
-function RolePill({ role }: { role: OrgMemberRole }) {
-  const colors: Record<OrgMemberRole, string> = {
-    admin: 'bg-brand text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]',
-    member: 'bg-emerald-900/40 text-emerald-300 border border-emerald-500/30',
-    guest: 'bg-surface text-ink-muted border border-line-strong',
-  };
-  return (
-    <span
-      className={`inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-semibold ${colors[role]}`}
-    >
-      {role}
-    </span>
-  );
+function roleBadgeTone(role: OrgMemberRole): 'brand' | 'neutral' | 'accent' {
+  if (role === 'admin') return 'brand';
+  if (role === 'member') return 'accent';
+  return 'neutral';
 }
 
 function OrgInfoSection({
@@ -105,27 +82,27 @@ function OrgInfoSection({
   };
 
   return (
-    <SectionCard title="Organization info">
+    <Panel padded className="mb-6">
+      <Kicker index={1} className="block mb-3">Organization info</Kicker>
       {error && <Banner message={error} onClose={() => setError(null)} />}
       <form onSubmit={handleSave} className="space-y-4">
         <div>
           <label className="block text-sm text-ink-muted mb-1">Name</label>
-          <input
+          <Input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={!isAdmin}
-            className={inputClass}
           />
         </div>
         <div>
           <label className="block text-sm text-ink-muted mb-1">Slug</label>
-          <input
+          <Input
             type="text"
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             disabled={!isAdmin}
-            className={`${inputClass} font-mono`}
+            className="font-mono"
           />
           {isAdmin && (
             <p className="mt-1 text-xs text-ink-faint">
@@ -135,17 +112,16 @@ function OrgInfoSection({
         </div>
         {isAdmin && (
           <div className="flex items-center gap-2 pt-1">
-            <button
+            <Button
               type="submit"
               disabled={saving || !name.trim() || !slug.trim()}
-              className={primaryBtn}
             >
               {saving ? 'Saving...' : saved ? 'Saved' : 'Save changes'}
-            </button>
+            </Button>
           </div>
         )}
       </form>
-    </SectionCard>
+    </Panel>
   );
 }
 
@@ -190,7 +166,7 @@ function MembersSection({
   const handleRemove = async (userId: string, email: string) => {
     const ok = await confirm({
       title: 'Remove member?',
-      message: <>Remove <span className="text-white">{email}</span> from this organization?</>,
+      message: <>Remove <span className="text-ink font-medium">{email}</span> from this organization?</>,
       confirmLabel: 'Remove',
       destructive: true,
     });
@@ -221,16 +197,17 @@ function MembersSection({
   };
 
   return (
-    <SectionCard title="Members">
+    <Panel padded className="mb-6">
+      <Kicker index={2} className="block mb-3">Members</Kicker>
       {error && <Banner message={error} onClose={() => setError(null)} />}
-      <div className="mb-4 rounded-lg border-l-2 border-brand-ink/40 bg-brand/10 px-4 py-3 space-y-1">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-brand-ink font-semibold">
+      <div className="mb-4 rounded-lg border-l-2 border-brand/40 bg-brand-soft px-4 py-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-brand font-semibold">
           Who sees what
         </p>
         <p className="text-sm text-ink-muted leading-relaxed">
-          <span className="text-white font-medium">Admins</span> are implicit owners on every case.{' '}
-          <span className="text-white font-medium">Members</span> join every case as editors by default.{' '}
-          <span className="text-white font-medium">Guests</span> can browse every case but need an
+          <span className="text-ink font-medium">Admins</span> are implicit owners on every case.{' '}
+          <span className="text-ink font-medium">Members</span> join every case as editors by default.{' '}
+          <span className="text-ink font-medium">Guests</span> can browse every case but need an
           explicit case invite to open one.
         </p>
       </div>
@@ -239,10 +216,10 @@ function MembersSection({
       ) : members.length === 0 ? (
         <p className="text-sm text-ink-muted">No members.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line-strong">
+        <div className="overflow-hidden rounded-lg border border-line">
           <table className="w-full">
             <thead>
-              <tr className="bg-surface/60 text-left text-xs text-ink-faint uppercase tracking-wider">
+              <tr className="bg-surface-raised text-left text-xs text-ink-faint uppercase tracking-wider">
                 <th className="px-4 py-2.5">Member</th>
                 <th className="px-4 py-2.5">Role</th>
                 <th className="w-16 px-4 py-2.5"></th>
@@ -252,40 +229,42 @@ function MembersSection({
               {members.map((m) => {
                 const isSelf = m.userId === currentUserId;
                 return (
-                  <tr key={m.id} className="border-t border-line-strong/50">
+                  <tr key={m.id} className="border-t border-line">
                     <td className="px-4 py-3">
-                      <p className="text-sm text-white">{m.user?.name ?? m.userId}</p>
+                      <p className="text-sm text-ink">{m.user?.name ?? m.userId}</p>
                       {m.user?.email && (
-                        <p className="text-xs text-ink-faint">{m.user.email}</p>
+                        <p className="text-[13px] text-ink-muted">{m.user.email}</p>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       {isAdmin && !isSelf ? (
-                        <select
-                          value={m.role}
-                          onChange={(e) => handleRoleChange(m.userId, e.target.value as OrgMemberRole)}
-                          className="rounded-lg border border-line-strong bg-surface px-2 py-1 text-xs text-white focus:outline-none focus:border-brand"
-                        >
-                          <option value="admin">admin</option>
-                          <option value="member">member</option>
-                          <option value="guest">guest</option>
-                        </select>
+                        <div className="w-32">
+                          <Select
+                            value={m.role}
+                            onChange={(e) => handleRoleChange(m.userId, e.target.value as OrgMemberRole)}
+                            className="text-xs py-1 px-2"
+                          >
+                            <option value="admin">admin</option>
+                            <option value="member">member</option>
+                            <option value="guest">guest</option>
+                          </Select>
+                        </div>
                       ) : (
-                        <RolePill role={m.role} />
+                        <Badge tone={roleBadgeTone(m.role)}>{m.role}</Badge>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {isSelf ? (
                         <button
                           onClick={handleLeave}
-                          className="text-xs text-ink-muted hover:text-red-400 transition-colors"
+                          className="text-xs text-ink-muted hover:text-redline transition-colors"
                         >
                           Leave
                         </button>
                       ) : isAdmin ? (
                         <button
                           onClick={() => handleRemove(m.userId, m.user?.email ?? m.userId)}
-                          className="p-1.5 text-ink-faint hover:text-red-400"
+                          className="p-1.5 text-ink-faint hover:text-redline transition-colors"
                           title="Remove member"
                         >
                           <FaTrash size={12} />
@@ -299,7 +278,7 @@ function MembersSection({
           </table>
         </div>
       )}
-    </SectionCard>
+    </Panel>
   );
 }
 
@@ -324,11 +303,11 @@ const ROLE_BLURBS: Record<OrgInviteRole, { headline: string; can: string; cant: 
 function RoleExplainer({ role }: { role: OrgInviteRole }) {
   const blurb = ROLE_BLURBS[role];
   return (
-    <div className="rounded-lg border-l-2 border-brand-ink/40 bg-brand/10 px-4 py-3 space-y-1">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-brand-ink font-semibold">
+    <div className="rounded-lg border-l-2 border-brand/40 bg-brand-soft px-4 py-3 space-y-1">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-brand font-semibold">
         {role} can do
       </p>
-      <p className="text-sm text-white font-medium">{blurb.headline}</p>
+      <p className="text-sm text-ink font-medium">{blurb.headline}</p>
       <p className="text-sm text-ink-muted leading-relaxed">{blurb.can}</p>
       <p className="text-xs text-ink-faint leading-relaxed">{blurb.cant}</p>
     </div>
@@ -419,13 +398,14 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
   const pendingInvites = invites.filter((i) => !i.usedAt && new Date(i.expiresAt) > new Date());
 
   return (
-    <SectionCard title="Invites (admin only)">
+    <Panel padded className="mb-6">
+      <Kicker index={3} className="block mb-3">Invites (admin only)</Kicker>
       {error && <Banner message={error} onClose={() => setError(null)} />}
 
       {!showForm && (
         <button
           onClick={() => setShowForm(true)}
-          className="mb-4 inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-white transition-colors"
+          className="mb-4 inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink transition-colors"
         >
           <FaPlus size={10} />
           Generate invite
@@ -435,42 +415,39 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
       {showForm && (
         <form
           onSubmit={handleGenerateInvite}
-          className="mb-6 p-4 rounded-xl border border-line-strong/60 bg-surface/40 space-y-3"
+          className="mb-6 p-4 rounded-xl border border-line bg-surface-raised space-y-3"
         >
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-ink-muted mb-1">Email</label>
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className={inputClass}
                 placeholder="user@example.com"
               />
             </div>
             <div>
               <label className="block text-xs text-ink-muted mb-1">Role</label>
-              <select
+              <Select
                 value={role}
                 onChange={(e) => setRole(e.target.value as OrgInviteRole)}
-                className={inputClass}
               >
                 <option value="admin">admin</option>
                 <option value="member">member</option>
                 <option value="guest">guest</option>
-              </select>
+              </Select>
             </div>
           </div>
           <RoleExplainer role={role} />
           <div>
             <label className="block text-xs text-ink-muted mb-1">Name (optional)</label>
-            <input
+            <Input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={120}
-              className={inputClass}
               placeholder="Jane Doe"
             />
             <p className="mt-1 text-xs text-ink-faint">
@@ -483,21 +460,21 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={2}
-              className={`${inputClass} resize-y`}
+              className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 resize-y"
               placeholder="Optional personal note"
             />
           </div>
           <div className="flex items-center gap-2 pt-1">
-            <button type="submit" disabled={sending || !email.trim()} className={primaryBtn}>
+            <Button type="submit" disabled={sending || !email.trim()}>
               {sending ? 'Generating…' : 'Generate invite'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="secondary"
               onClick={() => { setShowForm(false); setEmail(''); setName(''); setMessage(''); }}
-              className={secondaryBtn}
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -507,10 +484,10 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
       ) : pendingInvites.length === 0 ? (
         <p className="text-sm text-ink-muted">No pending invites.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line-strong">
+        <div className="overflow-hidden rounded-lg border border-line">
           <table className="w-full">
             <thead>
-              <tr className="bg-surface/60 text-left text-xs text-ink-faint uppercase tracking-wider">
+              <tr className="bg-surface-raised text-left text-xs text-ink-faint uppercase tracking-wider">
                 <th className="px-4 py-2.5">Email</th>
                 <th className="px-4 py-2.5">Role</th>
                 <th className="px-4 py-2.5">Expires</th>
@@ -519,10 +496,10 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
             </thead>
             <tbody>
               {pendingInvites.map((inv) => (
-                <tr key={inv.id} className="border-t border-line-strong/50">
-                  <td className="px-4 py-3 text-sm text-white">{inv.email}</td>
+                <tr key={inv.id} className="border-t border-line">
+                  <td className="px-4 py-3 text-sm text-ink">{inv.email}</td>
                   <td className="px-4 py-3">
-                    <RolePill role={inv.role as OrgMemberRole} />
+                    <Badge tone={roleBadgeTone(inv.role as OrgMemberRole)}>{inv.role}</Badge>
                   </td>
                   <td className="px-4 py-3 text-sm text-ink-muted">
                     {new Date(inv.expiresAt).toLocaleDateString()}
@@ -531,14 +508,14 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => handleCopy(inv.code)}
-                        className="p-1.5 text-ink-faint hover:text-brand-ink"
+                        className="p-1.5 text-ink-faint hover:text-brand transition-colors"
                         title="Copy invite link"
                       >
                         {copiedCode === inv.code ? <FaCheck size={12} /> : <FaCopy size={12} />}
                       </button>
                       <button
                         onClick={() => handleRevoke(inv.id)}
-                        className="p-1.5 text-ink-faint hover:text-red-400"
+                        className="p-1.5 text-ink-faint hover:text-redline transition-colors"
                         title="Revoke invite"
                       >
                         <FaTrash size={12} />
@@ -559,7 +536,7 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
           onClose={() => setCreatedInvite(null)}
         />
       )}
-    </SectionCard>
+    </Panel>
   );
 }
 
@@ -577,24 +554,19 @@ export default function OrgSettingsPage() {
     <main className="relative max-w-3xl mx-auto px-6 py-12">
       <Link
         href="/"
-        className="inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-white transition-colors mb-8"
+        className="inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink transition-colors mb-8"
       >
         <FaArrowLeft size={10} />
         Back to cases
       </Link>
 
       <div className="mb-10">
-        <div className="flex items-center gap-3">
-          <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
-            Organization
-          </span>
-        </div>
-        <h2 className="mt-3 text-4xl font-bold tracking-tight text-white">
+        <Kicker className="block mb-3">Organization</Kicker>
+        <h2 className="mt-1 text-3xl font-bold tracking-tight text-ink">
           Settings
         </h2>
         <p className="mt-2 text-sm text-ink-muted">
-          Manage {orgName ? <span className="text-white font-medium">{orgName}</span> : 'your organization'}
+          Manage {orgName ? <span className="text-ink font-medium">{orgName}</span> : 'your organization'}
           &apos;s profile, members, and invitations.
         </p>
       </div>

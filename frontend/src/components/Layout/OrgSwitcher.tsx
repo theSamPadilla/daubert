@@ -6,13 +6,12 @@ import { FaChevronDown, FaBuilding, FaGear } from 'react-icons/fa6';
 import { useOrgContext } from '@/contexts/OrgContext';
 import { useAuth } from '@/components/Auth/AuthProvider';
 
-export function OrgSwitcher({ variant = 'dark' }: { variant?: 'dark' | 'light' } = {}) {
+export function OrgSwitcher() {
   const { orgs, activeOrg, setActiveOrgSlug } = useOrgContext();
   const { refreshMe } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const isLight = variant === 'light';
 
   const handleToggle = () => {
     const next = !open;
@@ -37,21 +36,17 @@ export function OrgSwitcher({ variant = 'dark' }: { variant?: 'dark' | 'light' }
       <button
         onClick={handleToggle}
         title={activeOrg?.name ?? 'Select organization'}
-        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors ${
-          isLight
-            ? 'border-[#E5E7EB] bg-white hover:bg-[#F7F8FB]'
-            : 'border-line-strong/60 bg-surface-panel/60 hover:bg-surface-raised hover:border-line-strong'
-        }`}
+        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors border-line bg-surface hover:bg-surface-raised hover:border-line-strong"
       >
-        <FaBuilding className={`w-3.5 h-3.5 ${isLight ? 'text-brand' : 'text-brand-ink'}`} />
-        <span className={`text-sm font-medium truncate max-w-[180px] ${isLight ? 'text-[#0B1220]' : 'text-white'}`}>
+        <FaBuilding className="w-3.5 h-3.5 text-brand" />
+        <span className="text-sm font-medium truncate max-w-[180px] text-ink">
           {activeOrg?.name ?? 'Select org'}
         </span>
-        <FaChevronDown className={`w-3 h-3 ${isLight ? 'text-[#5B6473]' : 'text-ink-muted'}`} />
+        <FaChevronDown className="w-3 h-3 text-ink-muted" />
       </button>
 
       {open && (
-        <div className="absolute left-0 mt-1 w-56 bg-surface-panel border border-line-strong rounded-lg shadow-xl z-50 overflow-hidden">
+        <div className="absolute left-0 mt-1 w-56 bg-surface rounded-xl border border-line shadow-[0_24px_60px_-30px_rgba(11,18,32,0.18)] z-20 overflow-hidden">
           {orgs.map((org) => {
             const isActive = org.slug === activeOrg?.slug;
             return (

@@ -57,23 +57,23 @@ export function StagingPanel({ items, traces, onAddToTrace, onClear }: StagingPa
   if (items.length === 0) return null;
 
   return (
-    <div className="border-t border-line-strong flex flex-col">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-line-strong">
-        <h3 className="text-xs font-semibold text-ink-muted uppercase">
+    <div className="border-t border-canvas-line flex flex-col">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-canvas-line">
+        <h3 className="text-xs font-semibold text-canvas-muted uppercase">
           Staging ({items.length} results)
         </h3>
-        <button onClick={onClear} className="text-xs text-ink-faint hover:text-ink-muted">
+        <button onClick={onClear} className="text-xs text-canvas-muted hover:text-canvas-ink">
           Clear
         </button>
       </div>
       <div className="flex-1 overflow-y-auto max-h-60">
         <div className="px-4 py-1">
-          <label className="flex items-center gap-2 text-xs text-ink-muted cursor-pointer">
+          <label className="flex items-center gap-2 text-xs text-canvas-muted cursor-pointer">
             <input
               type="checkbox"
               checked={selected.size === items.length}
               onChange={toggleAll}
-              className="rounded bg-surface border-line-strong"
+              className="rounded bg-canvas-fill border-canvas-line"
             />
             Select all
           </label>
@@ -81,28 +81,28 @@ export function StagingPanel({ items, traces, onAddToTrace, onClear }: StagingPa
         {items.map((item) => (
           <label
             key={item.id}
-            className="flex items-center gap-2 px-4 py-1.5 hover:bg-surface-raised cursor-pointer text-xs"
+            className="flex items-center gap-2 px-4 py-1.5 hover:bg-canvas-fill cursor-pointer text-xs"
           >
             <input
               type="checkbox"
               checked={selected.has(item.id)}
               onChange={() => toggleItem(item.id)}
-              className="rounded bg-surface border-line-strong"
+              className="rounded bg-canvas-fill border-canvas-line"
             />
-            <span className="font-mono text-ink-muted">{truncateAddr(item.from)}</span>
-            <span className="text-ink-faint">-&gt;</span>
-            <span className="font-mono text-ink-muted">{truncateAddr(item.to)}</span>
-            <span className="ml-auto text-ink-muted">
+            <span className="font-mono text-canvas-muted">{truncateAddr(item.from)}</span>
+            <span className="text-canvas-muted">-&gt;</span>
+            <span className="font-mono text-canvas-muted">{truncateAddr(item.to)}</span>
+            <span className="ml-auto text-canvas-muted">
               {formatAmount(item.amount, item.token.decimals)} {item.token.symbol}
             </span>
           </label>
         ))}
       </div>
-      <div className="flex items-center gap-2 px-4 py-2 border-t border-line-strong">
+      <div className="flex items-center gap-2 px-4 py-2 border-t border-canvas-line">
         <select
           value={targetTrace}
           onChange={(e) => setTargetTrace(e.target.value)}
-          className="flex-1 bg-surface border border-line-strong rounded px-2 py-1 text-xs"
+          className="flex-1 bg-canvas-fill border border-canvas-line rounded-lg text-canvas-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 px-2 py-1 text-xs"
         >
           {traces.map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
@@ -111,7 +111,7 @@ export function StagingPanel({ items, traces, onAddToTrace, onClear }: StagingPa
         <button
           onClick={handleAdd}
           disabled={selected.size === 0 || !targetTrace}
-          className="px-3 py-1 bg-brand hover:bg-brand/90 disabled:bg-surface-raised disabled:text-ink-faint rounded text-xs"
+          className="px-3 py-1 bg-brand text-white hover:bg-brand-strong disabled:bg-canvas-fill disabled:text-canvas-muted rounded-lg text-xs"
         >
           Add {selected.size > 0 ? `(${selected.size})` : ''} to Trace
         </button>

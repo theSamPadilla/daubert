@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { FaTrash, FaTriangleExclamation, FaXmark } from 'react-icons/fa6';
 import { apiClient, type Case } from '@/lib/api-client';
 import { Loader } from '@/components/Common/Loader';
+import { Panel } from '@/components/ui/Panel';
+import { Kicker } from '@/components/ui/Kicker';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,27 +57,27 @@ function DeleteCaseConfirmModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-case-title"
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] px-4"
+      className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 px-4"
       onClick={(e) => {
         if (e.target === e.currentTarget && !working) onCancel();
       }}
     >
-      <div className="bg-surface-panel rounded-xl w-full max-w-lg border border-red-500/40 shadow-2xl overflow-hidden">
+      <div className="bg-surface rounded-xl w-full max-w-lg border border-redline/30 shadow-lg overflow-hidden">
         {/* Header strip */}
-        <div className="flex items-center gap-3 px-6 py-4 bg-red-500/10 border-b border-red-500/30">
-          <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
-            <FaTriangleExclamation size={18} className="text-red-300" />
+        <div className="flex items-center gap-3 px-6 py-4 bg-redline/5 border-b border-redline/20">
+          <div className="w-10 h-10 rounded-full bg-redline/10 flex items-center justify-center">
+            <FaTriangleExclamation size={18} className="text-redline" />
           </div>
           <div className="flex-1">
-            <h3 id="delete-case-title" className="text-base font-semibold text-white">
+            <h3 id="delete-case-title" className="text-base font-semibold text-ink">
               Delete this case?
             </h3>
-            <p className="text-xs text-red-200/80 mt-0.5">This action cannot be undone.</p>
+            <p className="text-xs text-redline/80 mt-0.5">This action cannot be undone.</p>
           </div>
           <button
             onClick={onCancel}
             disabled={working}
-            className="p-1 text-ink-faint hover:text-white transition-colors disabled:opacity-50"
+            className="p-1 text-ink-faint hover:text-ink transition-colors disabled:opacity-50"
             aria-label="Close"
           >
             <FaXmark size={16} />
@@ -84,7 +88,7 @@ function DeleteCaseConfirmModal({
         <div className="px-6 py-5 space-y-4">
           <p className="text-sm text-ink leading-relaxed">
             You are about to permanently delete{' '}
-            <span className="font-semibold text-white">&ldquo;{caseToDelete.name}&rdquo;</span>{' '}
+            <span className="font-semibold text-ink">&ldquo;{caseToDelete.name}&rdquo;</span>{' '}
             and everything it contains:
           </p>
           <ul className="text-sm text-ink-muted space-y-1.5 pl-4 list-disc list-outside">
@@ -102,9 +106,9 @@ function DeleteCaseConfirmModal({
               htmlFor="confirm-case-name"
               className="block text-xs uppercase tracking-wider text-ink-faint mb-1.5 font-semibold"
             >
-              Type <span className="text-white">{caseToDelete.name}</span> to confirm
+              Type <span className="text-ink">{caseToDelete.name}</span> to confirm
             </label>
-            <input
+            <Input
               id="confirm-case-name"
               type="text"
               autoFocus
@@ -113,36 +117,36 @@ function DeleteCaseConfirmModal({
               onChange={(e) => setTyped(e.target.value)}
               disabled={working}
               placeholder={caseToDelete.name}
-              className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-white placeholder:text-ink-faint/60 focus:outline-none focus:border-red-500 transition-colors"
+              className="focus:border-redline focus-visible:ring-redline/30"
             />
           </div>
 
           {error && (
-            <div className="px-3 py-2 rounded-lg border border-red-500/40 bg-red-500/10 text-sm text-red-200">
+            <div className="px-3 py-2 rounded-lg border border-redline/30 bg-redline/5 text-sm text-redline">
               {error}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-4 bg-surface/40 border-t border-line-strong/60">
-          <button
+        <div className="flex items-center justify-end gap-2 px-6 py-4 bg-surface-raised border-t border-line">
+          <Button
             type="button"
+            variant="secondary"
             onClick={onCancel}
             disabled={working}
-            className="px-4 py-2 rounded-lg bg-surface-raised hover:bg-surface-raised/80 text-sm text-ink-muted hover:text-white transition-colors disabled:opacity-50"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="danger"
             onClick={handleConfirm}
             disabled={!matches || working}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-sm font-semibold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <FaTrash size={12} />
             {working ? 'Deleting…' : 'Delete case'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -183,9 +187,8 @@ export function OrgCasesAdminSection({ orgId }: { orgId: string }) {
   };
 
   return (
-    <div className="relative mb-6 p-6 rounded-xl bg-surface-panel border border-line-strong/60 shadow-[0_2px_12px_rgba(0,0,0,0.35)] overflow-hidden">
-      <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-      <h2 className="text-base font-semibold text-white mb-1">Cases (admin only)</h2>
+    <Panel padded className="mb-6">
+      <Kicker index={4} className="block mb-1">Cases (admin only)</Kicker>
       <p className="text-xs text-ink-muted mb-5">
         As an org admin you have implicit owner access on every case in this organization.
         Deleting a case permanently removes its investigations, productions, members, and all
@@ -193,7 +196,7 @@ export function OrgCasesAdminSection({ orgId }: { orgId: string }) {
       </p>
 
       {error && (
-        <div className="px-3 py-2 mb-4 rounded-lg border border-red-500/40 bg-red-500/10 text-sm text-red-300">
+        <div className="px-3 py-2 mb-4 rounded-lg border border-redline/30 bg-redline/5 text-sm text-redline">
           {error}
         </div>
       )}
@@ -203,10 +206,10 @@ export function OrgCasesAdminSection({ orgId }: { orgId: string }) {
       ) : cases.length === 0 ? (
         <p className="text-sm text-ink-muted">No cases in this organization.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line-strong">
+        <div className="overflow-hidden rounded-lg border border-line">
           <table className="w-full">
             <thead>
-              <tr className="bg-surface/60 text-left text-xs text-ink-faint uppercase tracking-wider">
+              <tr className="bg-surface-raised text-left text-xs text-ink-faint uppercase tracking-wider">
                 <th className="px-4 py-2.5">Case</th>
                 <th className="px-4 py-2.5">Created</th>
                 <th className="w-12 px-4 py-2.5"></th>
@@ -214,11 +217,11 @@ export function OrgCasesAdminSection({ orgId }: { orgId: string }) {
             </thead>
             <tbody>
               {cases.map((c) => (
-                <tr key={c.id} className="border-t border-line-strong/50">
+                <tr key={c.id} className="border-t border-line">
                   <td className="px-4 py-3">
-                    <div className="text-sm font-medium text-white">{c.name}</div>
+                    <div className="text-sm font-medium text-ink">{c.name}</div>
                     {c.summary && (
-                      <div className="text-xs text-ink-muted mt-0.5 line-clamp-1">{c.summary}</div>
+                      <div className="text-[13px] text-ink-muted mt-0.5 line-clamp-1">{c.summary}</div>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-ink-muted whitespace-nowrap">
@@ -227,7 +230,7 @@ export function OrgCasesAdminSection({ orgId }: { orgId: string }) {
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => setDeleting(c)}
-                      className="p-1.5 text-ink-faint hover:text-red-400 transition-colors"
+                      className="p-1.5 text-ink-faint hover:text-redline transition-colors"
                       title="Delete case"
                       aria-label={`Delete case ${c.name}`}
                     >
@@ -248,6 +251,6 @@ export function OrgCasesAdminSection({ orgId }: { orgId: string }) {
           onConfirm={handleDelete}
         />
       )}
-    </div>
+    </Panel>
   );
 }

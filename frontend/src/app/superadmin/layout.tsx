@@ -19,16 +19,16 @@ function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <nav className="relative z-10 flex w-56 shrink-0 flex-col bg-surface-panel/40 backdrop-blur-md border-r border-line/60 px-3 py-6">
+    <nav className="relative z-10 flex w-56 shrink-0 flex-col bg-surface-panel border-r border-line px-3 py-6">
       <Link
         href="/"
-        className="mb-6 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-white/5 hover:text-white"
+        className="mb-6 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink"
       >
         <FaArrowLeft className="h-3 w-3" />
         Back to Cases
       </Link>
 
-      <h2 className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-muted">
+      <h2 className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-faint">
         Superadmin
       </h2>
       <ul className="space-y-1">
@@ -43,8 +43,8 @@ function Sidebar() {
                 href={item.href}
                 className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                   active
-                    ? 'bg-brand/25 text-white border border-brand-ink/30 shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset]'
-                    : 'text-ink-muted border border-transparent hover:bg-white/5 hover:text-white'
+                    ? 'bg-brand-soft text-brand border border-brand/20'
+                    : 'text-ink-muted border border-transparent hover:bg-surface-raised hover:text-ink'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -61,18 +61,12 @@ function Sidebar() {
 export default function SuperadminLayout({ children }: { children: React.ReactNode }) {
   return (
     <SuperAdminGuard>
-      <div className="relative min-h-screen bg-surface text-white overflow-hidden">
-        {/* faint grid overlay */}
-        <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
-        <div className="pointer-events-none absolute -right-32 top-16 -z-10 opacity-[0.06] select-none">
-          <Image src="/logo-light.png" alt="" width={720} height={720} priority />
-        </div>
-
+      <div className="relative min-h-screen bg-surface-panel text-ink overflow-hidden">
         {/* Header */}
-        <header className="relative z-10 bg-surface-panel/70 backdrop-blur-md border-b border-line/60 h-14 px-5 flex items-center justify-between shrink-0">
+        <header className="relative z-10 bg-surface border-b border-line h-14 px-5 flex items-center justify-between shrink-0">
           <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
-            <Image src="/logo-light.png" alt="Daubert" width={26} height={26} priority />
-            <h1 className="text-base font-semibold tracking-tight text-white">Daubert</h1>
+            <Image src="/logo.png" alt="Daubert" width={26} height={26} priority />
+            <h1 className="text-base font-semibold tracking-tight text-ink">Daubert</h1>
           </Link>
           <UserMenu />
         </header>

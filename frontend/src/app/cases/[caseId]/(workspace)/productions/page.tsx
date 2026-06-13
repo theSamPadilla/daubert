@@ -16,9 +16,9 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  report: 'bg-blue-900/50 text-blue-300',
-  chart: 'bg-green-900/50 text-green-300',
-  chronology: 'bg-purple-900/50 text-purple-300',
+  report: 'bg-brand-soft text-brand',
+  chart: 'bg-accent/10 text-accent',
+  chronology: 'bg-surface-raised text-ink-muted',
 };
 
 function formatDate(iso: string): string {
@@ -67,11 +67,11 @@ export default function ProductionsPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <PageHeader title="Productions" rightContent={<UserMenu variant="light" />} />
+      <PageHeader title="Productions" rightContent={<UserMenu />} />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto">
         {productions.length === 0 ? (
-          <div className="rounded-lg bg-surface-panel border border-line-strong p-8 text-center">
+          <div className="rounded-xl bg-surface-panel border border-line p-8 text-center">
             <p className="text-ink-muted text-sm">
               No productions yet. Use the AI assistant to create reports, charts, or chronologies.
             </p>
@@ -82,9 +82,9 @@ export default function ProductionsPage() {
               <div
                 key={prod.id}
                 onClick={() => handleSelect(prod)}
-                className="flex items-center gap-4 px-4 py-3 rounded-lg bg-surface-panel border border-line-strong hover:border-line cursor-pointer transition-colors"
+                className="flex items-center gap-4 px-4 py-3 rounded-xl bg-surface-panel border border-line hover:border-line-strong cursor-pointer transition-colors"
               >
-                <div className={`p-2 rounded ${TYPE_COLORS[prod.type] || 'bg-gray-700 text-gray-300'}`}>
+                <div className={`p-2 rounded-lg ${TYPE_COLORS[prod.type] || 'bg-surface-raised text-ink-muted'}`}>
                   {TYPE_ICONS[prod.type] || <FaFileLines className="w-3.5 h-3.5" />}
                 </div>
                 <div className="flex-1 min-w-0">

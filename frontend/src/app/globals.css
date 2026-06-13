@@ -4,23 +4,32 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
 
-    --ink: #E6EAF2;
-    --ink-muted: #9AA3B2;
-    --ink-faint: #5B6473;
+    --ink: #0B1220;
+    --ink-soft: #1F2937;
+    --ink-muted: #5B6473;
+    --ink-faint: #9AA3B2;
 
-    --surface: #11162A;
-    --surface-panel: #242C52;
-    --surface-raised: #303966;
+    --surface: #FFFFFF;
+    --surface-panel: #F7F8FB;
+    --surface-raised: #F1F4FA;
 
-    --line: #333B5E;
-    --line-strong: #44508A;
+    --line: #E5E7EB;
+    --line-strong: #CFD4DD;
 
     --brand: #1F3A93;
-    --brand-soft: #1F2A4A;
-    --brand-ink: #D4DDEE;
-    --accent: #1FB5B0;
+    --brand-strong: #162B6D;
+    --brand-soft: #E8EDFB;
+    --brand-ink: #1F3A93;
+    --accent: #0EA5A3;
+    --redline: #B91C1C;
+
+    --canvas: #0B1220;
+    --canvas-line: rgba(255, 255, 255, 0.12);
+    --canvas-fill: rgba(255, 255, 255, 0.06);
+    --canvas-ink: #E6EAF2;
+    --canvas-muted: #9AA3B2;
   }
 
   html, body {
@@ -61,7 +70,18 @@
 }
 
 @layer utilities {
+  /* Light-mode grid: dark dots + dark lines on white surface */
   .bg-grid-faint {
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ccircle cx='0' cy='0' r='1.4' fill='%230B1220' fill-opacity='0.06'/%3E%3C/svg%3E"),
+      linear-gradient(rgba(11, 18, 32, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(11, 18, 32, 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: -1px -1px;
+  }
+
+  /* Dark canvas grid: white dots + white lines — for use inside the graph canvas zone */
+  .bg-grid-canvas {
     background-image:
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ccircle cx='0' cy='0' r='1.4' fill='white' fill-opacity='0.12'/%3E%3C/svg%3E"),
       linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
@@ -69,5 +89,4 @@
     background-size: 40px 40px;
     background-position: -1px -1px;
   }
-
 }

@@ -42,25 +42,25 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     position: 'fixed',
     left: x,
     top: y,
-    zIndex: 50,
+    zIndex: 20,
   };
 
   return (
-    <div ref={menuRef} style={style} className="bg-surface-panel border border-line-strong rounded shadow-lg py-1 min-w-[160px]">
+    <div ref={menuRef} style={style} className="bg-canvas/90 backdrop-blur border border-canvas-line rounded-xl text-canvas-ink shadow-lg py-1 min-w-[160px]">
       {items.map((item, i) => (
         <div key={i}>
-          {item.separator && <div className="border-t border-line-strong my-1" />}
+          {item.separator && <div className="border-t border-canvas-line my-1" />}
           <button
             onClick={() => {
               item.onClick();
               onClose();
             }}
-            className={`w-full text-left px-3 py-1.5 text-sm hover:bg-surface-raised flex items-center gap-2 ${
-              item.danger ? 'text-red-400 hover:text-red-300' : 'text-ink'
+            className={`w-full text-left px-3 py-1.5 text-sm hover:bg-canvas-fill flex items-center gap-2 ${
+              item.danger ? 'text-red-400 hover:text-red-300' : 'text-canvas-ink'
             }`}
           >
             {item.icon && (
-              <span className={`text-xs shrink-0 ${item.danger ? 'text-red-400' : 'text-ink-muted'}`}>
+              <span className={`text-xs shrink-0 ${item.danger ? 'text-red-400' : 'text-canvas-muted'}`}>
                 {item.icon}
               </span>
             )}

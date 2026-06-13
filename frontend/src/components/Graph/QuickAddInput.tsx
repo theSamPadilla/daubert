@@ -158,7 +158,7 @@ export function QuickAddInput({
   }
 
   return (
-    <div className="flex flex-col gap-1 bg-surface-panel/90 border border-line-strong rounded-lg shadow-lg p-1.5 backdrop-blur-sm">
+    <div className="flex flex-col gap-1 bg-canvas/90 border border-canvas-line rounded-xl text-canvas-ink shadow-lg p-1.5 backdrop-blur">
       <div className="flex items-center gap-1.5">
         <ChainSelect {...chainSelectProps} />
 
@@ -184,12 +184,12 @@ export function QuickAddInput({
             }}
             disabled={disabled || loading}
             placeholder="Paste address, tx hash, or URL"
-            className="w-full bg-surface border border-line-strong rounded px-3 py-1.5 text-sm font-mono pr-8 disabled:opacity-50"
+            className="w-full bg-canvas-fill border border-canvas-line rounded-lg text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 px-3 py-1.5 text-sm font-mono pr-8 disabled:opacity-50"
           />
           {loading && (
             <FaSpinner
               size={13}
-              className="absolute right-2.5 text-ink-muted animate-spin pointer-events-none"
+              className="absolute right-2.5 text-canvas-muted animate-spin pointer-events-none"
             />
           )}
         </div>

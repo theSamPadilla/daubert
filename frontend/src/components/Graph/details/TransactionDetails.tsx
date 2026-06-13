@@ -70,14 +70,14 @@ function TransactionHeader({
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
         placeholder={fallback}
-        className="w-full bg-surface-raised/50 border border-brand rounded px-2 py-0.5 text-sm font-semibold text-ink placeholder-ink-faint focus:outline-none"
+        className="w-full bg-canvas-fill border border-brand rounded-lg px-2 py-0.5 text-sm font-semibold text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
       />
     );
   }
 
   return (
     <p
-      className={`text-sm font-semibold ${onUpdate ? 'cursor-pointer hover:text-brand-ink transition-colors' : ''}`}
+      className={`text-sm font-semibold ${onUpdate ? 'cursor-pointer hover:text-accent transition-colors' : ''}`}
       onClick={() => onUpdate && setEditing(true)}
       title={onUpdate ? 'Click to rename' : undefined}
     >
@@ -115,51 +115,51 @@ export function TransactionDetails({
     <div className="space-y-3">
       <TransactionHeader transaction={transaction} onUpdate={onUpdate} />
       {transaction.usdValue && (
-        <p className="text-xs text-ink-muted">${transaction.usdValue.toLocaleString()}</p>
+        <p className="text-xs text-canvas-muted">${transaction.usdValue.toLocaleString()}</p>
       )}
       {transaction.chain && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Chain</h4>
-          <p className="text-sm text-ink-muted capitalize">{transaction.chain}</p>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Chain</h4>
+          <p className="text-sm text-canvas-muted capitalize">{transaction.chain}</p>
         </div>
       )}
       {transaction.txHash && (() => {
         const explorerUrl = buildTxExplorerUrl(transaction.chain, transaction.txHash);
         return (
           <div>
-            <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Hash</h4>
+            <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Hash</h4>
             <div className="flex items-start gap-2">
               {explorerUrl ? (
                 <a
                   href={explorerUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-mono text-brand-ink hover:text-white break-all underline decoration-brand-ink/40 hover:decoration-brand-ink/70 transition-colors min-w-0"
+                  className="inline-flex items-center gap-1.5 text-xs font-mono text-accent hover:text-canvas-ink break-all underline decoration-accent/40 hover:decoration-accent/70 transition-colors min-w-0"
                 >
                   {transaction.txHash}
                   <FaArrowUpRightFromSquare size={10} className="shrink-0 opacity-60" />
                 </a>
               ) : (
-                <p className="text-xs font-mono text-ink-muted break-all min-w-0">{transaction.txHash}</p>
+                <p className="text-xs font-mono text-canvas-muted break-all min-w-0">{transaction.txHash}</p>
               )}
-              <CopyButton text={transaction.txHash} title="Copy tx hash" />
+              <CopyButton text={transaction.txHash} title="Copy tx hash" className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
             </div>
           </div>
         );
       })()}
       {onUpdate && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Line style</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Line style</h4>
           <div className="flex gap-1.5">
             {LINE_STYLES.map(({ value, label, preview }) => (
               <button
                 key={value}
                 onClick={() => onUpdate({ lineStyle: value })}
                 title={label}
-                className={`flex-1 py-1 rounded text-xs font-mono transition-colors border ${
+                className={`flex-1 py-1 rounded-lg text-xs font-mono transition-colors border ${
                   currentStyle === value
                     ? 'border-brand bg-brand text-white'
-                    : 'border-line-strong text-ink-muted hover:border-line-strong hover:text-ink'
+                    : 'border-canvas-line text-canvas-muted hover:border-white/25 hover:text-canvas-ink'
                 }`}
               >
                 {preview}
@@ -170,17 +170,17 @@ export function TransactionDetails({
       )}
       {onUpdate && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Thickness</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Thickness</h4>
           <div className="flex gap-1.5">
             {THICKNESS_OPTIONS.map(({ value, label }) => (
               <button
                 key={value}
                 onClick={() => onUpdate({ width: value })}
                 title={label}
-                className={`flex-1 py-2 rounded transition-colors border flex items-center justify-center ${
+                className={`flex-1 py-2 rounded-lg transition-colors border flex items-center justify-center ${
                   currentWidth === value
                     ? 'border-brand bg-brand text-white'
-                    : 'border-line-strong text-ink-muted hover:border-line-strong hover:text-ink'
+                    : 'border-canvas-line text-canvas-muted hover:border-white/25 hover:text-canvas-ink'
                 }`}
               >
                 <span style={{ height: `${value}px` }} className="block w-6 rounded-full bg-current" />
@@ -191,25 +191,25 @@ export function TransactionDetails({
       )}
       {onArcEdge && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Arc</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Arc</h4>
           <div className="flex items-center gap-2">
             <button
               onClick={() => onArcEdge(-40)}
-              className="flex-1 py-1 rounded text-sm border border-line-strong text-ink-muted hover:border-line-strong hover:text-ink transition-colors"
+              className="flex-1 py-1 rounded-lg text-sm border border-canvas-line text-canvas-muted hover:border-white/25 hover:text-canvas-ink transition-colors"
               title="Arc left"
             >
               ◁
             </button>
             <button
               onClick={() => onArcEdge(null)}
-              className="px-2 py-1 rounded text-xs border border-line-strong text-ink-faint hover:border-line-strong hover:text-ink-muted transition-colors"
+              className="px-2 py-1 rounded-lg text-xs border border-canvas-line text-canvas-muted hover:border-white/25 hover:text-canvas-ink transition-colors"
               title="Reset arc"
             >
               Reset
             </button>
             <button
               onClick={() => onArcEdge(40)}
-              className="flex-1 py-1 rounded text-sm border border-line-strong text-ink-muted hover:border-line-strong hover:text-ink transition-colors"
+              className="flex-1 py-1 rounded-lg text-sm border border-canvas-line text-canvas-muted hover:border-white/25 hover:text-canvas-ink transition-colors"
               title="Arc right"
             >
               ▷
@@ -218,42 +218,42 @@ export function TransactionDetails({
         </div>
       )}
       <div>
-        <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">From → To</h4>
-        <p className="text-xs text-ink-muted">{fromDisplay.label}</p>
+        <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">From → To</h4>
+        <p className="text-xs text-canvas-muted">{fromDisplay.label}</p>
         {fromDisplay.address && (
           <div className="flex items-center gap-1.5">
-            <p className="text-[10px] font-mono text-ink-faint">{fromDisplay.address}</p>
-            <CopyButton text={fromDisplay.fullAddress} />
+            <p className="text-[10px] font-mono text-canvas-muted">{fromDisplay.address}</p>
+            <CopyButton text={fromDisplay.fullAddress} className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
           </div>
         )}
-        <p className="text-xs text-ink-faint my-1">↓</p>
-        <p className="text-xs text-ink-muted">{toDisplay.label}</p>
+        <p className="text-xs text-canvas-muted my-1">↓</p>
+        <p className="text-xs text-canvas-muted">{toDisplay.label}</p>
         {toDisplay.address && (
           <div className="flex items-center gap-1.5">
-            <p className="text-[10px] font-mono text-ink-faint">{toDisplay.address}</p>
-            <CopyButton text={toDisplay.fullAddress} />
+            <p className="text-[10px] font-mono text-canvas-muted">{toDisplay.address}</p>
+            <CopyButton text={toDisplay.fullAddress} className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
           </div>
         )}
       </div>
       <div>
-        <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Timestamp</h4>
-        <p className="text-sm text-ink-muted">
+        <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Timestamp</h4>
+        <p className="text-sm text-canvas-muted">
           {parseTimestamp(transaction.timestamp).toLocaleString()}
         </p>
       </div>
       {transaction.tags.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Tags</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Tags</h4>
           <div className="flex flex-wrap gap-1">
             {transaction.tags.map((tag) => (
-              <span key={tag} className="px-2 py-0.5 bg-surface-raised rounded text-xs">{tag}</span>
+              <span key={tag} className="px-2 py-0.5 bg-canvas-fill rounded text-xs">{tag}</span>
             ))}
           </div>
         </div>
       )}
       {transaction.links && transaction.links.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Links</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Links</h4>
           <div className="space-y-1">
             {transaction.links.map((link, i) => (
               <a
@@ -261,7 +261,7 @@ export function TransactionDetails({
                 href={link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block text-xs text-brand-ink hover:text-white underline decoration-brand-ink/40 hover:decoration-brand-ink/70 truncate transition-colors"
+                className="block text-xs text-accent hover:text-canvas-ink underline decoration-accent/40 hover:decoration-accent/70 truncate transition-colors"
                 title={link}
               >
                 {link}
@@ -271,7 +271,7 @@ export function TransactionDetails({
         </div>
       )}
       <div>
-        <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Notes</h4>
+        <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Notes</h4>
         <textarea
           value={notes}
           onChange={(e) => {
@@ -286,7 +286,7 @@ export function TransactionDetails({
           }}
           placeholder="Add notes…"
           rows={3}
-          className="w-full bg-surface-raised/50 border border-line-strong rounded px-2 py-1.5 text-sm text-ink-muted placeholder-ink-faint focus:outline-none focus:border-brand resize-none overflow-hidden"
+          className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-2 py-1.5 text-sm text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 resize-none overflow-hidden"
         />
       </div>
     </div>

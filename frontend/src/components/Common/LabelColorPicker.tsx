@@ -38,22 +38,22 @@ export function LabelColorPicker({ color, onChange, fallback }: LabelColorPicker
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-5 h-5 rounded-full border-2 border-line-strong hover:border-gray-400 transition-colors shrink-0"
+        className="w-5 h-5 rounded-full border-2 border-canvas-line hover:border-canvas-muted transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         style={{ backgroundColor: swatchBg }}
         title="Label color"
       />
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onMouseDown={() => setOpen(false)} />
+          <div className="fixed inset-0 z-20" onMouseDown={() => setOpen(false)} />
           <div
-            className="absolute right-0 top-6 z-50 bg-surface border border-line-strong rounded-lg p-2 shadow-2xl"
+            className="absolute right-0 top-6 z-30 bg-canvas border border-canvas-line rounded-xl p-2 shadow-2xl"
             style={{ width: '130px' }}
           >
             {/* "No color" option */}
             <button
               type="button"
               onClick={() => onChange('')}
-              className={`w-full text-left text-xs mb-2 px-1 ${color === '' ? 'text-white' : 'text-ink-muted hover:text-white'}`}
+              className={`w-full text-left text-xs mb-2 px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${color === '' ? 'text-canvas-ink' : 'text-canvas-muted hover:text-canvas-ink'}`}
             >
               No color
             </button>
@@ -63,20 +63,20 @@ export function LabelColorPicker({ color, onChange, fallback }: LabelColorPicker
                   key={c}
                   type="button"
                   onClick={() => onChange(c)}
-                  className="w-6 h-6 rounded-full border-2 transition-all hover:scale-110"
+                  className="w-6 h-6 rounded-full border-2 transition-all hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                   style={{
                     backgroundColor: c,
-                    borderColor: c === color ? '#fff' : 'transparent',
+                    borderColor: c === color ? 'white' : 'transparent',
                   }}
                 />
               ))}
               <button
                 type="button"
                 onClick={() => customRef.current?.click()}
-                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs transition-colors ${
+                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
                   isCustom
                     ? 'border-white text-transparent'
-                    : 'border-dashed border-line-strong hover:border-gray-400 text-ink-muted hover:text-white'
+                    : 'border-dashed border-canvas-line hover:border-canvas-muted text-canvas-muted hover:text-canvas-ink'
                 }`}
                 style={isCustom ? { backgroundColor: color } : undefined}
                 title="Custom color"

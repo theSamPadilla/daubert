@@ -27,6 +27,8 @@ RUN useradd -r -u 1001 -g users -m -d /home/nodeapp nodeapp
 # Copy node_modules from builder (includes compiled native addons like isolated-vm)
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+# Public assets (logo, favicon) served via useStaticAssets at runtime.
+COPY --from=builder /app/public ./public
 COPY package*.json ./
 RUN npm prune --omit=dev --legacy-peer-deps && npm cache clean --force
 

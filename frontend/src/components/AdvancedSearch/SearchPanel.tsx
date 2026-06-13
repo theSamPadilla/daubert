@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FaXmark, FaMagnifyingGlass, FaChevronDown, FaChevronRight } from 'react-icons/fa6';
+import { IconButton } from '@/components/ui';
 import { apiClient } from '@/lib/api-client';
 import type { components } from '../../generated/api-types';
 import { Investigation } from '../../types/investigation';
@@ -61,6 +62,9 @@ function datetimeToUnix(value: string): number | undefined {
 function isPickerFilled(v: PickerValue): boolean {
   return !!(v.traceId || v.groupId || (v.wallets && v.wallets.length >= 1));
 }
+
+const inputClass =
+  'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
 
 export function SearchPanel({ investigation, selectedTraceId, open, onClose }: Props) {
   const initialChain = useMemo(() => defaultChainFor(investigation), [investigation]);
@@ -194,27 +198,26 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-surface-panel border border-line-strong rounded-xl shadow-2xl w-[1100px] max-w-[95vw] max-h-[85vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-[2px]">
+      <div className="bg-surface rounded-xl border border-line shadow-[0_24px_60px_-30px_rgba(11,18,32,0.25)] w-[1100px] max-w-[95vw] max-h-[85vh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line-strong shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line shrink-0">
           <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">
+            <span className="text-[15px] font-medium text-ink">
               Find transactions between wallets
             </span>
             <span className="text-[11px] text-ink-faint truncate">
               {investigation.name || 'Untitled investigation'}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="text-ink-faint hover:text-ink transition-colors shrink-0 ml-3"
+          <IconButton
             aria-label="Close"
+            onClick={handleClose}
+            className="shrink-0 ml-3"
           >
             <FaXmark className="w-4 h-4" />
-          </button>
+          </IconButton>
         </div>
 
         {/* Body */}
@@ -255,11 +258,11 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
           </div>
 
           {/* Advanced (collapsible) — time range */}
-          <div className="border border-line-strong rounded-lg overflow-hidden">
+          <div className="border border-line rounded-lg overflow-hidden">
             <button
               type="button"
               onClick={() => setAdvancedOpen((v) => !v)}
-              className="flex items-center gap-2 w-full px-3 py-2 bg-surface-panel text-xs font-semibold text-ink-muted uppercase tracking-wider hover:bg-surface-raised/40 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 bg-surface text-xs font-semibold text-ink-muted uppercase tracking-wider hover:bg-surface-raised transition-colors"
             >
               {advancedOpen ? (
                 <FaChevronDown className="w-3 h-3" />
@@ -270,7 +273,7 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
             </button>
 
             {advancedOpen && (
-              <div className="grid grid-cols-2 gap-3 px-3 py-3 border-t border-line-strong">
+              <div className="grid grid-cols-2 gap-3 px-3 py-3 border-t border-line">
                 <div>
                   <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
                     Start
@@ -280,7 +283,7 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
                     value={startDt}
                     onChange={(e) => handleStartDt(e.target.value)}
                     max={endDt || undefined}
-                    className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
+                    className={inputClass}
                   />
                 </div>
                 <div>
@@ -292,7 +295,7 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
                     value={endDt}
                     onChange={(e) => handleEndDt(e.target.value)}
                     min={startDt || undefined}
-                    className="w-full bg-surface border border-line-strong rounded px-2.5 py-1.5 text-sm"
+                    className={inputClass}
                   />
                 </div>
               </div>
@@ -301,14 +304,14 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
 
           {/* Error banner */}
           {error && (
-            <div className="px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
+            <div className="px-3 py-2 bg-redline/10 border border-redline/40 rounded-lg text-xs text-redline">
               {error}
             </div>
           )}
 
           {/* Partial-failure warning banner */}
           {failedAddresses.length > 0 && (
-            <div className="px-3 py-2 bg-amber-900/30 border border-amber-600/50 rounded text-xs text-amber-400">
+            <div className="px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-700">
               {(() => {
                 const shown = failedAddresses.slice(0, 3);
                 const rest = failedAddresses.length - shown.length;
@@ -361,7 +364,7 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-line-strong shrink-0">
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-line shrink-0">
           <p className="text-[11px] text-ink-faint flex-1">
             Direct on-chain transfers only. Contract-internal calls are not searched.
           </p>
@@ -369,7 +372,7 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
             <button
               type="button"
               onClick={handleClose}
-              className="px-4 py-1.5 bg-surface-raised hover:bg-surface-raised/80 rounded text-sm transition-colors"
+              className="px-4 py-1.5 bg-surface text-ink-muted border border-line-strong hover:bg-surface-raised rounded-lg text-sm transition-colors"
             >
               Cancel
             </button>
@@ -377,7 +380,7 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
               type="button"
               onClick={handleSearch}
               disabled={!canSearch}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-semibold transition-colors"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-brand text-white hover:bg-brand-strong disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold transition-colors"
             >
               {loading ? (
                 <>

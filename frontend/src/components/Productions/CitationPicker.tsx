@@ -18,7 +18,7 @@ export function CitationPicker({ onInsert, onClose }: CitationPickerProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40">
       <div className="bg-surface-panel border border-line-strong rounded-lg shadow-xl w-96 p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-ink">Insert Citation</h3>

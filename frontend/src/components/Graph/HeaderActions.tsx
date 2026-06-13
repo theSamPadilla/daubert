@@ -9,7 +9,7 @@ export function EditDeleteActions({ onEdit, onDelete }: { onEdit: () => void; on
   const [confirmDelete, setConfirmDelete] = useState(false);
   return (
     <div className="flex items-center gap-2">
-      <button onClick={onEdit} title="Edit" className="text-ink-faint hover:text-ink-muted transition-colors">
+      <button onClick={onEdit} title="Edit" className="text-canvas-muted hover:text-canvas-ink transition-colors">
         <FaPenToSquare size={13} />
       </button>
       {confirmDelete ? (
@@ -18,12 +18,12 @@ export function EditDeleteActions({ onEdit, onDelete }: { onEdit: () => void; on
             className="text-[10px] px-1.5 py-0.5 bg-red-600 hover:bg-red-500 rounded text-white">
             Delete
           </button>
-          <button onClick={() => setConfirmDelete(false)} className="text-[10px] text-ink-muted hover:text-white">
+          <button onClick={() => setConfirmDelete(false)} className="text-[10px] text-canvas-muted hover:text-canvas-ink">
             Cancel
           </button>
         </div>
       ) : (
-        <button onClick={() => setConfirmDelete(true)} title="Delete" className="text-ink-faint hover:text-red-400 transition-colors">
+        <button onClick={() => setConfirmDelete(true)} title="Delete" className="text-canvas-muted hover:text-red-400 transition-colors">
           <FaTrash size={13} />
         </button>
       )}

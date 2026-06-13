@@ -84,7 +84,7 @@ function HeroLogo() {
         <circle cx="100" cy="100" r="78" stroke="currentColor" strokeWidth="1" strokeDasharray="1 5" />
       </svg>
       <Image
-        src="/logo-light.png"
+        src="/logo.png"
         alt="Daubert AI"
         width={340}
         height={340}
@@ -176,7 +176,7 @@ function LoginPageContent() {
         <HeroLogo />
 
         <div className="text-center space-y-4">
-          <h1 className="text-6xl font-bold tracking-tight text-white">
+          <h1 className="text-6xl font-bold tracking-tight text-ink">
             Daubert AI
           </h1>
           <p className="text-ink-muted text-lg max-w-md mx-auto leading-relaxed">
@@ -186,8 +186,8 @@ function LoginPageContent() {
 
         <div className="w-full max-w-sm space-y-6">
           {noAccount ? (
-            <div className="bg-red-900/30 border border-red-700/60 rounded-lg p-5 text-center">
-              <p className="text-red-300 text-base">
+            <div className="bg-redline/10 border border-redline/30 rounded-lg p-5 text-center">
+              <p className="text-redline text-base">
                 No account found for {getFirebaseAuth().currentUser?.email}.
               </p>
               <button
@@ -207,7 +207,7 @@ function LoginPageContent() {
                   await signOut();
                   window.location.reload();
                 }}
-                className="mt-4 ml-3 text-sm text-ink-muted hover:text-white underline"
+                className="mt-4 ml-3 text-sm text-ink-muted hover:text-ink underline"
               >
                 Sign in with a different account
               </button>
@@ -267,8 +267,8 @@ function LoginPageContent() {
           )}
 
           {error && (
-            <div className="bg-red-900/30 border border-red-700/60 rounded-lg p-4 text-center">
-              <p className="text-red-300 text-sm leading-relaxed">{error}</p>
+            <div className="bg-redline/10 border border-redline/30 rounded-lg p-4 text-center">
+              <p className="text-redline text-sm leading-relaxed">{error}</p>
             </div>
           )}
         </div>

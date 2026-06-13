@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import type { components } from '@/generated/api-types';
 import { Loader } from '@/components/Common/Loader';
+import { Kicker, Panel, Select } from '@/components/ui';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -36,33 +37,20 @@ const fmtPct = (n: number | null | undefined): string => {
 
 // ─── Shared style constants ───────────────────────────────────────────────────
 
-const panelClass =
-  'relative overflow-hidden rounded-xl border border-line-strong/60 bg-surface-panel shadow-[0_2px_12px_rgba(0,0,0,0.35)]';
-
-const panelShine =
-  'pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent';
-
-const sectionLabel =
-  'mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint';
-
 const thClass =
-  'px-4 py-3 text-left text-xs text-ink-faint uppercase tracking-wider';
+  'px-4 py-3 text-left font-mono text-[11px] uppercase tracking-wider text-ink-faint';
 
 const tdClass = 'px-4 py-3 text-sm';
-
-const errorBox =
-  'rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300';
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 
 function SectionPanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-8">
-      <p className={sectionLabel}>{title}</p>
-      <div className={panelClass}>
-        <div className={panelShine} />
+      <p className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-faint">{title}</p>
+      <Panel className="overflow-hidden">
         {children}
-      </div>
+      </Panel>
     </div>
   );
 }
@@ -78,18 +66,21 @@ function SectionLoading() {
 }
 
 function SectionError({ msg }: { msg: string }) {
-  return <div className={`m-4 ${errorBox}`}>{msg}</div>;
+  return (
+    <div className="m-4 rounded-lg border border-redline/40 bg-redline/10 p-3 text-sm text-redline">
+      {msg}
+    </div>
+  );
 }
 
 // ─── Hero KPI card ────────────────────────────────────────────────────────────
 
 function KpiCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className={`${panelClass} p-5`}>
-      <div className={panelShine} />
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint mb-1">{label}</p>
-      <p className="text-2xl font-bold tracking-tight text-white">{value}</p>
-    </div>
+    <Panel padded>
+      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-faint mb-1">{label}</p>
+      <p className="text-2xl font-bold tracking-tight text-ink">{value}</p>
+    </Panel>
   );
 }
 
@@ -183,7 +174,7 @@ function OrgModelMatrix({ rows }: { rows: TokenUsageOrgModelMatrixRow[] }) {
     <div className="overflow-x-auto">
       <table className="w-full min-w-max">
         <thead>
-          <tr className="bg-surface/40">
+          <tr className="border-b border-line">
             <th className={`${thClass} min-w-[140px]`}>Org</th>
             {models.map((m) => (
               <th key={m} className={`${thClass} text-right`}>
@@ -194,8 +185,8 @@ function OrgModelMatrix({ rows }: { rows: TokenUsageOrgModelMatrixRow[] }) {
         </thead>
         <tbody>
           {orgEntries.map(([orgId, orgName]) => (
-            <tr key={orgId} className="border-t border-line-strong/40 hover:bg-white/[0.02] transition-colors">
-              <td className={`${tdClass} font-medium text-white`}>{orgName}</td>
+            <tr key={orgId} className="border-b border-line hover:bg-surface-panel transition-colors">
+              <td className={`${tdClass} font-medium text-ink`}>{orgName}</td>
               {models.map((m) => {
                 const cost = lookup.get(`${orgId}::${m}`);
                 return (
@@ -335,13 +326,8 @@ export default function SuperadminTokenUsagePage() {
       {/* Page header */}
       <div className="mb-10 flex items-start justify-between gap-6">
         <div>
-          <div className="flex items-center gap-3">
-            <span className="h-px w-8 bg-gradient-to-r from-brand-ink to-transparent" />
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-ink">
-              Superadmin
-            </span>
-          </div>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight text-white">Token Usage</h2>
+          <Kicker className="mb-3 block">Superadmin</Kicker>
+          <h2 className="mt-1 text-4xl font-bold tracking-tight text-ink">Token Usage</h2>
           <p className="mt-2 text-sm text-ink-muted">
             API spend and cache analytics across all orgs.
           </p>
@@ -349,15 +335,15 @@ export default function SuperadminTokenUsagePage() {
 
         {/* Window selector */}
         <div className="shrink-0 mt-1">
-          <select
+          <Select
             value={days}
             onChange={(e) => setDays(Number(e.target.value) as DaysWindow)}
-            className="rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-white focus:outline-none focus:border-brand transition-colors"
+            className="w-40"
           >
             <option value={7}>Last 7 days</option>
             <option value={30}>Last 30 days</option>
             <option value={90}>Last 90 days</option>
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -367,7 +353,9 @@ export default function SuperadminTokenUsagePage() {
           <Loader inline />
         </div>
       ) : overviewError ? (
-        <div className={`mb-8 ${errorBox}`}>{overviewError}</div>
+        <div className="mb-8 rounded-lg border border-redline/40 bg-redline/10 p-3 text-sm text-redline">
+          {overviewError}
+        </div>
       ) : overview ? (
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard label="Total Cost" value={fmtCost(overview.totalCost)} />
@@ -399,7 +387,7 @@ export default function SuperadminTokenUsagePage() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="bg-surface/40">
+              <tr className="border-b border-line">
                 <th className={`${thClass} w-10`}>#</th>
                 <th className={thClass}>Organization</th>
                 <th className={`${thClass} text-right`}>Calls</th>
@@ -409,9 +397,9 @@ export default function SuperadminTokenUsagePage() {
             </thead>
             <tbody>
               {byOrg.map((row, i) => (
-                <tr key={row.orgId} className="border-t border-line-strong/40 hover:bg-white/[0.02] transition-colors">
+                <tr key={row.orgId} className="border-b border-line hover:bg-surface-panel transition-colors">
                   <td className={`${tdClass} text-ink-faint`}>{i + 1}</td>
-                  <td className={`${tdClass} font-medium text-white`}>{row.orgName}</td>
+                  <td className={`${tdClass} font-medium text-ink`}>{row.orgName}</td>
                   <td className={`${tdClass} text-right text-ink-muted`}>{fmtTokens(row.calls)}</td>
                   <td className={`${tdClass} text-right text-ink-muted`}>{fmtTokens(row.totalTokens)}</td>
                   <td className={`${tdClass} text-right text-ink-muted`}>{fmtCost(row.cost)}</td>
@@ -433,7 +421,7 @@ export default function SuperadminTokenUsagePage() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="bg-surface/40">
+              <tr className="border-b border-line">
                 <th className={`${thClass} w-10`}>#</th>
                 <th className={thClass}>Email</th>
                 <th className={thClass}>Org</th>
@@ -443,9 +431,9 @@ export default function SuperadminTokenUsagePage() {
             </thead>
             <tbody>
               {byUser.map((row, i) => (
-                <tr key={row.userId} className="border-t border-line-strong/40 hover:bg-white/[0.02] transition-colors">
+                <tr key={row.userId} className="border-b border-line hover:bg-surface-panel transition-colors">
                   <td className={`${tdClass} text-ink-faint`}>{i + 1}</td>
-                  <td className={`${tdClass} font-medium text-white`}>{row.email}</td>
+                  <td className={`${tdClass} font-medium text-ink`}>{row.email}</td>
                   <td className={`${tdClass} text-ink-muted`}>{row.orgName ?? '—'}</td>
                   <td className={`${tdClass} text-right text-ink-muted`}>{fmtTokens(row.calls)}</td>
                   <td className={`${tdClass} text-right text-ink-muted`}>{fmtCost(row.cost)}</td>
@@ -467,7 +455,7 @@ export default function SuperadminTokenUsagePage() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="bg-surface/40">
+              <tr className="border-b border-line">
                 <th className={`${thClass} w-10`}>#</th>
                 <th className={thClass}>Case</th>
                 <th className={thClass}>Org</th>
@@ -477,9 +465,9 @@ export default function SuperadminTokenUsagePage() {
             </thead>
             <tbody>
               {byCase.map((row, i) => (
-                <tr key={row.caseId} className="border-t border-line-strong/40 hover:bg-white/[0.02] transition-colors">
+                <tr key={row.caseId} className="border-b border-line hover:bg-surface-panel transition-colors">
                   <td className={`${tdClass} text-ink-faint`}>{i + 1}</td>
-                  <td className={`${tdClass} font-medium text-white`}>{row.caseName}</td>
+                  <td className={`${tdClass} font-medium text-ink`}>{row.caseName}</td>
                   <td className={`${tdClass} text-ink-muted`}>{row.orgName ?? '—'}</td>
                   <td className={`${tdClass} text-right text-ink-muted`}>{fmtTokens(row.calls)}</td>
                   <td className={`${tdClass} text-right text-ink-muted`}>{fmtCost(row.cost)}</td>
@@ -512,7 +500,7 @@ export default function SuperadminTokenUsagePage() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="bg-surface/40">
+              <tr className="border-b border-line">
                 <th className={`${thClass} w-10`}>#</th>
                 <th className={thClass}>Title</th>
                 <th className={thClass}>Case</th>
@@ -523,9 +511,9 @@ export default function SuperadminTokenUsagePage() {
             </thead>
             <tbody>
               {byConversation.map((row, i) => (
-                <tr key={row.conversationId} className="border-t border-line-strong/40 hover:bg-white/[0.02] transition-colors">
+                <tr key={row.conversationId} className="border-b border-line hover:bg-surface-panel transition-colors">
                   <td className={`${tdClass} text-ink-faint`}>{i + 1}</td>
-                  <td className={`${tdClass} font-medium text-white`}>
+                  <td className={`${tdClass} font-medium text-ink`}>
                     {row.title ?? <span className="text-ink-faint italic">(untitled)</span>}
                   </td>
                   <td className={`${tdClass} text-ink-muted`}>{row.caseName ?? '—'}</td>

@@ -11,25 +11,19 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <RequireOrgRole minRole="member">
-        <div className="relative min-h-screen bg-surface text-white overflow-hidden">
-          {/* faint grid overlay — adds texture without competing with content */}
-          <div className="pointer-events-none absolute inset-0 bg-grid-faint -z-10" />
-          <div className="pointer-events-none absolute -right-32 top-16 -z-10 opacity-[0.06] select-none">
-            <Image src="/logo-light.png" alt="" width={720} height={720} priority />
-          </div>
-
+        <div className="relative min-h-screen bg-surface-panel text-ink overflow-hidden">
           {/* Header */}
-          <header className="relative z-10 bg-surface-panel/70 backdrop-blur-md border-b border-line/60 h-14 px-5 flex items-center justify-between shrink-0">
+          <header className="relative z-10 bg-surface border-b border-line h-14 px-5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
                 <Image
-                  src="/logo-light.png"
+                  src="/logo.png"
                   alt="Daubert"
                   width={26}
                   height={26}
                   priority
                 />
-                <h1 className="text-base font-semibold tracking-tight text-white">Daubert</h1>
+                <h1 className="text-base font-semibold tracking-tight text-ink">Daubert</h1>
               </Link>
               <OrgSwitcher />
             </div>

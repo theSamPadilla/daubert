@@ -10,21 +10,21 @@ export function EdgeBatchPanel({ count, onBundle, onDeselect }: EdgeBatchPanelPr
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-ink">{count} edges selected</span>
-        <button onClick={onDeselect} className="text-xs text-ink-muted hover:text-ink">
+        <span className="text-sm font-semibold text-canvas-ink">{count} edges selected</span>
+        <button onClick={onDeselect} className="text-xs text-canvas-muted hover:text-canvas-ink">
           Deselect
         </button>
       </div>
 
-      <div className="pt-1 border-t border-line-strong space-y-2">
-        <h4 className="text-xs font-semibold text-ink-faint uppercase mb-3">Organize</h4>
+      <div className="pt-1 border-t border-canvas-line space-y-2">
+        <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-3">Organize</h4>
 
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
           <div className="flex items-center gap-2">
             <FaCodeBranch size={12} className="text-amber-400 shrink-0" />
             <span className="text-xs font-semibold text-amber-300">Bundle edges</span>
           </div>
-          <p className="text-[10px] text-ink-muted leading-relaxed">
+          <p className="text-[10px] text-canvas-muted leading-relaxed">
             Group edges by direction and token. Each direction&thinsp;&times;&thinsp;token pair
             collapses into one edge showing the total amount and transaction count.
           </p>

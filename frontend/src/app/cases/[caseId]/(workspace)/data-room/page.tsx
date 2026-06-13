@@ -33,6 +33,7 @@ import {
 } from '@/lib/api-client';
 import { pickDriveFiles, pickDriveFolderForExport } from '@/lib/google-picker';
 import { Loader } from '@/components/Common/Loader';
+import { Button } from '@/components/ui';
 import { PageHeader } from '@/components/Common/PageHeader';
 import UserMenu from '@/components/Auth/UserMenu';
 import { useConfirm } from '@/components/Common/ConfirmProvider';
@@ -216,7 +217,7 @@ export default function DataRoomPage() {
       title: 'Delete file?',
       message: (
         <>
-          Delete <span className="text-white">{file.name}</span>. This cannot be undone.
+          Delete <span className="font-medium text-ink">{file.name}</span>. This cannot be undone.
         </>
       ),
       confirmLabel: 'Delete',
@@ -298,7 +299,7 @@ export default function DataRoomPage() {
       title: 'Delete folder?',
       message: (
         <>
-          Delete folder <span className="text-white">{folder.name}</span> and everything inside it.
+          Delete folder <span className="font-medium text-ink">{folder.name}</span> and everything inside it.
           This permanently deletes all files and subfolders within and cannot be undone.
         </>
       ),
@@ -355,17 +356,17 @@ export default function DataRoomPage() {
     <div className="flex-1 flex flex-col overflow-hidden">
       <PageHeader
         title="Data Room"
-        rightContent={<UserMenu variant="light" />}
+        rightContent={<UserMenu />}
       />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-6xl mx-auto">
           {/* Error banner */}
           {error && (
-            <div className="mb-4 p-3 rounded bg-red-900/40 border border-red-800/60 text-red-200 text-sm flex items-center justify-between">
+            <div className="mb-4 p-3 rounded-lg bg-redline/10 border border-redline/30 text-redline text-sm flex items-center justify-between">
               <span>{error}</span>
               <button
                 onClick={() => setError(null)}
-                className="text-red-300 hover:text-red-100 text-xs"
+                className="text-redline/80 hover:text-redline text-xs"
               >
                 Dismiss
               </button>
@@ -417,34 +418,36 @@ export default function DataRoomPage() {
                     onChange={handleUploadFile}
                     className="hidden"
                   />
-                  <button
+                  <Button
+                    size="sm"
                     onClick={handleUploadClick}
                     disabled={uploadingName !== null || importing}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium bg-brand hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-sm shadow-brand/30"
                   >
                     <FaCloudArrowUp className="w-3.5 h-3.5" /> Upload file
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={handleImportFromDrive}
                     disabled={uploadingName !== null || importing}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium border border-line-strong bg-surface-panel text-ink hover:bg-surface-raised disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <FaGoogle className="w-3.5 h-3.5" /> Add from Google Drive
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={handleCreateFolder}
                     disabled={uploadingName !== null || importing}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium border border-line-strong bg-surface-panel text-ink hover:bg-surface-raised disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <FaFolderPlus className="w-3.5 h-3.5" /> New folder
-                  </button>
+                  </Button>
                   <p className="text-xs text-ink-faint ml-auto">Max 50MB per upload.</p>
                 </div>
               )}
 
               {/* Upload progress */}
               {uploadingName && uploadProgress && (
-                <div className="mb-4 p-3 rounded bg-surface-panel border border-line-strong">
+                <div className="mb-4 p-3 rounded-lg bg-surface-panel border border-line">
                   <div className="flex items-center justify-between mb-2 text-sm">
                     <span className="text-ink-muted truncate">Uploading {uploadingName}</span>
                     <span className="text-ink-muted ml-2 shrink-0">
@@ -452,9 +455,9 @@ export default function DataRoomPage() {
                       {formatBytes(String(uploadProgress.total))}
                     </span>
                   </div>
-                  <div className="h-1.5 bg-surface-raised rounded overflow-hidden">
+                  <div className="h-1.5 bg-surface-raised rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-blue-500 transition-all"
+                      className="h-full bg-brand transition-all"
                       style={{
                         width: uploadProgress.total
                           ? `${Math.min(100, (uploadProgress.loaded / uploadProgress.total) * 100)}%`
@@ -482,25 +485,27 @@ export default function DataRoomPage() {
                 <>
                   {/* Multi-select action bar — appears once one or more files are selected. */}
                   {selectedFileIds.size > 0 && (
-                    <div className="mb-3 flex items-center gap-2.5 rounded-md border border-line-strong bg-surface-panel px-3.5 py-2">
+                    <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-line bg-surface-panel px-3.5 py-2">
                       <span className="text-sm text-ink-muted">
                         {selectedFileIds.size} selected
                       </span>
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => handleExportToDrive([...selectedFileIds])}
                         disabled={exporting}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium border border-line-strong bg-surface-raised text-ink hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <FaGoogle className="w-3.5 h-3.5" /> Save {selectedFileIds.size} to Google
                         Drive
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setSelectedFileIds(new Set())}
                         disabled={exporting}
-                        className="px-3 py-1.5 rounded-md text-sm text-ink-muted hover:text-ink hover:bg-surface-raised disabled:opacity-50 transition-colors"
                       >
                         Clear selection
-                      </button>
+                      </Button>
                     </div>
                   )}
 
@@ -555,7 +560,7 @@ export default function DataRoomPage() {
                               </span>
                             </div>
                             <div className="px-3 py-2.5 min-w-0">
-                              <div className="text-sm text-white truncate" title={folder.name}>
+                              <div className="text-sm text-ink truncate" title={folder.name}>
                                 {folder.name}
                               </div>
                               <div className="text-xs text-ink-faint truncate">Folder</div>
@@ -573,7 +578,7 @@ export default function DataRoomPage() {
                               </button>
                               <button
                                 onClick={() => handleDeleteFolder(folder)}
-                                className="p-1.5 rounded-md bg-surface/80 text-ink-faint hover:text-red-400 transition-colors"
+                                className="p-1.5 rounded-md bg-surface/80 text-ink-faint hover:text-redline transition-colors"
                                 title="Delete folder"
                                 aria-label="Delete folder"
                               >
@@ -607,7 +612,7 @@ export default function DataRoomPage() {
                               </span>
                             </div>
                             <div className="px-3 py-2.5 min-w-0">
-                              <div className="text-sm text-white truncate" title={file.name}>
+                              <div className="text-sm text-ink truncate" title={file.name}>
                                 {file.name}
                               </div>
                               <div className="text-xs text-ink-faint truncate">
@@ -645,7 +650,7 @@ export default function DataRoomPage() {
                               {canMutate && (
                                 <button
                                   onClick={() => handleDelete(file)}
-                                  className="p-1.5 rounded-md bg-surface/80 text-ink-faint hover:text-red-400 transition-colors"
+                                  className="p-1.5 rounded-md bg-surface/80 text-ink-faint hover:text-redline transition-colors"
                                   title="Delete"
                                   aria-label="Delete"
                                 >
@@ -680,7 +685,7 @@ export default function DataRoomPage() {
                                   <FaFolder className="w-4 h-4" />
                                 </span>
                                 <div className="min-w-0">
-                                  <div className="text-sm text-white truncate">{folder.name}</div>
+                                  <div className="text-sm text-ink truncate">{folder.name}</div>
                                   <div className="text-xs text-ink-faint">Folder</div>
                                 </div>
                               </button>
@@ -706,7 +711,7 @@ export default function DataRoomPage() {
                                 {canMutate && (
                                   <button
                                     onClick={() => handleDeleteFolder(folder)}
-                                    className="p-2 rounded-md text-ink-faint hover:text-red-400 hover:bg-surface-raised transition-colors"
+                                    className="p-2 rounded-md text-ink-faint hover:text-redline hover:bg-surface-raised transition-colors"
                                     title="Delete folder"
                                     aria-label="Delete folder"
                                   >
@@ -736,7 +741,7 @@ export default function DataRoomPage() {
                                     <Icon className="w-4 h-4" />
                                   </span>
                                   <div className="min-w-0">
-                                    <div className="text-sm text-white truncate">{file.name}</div>
+                                    <div className="text-sm text-ink truncate">{file.name}</div>
                                     <div className="text-xs text-ink-faint">{label}</div>
                                   </div>
                                 </div>
@@ -779,7 +784,7 @@ export default function DataRoomPage() {
                                   {canMutate && (
                                     <button
                                       onClick={() => handleDelete(file)}
-                                      className="p-2 rounded-md text-ink-faint hover:text-red-400 hover:bg-surface-raised transition-colors"
+                                      className="p-2 rounded-md text-ink-faint hover:text-redline hover:bg-surface-raised transition-colors"
                                       title="Delete"
                                       aria-label="Delete"
                                     >
@@ -805,7 +810,7 @@ export default function DataRoomPage() {
       {/* Move-to picker modal */}
       {moveTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
           onClick={() => {
             if (!moving) setMoveTarget(null);
           }}
@@ -837,13 +842,14 @@ export default function DataRoomPage() {
               ))}
             </ul>
             <div className="px-5 py-3 border-t border-line-strong/70 flex justify-end">
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setMoveTarget(null)}
                 disabled={moving}
-                className="px-3 py-1.5 rounded-md text-sm text-ink-muted hover:text-ink hover:bg-surface-raised disabled:opacity-50 transition-colors"
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         </div>

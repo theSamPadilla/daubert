@@ -1,4 +1,5 @@
 import { useState, KeyboardEvent } from 'react';
+import { FaXmark } from 'react-icons/fa6';
 
 interface TagInputProps {
   tags: string[];
@@ -31,19 +32,20 @@ export function TagInput({ tags, onChange, placeholder = 'Add tag...' }: TagInpu
   };
 
   return (
-    <div className="flex flex-wrap gap-1 p-1.5 bg-surface border border-line-strong rounded min-h-[34px]">
+    <div className="flex flex-wrap gap-1 p-1.5 bg-canvas-fill border border-canvas-line rounded-lg min-h-[34px]">
       {tags.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface-raised rounded text-xs"
+          className="inline-flex items-center gap-1 px-2 py-0.5 bg-canvas-fill border border-canvas-line text-canvas-ink rounded-full text-xs"
         >
           {tag}
           <button
             type="button"
             onClick={() => removeTag(tag)}
-            className="text-ink-muted hover:text-ink"
+            className="text-canvas-muted hover:text-canvas-ink transition-colors"
+            aria-label={`Remove tag ${tag}`}
           >
-            x
+            <FaXmark className="w-2.5 h-2.5" />
           </button>
         </span>
       ))}
@@ -54,7 +56,7 @@ export function TagInput({ tags, onChange, placeholder = 'Add tag...' }: TagInpu
         onKeyDown={handleKeyDown}
         onBlur={() => input.trim() && addTag(input)}
         placeholder={tags.length === 0 ? placeholder : ''}
-        className="flex-1 min-w-[60px] bg-transparent text-sm text-ink outline-none placeholder-ink-faint"
+        className="flex-1 min-w-[60px] bg-transparent text-sm text-canvas-ink outline-none placeholder:text-canvas-muted"
       />
     </div>
   );

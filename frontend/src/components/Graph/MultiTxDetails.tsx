@@ -111,7 +111,7 @@ export function MultiTxDetails({
     <div className="space-y-3">
       {/* Header row */}
       <div className="flex items-center gap-2">
-        <h4 className="text-xs font-semibold text-ink-muted uppercase">
+        <h4 className="text-xs font-semibold text-canvas-muted uppercase">
           {HEADER_LABELS[headerKind]}
         </h4>
         {tokenChip && (
@@ -135,11 +135,11 @@ export function MultiTxDetails({
               if (e.key === 'Escape') setEditingLabel(false);
             }}
             placeholder={staticTitle}
-            className="w-full bg-surface-raised/50 border border-brand rounded px-2 py-0.5 text-sm font-semibold text-ink placeholder-ink-faint focus:outline-none"
+            className="w-full bg-canvas-fill border border-brand rounded-lg px-2 py-0.5 text-sm font-semibold text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           />
         ) : (
           <p
-            className="text-sm font-semibold text-ink cursor-pointer hover:text-brand-ink transition-colors"
+            className="text-sm font-semibold text-canvas-ink cursor-pointer hover:text-accent transition-colors"
             onClick={() => setEditingLabel(true)}
             title="Click to rename"
           >
@@ -147,23 +147,23 @@ export function MultiTxDetails({
           </p>
         )
       ) : (
-        <p className="text-sm font-semibold text-ink">{staticTitle}</p>
+        <p className="text-sm font-semibold text-canvas-ink">{staticTitle}</p>
       )}
 
       {/* Totals card */}
-      <div className="bg-brand-soft rounded p-3 space-y-1">
+      <div className="bg-canvas-fill rounded-lg p-3 space-y-1">
         <div className="flex justify-between text-xs">
-          <span className="text-ink-muted">Total amount</span>
-          <span className="text-ink font-semibold">{totalSummary}</span>
+          <span className="text-canvas-muted">Total amount</span>
+          <span className="text-canvas-ink font-semibold">{totalSummary}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-ink-muted">Transactions</span>
-          <span className="text-ink">{edges.length}</span>
+          <span className="text-canvas-muted">Transactions</span>
+          <span className="text-canvas-ink">{edges.length}</span>
         </div>
         {oldest && newest && (
           <div className="flex justify-between text-xs">
-            <span className="text-ink-muted">Date span</span>
-            <span className="text-ink">
+            <span className="text-canvas-muted">Date span</span>
+            <span className="text-canvas-ink">
               {fmtDate(oldest)}
               {oldest.getTime() !== newest.getTime() ? ` — ${fmtDate(newest)}` : ''}
             </span>
@@ -174,7 +174,7 @@ export function MultiTxDetails({
       {/* Color picker (bundle only) */}
       {onColorChange && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Color</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Color</h4>
           <GroupColorPicker color={color} onChange={(c) => onColorChange(c ?? '')} />
         </div>
       )}
@@ -182,17 +182,17 @@ export function MultiTxDetails({
       {/* Thickness picker */}
       {onWidthChange && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Thickness</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Thickness</h4>
           <div className="flex gap-1.5">
             {THICKNESS_OPTIONS.map(({ value, label }) => (
               <button
                 key={value}
                 onClick={() => onWidthChange(value)}
                 title={label}
-                className={`flex-1 py-2 rounded transition-colors border flex items-center justify-center ${
+                className={`flex-1 py-2 rounded-lg transition-colors border flex items-center justify-center ${
                   currentWidth === value
                     ? 'border-brand bg-brand text-white'
-                    : 'border-line-strong text-ink-muted hover:border-line-strong hover:text-ink'
+                    : 'border-canvas-line text-canvas-muted hover:border-white/25 hover:text-canvas-ink'
                 }`}
               >
                 <span style={{ height: `${value}px` }} className="block w-6 rounded-full bg-current" />
@@ -205,8 +205,8 @@ export function MultiTxDetails({
       {/* Individual transactions */}
       {edges.length > 0 && (
         <div className="space-y-1">
-          <h5 className="text-[10px] font-semibold text-ink-faint uppercase">Transactions</h5>
-          <div className="max-h-40 overflow-y-auto overflow-x-hidden rounded bg-black/30 divide-y divide-line-strong/20 [scrollbar-width:thin]">
+          <h5 className="text-[10px] font-semibold text-canvas-muted uppercase">Transactions</h5>
+          <div className="max-h-40 overflow-y-auto overflow-x-hidden rounded-lg bg-canvas-fill divide-y divide-canvas-line [scrollbar-width:thin]">
             {edges.map((e) => {
               const tok = normalizeToken(e.token);
               const human =
@@ -219,7 +219,7 @@ export function MultiTxDetails({
               return (
                 <div
                   key={e.id}
-                  className="flex items-center justify-between text-[11px] text-ink-muted px-2 py-1.5 hover:bg-surface-raised/70 hover:text-ink transition-colors group"
+                  className="flex items-center justify-between text-[11px] text-canvas-muted px-2 py-1.5 hover:bg-canvas-fill hover:text-canvas-ink transition-colors group"
                 >
                   <HashTag
                     {...(explorerUrl
@@ -233,7 +233,7 @@ export function MultiTxDetails({
                     )}
                   </HashTag>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-ink">
+                    <span className="text-canvas-ink">
                       {abbr(human)} {tok.symbol}
                     </span>
                     {onDeleteTransaction && (
@@ -248,7 +248,7 @@ export function MultiTxDetails({
                           </button>
                           <button
                             onClick={() => setConfirmDeleteId(null)}
-                            className="p-1 rounded text-ink-faint hover:bg-surface-raised hover:text-ink transition-colors"
+                            className="p-1 rounded text-canvas-muted hover:bg-canvas-fill hover:text-canvas-ink transition-colors"
                             title="Cancel"
                           >
                             <FaXmark size={9} />
@@ -257,7 +257,7 @@ export function MultiTxDetails({
                       ) : (
                         <button
                           onClick={() => setConfirmDeleteId(e.id)}
-                          className="p-1 rounded text-ink-faint opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
+                          className="p-1 rounded text-canvas-muted opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
                           title="Delete transaction"
                         >
                           <FaTrash size={9} />
@@ -275,25 +275,25 @@ export function MultiTxDetails({
       {/* Arc controls */}
       {onArcEdge && (
         <div>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase mb-1">Arc</h4>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Arc</h4>
           <div className="flex items-center gap-2">
             <button
               onClick={() => onArcEdge(-40)}
-              className="flex-1 py-1 rounded text-sm border border-line-strong text-ink-muted hover:border-line-strong hover:text-ink transition-colors"
+              className="flex-1 py-1 rounded-lg text-sm border border-canvas-line text-canvas-muted hover:border-white/25 hover:text-canvas-ink transition-colors"
               title="Arc left"
             >
               ◁
             </button>
             <button
               onClick={() => onArcEdge(null)}
-              className="px-2 py-1 rounded text-xs border border-line-strong text-ink-faint hover:border-line-strong hover:text-ink-muted transition-colors"
+              className="px-2 py-1 rounded-lg text-xs border border-canvas-line text-canvas-muted hover:border-white/25 hover:text-canvas-ink transition-colors"
               title="Reset arc"
             >
               Reset
             </button>
             <button
               onClick={() => onArcEdge(40)}
-              className="flex-1 py-1 rounded text-sm border border-line-strong text-ink-muted hover:border-line-strong hover:text-ink transition-colors"
+              className="flex-1 py-1 rounded-lg text-sm border border-canvas-line text-canvas-muted hover:border-white/25 hover:text-canvas-ink transition-colors"
               title="Arc right"
             >
               ▷

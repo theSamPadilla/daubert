@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
+import Image from 'next/image';
 import { useInvestigationUrlSync } from '@/hooks/useInvestigationUrlSync';
 import { useInvestigationLoader } from '@/hooks/useInvestigationLoader';
 import { useSelectedItem } from '@/hooks/useSelectedItem';
@@ -18,6 +19,7 @@ import { ErrorModal } from '@/components/Common/ErrorModal';
 import { WorkspaceModals } from '@/components/Workspace/WorkspaceModals';
 import { WorkspaceEmptyState } from '@/components/Workspace/WorkspaceEmptyState';
 import { FaMagnifyingGlass, FaDownload } from 'react-icons/fa6';
+import { Button } from '@/components/ui';
 import { QuickAddInput } from '@/components/Graph/QuickAddInput';
 import { TransactionEdge, Trace } from '@/types/investigation';
 import { useInvestigation } from '@/hooks/useInvestigation';
@@ -227,16 +229,23 @@ function InvestigationsWorkspace() {
             eyebrow="Investigation"
             title={investigation.name || 'Daubert'}
             actions={
-              <button
-                onClick={() => setExportModalOpen(true)}
-                className="px-3 h-8 bg-white hover:bg-[#F1F4FA] border border-[#E5E7EB] hover:border-[#CFD4DD] text-[#5B6473] hover:text-[#0B1220] rounded-md text-xs font-medium transition-colors flex items-center gap-1.5"
-              >
+              <Button variant="secondary" size="sm" onClick={() => setExportModalOpen(true)}>
                 <FaDownload size={11} /> Export
-              </button>
+              </Button>
             }
-            rightContent={<UserMenu variant="light" />}
+            rightContent={<UserMenu />}
           />
-          <div className="flex-1 bg-surface relative overflow-hidden">
+          <div className="flex-1 bg-canvas relative overflow-hidden">
+            <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none">
+              <Image
+                src="/logo-light.png"
+                alt=""
+                width={480}
+                height={480}
+                priority={false}
+                className="opacity-[0.03] object-contain"
+              />
+            </div>
             {investigation && (
               <CanvasToolPill
                 onRefresh={reloadCurrent}

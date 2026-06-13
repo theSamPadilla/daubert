@@ -2,11 +2,13 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import * as express from 'express';
 import helmet from 'helmet';
+import * as path from 'path';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   // Disable NestJS's built-in body parser so ours (with a higher limit) wins
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
   // Trust exactly one upstream hop (Cloud Run's HTTP front-end). With this,
   // Express's req.ip reflects the IP that Cloud Run reports as the immediate
@@ -47,6 +49,18 @@ async function bootstrap() {
       allowedHeaders: ['Content-Type', 'Authorization'],
     });
   }
+
+  // Serve a small set of public assets (logo, favicon) so OAuth/MCP clients
+  // that look up the issuer's icon (e.g. Claude apps' Connectors panel) get
+  // the white-background Daubert mark, which legibly renders on dark UIs.
+  // Public dir lives next to package.json so it ships in both dev (`src/..`)
+  // and the production build (`dist/..`).
+  const publicDir = path.resolve(__dirname, '..', 'public');
+  app.useStaticAssets(publicDir, { prefix: '/public' });
+  // Also serve at the canonical root paths Claude tries first.
+  const adapter = app.getHttpAdapter().getInstance() as express.Express;
+  adapter.get('/favicon.ico', (_req, res) => res.sendFile(path.join(publicDir, 'favicon.png')));
+  adapter.get('/logo.png', (_req, res) => res.sendFile(path.join(publicDir, 'logo.png')));
 
   app.useGlobalPipes(
     new ValidationPipe({

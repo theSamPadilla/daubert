@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
+import Image from 'next/image';
 import { useInvestigationUrlSync } from '@/hooks/useInvestigationUrlSync';
 import { useInvestigationLoader } from '@/hooks/useInvestigationLoader';
 import { useSelectedItem } from '@/hooks/useSelectedItem';
@@ -234,7 +235,17 @@ function InvestigationsWorkspace() {
             }
             rightContent={<UserMenu />}
           />
-          <div className="flex-1 bg-canvas bg-grid-canvas relative overflow-hidden">
+          <div className="flex-1 bg-canvas relative overflow-hidden">
+            <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none">
+              <Image
+                src="/logo-light.png"
+                alt=""
+                width={480}
+                height={480}
+                priority={false}
+                className="opacity-[0.03] object-contain"
+              />
+            </div>
             {investigation && (
               <CanvasToolPill
                 onRefresh={reloadCurrent}

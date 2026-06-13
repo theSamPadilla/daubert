@@ -252,6 +252,13 @@ export class OAuthController {
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
       scopes_supported: ['daubert:agent'],
+      // Non-standard but widely-honored discovery hints for OAuth-aware
+      // clients (e.g. Claude apps' Connectors panel) so they render the
+      // white-background Daubert mark, not the dark-on-dark variant.
+      service_documentation: issuer,
+      op_policy_uri: issuer,
+      op_tos_uri: issuer,
+      logo_uri: `${issuer}/logo.png`,
     };
   }
 

@@ -114,7 +114,7 @@ export class OAuthConnectController {
       perSurfaceInstructions: {
         claudeApps: {
           steps: [
-            'Open Settings, then Connectors, in Claude Desktop, claude.ai, or Cowork.',
+            'In Claude Desktop, claude.ai, or Cowork, open Settings → Customize → Connectors.',
             'Scroll past the partner Directory and click the "+" (Add custom connector) button.',
             'Name it "Daubert" and paste the MCP server URL above.',
             'Leave Advanced settings empty. Daubert supports Dynamic Client Registration, so no client ID is needed.',

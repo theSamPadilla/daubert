@@ -516,6 +516,11 @@ describe('OAuthController', () => {
       expect(result.token_endpoint_auth_methods_supported).toEqual(['none']);
       expect(result.scopes_supported).toEqual(['daubert:agent']);
     });
+
+    it('advertises a logo_uri so OAuth-aware clients render Daubert branding', () => {
+      const result = controller.authorizationServerMetadata();
+      expect(result.logo_uri).toBe(`${ISSUER}/logo.png`);
+    });
   });
 
   // =========================================================================

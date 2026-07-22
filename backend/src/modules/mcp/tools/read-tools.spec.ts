@@ -1,11 +1,13 @@
 /**
  * ReadToolsService unit tests.
  *
- * Four tools under test:
+ * Six tools under test:
  *   - get_case_data         — aggregates investigations, productions, data-room manifest.
  *   - read_production       — delegates to ProductionsService, with optional productionId/type.
  *   - query_labeled_entities — dispatches to LabeledEntitiesService (no case scope).
  *   - get_skill             — reads a skill file from the registry by name.
+ *   - get_declarants        — dispatches to DeclarantsService (no case scope).
+ *   - get_declaration_library — dispatches to DeclarationLibraryService (no case scope).
  *
  * Same harness pattern as navigate-tools.spec:
  *   - Build a real McpServer and register handlers via ReadToolsService.registerAll().
@@ -55,6 +57,8 @@ function buildService(overrides: {
   productions?: any;
   dataRoom?: any;
   labeledEntities?: any;
+  declarantsService?: any;
+  declarationLibraryService?: any;
 } = {}) {
   const caseAccess = {
     assertRole: jest.fn().mockResolvedValue({ id: 'm-1', userId: USER_ID, caseId: CASE_ID, role: 'viewer' }),
@@ -83,17 +87,38 @@ function buildService(overrides: {
     ...overrides.labeledEntities,
   };
 
+  const declarantsService = {
+    listForOrg: jest.fn().mockResolvedValue([]),
+    ...overrides.declarantsService,
+  };
+
+  const declarationLibraryService = {
+    listForOrg: jest.fn().mockResolvedValue([]),
+    ...overrides.declarationLibraryService,
+  };
+
   const service = new ReadToolsService(
     caseAccess,
     investigationRepo,
     productions,
     dataRoom,
     labeledEntities,
+    declarantsService,
+    declarationLibraryService,
   );
   const server = new McpServer({ name: 'test-mcp', version: '0.0.1' });
   service.registerAll(server, AUTH);
 
-  return { server, caseAccess, investigationRepo, productions, dataRoom, labeledEntities };
+  return {
+    server,
+    caseAccess,
+    investigationRepo,
+    productions,
+    dataRoom,
+    labeledEntities,
+    declarantsService,
+    declarationLibraryService,
+  };
 }
 
 async function callTool(
@@ -308,6 +333,78 @@ describe('ReadToolsService', () => {
       expect(result.isError).toBeUndefined();
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed).toHaveProperty('error');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // get_declarants
+  // -------------------------------------------------------------------------
+
+  describe('get_declarants', () => {
+    it('lists declarants for the session org, projected like the built-in agent', async () => {
+      const listForOrg = jest.fn().mockResolvedValue([
+        {
+          id: 'd1', displayName: 'Dr. Jane Smith', title: 'Forensic Accountant',
+          firm: 'Smith LLC', qualifications: [{ id: 'q1', text: 'Qualified.', subItems: [], exhibitIds: [], footnotes: [] }],
+          cvExhibit: null, priorTestimony: [], hourlyRate: '$500/hour',
+          nonContingencyDisclosure: null, dateOfBirth: null, address: null,
+          userId: null, organizationId: ORG_ID, createdAt: new Date(), updatedAt: new Date(),
+        },
+      ]);
+      const { server } = buildService({ declarantsService: { listForOrg } });
+      const result = await callTool(server, 'get_declarants', {});
+      expect(listForOrg).toHaveBeenCalledWith(ORG_ID);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.declarants).toHaveLength(1);
+      expect(payload.declarants[0]).toMatchObject({ id: 'd1', displayName: 'Dr. Jane Smith' });
+      expect(payload.declarants[0].organizationId).toBeUndefined(); // dropped from projection
+    });
+
+    it('does NOT require a case (no assertRole called)', async () => {
+      const assertRole = jest.fn();
+      const { server } = buildService({ caseAccess: { assertRole } });
+      await callTool(server, 'get_declarants', {});
+      expect(assertRole).not.toHaveBeenCalled();
+    });
+
+    it('returns errorResult on service failure', async () => {
+      const listForOrg = jest.fn().mockRejectedValue(new Error('db down'));
+      const { server } = buildService({ declarantsService: { listForOrg } });
+      const result = await callTool(server, 'get_declarants', {});
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // get_declaration_library
+  // -------------------------------------------------------------------------
+
+  describe('get_declaration_library', () => {
+    it('lists boilerplate blocks for the session org', async () => {
+      const listForOrg = jest.fn().mockResolvedValue([
+        { id: 'b1', kind: 'boilerplate', name: 'Chain primer', category: 'primer',
+          content: { paragraphs: [] }, organizationId: ORG_ID, createdAt: new Date(), updatedAt: new Date() },
+      ]);
+      const { server } = buildService({ declarationLibraryService: { listForOrg } });
+      const result = await callTool(server, 'get_declaration_library', {});
+      expect(listForOrg).toHaveBeenCalledWith(ORG_ID, undefined);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.blocks[0]).toMatchObject({ id: 'b1', kind: 'boilerplate', name: 'Chain primer' });
+      expect(payload.blocks[0].organizationId).toBeUndefined();
+    });
+
+    it('passes the kind filter through', async () => {
+      const listForOrg = jest.fn().mockResolvedValue([]);
+      const { server } = buildService({ declarationLibraryService: { listForOrg } });
+      await callTool(server, 'get_declaration_library', { kind: 'boilerplate' });
+      expect(listForOrg).toHaveBeenCalledWith(ORG_ID, 'boilerplate');
+    });
+
+    it('does NOT require a case (no assertRole called)', async () => {
+      const assertRole = jest.fn();
+      const { server } = buildService({ caseAccess: { assertRole } });
+      await callTool(server, 'get_declaration_library', {});
+      expect(assertRole).not.toHaveBeenCalled();
     });
   });
 });

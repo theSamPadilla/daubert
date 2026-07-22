@@ -1,5 +1,5 @@
 /**
- * ReadToolsService — four read-only MCP tools for the BYOA MCP session.
+ * ReadToolsService — six read-only MCP tools for the BYOA MCP session.
  *
  *   - get_case_data           → aggregated case overview (investigations,
  *                               productions summary, data-room manifest).
@@ -7,6 +7,9 @@
  *   - query_labeled_entities  → address lookup or filtered search across the
  *                               shared labeled-entity catalog (no case scope).
  *   - get_skill               → read a skill document by name from the registry.
+ *   - get_declarants          → org-wide list of saved declarants (no case scope).
+ *   - get_declaration_library → org-wide list of boilerplate declaration
+ *                               blocks, optionally filtered by kind (no case scope).
  *
  * Pattern mirrors NavigateToolsService (Task 12):
  *   - `server.registerTool(name, { description, inputSchema }, handler)`.
@@ -34,7 +37,10 @@ import { ProductionType } from '../../../database/entities/production.entity';
 import { DataRoomService } from '../../data-room/data-room.service';
 import { LabeledEntitiesService } from '../../labeled-entities/labeled-entities.service';
 import { EntityCategory } from '../../../database/entities/labeled-entity.entity';
-import { getSkillContent } from '../../../skills/skill-registry';
+import { DeclarantsService } from '../../declarants/declarants.service';
+import { DeclarationLibraryService } from '../../declaration-library/declaration-library.service';
+import { DeclarationLibraryBlockKind } from '../../../database/entities/declaration-library-block.entity';
+import { getSkillContent, SKILL_REGISTRY } from '../../../skills/skill-registry';
 import { AuthSuccess } from '../mcp-auth.helper';
 import { errorResult, textResult } from './tool-utils';
 
@@ -49,6 +55,8 @@ export class ReadToolsService {
     private readonly productionsService: ProductionsService,
     private readonly dataRoomService: DataRoomService,
     private readonly labeledEntitiesService: LabeledEntitiesService,
+    private readonly declarantsService: DeclarantsService,
+    private readonly declarationLibraryService: DeclarationLibraryService,
   ) {}
 
   /**
@@ -57,6 +65,7 @@ export class ReadToolsService {
    */
   registerAll(server: McpServer, auth: AuthSuccess): void {
     const { principal } = auth;
+    const skillNames = SKILL_REGISTRY.map((s) => s.name).join(', ');
 
     // -----------------------------------------------------------------------
     // get_case_data — aggregated case overview.
@@ -218,17 +227,92 @@ export class ReadToolsService {
     server.registerTool(
       'get_skill',
       {
-        description:
-          'Read a skill document by name. Valid names include: etherscan-apis, graph-mutations, product-knowledge, productions, tronscan-apis.',
+        description: `Read a skill document by name. Valid names: ${skillNames}.`,
         inputSchema: { name: z.string() },
       },
       async ({ name }) => {
         try {
           const content = getSkillContent(name);
           if (content === null) {
-            return textResult({ error: `Unknown skill: "${name}". Use query_skills or check the skill registry for valid names.` });
+            return textResult({
+              error: `Unknown skill: "${name}". Valid names: ${skillNames}.`,
+            });
           }
           return textResult(content);
+        } catch (e) {
+          return errorResult(e);
+        }
+      },
+    );
+
+    // -----------------------------------------------------------------------
+    // get_declarants / get_declaration_library — org-wide declaration reads.
+    //
+    // The MCP session is bound to exactly one organization
+    // (principal.organizationId, re-verified per request by McpAuthHelper),
+    // so these are pure org reads: no case scope, no assertRole — same
+    // access model as query_labeled_entities. Projections mirror the
+    // built-in agent's dispatches in ai.service.ts for parity; the
+    // organizationId column is dropped from row shapes. Reads don't audit.
+    // -----------------------------------------------------------------------
+    server.registerTool(
+      'get_declarants',
+      {
+        description:
+          "List the organization's saved declarants (expert witnesses / affiants) with their profile fields — display name, title, firm, qualifications paragraphs, prior testimony, CV exhibit, rate, and disclosures. Use before drafting a declaration to fill the declarant's qualifications and background (see the `declarations` skill).",
+        inputSchema: {},
+      },
+      async () => {
+        try {
+          const declarants = await this.declarantsService.listForOrg(
+            principal.organizationId,
+          );
+          return textResult({
+            declarants: declarants.map((d) => ({
+              id: d.id,
+              displayName: d.displayName,
+              title: d.title,
+              firm: d.firm,
+              qualifications: d.qualifications,
+              cvExhibit: d.cvExhibit,
+              priorTestimony: d.priorTestimony,
+              hourlyRate: d.hourlyRate,
+              nonContingencyDisclosure: d.nonContingencyDisclosure,
+              dateOfBirth: d.dateOfBirth,
+              address: d.address,
+              userId: d.userId,
+            })),
+          });
+        } catch (e) {
+          return errorResult(e);
+        }
+      },
+    );
+
+    server.registerTool(
+      'get_declaration_library',
+      {
+        description:
+          "List the organization's reusable boilerplate declaration blocks (technical chain primers, authentication language) with their paragraph content. Use before drafting background/authentication sections. For a declarant's qualifications, use `get_declarants` instead.",
+        inputSchema: {
+          kind: z.enum(['boilerplate']).optional(),
+        },
+      },
+      async ({ kind }) => {
+        try {
+          const blocks = await this.declarationLibraryService.listForOrg(
+            principal.organizationId,
+            kind as DeclarationLibraryBlockKind | undefined,
+          );
+          return textResult({
+            blocks: blocks.map((b) => ({
+              id: b.id,
+              kind: b.kind,
+              name: b.name,
+              category: b.category,
+              content: b.content,
+            })),
+          });
         } catch (e) {
           return errorResult(e);
         }

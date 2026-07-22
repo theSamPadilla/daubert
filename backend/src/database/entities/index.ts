@@ -6,6 +6,8 @@ import { ConversationEntity } from './conversation.entity';
 import { DataRoomAccessLogEntity } from './data-room-access-log.entity';
 import { DataRoomFileEntity } from './data-room-file.entity';
 import { DataRoomFolderEntity } from './data-room-folder.entity';
+import { DeclarantEntity } from './declarant.entity';
+import { DeclarationLibraryBlockEntity } from './declaration-library-block.entity';
 import { InvestigationEntity } from './investigation.entity';
 import { LabeledEntityEntity } from './labeled-entity.entity';
 import { MessageEntity } from './message.entity';
@@ -33,6 +35,8 @@ export const entities = [
   DataRoomAccessLogEntity,
   DataRoomFileEntity,
   DataRoomFolderEntity,
+  DeclarantEntity,
+  DeclarationLibraryBlockEntity,
   InvestigationEntity,
   LabeledEntityEntity,
   MessageEntity,

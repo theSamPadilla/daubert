@@ -39,10 +39,10 @@ import { ScriptTokenService } from '../src/modules/script/script-token.service';
 import { ProductionsController } from '../src/modules/productions/productions.controller';
 import { ProductionsService } from '../src/modules/productions/productions.service';
 
-// Use the dev DB (running on port 5433 in this environment).
+// Use the dev DB (running on port 5455 in this environment).
 // If DATABASE_URL is already set in the process (e.g. CI), keep it.
 process.env.DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgresql://daubert:daubert@localhost:5433/daubert';
+  process.env.DATABASE_URL ?? 'postgresql://daubert:daubert@localhost:5455/daubert';
 
 describe('PATCH /productions/:id — script token role enforcement (e2e)', () => {
   let app: INestApplication;

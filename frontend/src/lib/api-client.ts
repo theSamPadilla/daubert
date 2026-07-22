@@ -72,6 +72,33 @@ async function requestNullable404<T>(path: string, options?: RequestInit): Promi
   return res.json();
 }
 
+/**
+ * Variant of `request<T>` for endpoints that return `text/html` (or any
+ * non-JSON body) rather than JSON. Same auth handling as `request`, but the
+ * body is read with `res.text()` and returned as a string. Errors are still
+ * surfaced as `ApiError`.
+ */
+async function requestText(path: string, options?: RequestInit): Promise<string> {
+  const headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string>),
+  };
+
+  try {
+    const currentUser = getFirebaseAuth().currentUser;
+    if (currentUser) {
+      const token = await currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch {}
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new ApiError(err.message || `API error ${res.status}`, res.status);
+  }
+  return res.text();
+}
+
 async function downloadFile(path: string, filename: string, options?: RequestInit): Promise<void> {
   const headers: Record<string, string> = {
     ...(options?.headers as Record<string, string>),
@@ -190,12 +217,14 @@ export interface LabeledEntity {
 export interface Production {
   id: string;
   name: string;
-  type: 'report' | 'chart' | 'chronology';
+  type: 'report' | 'chart' | 'chronology' | 'declaration';
   data: Record<string, unknown>;
   caseId: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export type DeclarationFormat = components['schemas']['DeclarationFormat'];
 
 // Data Room
 export interface DataRoomFile {
@@ -535,6 +564,12 @@ export const apiClient = {
   deleteProduction: (id: string) =>
     request<void>(`/productions/${id}`, { method: 'DELETE' }),
 
+  // Declaration formats + preview
+  listDeclarationFormats: () =>
+    request<DeclarationFormat[]>('/declaration-formats'),
+  getDeclarationPreview: (productionId: string) =>
+    requestText(`/productions/${productionId}/declaration-preview`),
+
   // Export
   exportProduction: (
     id: string,
@@ -760,4 +795,38 @@ export const apiClient = {
     }),
   listAgentActions: () =>
     request<components['schemas']['AgentActionSummary'][]>('/me/agent-actions'),
+
+  // Declaration Library
+  listDeclarationLibrary: (orgSlug: string, kind?: components['schemas']['DeclarationLibraryBlockKind']) => {
+    const qs = kind ? `?kind=${kind}` : '';
+    return request<components['schemas']['DeclarationLibraryBlock'][]>(`/orgs/${orgSlug}/declaration-library${qs}`);
+  },
+  createDeclarationLibraryBlock: (orgSlug: string, dto: components['schemas']['CreateDeclarationLibraryBlockRequest']) =>
+    request<components['schemas']['DeclarationLibraryBlock']>(`/orgs/${orgSlug}/declaration-library`, {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    }),
+  updateDeclarationLibraryBlock: (orgSlug: string, blockId: string, dto: components['schemas']['UpdateDeclarationLibraryBlockRequest']) =>
+    request<components['schemas']['DeclarationLibraryBlock']>(`/orgs/${orgSlug}/declaration-library/${blockId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    }),
+  deleteDeclarationLibraryBlock: (orgSlug: string, blockId: string) =>
+    request<void>(`/orgs/${orgSlug}/declaration-library/${blockId}`, { method: 'DELETE' }),
+
+  // Declarants
+  listDeclarants: (orgSlug: string) =>
+    request<components['schemas']['Declarant'][]>(`/orgs/${orgSlug}/declarants`),
+  createDeclarant: (orgSlug: string, dto: components['schemas']['CreateDeclarantRequest']) =>
+    request<components['schemas']['Declarant']>(`/orgs/${orgSlug}/declarants`, {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    }),
+  updateDeclarant: (orgSlug: string, declarantId: string, dto: components['schemas']['UpdateDeclarantRequest']) =>
+    request<components['schemas']['Declarant']>(`/orgs/${orgSlug}/declarants/${declarantId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    }),
+  deleteDeclarant: (orgSlug: string, declarantId: string) =>
+    request<void>(`/orgs/${orgSlug}/declarants/${declarantId}`, { method: 'DELETE' }),
 };

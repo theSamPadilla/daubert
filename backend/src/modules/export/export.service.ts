@@ -74,7 +74,15 @@ export class ExportService implements OnModuleDestroy {
 
   async htmlToPdf(
     html: string,
-    options?: { landscape?: boolean; timeout?: number },
+    options?: {
+      landscape?: boolean;
+      timeout?: number;
+      pageFormat?: 'A4' | 'Letter';
+      displayHeaderFooter?: boolean;
+      headerTemplate?: string;
+      footerTemplate?: string;
+      margin?: { top?: string; bottom?: string; left?: string; right?: string };
+    },
   ): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
@@ -93,11 +101,21 @@ export class ExportService implements OnModuleDestroy {
       });
 
       await page.setContent(html, { waitUntil: 'domcontentloaded', timeout });
+      // Defaults preserve prior behaviour: A4, no header/footer. Callers that
+      // opt in (e.g. the CA pleading template) get Letter + a per-page footer.
+      const displayHeaderFooter = options?.displayHeaderFooter ?? false;
       const pdf = await page.pdf({
-        format: 'A4',
+        format: options?.pageFormat ?? 'A4',
         landscape: options?.landscape ?? false,
         printBackground: true,
-        margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' },
+        margin: options?.margin ?? { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' },
+        displayHeaderFooter,
+        ...(displayHeaderFooter
+          ? {
+              headerTemplate: options?.headerTemplate ?? '<span></span>',
+              footerTemplate: options?.footerTemplate ?? '<span></span>',
+            }
+          : {}),
         timeout,
       });
       return Buffer.from(pdf);

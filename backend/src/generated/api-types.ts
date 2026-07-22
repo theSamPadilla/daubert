@@ -1350,6 +1350,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orgs/{org}/declaration-library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List declaration library blocks for an organization */
+        get: operations["listDeclarationLibraryBlocks"];
+        put?: never;
+        /** Create a declaration library block */
+        post: operations["createDeclarationLibraryBlock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orgs/{org}/declaration-library/{blockId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a declaration library block */
+        delete: operations["deleteDeclarationLibraryBlock"];
+        options?: never;
+        head?: never;
+        /** Update a declaration library block */
+        patch: operations["updateDeclarationLibraryBlock"];
+        trace?: never;
+    };
+    "/declaration-formats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List available declaration formats */
+        get: operations["listDeclarationFormats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/productions/{id}/declaration-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Render an in-app HTML preview of a declaration production */
+        get: operations["getDeclarationPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orgs/{org}/declarants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List declarants for an organization */
+        get: operations["listDeclarants"];
+        put?: never;
+        /** Create a declarant */
+        post: operations["createDeclarant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orgs/{org}/declarants/{declarantId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a declarant */
+        delete: operations["deleteDeclarant"];
+        options?: never;
+        head?: never;
+        /** Update a declarant */
+        patch: operations["updateDeclarant"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1635,7 +1741,7 @@ export interface components {
             };
         };
         /** @enum {string} */
-        ProductionType: "report" | "chart" | "chronology";
+        ProductionType: "report" | "chart" | "chronology" | "declaration";
         Production: {
             /** Format: uuid */
             id: string;
@@ -1664,6 +1770,190 @@ export interface components {
             data?: {
                 [key: string]: unknown;
             };
+        };
+        /** @enum {string} */
+        DeclarationFormatId: "ca-declaration" | "ny-affirmation" | "federal-1746" | "tx-declaration" | "fl-declaration";
+        /**
+         * @deprecated
+         * @description Deprecated alias for formatId; kept for back-compat with existing rows. Use formatId instead.
+         * @enum {string}
+         */
+        DeclarationVariant: "ca-declaration" | "ny-affirmation";
+        DeclarationCaption: {
+            /** @description Multiline CA gutter block. Empty for NY. */
+            attorneyBlock: string;
+            /** @description "SUPERIOR COURT OF THE STATE OF CALIFORNIA" */
+            court: string;
+            /** @description "COUNTY OF SAN FRANCISCO" */
+            county: string;
+            plaintiff: string;
+            defendant: string;
+            /** @description "Case No. CGC-24-620900" / "Index No.: 365181/2024" */
+            caseNumber: string;
+            /** @description "DECLARATION OF … IN SUPPORT OF …" */
+            documentTitle: string;
+            /** @description Multiline hearing/dept/action-filed/trial-date block. Optional content. */
+            hearingInfo: string;
+        };
+        DeclarationSubItem: {
+            id: string;
+            text: string;
+        };
+        DeclarationFootnote: {
+            id: string;
+            text: string;
+        };
+        DeclarationParagraph: {
+            id: string;
+            /** @description Plain text; inline <b>/<i>/<u> allowed, nothing else. */
+            text: string;
+            subItems: components["schemas"]["DeclarationSubItem"][];
+            /** @description Renders as "See Exhibit(s) <label(s)>" after the text. */
+            exhibitIds: string[];
+            footnotes: components["schemas"]["DeclarationFootnote"][];
+        };
+        /** @enum {string} */
+        DeclarationSectionKind: "qualifications" | "assignment" | "summary_of_opinions" | "background" | "authentication" | "findings" | "conclusions" | "recommendations" | "custom";
+        DeclarationSection: {
+            id: string;
+            kind: components["schemas"]["DeclarationSectionKind"];
+            /** @description "EXPERT BACKGROUND" — letter ("A.") computed at render. */
+            heading: string;
+            paragraphs: components["schemas"]["DeclarationParagraph"][];
+        };
+        DeclarationExhibitSource: {
+            /** @enum {string} */
+            kind: "transaction" | "url" | "file" | "other";
+            txHash?: string;
+            chain?: string;
+            url?: string;
+            note?: string;
+        };
+        DeclarationExhibit: {
+            id: string;
+            /** @description "A", "B1" — explicit, unique per declaration. */
+            label: string;
+            description: string;
+            source: components["schemas"]["DeclarationExhibitSource"] | null;
+        };
+        DeclarationData: {
+            /** @enum {integer} */
+            schemaVersion: 1;
+            formatId?: components["schemas"]["DeclarationFormatId"];
+            /** @description Deprecated alias for formatId; retained for existing rows. New writes should use formatId. */
+            variant?: components["schemas"]["DeclarationVariant"];
+            caption: components["schemas"]["DeclarationCaption"];
+            declarantName: string;
+            /** @description Declarant date of birth. Required only by formats that list it in requiredDeclarantFields (e.g. TX). */
+            declarantDateOfBirth?: string;
+            /** @description Declarant address. Required only by formats that list it in requiredDeclarantFields (e.g. TX). */
+            declarantAddress?: string;
+            sections: components["schemas"]["DeclarationSection"][];
+            exhibits: components["schemas"]["DeclarationExhibit"][];
+            execution: {
+                place: string;
+                date: string;
+                signatureName: string;
+            };
+        };
+        /** @enum {string} */
+        DeclarationLibraryBlockKind: "declarant_profile" | "boilerplate";
+        DeclarationLibraryBlock: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            kind: components["schemas"]["DeclarationLibraryBlockKind"];
+            name: string;
+            /** @description e.g. "primer", "authentication" */
+            category: string | null;
+            content: {
+                paragraphs: components["schemas"]["DeclarationParagraph"][];
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateDeclarationLibraryBlockRequest: {
+            kind: components["schemas"]["DeclarationLibraryBlockKind"];
+            name: string;
+            category?: string;
+            content: {
+                paragraphs: components["schemas"]["DeclarationParagraph"][];
+            };
+        };
+        UpdateDeclarationLibraryBlockRequest: {
+            kind?: components["schemas"]["DeclarationLibraryBlockKind"];
+            name?: string;
+            category?: string | null;
+            content?: {
+                paragraphs: components["schemas"]["DeclarationParagraph"][];
+            };
+        };
+        DeclarationFormat: {
+            id: components["schemas"]["DeclarationFormatId"];
+            label: string;
+            /** @description e.g. "CA", "NY", "Federal", "TX", "FL" */
+            jurisdiction: string;
+            description: string;
+            /** @description Whether this format renders the CA-style numbered pleading line gutter. */
+            pleadingGutter: boolean;
+            requiredDeclarantFields: components["schemas"]["DeclarationFormatDeclarantField"][];
+        };
+        Declarant: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description Optional link to a member account.
+             */
+            userId: string | null;
+            displayName: string;
+            title: string | null;
+            firm: string | null;
+            qualifications: components["schemas"]["DeclarationParagraph"][];
+            /** @description Description or URL for the declarant's CV exhibit. */
+            cvExhibit: string | null;
+            priorTestimony: string[];
+            hourlyRate: string | null;
+            nonContingencyDisclosure: string | null;
+            dateOfBirth: string | null;
+            address: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateDeclarantRequest: {
+            /** Format: uuid */
+            userId?: string;
+            displayName: string;
+            title?: string;
+            firm?: string;
+            qualifications?: components["schemas"]["DeclarationParagraph"][];
+            cvExhibit?: string;
+            priorTestimony?: string[];
+            hourlyRate?: string;
+            nonContingencyDisclosure?: string;
+            dateOfBirth?: string;
+            address?: string;
+        };
+        UpdateDeclarantRequest: {
+            /** Format: uuid */
+            userId?: string | null;
+            displayName?: string;
+            title?: string | null;
+            firm?: string | null;
+            qualifications?: components["schemas"]["DeclarationParagraph"][];
+            cvExhibit?: string | null;
+            priorTestimony?: string[];
+            hourlyRate?: string | null;
+            nonContingencyDisclosure?: string | null;
+            dateOfBirth?: string | null;
+            address?: string | null;
         };
         /** @enum {string} */
         InviteRole: "owner" | "editor" | "viewer";
@@ -2166,6 +2456,8 @@ export interface components {
             tags?: string[];
             crossTrace?: boolean;
         };
+        /** @enum {string} */
+        DeclarationFormatDeclarantField: "dateOfBirth" | "address";
     };
     responses: never;
     parameters: never;
@@ -5800,6 +6092,394 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    listDeclarationLibraryBlocks: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["DeclarationLibraryBlockKind"];
+            };
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declaration library blocks */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeclarationLibraryBlock"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createDeclarationLibraryBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDeclarationLibraryBlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Created declaration library block */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeclarationLibraryBlock"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteDeclarationLibraryBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+                blockId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateDeclarationLibraryBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+                blockId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDeclarationLibraryBlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated declaration library block */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeclarationLibraryBlock"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listDeclarationFormats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of declaration formats */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeclarationFormat"][];
+                };
+            };
+        };
+    };
+    getDeclarationPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rendered declaration HTML */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+        };
+    };
+    listDeclarants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declarants */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Declarant"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createDeclarant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDeclarantRequest"];
+            };
+        };
+        responses: {
+            /** @description Created declarant */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Declarant"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteDeclarant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+                declarantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateDeclarant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+                declarantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDeclarantRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated declarant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Declarant"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
         };
     };

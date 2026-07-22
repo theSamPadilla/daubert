@@ -1,0 +1,76 @@
+DeclarationLibraryBlockKind:
+  type: string
+  enum:
+    - declarant_profile
+    - boilerplate
+
+DeclarationLibraryBlock:
+  type: object
+  required: [id, organizationId, kind, name, category, content, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      type: string
+      format: uuid
+    kind:
+      $ref: '#/DeclarationLibraryBlockKind'
+    name:
+      type: string
+    category:
+      type: string
+      nullable: true
+      description: 'e.g. "primer", "authentication"'
+    content:
+      type: object
+      required: [paragraphs]
+      properties:
+        paragraphs:
+          type: array
+          items:
+            $ref: './productions.yaml#/DeclarationParagraph'
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateDeclarationLibraryBlockRequest:
+  type: object
+  required: [kind, name, content]
+  properties:
+    kind:
+      $ref: '#/DeclarationLibraryBlockKind'
+    name:
+      type: string
+    category:
+      type: string
+    content:
+      type: object
+      required: [paragraphs]
+      properties:
+        paragraphs:
+          type: array
+          items:
+            $ref: './productions.yaml#/DeclarationParagraph'
+
+UpdateDeclarationLibraryBlockRequest:
+  type: object
+  properties:
+    kind:
+      $ref: '#/DeclarationLibraryBlockKind'
+    name:
+      type: string
+    category:
+      type: string
+      nullable: true
+    content:
+      type: object
+      required: [paragraphs]
+      properties:
+        paragraphs:
+          type: array
+          items:
+            $ref: './productions.yaml#/DeclarationParagraph'

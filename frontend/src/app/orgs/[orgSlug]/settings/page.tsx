@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { OrgCasesAdminSection } from './OrgCasesAdminSection';
+import { DeclarantsSection } from './DeclarantsSection';
+import { DeclarationLibrarySection } from './DeclarationLibrarySection';
 
 type OrgMember = components['schemas']['OrganizationMember'];
 type OrgInvite = components['schemas']['OrganizationInvite'];
@@ -399,7 +401,7 @@ function InvitesSection({ orgSlug }: { orgSlug: string }) {
 
   return (
     <Panel padded className="mb-6">
-      <Kicker index={3} className="block mb-3">Invites (admin only)</Kicker>
+      <Kicker index={5} className="block mb-3">Invites (admin only)</Kicker>
       {error && <Banner message={error} onClose={() => setError(null)} />}
 
       {!showForm && (
@@ -573,6 +575,8 @@ export default function OrgSettingsPage() {
 
       <OrgInfoSection orgSlug={orgSlug} isAdmin={isAdmin} />
       <MembersSection orgSlug={orgSlug} isAdmin={isAdmin} currentUserId={currentUserId} />
+      <DeclarantsSection orgSlug={orgSlug} isAdmin={isAdmin} currentUserId={currentUserId} />
+      <DeclarationLibrarySection orgSlug={orgSlug} />
       {isAdmin && <InvitesSection orgSlug={orgSlug} />}
       {isAdmin && orgId && <OrgCasesAdminSection orgId={orgId} />}
     </main>

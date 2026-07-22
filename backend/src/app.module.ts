@@ -22,6 +22,8 @@ import { EmailModule } from './modules/email/email.module';
 import { AuthEmailModule } from './modules/auth-email/auth-email.module';
 import { OAuthModule } from './modules/oauth/oauth.module';
 import { McpModule } from './modules/mcp/mcp.module';
+import { DeclarationLibraryModule } from './modules/declaration-library/declaration-library.module';
+import { DeclarantsModule } from './modules/declarants/declarants.module';
 
 @Module({
   imports: [
@@ -47,6 +49,8 @@ import { McpModule } from './modules/mcp/mcp.module';
     OrganizationsModule,
     EmailModule,
     AuthEmailModule,
+    DeclarationLibraryModule,
+    DeclarantsModule,
   ],
   controllers: [AppController],
 })

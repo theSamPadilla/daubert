@@ -1,0 +1,32 @@
+/declaration-formats:
+  get:
+    summary: List available declaration formats
+    operationId: listDeclarationFormats
+    responses:
+      '200':
+        description: Array of declaration formats
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/declaration-formats.yaml#/DeclarationFormat'
+
+/productions/{id}/declaration-preview:
+  get:
+    summary: Render an in-app HTML preview of a declaration production
+    operationId: getDeclarationPreview
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Rendered declaration HTML
+        content:
+          text/html:
+            schema:
+              type: string

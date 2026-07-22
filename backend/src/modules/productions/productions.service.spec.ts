@@ -9,6 +9,7 @@ import {
 import { CaseAccessService } from '../auth/case-access.service';
 import { AccessPrincipal } from '../auth/access-principal';
 import { seedChronologyData } from './chronology-schema';
+import { seedDeclarationData, DeclarationData } from './declaration-data';
 
 const mockProductionRepo = {
   find: jest.fn(),
@@ -638,6 +639,366 @@ describe('ProductionsService', () => {
         ],
       }, principal);
       expect((out.data as any).entries[0].amount).toBe('$1');
+    });
+  });
+
+  // ── declaration ops ────────────────────────────────────────────────────
+
+  describe('declaration ops', () => {
+    // Seed a declaration production and wire the mock repo so `findOneBy`
+    // returns it and `save` round-trips it.
+    async function seedDecl(input: Partial<DeclarationData> = {}): Promise<ProductionEntity> {
+      const prod = makeProduction({
+        type: ProductionType.DECLARATION,
+        data: seedDeclarationData(input) as unknown as Record<string, unknown>,
+      });
+      mockProductionRepo.findOneBy.mockResolvedValue(prod);
+      mockProductionRepo.save.mockImplementation((p: ProductionEntity) => Promise.resolve({ ...p }));
+      return prod;
+    }
+
+    const decl = (out: ProductionEntity): DeclarationData => out.data as unknown as DeclarationData;
+
+    // ── create() — declaration seeding ──────────────────────────────────
+    describe('create() — declaration seeding', () => {
+      beforeEach(() => {
+        mockProductionRepo.create.mockImplementation((obj: any) => ({ ...obj }));
+        mockProductionRepo.save.mockImplementation((p: any) => Promise.resolve({ ...p }));
+      });
+
+      it('seeds a skeleton (6 sections, schemaVersion 1, formatId canonicalized from variant)', async () => {
+        // Back-compat: an incoming deprecated `variant` is accepted and written
+        // as the canonical `formatId`; new rows no longer carry `variant`.
+        const out = await service.create('case-1', {
+          name: 'Decl', type: ProductionType.DECLARATION, data: { variant: 'ny-affirmation' },
+        }, principal);
+        const d = decl(out);
+        expect(d.schemaVersion).toBe(1);
+        expect(d.formatId).toBe('ny-affirmation');
+        expect(d.sections).toHaveLength(6);
+        expect(d.exhibits).toEqual([]);
+      });
+
+      it('accepts a new formatId directly (federal-1746)', async () => {
+        const out = await service.create('case-1', {
+          name: 'Decl', type: ProductionType.DECLARATION, data: { formatId: 'federal-1746' },
+        }, principal);
+        expect(decl(out).formatId).toBe('federal-1746');
+      });
+
+      it('defaults unknown/absent format to ca-declaration', async () => {
+        const out = await service.create('case-1', {
+          name: 'Decl', type: ProductionType.DECLARATION, data: {},
+        }, principal);
+        expect(decl(out).formatId).toBe('ca-declaration');
+      });
+
+      it('does not touch non-declaration types', async () => {
+        const out = await service.create('case-1', {
+          name: 'R', type: ProductionType.REPORT, data: { content: '<p>x</p>' },
+        }, principal);
+        expect((out.data as any).sections).toBeUndefined();
+      });
+
+      it('preserves declarantDateOfBirth and declarantAddress from input (tx-declaration)', async () => {
+        const out = await service.create('case-1', {
+          name: 'Decl',
+          type: ProductionType.DECLARATION,
+          data: {
+            formatId: 'tx-declaration',
+            declarantDateOfBirth: '1980-01-01',
+            declarantAddress: '123 Main St, Austin, TX',
+          },
+        }, principal);
+        const d = decl(out);
+        expect(d.declarantDateOfBirth).toBe('1980-01-01');
+        expect(d.declarantAddress).toBe('123 Main St, Austin, TX');
+      });
+    });
+
+    // ── declaration_add_paragraph ───────────────────────────────────────
+    describe('declaration_add_paragraph', () => {
+      it('appends to the named section and assigns a UUID with defaulted fields', async () => {
+        const prod = await seedDecl();
+        const sectionId = decl(prod).sections[0].id;
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_add_paragraph', sectionId, text: 'First para' }],
+        }, principal);
+        const paras = decl(out).sections[0].paragraphs;
+        expect(paras).toHaveLength(1);
+        expect(paras[0].text).toBe('First para');
+        expect(paras[0].id).toMatch(/^[0-9a-f-]{36}$/);
+        expect(paras[0].subItems).toEqual([]);
+        expect(paras[0].exhibitIds).toEqual([]);
+        expect(paras[0].footnotes).toEqual([]);
+      });
+
+      it('maps subItems and footnotes into {id, text} objects', async () => {
+        const prod = await seedDecl();
+        const sectionId = decl(prod).sections[0].id;
+        const out = await service.update(prod.id, {
+          ops: [{
+            op: 'declaration_add_paragraph', sectionId, text: 'P',
+            subItems: [{ text: 'sub a' }, { text: 'sub b' }],
+            footnotes: [{ text: 'fn a' }],
+          }],
+        }, principal);
+        const p = decl(out).sections[0].paragraphs[0];
+        expect(p.subItems.map((s) => s.text)).toEqual(['sub a', 'sub b']);
+        expect(p.subItems.every((s) => /^[0-9a-f-]{36}$/.test(s.id))).toBe(true);
+        expect(p.footnotes.map((f) => f.text)).toEqual(['fn a']);
+        expect(p.footnotes.every((f) => /^[0-9a-f-]{36}$/.test(f.id))).toBe(true);
+      });
+
+      it('inserts after afterParagraphId within the section', async () => {
+        const prod = await seedDecl();
+        const sectionId = decl(prod).sections[0].id;
+        const afterFirst = await service.update(prod.id, {
+          ops: [
+            { op: 'declaration_add_paragraph', sectionId, text: 'one' },
+            { op: 'declaration_add_paragraph', sectionId, text: 'three' },
+          ],
+        }, principal);
+        const firstId = decl(afterFirst).sections[0].paragraphs[0].id;
+        // re-seed the mock with the intermediate state
+        mockProductionRepo.findOneBy.mockResolvedValue(afterFirst);
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_add_paragraph', sectionId, text: 'two', afterParagraphId: firstId }],
+        }, principal);
+        expect(decl(out).sections[0].paragraphs.map((p) => p.text)).toEqual(['one', 'two', 'three']);
+      });
+
+      it('validates exhibitIds against the registry', async () => {
+        const prod = await seedDecl({
+          exhibits: [{ id: 'ex-1', label: 'A', description: 'exhibit a', source: null }],
+        });
+        const sectionId = decl(prod).sections[0].id;
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_add_paragraph', sectionId, text: 'P', exhibitIds: ['ex-1'] }],
+        }, principal);
+        expect(decl(out).sections[0].paragraphs[0].exhibitIds).toEqual(['ex-1']);
+      });
+
+      it('rejects an exhibitId not in the registry', async () => {
+        const prod = await seedDecl();
+        const sectionId = decl(prod).sections[0].id;
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'declaration_add_paragraph', sectionId, text: 'P', exhibitIds: ['nope'] }],
+        }, principal)).rejects.toThrow(/unknown exhibit/i);
+      });
+
+      it('rejects an unknown sectionId', async () => {
+        const prod = await seedDecl();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'declaration_add_paragraph', sectionId: 'nope', text: 'P' }],
+        }, principal)).rejects.toThrow(/unknown section/i);
+      });
+    });
+
+    // ── declaration_update_paragraph ────────────────────────────────────
+    describe('declaration_update_paragraph', () => {
+      async function seedWithPara(): Promise<{ prod: ProductionEntity; paraId: string }> {
+        const prod = await seedDecl();
+        const sectionId = decl(prod).sections[0].id;
+        const withPara = await service.update(prod.id, {
+          ops: [{ op: 'declaration_add_paragraph', sectionId, text: 'orig' }],
+        }, principal);
+        mockProductionRepo.findOneBy.mockResolvedValue(withPara);
+        return { prod, paraId: decl(withPara).sections[0].paragraphs[0].id };
+      }
+
+      it('merges only provided fields', async () => {
+        const { prod, paraId } = await seedWithPara();
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_update_paragraph', paragraphId: paraId, text: 'updated' }],
+        }, principal);
+        const p = decl(out).sections[0].paragraphs[0];
+        expect(p.text).toBe('updated');
+        expect(p.subItems).toEqual([]);
+      });
+
+      it('reuses provided subItem ids and generates ids for new ones', async () => {
+        const { prod, paraId } = await seedWithPara();
+        const out = await service.update(prod.id, {
+          ops: [{
+            op: 'declaration_update_paragraph', paragraphId: paraId,
+            subItems: [{ id: 'keep-me', text: 'a' }, { text: 'b' }],
+          }],
+        }, principal);
+        const subs = decl(out).sections[0].paragraphs[0].subItems;
+        expect(subs[0].id).toBe('keep-me');
+        expect(subs[1].id).toMatch(/^[0-9a-f-]{36}$/);
+      });
+
+      it('validates provided exhibitIds', async () => {
+        const { prod, paraId } = await seedWithPara();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'declaration_update_paragraph', paragraphId: paraId, exhibitIds: ['nope'] }],
+        }, principal)).rejects.toThrow(/unknown exhibit/i);
+      });
+
+      it('rejects an unknown paragraphId', async () => {
+        const prod = await seedDecl();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'declaration_update_paragraph', paragraphId: 'nope', text: 'x' }],
+        }, principal)).rejects.toThrow(/unknown paragraph/i);
+      });
+    });
+
+    // ── declaration_remove_paragraph ────────────────────────────────────
+    describe('declaration_remove_paragraph', () => {
+      it('removes the paragraph', async () => {
+        const prod = await seedDecl();
+        const sectionId = decl(prod).sections[0].id;
+        const withPara = await service.update(prod.id, {
+          ops: [{ op: 'declaration_add_paragraph', sectionId, text: 'gone' }],
+        }, principal);
+        const paraId = decl(withPara).sections[0].paragraphs[0].id;
+        mockProductionRepo.findOneBy.mockResolvedValue(withPara);
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_remove_paragraph', paragraphId: paraId }],
+        }, principal);
+        expect(decl(out).sections[0].paragraphs).toHaveLength(0);
+      });
+
+      it('rejects an unknown paragraphId', async () => {
+        const prod = await seedDecl();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'declaration_remove_paragraph', paragraphId: 'nope' }],
+        }, principal)).rejects.toThrow(/unknown paragraph/i);
+      });
+    });
+
+    // ── declaration_add_section ─────────────────────────────────────────
+    describe('declaration_add_section', () => {
+      it('appends a section when afterSectionId omitted', async () => {
+        const prod = await seedDecl();
+        const before = decl(prod).sections.length;
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_add_section', kind: 'custom', heading: 'EXTRA' }],
+        }, principal);
+        const sections = decl(out).sections;
+        expect(sections).toHaveLength(before + 1);
+        expect(sections[sections.length - 1]).toMatchObject({ kind: 'custom', heading: 'EXTRA', paragraphs: [] });
+        expect(sections[sections.length - 1].id).toMatch(/^[0-9a-f-]{36}$/);
+      });
+
+      it('inserts after afterSectionId', async () => {
+        const prod = await seedDecl();
+        const firstId = decl(prod).sections[0].id;
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_add_section', kind: 'custom', heading: 'INSERTED', afterSectionId: firstId }],
+        }, principal);
+        expect(decl(out).sections[1].heading).toBe('INSERTED');
+      });
+
+      it('rejects an invalid kind', async () => {
+        const prod = await seedDecl();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'declaration_add_section', kind: 'bogus', heading: 'X' }],
+        }, principal)).rejects.toThrow(/kind/i);
+      });
+    });
+
+    // ── declaration_add_exhibit ─────────────────────────────────────────
+    describe('declaration_add_exhibit', () => {
+      it('auto-assigns the next label when omitted', async () => {
+        const prod = await seedDecl();
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_add_exhibit', description: 'first' }],
+        }, principal);
+        const ex = decl(out).exhibits[0];
+        expect(ex.label).toBe('A');
+        expect(ex.id).toMatch(/^[0-9a-f-]{36}$/);
+        expect(ex.source).toBeNull();
+      });
+
+      it('uses the provided label and stores the source', async () => {
+        const prod = await seedDecl();
+        const out = await service.update(prod.id, {
+          ops: [{
+            op: 'declaration_add_exhibit', label: 'X', description: 'd',
+            source: { kind: 'url', url: 'https://x' },
+          }],
+        }, principal);
+        const ex = decl(out).exhibits[0];
+        expect(ex.label).toBe('X');
+        expect(ex.source).toEqual({ kind: 'url', url: 'https://x' });
+      });
+
+      it('rejects a duplicate explicit label', async () => {
+        const prod = await seedDecl({
+          exhibits: [{ id: 'ex-1', label: 'A', description: 'a', source: null }],
+        });
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'declaration_add_exhibit', label: 'A', description: 'dup' }],
+        }, principal)).rejects.toThrow(/label.*(in use|used|exists|duplicate)/i);
+      });
+    });
+
+    // ── declaration_update_exhibit ──────────────────────────────────────
+    describe('declaration_update_exhibit', () => {
+      it('merges the provided fields', async () => {
+        const prod = await seedDecl({
+          exhibits: [{ id: 'ex-1', label: 'A', description: 'old', source: null }],
+        });
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_update_exhibit', exhibitId: 'ex-1', description: 'new' }],
+        }, principal);
+        const ex = decl(out).exhibits[0];
+        expect(ex.description).toBe('new');
+        expect(ex.label).toBe('A');
+      });
+
+      it('rejects an unknown exhibitId', async () => {
+        const prod = await seedDecl();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'declaration_update_exhibit', exhibitId: 'nope', description: 'x' }],
+        }, principal)).rejects.toThrow(/unknown exhibit/i);
+      });
+
+      it('rejects relabeling to a label used by another exhibit', async () => {
+        const prod = await seedDecl({
+          exhibits: [
+            { id: 'ex-1', label: 'A', description: 'a', source: null },
+            { id: 'ex-2', label: 'B', description: 'b', source: null },
+          ],
+        });
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'declaration_update_exhibit', exhibitId: 'ex-2', label: 'A' }],
+        }, principal)).rejects.toThrow(/label.*(in use|used|exists|duplicate)/i);
+      });
+    });
+
+    // ── declaration_set_caption / declaration_set_execution ─────────────
+    describe('declaration_set_caption / declaration_set_execution', () => {
+      it('shallow-merges the caption partial', async () => {
+        const prod = await seedDecl();
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_set_caption', caption: { court: 'SUPERIOR COURT' } }],
+        }, principal);
+        const c = decl(out).caption;
+        expect(c.court).toBe('SUPERIOR COURT');
+        expect(c.county).toBe(''); // untouched
+      });
+
+      it('shallow-merges the execution partial', async () => {
+        const prod = await seedDecl();
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'declaration_set_execution', execution: { place: 'Los Angeles, CA' } }],
+        }, principal);
+        const e = decl(out).execution;
+        expect(e.place).toBe('Los Angeles, CA');
+        expect(e.date).toBe(''); // untouched
+      });
+    });
+
+    // ── type-mismatch guard ─────────────────────────────────────────────
+    it('rejects a declaration op on a non-declaration production', async () => {
+      mockProductionRepo.findOneBy.mockResolvedValue(makeProduction()); // REPORT
+      await expect(service.update('prod-1', {
+        ops: [{ op: 'declaration_set_caption', caption: { court: 'X' } }],
+      }, principal)).rejects.toThrow(/not "declaration"/);
     });
   });
 });

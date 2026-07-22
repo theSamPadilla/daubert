@@ -41,7 +41,7 @@
  *   - Use supertest to drive the real HTTP endpoints; SSE-decode the MCP
  *     responses.
  *
- * Env: DATABASE_URL defaults to the dev Postgres at localhost:5433. The other
+ * Env: DATABASE_URL defaults to the dev Postgres at localhost:5455. The other
  * required env vars (FRONTEND_URL, OAUTH_ISSUER_URL, OAUTH_STATE_SECRET, etc.)
  * are set inline below so the test never relies on a developer's .env having
  * been sourced into the jest process.
@@ -54,7 +54,7 @@ import { createHash, randomBytes } from 'crypto';
 // ---------------------------------------------------------------------------
 
 process.env.DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgresql://daubert:daubert@localhost:5433/daubert';
+  process.env.DATABASE_URL ?? 'postgresql://daubert:daubert@localhost:5455/daubert';
 process.env.FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:3001';
 process.env.OAUTH_ISSUER_URL =
   process.env.OAUTH_ISSUER_URL ?? 'http://localhost:8081';

@@ -11,15 +11,16 @@ import {
   type FontFamily, type FontSize, type Orientation, type RenderOptions,
 } from '@/lib/exportRenderOptions';
 
-export type ExportKind = 'graph' | 'chart' | 'chronology' | 'report' | 'exhibit';
+export type ExportKind = 'graph' | 'chart' | 'chronology' | 'report' | 'exhibit' | 'declaration';
 export type ExportFormat = 'pdf' | 'png' | 'docx' | 'csv';
 
 const FORMATS_BY_KIND: Record<ExportKind, ExportFormat[]> = {
-  graph:      ['pdf', 'png'],
-  chart:      ['pdf', 'png'],
-  chronology: ['pdf', 'png', 'csv'],
-  report:     ['pdf', 'docx'],
-  exhibit:    ['pdf'],
+  graph:       ['pdf', 'png'],
+  chart:       ['pdf', 'png'],
+  chronology:  ['pdf', 'png', 'csv'],
+  report:      ['pdf', 'docx'],
+  exhibit:     ['pdf'],
+  declaration: ['pdf', 'docx'],
 };
 
 const FORMAT_LABELS: Record<ExportFormat, { label: string; desc: string; icon: React.ReactNode }> = {

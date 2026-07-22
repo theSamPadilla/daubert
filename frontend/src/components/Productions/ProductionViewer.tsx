@@ -5,22 +5,26 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 const CHART_HEIGHT_MIN = 200;
 const CHART_HEIGHT_MAX = 1200;
 const CHART_HEIGHT_DEFAULT = 384;
-import { FaPenToSquare, FaEye, FaDownload, FaArrowsRotate, FaTrash } from 'react-icons/fa6';
+import { FaPenToSquare, FaEye, FaDownload, FaArrowsRotate, FaTrash, FaFileSignature, FaFileLines } from 'react-icons/fa6';
 import { apiClient, type Production } from '@/lib/api-client';
 import { ReportEditor } from './ReportEditor';
 import { ChartViewer } from './ChartViewer';
 import { ChartDatasetEditor } from './ChartDatasetEditor';
 import { ChronologyTable } from './ChronologyTable';
+import { DeclarationEditor } from './DeclarationEditor';
+import { DeclarationPreviewPane } from './DeclarationPreviewPane';
 import { ExportModal, type ExportFormat } from '../Common/ExportModal';
 import { useChartSnapshot } from '@/hooks/useChartSnapshot';
 import type { ExportTheme } from '@/lib/exportTheme';
 import type { RenderOptions } from '@/lib/exportRenderOptions';
 import type { ColumnDef } from '@/lib/chronologySchema';
+import type { components } from '@/generated/api-types';
 
 const TYPE_COLORS: Record<string, string> = {
   report: 'bg-brand/10 text-brand',
   chart: 'bg-green-100 text-green-700',
   chronology: 'bg-purple-100 text-purple-700',
+  declaration: 'bg-amber-100 text-amber-700',
 };
 
 interface ProductionViewerProps {
@@ -29,8 +33,16 @@ interface ProductionViewerProps {
   onDelete?: () => void;
 }
 
+type DeclarationMode = 'edit' | 'view' | 'preview';
+
 export function ProductionViewer({ production, onUpdate, onDelete }: ProductionViewerProps) {
   const [editing, setEditing] = useState(false);
+  // Declarations have a third "preview" mode (faithful backend render) alongside
+  // the report-style edit/working-view toggle.
+  const [declMode, setDeclMode] = useState<DeclarationMode>('view');
+  // Bumped after a debounced declaration save settles so the preview re-fetches
+  // the latest SAVED state.
+  const [previewKey, setPreviewKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -46,6 +58,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
     prevIdRef.current = production.id;
     setNameDraft(production.name);
     setEditingName(false);
+    setDeclMode('view');
   }
 
   const commitName = useCallback(async () => {
@@ -176,6 +189,25 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
           onUpdate?.(updated);
         } catch (err) {
           console.error('Failed to save report:', err);
+        }
+      }, 800);
+    },
+    [production.id, onUpdate],
+  );
+
+  const handleDeclarationChange = useCallback(
+    (next: components['schemas']['DeclarationData']) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(async () => {
+        try {
+          const updated = await apiClient.updateProduction(production.id, {
+            data: next as unknown as Record<string, unknown>,
+          });
+          onUpdate?.(updated);
+          // Preview reflects last-saved state; refresh it once the save lands.
+          setPreviewKey((k) => k + 1);
+        } catch (err) {
+          console.error('Failed to save declaration:', err);
         }
       }, 800);
     },
@@ -395,6 +427,27 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
               {editing ? 'View' : 'Edit'}
             </button>
           )}
+          {onUpdate && production.type === 'declaration' && (
+            <div className="flex items-center h-8 bg-surface border border-line rounded-md overflow-hidden text-xs font-medium">
+              {([
+                { mode: 'edit', label: 'Edit', icon: FaPenToSquare },
+                { mode: 'view', label: 'View', icon: FaEye },
+                { mode: 'preview', label: 'Preview', icon: FaFileLines },
+              ] as { mode: DeclarationMode; label: string; icon: typeof FaEye }[]).map(({ mode, label, icon: Icon }, i) => (
+                <button
+                  key={mode}
+                  onClick={() => setDeclMode(mode)}
+                  className={`px-3 h-full flex items-center gap-1.5 transition-colors ${i > 0 ? 'border-l border-line' : ''} ${
+                    declMode === mode
+                      ? 'bg-brand/10 text-brand'
+                      : 'text-ink-muted hover:text-ink hover:bg-surface-raised'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" /> {label}
+                </button>
+              ))}
+            </div>
+          )}
           {onDelete && (
             confirmDelete ? (
               <div className="flex items-center gap-1.5">
@@ -432,6 +485,19 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
             editable={editing}
             onChange={handleReportChange}
           />
+        )}
+        {production.type === 'declaration' && (
+          declMode === 'preview' ? (
+            <div className="h-full min-h-[60vh]">
+              <DeclarationPreviewPane productionId={production.id} refreshKey={previewKey} />
+            </div>
+          ) : (
+            <DeclarationEditor
+              production={production}
+              readOnly={declMode !== 'edit'}
+              onChange={handleDeclarationChange}
+            />
+          )
         )}
         {production.type === 'chart' && (() => {
           const mergedChartData = { ...data, ...(chartDraft ?? {}) };
@@ -475,7 +541,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
       <ExportModal
         open={exportOpen}
         onClose={() => setExportOpen(false)}
-        kind={production.type as 'chart' | 'report' | 'chronology'}
+        kind={production.type as 'chart' | 'report' | 'chronology' | 'declaration'}
         defaultFilename={production.name}
         onExport={handleExport}
         previewGenerate={production.type === 'chart' ? previewGenerate : undefined}

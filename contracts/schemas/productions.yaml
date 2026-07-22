@@ -4,6 +4,7 @@ ProductionType:
     - report
     - chart
     - chronology
+    - declaration
 
 Production:
   type: object
@@ -51,3 +52,194 @@ UpdateProductionRequest:
     data:
       type: object
       additionalProperties: true
+
+DeclarationFormatId:
+  type: string
+  enum:
+    - ca-declaration
+    - ny-affirmation
+    - federal-1746
+    - tx-declaration
+    - fl-declaration
+
+DeclarationVariant:
+  type: string
+  deprecated: true
+  description: Deprecated alias for formatId; kept for back-compat with existing rows. Use formatId instead.
+  enum:
+    - ca-declaration
+    - ny-affirmation
+
+DeclarationCaption:
+  type: object
+  required: [attorneyBlock, court, county, plaintiff, defendant, caseNumber, documentTitle, hearingInfo]
+  properties:
+    attorneyBlock:
+      type: string
+      description: Multiline CA gutter block. Empty for NY.
+    court:
+      type: string
+      description: '"SUPERIOR COURT OF THE STATE OF CALIFORNIA"'
+    county:
+      type: string
+      description: '"COUNTY OF SAN FRANCISCO"'
+    plaintiff:
+      type: string
+    defendant:
+      type: string
+    caseNumber:
+      type: string
+      description: '"Case No. CGC-24-620900" / "Index No.: 365181/2024"'
+    documentTitle:
+      type: string
+      description: '"DECLARATION OF … IN SUPPORT OF …"'
+    hearingInfo:
+      type: string
+      description: Multiline hearing/dept/action-filed/trial-date block. Optional content.
+
+DeclarationSubItem:
+  type: object
+  required: [id, text]
+  properties:
+    id:
+      type: string
+    text:
+      type: string
+
+DeclarationFootnote:
+  type: object
+  required: [id, text]
+  properties:
+    id:
+      type: string
+    text:
+      type: string
+
+DeclarationParagraph:
+  type: object
+  required: [id, text, subItems, exhibitIds, footnotes]
+  properties:
+    id:
+      type: string
+    text:
+      type: string
+      description: Plain text; inline <b>/<i>/<u> allowed, nothing else.
+    subItems:
+      type: array
+      items:
+        $ref: '#/DeclarationSubItem'
+    exhibitIds:
+      type: array
+      items:
+        type: string
+      description: Renders as "See Exhibit(s) <label(s)>" after the text.
+    footnotes:
+      type: array
+      items:
+        $ref: '#/DeclarationFootnote'
+
+DeclarationSectionKind:
+  type: string
+  enum:
+    - qualifications
+    - assignment
+    - summary_of_opinions
+    - background
+    - authentication
+    - findings
+    - conclusions
+    - recommendations
+    - custom
+
+DeclarationSection:
+  type: object
+  required: [id, kind, heading, paragraphs]
+  properties:
+    id:
+      type: string
+    kind:
+      $ref: '#/DeclarationSectionKind'
+    heading:
+      type: string
+      description: '"EXPERT BACKGROUND" — letter ("A.") computed at render.'
+    paragraphs:
+      type: array
+      items:
+        $ref: '#/DeclarationParagraph'
+
+DeclarationExhibitSource:
+  type: object
+  required: [kind]
+  properties:
+    kind:
+      type: string
+      enum:
+        - transaction
+        - url
+        - file
+        - other
+    txHash:
+      type: string
+    chain:
+      type: string
+    url:
+      type: string
+    note:
+      type: string
+
+DeclarationExhibit:
+  type: object
+  required: [id, label, description, source]
+  properties:
+    id:
+      type: string
+    label:
+      type: string
+      description: '"A", "B1" — explicit, unique per declaration.'
+    description:
+      type: string
+    source:
+      nullable: true
+      allOf:
+        - $ref: '#/DeclarationExhibitSource'
+
+DeclarationData:
+  type: object
+  required: [schemaVersion, caption, declarantName, sections, exhibits, execution]
+  properties:
+    schemaVersion:
+      type: integer
+      enum: [1]
+    formatId:
+      $ref: '#/DeclarationFormatId'
+    variant:
+      $ref: '#/DeclarationVariant'
+      description: Deprecated alias for formatId; retained for existing rows. New writes should use formatId.
+    caption:
+      $ref: '#/DeclarationCaption'
+    declarantName:
+      type: string
+    declarantDateOfBirth:
+      type: string
+      description: Declarant date of birth. Required only by formats that list it in requiredDeclarantFields (e.g. TX).
+    declarantAddress:
+      type: string
+      description: Declarant address. Required only by formats that list it in requiredDeclarantFields (e.g. TX).
+    sections:
+      type: array
+      items:
+        $ref: '#/DeclarationSection'
+    exhibits:
+      type: array
+      items:
+        $ref: '#/DeclarationExhibit'
+    execution:
+      type: object
+      required: [place, date, signatureName]
+      properties:
+        place:
+          type: string
+        date:
+          type: string
+        signatureName:
+          type: string

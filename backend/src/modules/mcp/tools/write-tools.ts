@@ -248,7 +248,7 @@ export class WriteToolsService {
       'create_production',
       {
         description:
-          'Create a new production (report, chart, or chronology) under a case. Requires editor access.',
+          'Create a new production (report, chart, chronology, or declaration) under a case. Requires editor access. For declarations pass `data: { formatId, caption?, declarantName?, declarantDateOfBirth?, declarantAddress? }` — `formatId` is one of `ca-declaration`, `ny-affirmation`, `federal-1746`, `tx-declaration`, `fl-declaration`; the server seeds the section skeleton and renders the jurisdiction\'s oath, caption chrome, and numbering automatically. `tx-declaration` additionally requires `declarantDateOfBirth` and `declarantAddress`. Build declaration content afterwards with `update_production` declaration ops — read the `declarations` skill first.',
         inputSchema: {
           caseId: z.string().uuid(),
           name: z.string(),
@@ -294,7 +294,7 @@ export class WriteToolsService {
       'update_production',
       {
         description:
-          'Update a production: rename, replace its `data` payload, or apply atomic `ops`. `data` and `ops` are mutually exclusive. Requires editor access.',
+          'Update a production: rename, replace its `data` payload, or apply atomic `ops`. `data` and `ops` are mutually exclusive. Requires editor access. Chronology/chart ops are documented in the `productions` skill; declaration ops (declaration_set_caption, declaration_add_section, declaration_add_paragraph, declaration_add_exhibit, …) in the `declarations` skill — read the relevant skill before applying ops.',
         inputSchema: {
           productionId: z.string().uuid(),
           name: z.string().optional(),

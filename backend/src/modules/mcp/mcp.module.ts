@@ -13,6 +13,8 @@
  *                          services can inject it.
  *   - CasesModule           exports CasesService for navigate tools.
  *   - InvestigationsModule  exports InvestigationsService for navigate tools.
+ *   - DeclarantsModule      exports DeclarantsService for read tools.
+ *   - DeclarationLibraryModule exports DeclarationLibraryService for read tools.
  *
  * Providers:
  *   - McpAuthHelper, McpToolsService — top-level controllers/dispatchers.
@@ -41,6 +43,8 @@ import { ProductionsModule } from '../productions/productions.module';
 import { DataRoomModule } from '../data-room/data-room.module';
 import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
 import { BlockchainModule } from '../blockchain/blockchain.module';
+import { DeclarantsModule } from '../declarants/declarants.module';
+import { DeclarationLibraryModule } from '../declaration-library/declaration-library.module';
 import { OAuthModule } from '../oauth/oauth.module';
 import { McpAuthHelper } from './mcp-auth.helper';
 import { McpController } from './mcp.controller';
@@ -63,6 +67,8 @@ import { AgentAuditService } from './agent-audit.service';
     DataRoomModule,       // exports DataRoomService
     LabeledEntitiesModule, // exports LabeledEntitiesService
     BlockchainModule,      // exports BlockchainService
+    DeclarantsModule,      // exports DeclarantsService
+    DeclarationLibraryModule, // exports DeclarationLibraryService
   ],
   controllers: [McpController],
   providers: [

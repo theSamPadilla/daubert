@@ -78,6 +78,7 @@ describe('McpToolsService.registerPromptsForScope', () => {
     'etherscan-apis',
     'tronscan-apis',
     'productions',
+    'declarations',
   ];
 
   describe('when all skill files are present', () => {

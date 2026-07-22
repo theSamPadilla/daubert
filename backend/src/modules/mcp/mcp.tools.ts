@@ -42,6 +42,7 @@ const PROMPT_SKILL_HANDLES = [
   'etherscan-apis',
   'tronscan-apis',
   'productions',
+  'declarations',
 ] as const;
 
 @Injectable()

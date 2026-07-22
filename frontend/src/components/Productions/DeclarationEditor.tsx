@@ -506,7 +506,7 @@ export function DeclarationEditor({ production, readOnly, onChange }: Declaratio
                 value={section.heading}
                 disabled={readOnly}
                 onChange={(e) => setSectionHeading(section.id, e.target.value)}
-                className="flex-1 font-semibold uppercase tracking-wide text-[13px]"
+                className="flex-1 min-w-0 font-semibold uppercase tracking-wide text-[13px]"
               />
               <Badge tone="neutral" className="shrink-0">
                 {SECTION_KIND_LABEL[section.kind] ?? section.kind}
@@ -530,7 +530,7 @@ export function DeclarationEditor({ production, readOnly, onChange }: Declaratio
                     <span className="font-mono text-xs text-ink-faint mt-2 w-6 shrink-0">
                       {numbering.paragraphNumbers.get(paragraph.id)}.
                     </span>
-                    <div className="flex-1 space-y-2">
+                    <div className="flex-1 min-w-0 space-y-2">
                       <AutoTextarea
                         value={paragraph.text}
                         disabled={readOnly}
@@ -552,7 +552,7 @@ export function DeclarationEditor({ production, readOnly, onChange }: Declaratio
                                 onChange={(e) =>
                                   setSubItemText(section.id, paragraph, subItem.id, e.target.value)
                                 }
-                                className="flex-1"
+                                className="flex-1 min-w-0"
                               />
                               {!readOnly && (
                                 <IconButton
@@ -610,7 +610,7 @@ export function DeclarationEditor({ production, readOnly, onChange }: Declaratio
                                   setFootnoteText(section.id, paragraph, fn.id, e.target.value)
                                 }
                                 placeholder="Footnote text..."
-                                className="flex-1 text-xs"
+                                className="flex-1 min-w-0 text-xs"
                               />
                               {!readOnly && (
                                 <IconButton

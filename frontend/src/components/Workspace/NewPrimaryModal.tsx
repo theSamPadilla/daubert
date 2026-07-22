@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api-client';
+import type { components } from '@/generated/api-types';
+import { apiClient, type DeclarationFormat } from '@/lib/api-client';
 import { useCaseContext } from '@/contexts/CaseContext';
-import { Modal, Button } from '@/components/ui';
+import { Modal, Button, Field, Select } from '@/components/ui';
 
 type PrimaryType = 'investigation' | 'production';
-type ProductionType = 'report' | 'chart' | 'chronology';
+type ProductionType = 'report' | 'chart' | 'chronology' | 'declaration';
+type DeclarationFormatId = components['schemas']['DeclarationFormatId'];
 
 export function NewPrimaryModal() {
   const router = useRouter();
@@ -16,8 +18,32 @@ export function NewPrimaryModal() {
   const [tab, setTab] = useState<PrimaryType>(newPrimaryDefault);
   const [name, setName] = useState('');
   const [productionType, setProductionType] = useState<ProductionType>('report');
+  const [declarationFormatId, setDeclarationFormatId] = useState<DeclarationFormatId>('ca-declaration');
+  const [formats, setFormats] = useState<DeclarationFormat[]>([]);
+  const [formatsLoading, setFormatsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .listDeclarationFormats()
+      .then((f) => {
+        if (cancelled) return;
+        setFormats(f);
+        if (f.length > 0 && !f.some((format) => format.id === declarationFormatId)) {
+          setDeclarationFormatId(f[0].id);
+        }
+      })
+      .catch((err) => console.error('Failed to load declaration formats:', err))
+      .finally(() => {
+        if (!cancelled) setFormatsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async () => {
     const trimmed = name.trim();
@@ -35,6 +61,7 @@ export function NewPrimaryModal() {
         const defaultData =
           productionType === 'report' ? { content: '' }
           : productionType === 'chronology' ? { entries: [] }
+          : productionType === 'declaration' ? { formatId: declarationFormatId }
           : { chartType: 'bar', labels: [], datasets: [] };
         const prod = await apiClient.createProduction(caseId, {
           name: trimmed,
@@ -65,7 +92,11 @@ export function NewPrimaryModal() {
           <Button
             size="sm"
             onClick={handleSubmit}
-            disabled={!name.trim() || submitting}
+            disabled={
+              !name.trim() ||
+              submitting ||
+              (tab === 'production' && productionType === 'declaration' && (formatsLoading || !declarationFormatId))
+            }
           >
             {submitting ? 'Creating...' : 'Create'}
           </Button>
@@ -116,7 +147,7 @@ export function NewPrimaryModal() {
           <div>
             <label className="block text-sm text-ink-muted mb-1.5">Type</label>
             <div className="flex gap-2">
-              {(['report', 'chart', 'chronology'] as const).map((t) => (
+              {(['report', 'chart', 'chronology', 'declaration'] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setProductionType(t)}
@@ -131,6 +162,24 @@ export function NewPrimaryModal() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* Declaration format selector */}
+        {tab === 'production' && productionType === 'declaration' && (
+          <Field label="Format">
+            <Select
+              value={declarationFormatId}
+              disabled={formatsLoading || formats.length === 0}
+              onChange={(e) => setDeclarationFormatId(e.target.value as DeclarationFormatId)}
+            >
+              {formatsLoading && <option value="">Loading...</option>}
+              {formats.map((format) => (
+                <option key={format.id} value={format.id}>
+                  {format.label} ({format.jurisdiction})
+                </option>
+              ))}
+            </Select>
+          </Field>
         )}
 
         {/* Error */}

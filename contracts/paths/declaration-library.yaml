@@ -1,0 +1,145 @@
+/orgs/{org}/declaration-library:
+  get:
+    summary: List declaration library blocks for an organization
+    operationId: listDeclarationLibraryBlocks
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+      - name: kind
+        in: query
+        schema:
+          $ref: '../schemas/declaration-library.yaml#/DeclarationLibraryBlockKind'
+    responses:
+      '200':
+        description: Declaration library blocks
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/declaration-library.yaml#/DeclarationLibraryBlock'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    summary: Create a declaration library block
+    operationId: createDeclarationLibraryBlock
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/declaration-library.yaml#/CreateDeclarationLibraryBlockRequest'
+    responses:
+      '201':
+        description: Created declaration library block
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/declaration-library.yaml#/DeclarationLibraryBlock'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/orgs/{org}/declaration-library/{blockId}:
+  patch:
+    summary: Update a declaration library block
+    operationId: updateDeclarationLibraryBlock
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+      - name: blockId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/declaration-library.yaml#/UpdateDeclarationLibraryBlockRequest'
+    responses:
+      '200':
+        description: Updated declaration library block
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/declaration-library.yaml#/DeclarationLibraryBlock'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    summary: Delete a declaration library block
+    operationId: deleteDeclarationLibraryBlock
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+      - name: blockId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Deleted
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

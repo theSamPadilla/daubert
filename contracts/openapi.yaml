@@ -201,6 +201,18 @@ paths:
     $ref: './paths/oauth.yaml#/~1me~1oauth-sessions~1{id}~1revoke'
   /mcp:
     $ref: './paths/mcp.yaml#/~1mcp'
+  /orgs/{org}/declaration-library:
+    $ref: './paths/declaration-library.yaml#/~1orgs~1{org}~1declaration-library'
+  /orgs/{org}/declaration-library/{blockId}:
+    $ref: './paths/declaration-library.yaml#/~1orgs~1{org}~1declaration-library~1{blockId}'
+  /declaration-formats:
+    $ref: './paths/declaration-formats.yaml#/~1declaration-formats'
+  /productions/{id}/declaration-preview:
+    $ref: './paths/declaration-formats.yaml#/~1productions~1{id}~1declaration-preview'
+  /orgs/{org}/declarants:
+    $ref: './paths/declarants.yaml#/~1orgs~1{org}~1declarants'
+  /orgs/{org}/declarants/{declarantId}:
+    $ref: './paths/declarants.yaml#/~1orgs~1{org}~1declarants~1{declarantId}'
 
 components:
   schemas:
@@ -272,6 +284,44 @@ components:
       $ref: './schemas/productions.yaml#/CreateProductionRequest'
     UpdateProductionRequest:
       $ref: './schemas/productions.yaml#/UpdateProductionRequest'
+    DeclarationFormatId:
+      $ref: './schemas/productions.yaml#/DeclarationFormatId'
+    DeclarationVariant:
+      $ref: './schemas/productions.yaml#/DeclarationVariant'
+    DeclarationCaption:
+      $ref: './schemas/productions.yaml#/DeclarationCaption'
+    DeclarationSubItem:
+      $ref: './schemas/productions.yaml#/DeclarationSubItem'
+    DeclarationFootnote:
+      $ref: './schemas/productions.yaml#/DeclarationFootnote'
+    DeclarationParagraph:
+      $ref: './schemas/productions.yaml#/DeclarationParagraph'
+    DeclarationSectionKind:
+      $ref: './schemas/productions.yaml#/DeclarationSectionKind'
+    DeclarationSection:
+      $ref: './schemas/productions.yaml#/DeclarationSection'
+    DeclarationExhibitSource:
+      $ref: './schemas/productions.yaml#/DeclarationExhibitSource'
+    DeclarationExhibit:
+      $ref: './schemas/productions.yaml#/DeclarationExhibit'
+    DeclarationData:
+      $ref: './schemas/productions.yaml#/DeclarationData'
+    DeclarationLibraryBlockKind:
+      $ref: './schemas/declaration-library.yaml#/DeclarationLibraryBlockKind'
+    DeclarationLibraryBlock:
+      $ref: './schemas/declaration-library.yaml#/DeclarationLibraryBlock'
+    CreateDeclarationLibraryBlockRequest:
+      $ref: './schemas/declaration-library.yaml#/CreateDeclarationLibraryBlockRequest'
+    UpdateDeclarationLibraryBlockRequest:
+      $ref: './schemas/declaration-library.yaml#/UpdateDeclarationLibraryBlockRequest'
+    DeclarationFormat:
+      $ref: './schemas/declaration-formats.yaml#/DeclarationFormat'
+    Declarant:
+      $ref: './schemas/declarants.yaml#/Declarant'
+    CreateDeclarantRequest:
+      $ref: './schemas/declarants.yaml#/CreateDeclarantRequest'
+    UpdateDeclarantRequest:
+      $ref: './schemas/declarants.yaml#/UpdateDeclarantRequest'
     InviteRole:
       $ref: './schemas/invites.yaml#/InviteRole'
     CaseInvite:

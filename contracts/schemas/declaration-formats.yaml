@@ -1,0 +1,26 @@
+DeclarationFormatDeclarantField:
+  type: string
+  enum:
+    - dateOfBirth
+    - address
+
+DeclarationFormat:
+  type: object
+  required: [id, label, jurisdiction, description, pleadingGutter, requiredDeclarantFields]
+  properties:
+    id:
+      $ref: './productions.yaml#/DeclarationFormatId'
+    label:
+      type: string
+    jurisdiction:
+      type: string
+      description: 'e.g. "CA", "NY", "Federal", "TX", "FL"'
+    description:
+      type: string
+    pleadingGutter:
+      type: boolean
+      description: Whether this format renders the CA-style numbered pleading line gutter.
+    requiredDeclarantFields:
+      type: array
+      items:
+        $ref: '#/DeclarationFormatDeclarantField'

@@ -1,0 +1,124 @@
+Declarant:
+  type: object
+  required: [id, organizationId, userId, displayName, title, firm, qualifications, cvExhibit, priorTestimony, hourlyRate, nonContingencyDisclosure, dateOfBirth, address, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    organizationId:
+      type: string
+      format: uuid
+    userId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Optional link to a member account.
+    displayName:
+      type: string
+    title:
+      type: string
+      nullable: true
+    firm:
+      type: string
+      nullable: true
+    qualifications:
+      type: array
+      items:
+        $ref: './productions.yaml#/DeclarationParagraph'
+    cvExhibit:
+      type: string
+      nullable: true
+      description: Description or URL for the declarant's CV exhibit.
+    priorTestimony:
+      type: array
+      items:
+        type: string
+    hourlyRate:
+      type: string
+      nullable: true
+    nonContingencyDisclosure:
+      type: string
+      nullable: true
+    dateOfBirth:
+      type: string
+      nullable: true
+    address:
+      type: string
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateDeclarantRequest:
+  type: object
+  required: [displayName]
+  properties:
+    userId:
+      type: string
+      format: uuid
+    displayName:
+      type: string
+    title:
+      type: string
+    firm:
+      type: string
+    qualifications:
+      type: array
+      items:
+        $ref: './productions.yaml#/DeclarationParagraph'
+    cvExhibit:
+      type: string
+    priorTestimony:
+      type: array
+      items:
+        type: string
+    hourlyRate:
+      type: string
+    nonContingencyDisclosure:
+      type: string
+    dateOfBirth:
+      type: string
+    address:
+      type: string
+
+UpdateDeclarantRequest:
+  type: object
+  properties:
+    userId:
+      type: string
+      format: uuid
+      nullable: true
+    displayName:
+      type: string
+    title:
+      type: string
+      nullable: true
+    firm:
+      type: string
+      nullable: true
+    qualifications:
+      type: array
+      items:
+        $ref: './productions.yaml#/DeclarationParagraph'
+    cvExhibit:
+      type: string
+      nullable: true
+    priorTestimony:
+      type: array
+      items:
+        type: string
+    hourlyRate:
+      type: string
+      nullable: true
+    nonContingencyDisclosure:
+      type: string
+      nullable: true
+    dateOfBirth:
+      type: string
+      nullable: true
+    address:
+      type: string
+      nullable: true

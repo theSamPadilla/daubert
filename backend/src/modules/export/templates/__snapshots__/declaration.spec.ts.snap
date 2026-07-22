@@ -1,0 +1,380 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`renderDeclarationHtml — CA/NY parity (byte-for-byte lock) CA declaration output is unchanged (docx render, gutterless) 1`] = `
+"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>DECLARATION OF RICHARD J. WIDMANN IN SUPPORT OF DEFENDANT’S MOTION FOR SUMMARY JUDGMENT</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Times New Roman', Times, serif; color: #000; font-size: 12pt; }
+  .section-heading { font-weight: bold; text-transform: uppercase; margin: 12pt 0 8pt; }
+  .doc-title { font-weight: bold; }
+  .oath-preamble { font-weight: bold; margin-bottom: 8pt; }
+  ol.sub-items { list-style: lower-alpha; margin: 4pt 0 8pt 84pt; }
+  ol.sub-items li { margin-bottom: 4pt; text-align: justify; padding-left: 8pt; }
+  .fn-ref { font-size: 8pt; vertical-align: super; }
+  .endnotes { margin-top: 24pt; }
+  .endnotes-title { font-weight: bold; margin-bottom: 8pt; }
+  .endnote { display: flex; margin-bottom: 6pt; font-size: 10pt; }
+  .endnote-num { min-width: 20pt; vertical-align: super; font-size: 8pt; }
+  .endnote-body { flex: 1; }
+  .exhibit-index { margin-top: 24pt; page-break-before: always; }
+  .exhibit-index-title { font-weight: bold; text-align: center; margin-bottom: 12pt; font-size: 13pt; }
+  .exhibit-row { display: flex; margin-bottom: 10pt; }
+  .exhibit-label { min-width: 90pt; }
+  .exhibit-desc { flex: 1; }
+  .exhibit-source { font-size: 10pt; color: #333; word-break: break-all; margin-top: 2pt; }
+  .exhibit-source a { color: #000; }
+  .signature-block { margin-top: 36pt; margin-left: 55%; }
+  .signature-line { border-bottom: 1px solid #000; height: 40pt; }
+  .signature-name { padding-top: 2pt; }
+  a { color: #000; }
+  
+  :root { --pleading-line: 24px; --gutter-w: 0.55in; }
+  body { line-height: var(--pleading-line); }
+  .doc-body { padding-left: var(--gutter-w); }
+  /* Fixed gutter: repeats on every printed page (position:fixed prints on
+     every page in Chromium). Top/left 0 = top-left of the content frame. */
+  .pleading-gutter {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--gutter-w);
+    height: calc(var(--pleading-line) * 28);
+  }
+  .pleading-gutter .rule-inner { position: absolute; top: 0; bottom: 0; right: 6pt; border-left: 1px solid #000; }
+  .pleading-gutter .rule-outer { position: absolute; top: 0; bottom: 0; right: 9pt; border-left: 1px solid #000; }
+  .pleading-gutter .ln {
+    height: var(--pleading-line);
+    line-height: var(--pleading-line);
+    text-align: right;
+    padding-right: 16pt;
+    font-size: 11pt;
+  }
+  .attorney-block { line-height: var(--pleading-line); margin-bottom: 0; }
+  .ca-court-header { text-align: center; font-weight: bold; line-height: var(--pleading-line); margin: 0; }
+  .ca-caption { display: flex; margin: 0 0 var(--pleading-line); line-height: var(--pleading-line); }
+  .ca-caption-box { width: 50%; border-right: 1px solid #000; padding-right: 12pt; min-height: calc(var(--pleading-line) * 11); }
+  .ca-caption-box .cap-role { text-align: center; }
+  .ca-caption-box .cap-vs { margin-left: 24pt; }
+  .ca-caption-info { width: 50%; padding-left: 18pt; }
+  .ca-caption-info .doc-title { margin-bottom: var(--pleading-line); }
+  .oath-line { text-indent: 48pt; text-align: justify; }
+  .oath-preamble { font-weight: bold; }
+  .section-heading { margin: 0; line-height: var(--pleading-line); }
+  .para { text-indent: 48pt; text-align: justify; }
+  .para-num { display: inline-block; text-indent: 0; min-width: 36pt; }
+  ol.sub-items { line-height: var(--pleading-line); margin: 0 0 0 84pt; }
+  .execution { margin-top: var(--pleading-line); }
+  .perjury { text-align: justify; }
+  </style>
+</head><body>
+  <div class="doc-body">
+    
+  <div class="attorney-block">MATTHEW D. GAUTHIER (State Bar # 325024)<br>mgauthier@nagylaw.com<br>NAGY WOLFE APPLETON LLP<br>31 East 62nd Street<br>New York, NY 10065<br>Telephone: (646) 494-4900<br><br>Attorneys for Defendant STEPHEN AKRIDGE</div>
+  <div class="ca-court-header">
+    <div>SUPERIOR COURT OF THE STATE OF CALIFORNIA</div>
+    <div>CITY AND COUNTY OF SAN FRANCISCO</div>
+  </div>
+  <div class="ca-caption">
+    <div class="ca-caption-box">
+      <div class="cap-party">ELISA ROSSI, an individual,</div>
+      <div class="cap-role">Plaintiff,</div>
+      <div class="cap-vs">vs.</div>
+      <div class="cap-party">STEPHEN AKRIDGE, an individual,</div>
+      <div class="cap-role">Defendant.</div>
+    </div>
+    <div class="ca-caption-info">
+      <div class="case-no">Case No. CGC-24-620900</div>
+      <div class="doc-title">DECLARATION OF RICHARD J. WIDMANN IN SUPPORT OF DEFENDANT’S MOTION FOR SUMMARY JUDGMENT</div>
+      <div class="hearing-info">Objection Hearing: February 5, 2026<br>Time: 11:30 a.m.<br>Dept: 302<br><br>Action Filed: December 24, 2024<br>Trial Date: March 16, 2026</div>
+    </div>
+  </div>
+    <div class="oath-open"><div class="oath-preamble">TO ALL PARTIES AND TO THEIR ATTORNEYS OF RECORD:</div><div class="oath-line">I, Richard J. Widmann, declare:</div></div>
+    <div class="section-heading">A.&nbsp;&nbsp;EXPERT BACKGROUND</div><div class="para"><span class="para-num">1.</span>I am a founder of Incite Consulting, a crypto-focused litigation consulting firm specializing in regulatory matters, civil and criminal litigation, and investigations concerning cryptocurrency businesses and their executives.<sup class="fn-ref">1</sup></div><div class="para"><span class="para-num">2.</span>My CV, which I prepared, is attached to this declaration. It reflects my <b>eight years</b> of experience and my role as an <i>adjunct professor</i>. See Exhibit <b><u>A</u></b>.</div><div class="section-heading">B.&nbsp;&nbsp;PUBLICLY AVAILABLE BLOCKCHAIN RECORDS SHOW THE TRANSFERS</div><div class="para"><span class="para-num">3.</span>On March 6, 2024, several transactions occurred involving the following stake accounts: See Exhibits <b><u>A</u></b>, <b><u>B1</u></b>.<sup class="fn-ref">2</sup></div><ol class="sub-items"><li>4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU</li><li>7DnNjqbQfv5P4Yb89nA8bvWxwzGC8mqEaupWbYZMNQH</li><li>5MPGAb9xjdpscnRFBnp4ZCGJrndU6JmMrmbJKqSaLn9i</li></ol>
+    <div class="endnotes"><div class="endnotes-title">ENDNOTES</div><div class="endnote"><span class="endnote-num">1</span><span class="endnote-body">Web3 is a term used to describe the recent emergence of cryptocurrency and blockchain technologies.</span></div><div class="endnote"><span class="endnote-num">2</span><span class="endnote-body">The public key is a unique code or public address that identifies a specific wallet.</span></div></div>
+    <div class="execution">
+    <p class="perjury">I declare under penalty of perjury under the laws of the State of California that the foregoing is true and correct. Executed this 14th day of November 2025, at Austin, Texas.</p>
+    <div class="signature-block">
+      <div class="signature-line"></div>
+      <div class="signature-name">Richard J. Widmann</div>
+    </div>
+  </div>
+    <div class="exhibit-index"><div class="exhibit-index-title">EXHIBITS</div><div class="exhibit-row"><span class="exhibit-label"><b><u>Exhibit A</u></b></span><span class="exhibit-desc">Curriculum Vitae of Richard J. Widmann<div class="exhibit-source">Prepared by declarant</div></span></div><div class="exhibit-row"><span class="exhibit-label"><b><u>Exhibit B1</u></b></span><span class="exhibit-desc">Solscan record of the March 6, 2024 authority-change transaction<div class="exhibit-source"><a href="https://solscan.io/tx/4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU">https://solscan.io/tx/4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU</a></div></span></div></div>
+  </div></body></html>"
+`;
+
+exports[`renderDeclarationHtml — CA/NY parity (byte-for-byte lock) CA declaration output is unchanged (screen render, with gutter) 1`] = `
+"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>DECLARATION OF RICHARD J. WIDMANN IN SUPPORT OF DEFENDANT’S MOTION FOR SUMMARY JUDGMENT</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Times New Roman', Times, serif; color: #000; font-size: 12pt; }
+  .section-heading { font-weight: bold; text-transform: uppercase; margin: 12pt 0 8pt; }
+  .doc-title { font-weight: bold; }
+  .oath-preamble { font-weight: bold; margin-bottom: 8pt; }
+  ol.sub-items { list-style: lower-alpha; margin: 4pt 0 8pt 84pt; }
+  ol.sub-items li { margin-bottom: 4pt; text-align: justify; padding-left: 8pt; }
+  .fn-ref { font-size: 8pt; vertical-align: super; }
+  .endnotes { margin-top: 24pt; }
+  .endnotes-title { font-weight: bold; margin-bottom: 8pt; }
+  .endnote { display: flex; margin-bottom: 6pt; font-size: 10pt; }
+  .endnote-num { min-width: 20pt; vertical-align: super; font-size: 8pt; }
+  .endnote-body { flex: 1; }
+  .exhibit-index { margin-top: 24pt; page-break-before: always; }
+  .exhibit-index-title { font-weight: bold; text-align: center; margin-bottom: 12pt; font-size: 13pt; }
+  .exhibit-row { display: flex; margin-bottom: 10pt; }
+  .exhibit-label { min-width: 90pt; }
+  .exhibit-desc { flex: 1; }
+  .exhibit-source { font-size: 10pt; color: #333; word-break: break-all; margin-top: 2pt; }
+  .exhibit-source a { color: #000; }
+  .signature-block { margin-top: 36pt; margin-left: 55%; }
+  .signature-line { border-bottom: 1px solid #000; height: 40pt; }
+  .signature-name { padding-top: 2pt; }
+  a { color: #000; }
+  
+  :root { --pleading-line: 24px; --gutter-w: 0.55in; }
+  body { line-height: var(--pleading-line); }
+  .doc-body { padding-left: var(--gutter-w); }
+  /* Fixed gutter: repeats on every printed page (position:fixed prints on
+     every page in Chromium). Top/left 0 = top-left of the content frame. */
+  .pleading-gutter {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--gutter-w);
+    height: calc(var(--pleading-line) * 28);
+  }
+  .pleading-gutter .rule-inner { position: absolute; top: 0; bottom: 0; right: 6pt; border-left: 1px solid #000; }
+  .pleading-gutter .rule-outer { position: absolute; top: 0; bottom: 0; right: 9pt; border-left: 1px solid #000; }
+  .pleading-gutter .ln {
+    height: var(--pleading-line);
+    line-height: var(--pleading-line);
+    text-align: right;
+    padding-right: 16pt;
+    font-size: 11pt;
+  }
+  .attorney-block { line-height: var(--pleading-line); margin-bottom: 0; }
+  .ca-court-header { text-align: center; font-weight: bold; line-height: var(--pleading-line); margin: 0; }
+  .ca-caption { display: flex; margin: 0 0 var(--pleading-line); line-height: var(--pleading-line); }
+  .ca-caption-box { width: 50%; border-right: 1px solid #000; padding-right: 12pt; min-height: calc(var(--pleading-line) * 11); }
+  .ca-caption-box .cap-role { text-align: center; }
+  .ca-caption-box .cap-vs { margin-left: 24pt; }
+  .ca-caption-info { width: 50%; padding-left: 18pt; }
+  .ca-caption-info .doc-title { margin-bottom: var(--pleading-line); }
+  .oath-line { text-indent: 48pt; text-align: justify; }
+  .oath-preamble { font-weight: bold; }
+  .section-heading { margin: 0; line-height: var(--pleading-line); }
+  .para { text-indent: 48pt; text-align: justify; }
+  .para-num { display: inline-block; text-indent: 0; min-width: 36pt; }
+  ol.sub-items { line-height: var(--pleading-line); margin: 0 0 0 84pt; }
+  .execution { margin-top: var(--pleading-line); }
+  .perjury { text-align: justify; }
+  </style>
+</head><body><div class="pleading-gutter"><div class="rule-outer"></div><div class="rule-inner"></div><div class="ln">1</div><div class="ln">2</div><div class="ln">3</div><div class="ln">4</div><div class="ln">5</div><div class="ln">6</div><div class="ln">7</div><div class="ln">8</div><div class="ln">9</div><div class="ln">10</div><div class="ln">11</div><div class="ln">12</div><div class="ln">13</div><div class="ln">14</div><div class="ln">15</div><div class="ln">16</div><div class="ln">17</div><div class="ln">18</div><div class="ln">19</div><div class="ln">20</div><div class="ln">21</div><div class="ln">22</div><div class="ln">23</div><div class="ln">24</div><div class="ln">25</div><div class="ln">26</div><div class="ln">27</div><div class="ln">28</div></div>
+  <div class="doc-body">
+    
+  <div class="attorney-block">MATTHEW D. GAUTHIER (State Bar # 325024)<br>mgauthier@nagylaw.com<br>NAGY WOLFE APPLETON LLP<br>31 East 62nd Street<br>New York, NY 10065<br>Telephone: (646) 494-4900<br><br>Attorneys for Defendant STEPHEN AKRIDGE</div>
+  <div class="ca-court-header">
+    <div>SUPERIOR COURT OF THE STATE OF CALIFORNIA</div>
+    <div>CITY AND COUNTY OF SAN FRANCISCO</div>
+  </div>
+  <div class="ca-caption">
+    <div class="ca-caption-box">
+      <div class="cap-party">ELISA ROSSI, an individual,</div>
+      <div class="cap-role">Plaintiff,</div>
+      <div class="cap-vs">vs.</div>
+      <div class="cap-party">STEPHEN AKRIDGE, an individual,</div>
+      <div class="cap-role">Defendant.</div>
+    </div>
+    <div class="ca-caption-info">
+      <div class="case-no">Case No. CGC-24-620900</div>
+      <div class="doc-title">DECLARATION OF RICHARD J. WIDMANN IN SUPPORT OF DEFENDANT’S MOTION FOR SUMMARY JUDGMENT</div>
+      <div class="hearing-info">Objection Hearing: February 5, 2026<br>Time: 11:30 a.m.<br>Dept: 302<br><br>Action Filed: December 24, 2024<br>Trial Date: March 16, 2026</div>
+    </div>
+  </div>
+    <div class="oath-open"><div class="oath-preamble">TO ALL PARTIES AND TO THEIR ATTORNEYS OF RECORD:</div><div class="oath-line">I, Richard J. Widmann, declare:</div></div>
+    <div class="section-heading">A.&nbsp;&nbsp;EXPERT BACKGROUND</div><div class="para"><span class="para-num">1.</span>I am a founder of Incite Consulting, a crypto-focused litigation consulting firm specializing in regulatory matters, civil and criminal litigation, and investigations concerning cryptocurrency businesses and their executives.<sup class="fn-ref">1</sup></div><div class="para"><span class="para-num">2.</span>My CV, which I prepared, is attached to this declaration. It reflects my <b>eight years</b> of experience and my role as an <i>adjunct professor</i>. See Exhibit <b><u>A</u></b>.</div><div class="section-heading">B.&nbsp;&nbsp;PUBLICLY AVAILABLE BLOCKCHAIN RECORDS SHOW THE TRANSFERS</div><div class="para"><span class="para-num">3.</span>On March 6, 2024, several transactions occurred involving the following stake accounts: See Exhibits <b><u>A</u></b>, <b><u>B1</u></b>.<sup class="fn-ref">2</sup></div><ol class="sub-items"><li>4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU</li><li>7DnNjqbQfv5P4Yb89nA8bvWxwzGC8mqEaupWbYZMNQH</li><li>5MPGAb9xjdpscnRFBnp4ZCGJrndU6JmMrmbJKqSaLn9i</li></ol>
+    <div class="endnotes"><div class="endnotes-title">ENDNOTES</div><div class="endnote"><span class="endnote-num">1</span><span class="endnote-body">Web3 is a term used to describe the recent emergence of cryptocurrency and blockchain technologies.</span></div><div class="endnote"><span class="endnote-num">2</span><span class="endnote-body">The public key is a unique code or public address that identifies a specific wallet.</span></div></div>
+    <div class="execution">
+    <p class="perjury">I declare under penalty of perjury under the laws of the State of California that the foregoing is true and correct. Executed this 14th day of November 2025, at Austin, Texas.</p>
+    <div class="signature-block">
+      <div class="signature-line"></div>
+      <div class="signature-name">Richard J. Widmann</div>
+    </div>
+  </div>
+    <div class="exhibit-index"><div class="exhibit-index-title">EXHIBITS</div><div class="exhibit-row"><span class="exhibit-label"><b><u>Exhibit A</u></b></span><span class="exhibit-desc">Curriculum Vitae of Richard J. Widmann<div class="exhibit-source">Prepared by declarant</div></span></div><div class="exhibit-row"><span class="exhibit-label"><b><u>Exhibit B1</u></b></span><span class="exhibit-desc">Solscan record of the March 6, 2024 authority-change transaction<div class="exhibit-source"><a href="https://solscan.io/tx/4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU">https://solscan.io/tx/4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU</a></div></span></div></div>
+  </div></body></html>"
+`;
+
+exports[`renderDeclarationHtml — CA/NY parity (byte-for-byte lock) CA footer template is unchanged 1`] = `
+"<div style="width:100%;font-family:'Times New Roman',serif;font-size:9pt;color:#000;padding:0 0.75in;">
+    <div style="text-align:center;">- <span class="pageNumber"></span> -</div>
+    <div style="text-align:center;border-top:1px solid #000;padding-top:2px;margin-top:2px;">DECLARATION OF RICHARD J. WIDMANN IN SUPPORT OF DEFENDANT’S MOTION FOR SUMMARY JUDGMENT</div>
+  </div>"
+`;
+
+exports[`renderDeclarationHtml — CA/NY parity (byte-for-byte lock) NY affirmation output is unchanged (docx render) 1`] = `
+"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>AFFIRMATION OF RICHARD WIDMANN IN SUPPORT OF ORDER TO SHOW CAUSE</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Times New Roman', Times, serif; color: #000; font-size: 12pt; }
+  .section-heading { font-weight: bold; text-transform: uppercase; margin: 12pt 0 8pt; }
+  .doc-title { font-weight: bold; }
+  .oath-preamble { font-weight: bold; margin-bottom: 8pt; }
+  ol.sub-items { list-style: lower-alpha; margin: 4pt 0 8pt 84pt; }
+  ol.sub-items li { margin-bottom: 4pt; text-align: justify; padding-left: 8pt; }
+  .fn-ref { font-size: 8pt; vertical-align: super; }
+  .endnotes { margin-top: 24pt; }
+  .endnotes-title { font-weight: bold; margin-bottom: 8pt; }
+  .endnote { display: flex; margin-bottom: 6pt; font-size: 10pt; }
+  .endnote-num { min-width: 20pt; vertical-align: super; font-size: 8pt; }
+  .endnote-body { flex: 1; }
+  .exhibit-index { margin-top: 24pt; page-break-before: always; }
+  .exhibit-index-title { font-weight: bold; text-align: center; margin-bottom: 12pt; font-size: 13pt; }
+  .exhibit-row { display: flex; margin-bottom: 10pt; }
+  .exhibit-label { min-width: 90pt; }
+  .exhibit-desc { flex: 1; }
+  .exhibit-source { font-size: 10pt; color: #333; word-break: break-all; margin-top: 2pt; }
+  .exhibit-source a { color: #000; }
+  .signature-block { margin-top: 36pt; margin-left: 55%; }
+  .signature-line { border-bottom: 1px solid #000; height: 40pt; }
+  .signature-name { padding-top: 2pt; }
+  a { color: #000; }
+  
+  @page { size: Letter; margin: 1in; }
+  body { line-height: 2; }
+  .ny-court-header { margin-bottom: 8pt; }
+  .ny-caption { display: flex; align-items: stretch; margin-bottom: 16pt; line-height: 1.5; }
+  .ny-caption-box { width: 55%; border: 1px solid #000; padding: 10pt 12pt; }
+  .ny-caption-box .cap-role { text-align: center; }
+  .ny-caption-box .cap-against { margin-left: 12pt; }
+  .ny-caption-info { width: 45%; padding: 10pt 0 10pt 24pt; }
+  .ny-caption-info .index-no { margin-bottom: 20pt; }
+  .ny-caption-info .doc-title { text-align: center; }
+  .ny-caption-info .doc-title { text-decoration: none; }
+  .oath-open { margin-bottom: 8pt; }
+  .oath-line { text-indent: 48pt; text-align: justify; }
+  .para { text-indent: 48pt; text-align: justify; }
+  .para-num { display: inline-block; text-indent: 0; min-width: 36pt; }
+  .attorney-block { margin-bottom: 12pt; line-height: 1.3; }
+  .execution { margin-top: 24pt; }
+  .dated { white-space: normal; }
+  </style>
+</head><body>
+  <div class="doc-body">
+    
+  <div class="attorney-block">MATTHEW D. GAUTHIER (State Bar # 325024)<br>mgauthier@nagylaw.com<br>NAGY WOLFE APPLETON LLP<br>31 East 62nd Street<br>New York, NY 10065<br>Telephone: (646) 494-4900<br><br>Attorneys for Defendant STEPHEN AKRIDGE</div>
+  <div class="ny-court-header">
+    <div>SUPREME COURT OF THE STATE OF NEW YORK</div>
+    <div>COUNTY OF NEW YORK</div>
+  </div>
+  <div class="ny-caption">
+    <div class="ny-caption-box">
+      <div class="cap-party">ELISA ROSSI, an individual,</div>
+      <div class="cap-role">Plaintiff,</div>
+      <div class="cap-against">- against -</div>
+      <div class="cap-party">STEPHEN AKRIDGE, an individual,</div>
+      <div class="cap-role">Defendant.</div>
+    </div>
+    <div class="ny-caption-info">
+      <div class="index-no">Index No.: 365181/2024</div>
+      <div class="doc-title">AFFIRMATION OF RICHARD WIDMANN IN SUPPORT OF ORDER TO SHOW CAUSE</div>
+    </div>
+  </div>
+    <div class="oath-open"><div class="oath-line">I, Richard J. Widmann, declare under penalty of perjury and pursuant to C.P.L.R. § 2106, that the following is true and correct:</div></div>
+    <div class="section-heading">A.&nbsp;&nbsp;EXPERT BACKGROUND</div><div class="para"><span class="para-num">1.</span>I am a founder of Incite Consulting, a crypto-focused litigation consulting firm specializing in regulatory matters, civil and criminal litigation, and investigations concerning cryptocurrency businesses and their executives.<sup class="fn-ref">1</sup></div><div class="para"><span class="para-num">2.</span>My CV, which I prepared, is attached to this declaration. It reflects my <b>eight years</b> of experience and my role as an <i>adjunct professor</i>. See Exhibit <b><u>A</u></b>.</div><div class="section-heading">B.&nbsp;&nbsp;PUBLICLY AVAILABLE BLOCKCHAIN RECORDS SHOW THE TRANSFERS</div><div class="para"><span class="para-num">3.</span>On March 6, 2024, several transactions occurred involving the following stake accounts: See Exhibits <b><u>A</u></b>, <b><u>B1</u></b>.<sup class="fn-ref">2</sup></div><ol class="sub-items"><li>4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU</li><li>7DnNjqbQfv5P4Yb89nA8bvWxwzGC8mqEaupWbYZMNQH</li><li>5MPGAb9xjdpscnRFBnp4ZCGJrndU6JmMrmbJKqSaLn9i</li></ol>
+    <div class="endnotes"><div class="endnotes-title">ENDNOTES</div><div class="endnote"><span class="endnote-num">1</span><span class="endnote-body">Web3 is a term used to describe the recent emergence of cryptocurrency and blockchain technologies.</span></div><div class="endnote"><span class="endnote-num">2</span><span class="endnote-body">The public key is a unique code or public address that identifies a specific wallet.</span></div></div>
+    <div class="execution">
+    <p class="dated">Dated: New York, New York, November 19, 2025</p>
+    <div class="signature-block">
+      <div class="signature-line"></div>
+      <div class="signature-name">RICHARD J. WIDMANN</div>
+    </div>
+  </div>
+    <div class="exhibit-index"><div class="exhibit-index-title">EXHIBITS</div><div class="exhibit-row"><span class="exhibit-label"><b><u>Exhibit A</u></b></span><span class="exhibit-desc">Curriculum Vitae of Richard J. Widmann<div class="exhibit-source">Prepared by declarant</div></span></div><div class="exhibit-row"><span class="exhibit-label"><b><u>Exhibit B1</u></b></span><span class="exhibit-desc">Solscan record of the March 6, 2024 authority-change transaction<div class="exhibit-source"><a href="https://solscan.io/tx/4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU">https://solscan.io/tx/4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU</a></div></span></div></div>
+  </div></body></html>"
+`;
+
+exports[`renderDeclarationHtml — CA/NY parity (byte-for-byte lock) NY affirmation output is unchanged 1`] = `
+"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>AFFIRMATION OF RICHARD WIDMANN IN SUPPORT OF ORDER TO SHOW CAUSE</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Times New Roman', Times, serif; color: #000; font-size: 12pt; }
+  .section-heading { font-weight: bold; text-transform: uppercase; margin: 12pt 0 8pt; }
+  .doc-title { font-weight: bold; }
+  .oath-preamble { font-weight: bold; margin-bottom: 8pt; }
+  ol.sub-items { list-style: lower-alpha; margin: 4pt 0 8pt 84pt; }
+  ol.sub-items li { margin-bottom: 4pt; text-align: justify; padding-left: 8pt; }
+  .fn-ref { font-size: 8pt; vertical-align: super; }
+  .endnotes { margin-top: 24pt; }
+  .endnotes-title { font-weight: bold; margin-bottom: 8pt; }
+  .endnote { display: flex; margin-bottom: 6pt; font-size: 10pt; }
+  .endnote-num { min-width: 20pt; vertical-align: super; font-size: 8pt; }
+  .endnote-body { flex: 1; }
+  .exhibit-index { margin-top: 24pt; page-break-before: always; }
+  .exhibit-index-title { font-weight: bold; text-align: center; margin-bottom: 12pt; font-size: 13pt; }
+  .exhibit-row { display: flex; margin-bottom: 10pt; }
+  .exhibit-label { min-width: 90pt; }
+  .exhibit-desc { flex: 1; }
+  .exhibit-source { font-size: 10pt; color: #333; word-break: break-all; margin-top: 2pt; }
+  .exhibit-source a { color: #000; }
+  .signature-block { margin-top: 36pt; margin-left: 55%; }
+  .signature-line { border-bottom: 1px solid #000; height: 40pt; }
+  .signature-name { padding-top: 2pt; }
+  a { color: #000; }
+  
+  @page { size: Letter; margin: 1in; }
+  body { line-height: 2; }
+  .ny-court-header { margin-bottom: 8pt; }
+  .ny-caption { display: flex; align-items: stretch; margin-bottom: 16pt; line-height: 1.5; }
+  .ny-caption-box { width: 55%; border: 1px solid #000; padding: 10pt 12pt; }
+  .ny-caption-box .cap-role { text-align: center; }
+  .ny-caption-box .cap-against { margin-left: 12pt; }
+  .ny-caption-info { width: 45%; padding: 10pt 0 10pt 24pt; }
+  .ny-caption-info .index-no { margin-bottom: 20pt; }
+  .ny-caption-info .doc-title { text-align: center; }
+  .ny-caption-info .doc-title { text-decoration: none; }
+  .oath-open { margin-bottom: 8pt; }
+  .oath-line { text-indent: 48pt; text-align: justify; }
+  .para { text-indent: 48pt; text-align: justify; }
+  .para-num { display: inline-block; text-indent: 0; min-width: 36pt; }
+  .attorney-block { margin-bottom: 12pt; line-height: 1.3; }
+  .execution { margin-top: 24pt; }
+  .dated { white-space: normal; }
+  </style>
+</head><body>
+  <div class="doc-body">
+    
+  <div class="attorney-block">MATTHEW D. GAUTHIER (State Bar # 325024)<br>mgauthier@nagylaw.com<br>NAGY WOLFE APPLETON LLP<br>31 East 62nd Street<br>New York, NY 10065<br>Telephone: (646) 494-4900<br><br>Attorneys for Defendant STEPHEN AKRIDGE</div>
+  <div class="ny-court-header">
+    <div>SUPREME COURT OF THE STATE OF NEW YORK</div>
+    <div>COUNTY OF NEW YORK</div>
+  </div>
+  <div class="ny-caption">
+    <div class="ny-caption-box">
+      <div class="cap-party">ELISA ROSSI, an individual,</div>
+      <div class="cap-role">Plaintiff,</div>
+      <div class="cap-against">- against -</div>
+      <div class="cap-party">STEPHEN AKRIDGE, an individual,</div>
+      <div class="cap-role">Defendant.</div>
+    </div>
+    <div class="ny-caption-info">
+      <div class="index-no">Index No.: 365181/2024</div>
+      <div class="doc-title">AFFIRMATION OF RICHARD WIDMANN IN SUPPORT OF ORDER TO SHOW CAUSE</div>
+    </div>
+  </div>
+    <div class="oath-open"><div class="oath-line">I, Richard J. Widmann, declare under penalty of perjury and pursuant to C.P.L.R. § 2106, that the following is true and correct:</div></div>
+    <div class="section-heading">A.&nbsp;&nbsp;EXPERT BACKGROUND</div><div class="para"><span class="para-num">1.</span>I am a founder of Incite Consulting, a crypto-focused litigation consulting firm specializing in regulatory matters, civil and criminal litigation, and investigations concerning cryptocurrency businesses and their executives.<sup class="fn-ref">1</sup></div><div class="para"><span class="para-num">2.</span>My CV, which I prepared, is attached to this declaration. It reflects my <b>eight years</b> of experience and my role as an <i>adjunct professor</i>. See Exhibit <b><u>A</u></b>.</div><div class="section-heading">B.&nbsp;&nbsp;PUBLICLY AVAILABLE BLOCKCHAIN RECORDS SHOW THE TRANSFERS</div><div class="para"><span class="para-num">3.</span>On March 6, 2024, several transactions occurred involving the following stake accounts: See Exhibits <b><u>A</u></b>, <b><u>B1</u></b>.<sup class="fn-ref">2</sup></div><ol class="sub-items"><li>4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU</li><li>7DnNjqbQfv5P4Yb89nA8bvWxwzGC8mqEaupWbYZMNQH</li><li>5MPGAb9xjdpscnRFBnp4ZCGJrndU6JmMrmbJKqSaLn9i</li></ol>
+    <div class="endnotes"><div class="endnotes-title">ENDNOTES</div><div class="endnote"><span class="endnote-num">1</span><span class="endnote-body">Web3 is a term used to describe the recent emergence of cryptocurrency and blockchain technologies.</span></div><div class="endnote"><span class="endnote-num">2</span><span class="endnote-body">The public key is a unique code or public address that identifies a specific wallet.</span></div></div>
+    <div class="execution">
+    <p class="dated">Dated: New York, New York, November 19, 2025</p>
+    <div class="signature-block">
+      <div class="signature-line"></div>
+      <div class="signature-name">RICHARD J. WIDMANN</div>
+    </div>
+  </div>
+    <div class="exhibit-index"><div class="exhibit-index-title">EXHIBITS</div><div class="exhibit-row"><span class="exhibit-label"><b><u>Exhibit A</u></b></span><span class="exhibit-desc">Curriculum Vitae of Richard J. Widmann<div class="exhibit-source">Prepared by declarant</div></span></div><div class="exhibit-row"><span class="exhibit-label"><b><u>Exhibit B1</u></b></span><span class="exhibit-desc">Solscan record of the March 6, 2024 authority-change transaction<div class="exhibit-source"><a href="https://solscan.io/tx/4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU">https://solscan.io/tx/4rF6k3aRX54yhHakGDEbwvPzb36d2PKw688VqchP3bNU</a></div></span></div></div>
+  </div></body></html>"
+`;

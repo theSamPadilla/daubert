@@ -10,6 +10,8 @@ export {
   CREATE_PRODUCTION_TOOL,
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
+  GET_DECLARATION_LIBRARY_TOOL,
+  GET_DECLARANTS_TOOL,
   LIST_DATA_ROOM_FILES_TOOL,
   READ_DATA_ROOM_FILE_TOOL,
 } from './tool-definitions';
@@ -33,6 +35,8 @@ import {
   CREATE_PRODUCTION_TOOL,
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
+  GET_DECLARATION_LIBRARY_TOOL,
+  GET_DECLARANTS_TOOL,
   LIST_DATA_ROOM_FILES_TOOL,
   READ_DATA_ROOM_FILE_TOOL,
 } from './tool-definitions';
@@ -49,11 +53,17 @@ export const AGENT_TOOLS = [
   CREATE_PRODUCTION_TOOL,
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
+  GET_DECLARATION_LIBRARY_TOOL,
+  GET_DECLARANTS_TOOL,
   LIST_DATA_ROOM_FILES_TOOL,
   READ_DATA_ROOM_FILE_TOOL,
   ...LABEL_TOOLS,
 ];
 
+// get_declaration_library and get_declarants are READ-ONLY — they only list org
+// library blocks / declarant profiles and never mutate state, so they belong in
+// the viewer tool set alongside the other read/query tools (and are included in
+// AGENT_TOOLS above for editors/owners).
 export const READ_ONLY_AGENT_TOOLS = [
   WEB_SEARCH_TOOL,
   GET_CASE_DATA_TOOL,
@@ -63,6 +73,8 @@ export const READ_ONLY_AGENT_TOOLS = [
   LIST_SCRIPT_RUNS_TOOL,
   QUERY_LABELED_ENTITIES_TOOL,
   READ_PRODUCTION_TOOL,
+  GET_DECLARATION_LIBRARY_TOOL,
+  GET_DECLARANTS_TOOL,
   LIST_DATA_ROOM_FILES_TOOL,
   READ_DATA_ROOM_FILE_TOOL,
 ];

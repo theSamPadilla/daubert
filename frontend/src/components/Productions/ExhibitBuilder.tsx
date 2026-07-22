@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import {
   FaPlus, FaXmark, FaGripVertical,
-  FaFileLines, FaChartLine, FaTableList, FaDiagramProject,
+  FaFileLines, FaChartLine, FaTableList, FaDiagramProject, FaFileSignature,
   FaLayerGroup, FaMoon, FaSun,
 } from 'react-icons/fa6';
 import { apiClient, type Investigation, type Production } from '@/lib/api-client';
@@ -20,6 +20,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   report: <FaFileLines className="w-3.5 h-3.5" />,
   chart: <FaChartLine className="w-3.5 h-3.5" />,
   chronology: <FaTableList className="w-3.5 h-3.5" />,
+  declaration: <FaFileSignature className="w-3.5 h-3.5" />,
 };
 
 type ItemRef = {

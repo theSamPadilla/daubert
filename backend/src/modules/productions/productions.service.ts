@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { ProductionEntity, ProductionType } from '../../database/entities/production.entity';
 import { CaseAccessService } from '../auth/case-access.service';
@@ -9,6 +10,18 @@ import { CreateProductionDto } from './dto/create-production.dto';
 import { UpdateProductionDto } from './dto/update-production.dto';
 import { HighlightColor, isHighlightColor } from './chronology-highlights';
 import { ColumnDef, ChronologyEntry, seedChronologyData, normalizeEntry, isReservedColumnKey } from './chronology-schema';
+import {
+  DeclarationCaption,
+  DeclarationData,
+  DeclarationExhibit,
+  DeclarationParagraph,
+  DeclarationSection,
+  DeclarationSectionKind,
+  DeclarationSubItem,
+  DeclarationFootnote,
+  seedDeclarationData,
+  nextExhibitLabel,
+} from './declaration-data';
 
 // Discriminated union of atomic ops. The list is intentionally small —
 // extend with `report_*` and `chart_*` shapes as those types acquire
@@ -23,10 +36,45 @@ type Op =
   | { op: 'chronology_remove_column'; key: string }
   | { op: 'chronology_update_column'; key: string; patch: { label?: string; width?: number } }
   | { op: 'chronology_reorder_columns'; keys: string[] }
-  | { op: 'chart_set_height'; height: number };
+  | { op: 'chart_set_height'; height: number }
+  | { op: 'declaration_set_caption'; caption: Partial<DeclarationCaption> }
+  | { op: 'declaration_set_execution'; execution: Partial<DeclarationData['execution']> }
+  | { op: 'declaration_add_section'; kind: DeclarationSectionKind; heading: string; afterSectionId?: string }
+  | {
+      op: 'declaration_add_paragraph';
+      sectionId: string;
+      text: string;
+      subItems?: { text: string }[];
+      exhibitIds?: string[];
+      footnotes?: { text: string }[];
+      afterParagraphId?: string;
+    }
+  | {
+      op: 'declaration_update_paragraph';
+      paragraphId: string;
+      text?: string;
+      subItems?: { id?: string; text: string }[];
+      exhibitIds?: string[];
+      footnotes?: { id?: string; text: string }[];
+    }
+  | { op: 'declaration_remove_paragraph'; paragraphId: string }
+  | { op: 'declaration_add_exhibit'; label?: string; description: string; source?: DeclarationExhibit['source'] }
+  | { op: 'declaration_update_exhibit'; exhibitId: string; label?: string; description?: string; source?: DeclarationExhibit['source'] };
 
 const CHART_HEIGHT_MIN = 200;
 const CHART_HEIGHT_MAX = 1200;
+
+const DECLARATION_SECTION_KINDS: readonly DeclarationSectionKind[] = [
+  'qualifications',
+  'assignment',
+  'summary_of_opinions',
+  'background',
+  'authentication',
+  'findings',
+  'conclusions',
+  'recommendations',
+  'custom',
+];
 
 @Injectable()
 export class ProductionsService {
@@ -52,9 +100,14 @@ export class ProductionsService {
 
   async create(caseId: string, dto: CreateProductionDto, principal: AccessPrincipal) {
     await this.caseAccess.assertRole(principal, caseId, 'editor');
-    const data: Record<string, unknown> = dto.type === ProductionType.CHRONOLOGY
-      ? seedChronologyData(dto.data as Record<string, unknown> | undefined) as unknown as Record<string, unknown>
-      : dto.data;
+    let data: Record<string, unknown>;
+    if (dto.type === ProductionType.CHRONOLOGY) {
+      data = seedChronologyData(dto.data as Record<string, unknown> | undefined) as unknown as Record<string, unknown>;
+    } else if (dto.type === ProductionType.DECLARATION) {
+      data = seedDeclarationData(dto.data as Partial<DeclarationData> | undefined) as unknown as Record<string, unknown>;
+    } else {
+      data = dto.data;
+    }
     const production = this.repo.create({ ...dto, data, caseId });
     return this.repo.save(production);
   }
@@ -248,9 +301,170 @@ function parseOp(raw: Record<string, unknown>, i: number): Op {
       }
       return { op: 'chart_set_height', height: Math.round(raw.height) };
     }
+    case 'declaration_set_caption': {
+      if (raw.caption === null || typeof raw.caption !== 'object') {
+        throw new BadRequestException(`ops[${i}] (declaration_set_caption): \`caption\` must be an object`);
+      }
+      return { op: 'declaration_set_caption', caption: raw.caption as Partial<DeclarationCaption> };
+    }
+    case 'declaration_set_execution': {
+      if (raw.execution === null || typeof raw.execution !== 'object') {
+        throw new BadRequestException(`ops[${i}] (declaration_set_execution): \`execution\` must be an object`);
+      }
+      return { op: 'declaration_set_execution', execution: raw.execution as Partial<DeclarationData['execution']> };
+    }
+    case 'declaration_add_section': {
+      if (typeof raw.kind !== 'string' || !DECLARATION_SECTION_KINDS.includes(raw.kind as DeclarationSectionKind)) {
+        throw new BadRequestException(`ops[${i}] (declaration_add_section): \`kind\` must be one of ${DECLARATION_SECTION_KINDS.join('|')}`);
+      }
+      if (typeof raw.heading !== 'string') {
+        throw new BadRequestException(`ops[${i}] (declaration_add_section): \`heading\` must be a string`);
+      }
+      if (raw.afterSectionId !== undefined && typeof raw.afterSectionId !== 'string') {
+        throw new BadRequestException(`ops[${i}] (declaration_add_section): \`afterSectionId\` must be a string`);
+      }
+      return {
+        op: 'declaration_add_section',
+        kind: raw.kind as DeclarationSectionKind,
+        heading: raw.heading,
+        afterSectionId: raw.afterSectionId as string | undefined,
+      };
+    }
+    case 'declaration_add_paragraph': {
+      if (typeof raw.sectionId !== 'string' || !raw.sectionId.trim()) {
+        throw new BadRequestException(`ops[${i}] (declaration_add_paragraph): \`sectionId\` must be a non-empty string`);
+      }
+      if (typeof raw.text !== 'string') {
+        throw new BadRequestException(`ops[${i}] (declaration_add_paragraph): \`text\` must be a string`);
+      }
+      const subItems = parseTextItems(raw.subItems, i, 'declaration_add_paragraph', 'subItems');
+      const footnotes = parseTextItems(raw.footnotes, i, 'declaration_add_paragraph', 'footnotes');
+      const exhibitIds = parseStringArray(raw.exhibitIds, i, 'declaration_add_paragraph', 'exhibitIds');
+      if (raw.afterParagraphId !== undefined && typeof raw.afterParagraphId !== 'string') {
+        throw new BadRequestException(`ops[${i}] (declaration_add_paragraph): \`afterParagraphId\` must be a string`);
+      }
+      return {
+        op: 'declaration_add_paragraph',
+        sectionId: raw.sectionId,
+        text: raw.text,
+        subItems,
+        exhibitIds,
+        footnotes,
+        afterParagraphId: raw.afterParagraphId as string | undefined,
+      };
+    }
+    case 'declaration_update_paragraph': {
+      if (typeof raw.paragraphId !== 'string' || !raw.paragraphId.trim()) {
+        throw new BadRequestException(`ops[${i}] (declaration_update_paragraph): \`paragraphId\` must be a non-empty string`);
+      }
+      if (raw.text !== undefined && typeof raw.text !== 'string') {
+        throw new BadRequestException(`ops[${i}] (declaration_update_paragraph): \`text\` must be a string`);
+      }
+      const subItems = raw.subItems === undefined
+        ? undefined
+        : parseIdTextItems(raw.subItems, i, 'declaration_update_paragraph', 'subItems');
+      const footnotes = raw.footnotes === undefined
+        ? undefined
+        : parseIdTextItems(raw.footnotes, i, 'declaration_update_paragraph', 'footnotes');
+      const exhibitIds = raw.exhibitIds === undefined
+        ? undefined
+        : parseStringArray(raw.exhibitIds, i, 'declaration_update_paragraph', 'exhibitIds');
+      return {
+        op: 'declaration_update_paragraph',
+        paragraphId: raw.paragraphId,
+        text: raw.text as string | undefined,
+        subItems,
+        exhibitIds,
+        footnotes,
+      };
+    }
+    case 'declaration_remove_paragraph': {
+      if (typeof raw.paragraphId !== 'string' || !raw.paragraphId.trim()) {
+        throw new BadRequestException(`ops[${i}] (declaration_remove_paragraph): \`paragraphId\` must be a non-empty string`);
+      }
+      return { op: 'declaration_remove_paragraph', paragraphId: raw.paragraphId };
+    }
+    case 'declaration_add_exhibit': {
+      if (raw.label !== undefined && (typeof raw.label !== 'string' || !raw.label.trim())) {
+        throw new BadRequestException(`ops[${i}] (declaration_add_exhibit): \`label\` must be a non-empty string`);
+      }
+      if (typeof raw.description !== 'string') {
+        throw new BadRequestException(`ops[${i}] (declaration_add_exhibit): \`description\` must be a string`);
+      }
+      if (raw.source !== undefined && raw.source !== null && typeof raw.source !== 'object') {
+        throw new BadRequestException(`ops[${i}] (declaration_add_exhibit): \`source\` must be an object or null`);
+      }
+      return {
+        op: 'declaration_add_exhibit',
+        label: raw.label as string | undefined,
+        description: raw.description,
+        source: raw.source as DeclarationExhibit['source'] | undefined,
+      };
+    }
+    case 'declaration_update_exhibit': {
+      if (typeof raw.exhibitId !== 'string' || !raw.exhibitId.trim()) {
+        throw new BadRequestException(`ops[${i}] (declaration_update_exhibit): \`exhibitId\` must be a non-empty string`);
+      }
+      if (raw.label !== undefined && (typeof raw.label !== 'string' || !raw.label.trim())) {
+        throw new BadRequestException(`ops[${i}] (declaration_update_exhibit): \`label\` must be a non-empty string`);
+      }
+      if (raw.description !== undefined && typeof raw.description !== 'string') {
+        throw new BadRequestException(`ops[${i}] (declaration_update_exhibit): \`description\` must be a string`);
+      }
+      if (raw.source !== undefined && raw.source !== null && typeof raw.source !== 'object') {
+        throw new BadRequestException(`ops[${i}] (declaration_update_exhibit): \`source\` must be an object or null`);
+      }
+      return {
+        op: 'declaration_update_exhibit',
+        exhibitId: raw.exhibitId,
+        label: raw.label as string | undefined,
+        description: raw.description as string | undefined,
+        source: raw.source as DeclarationExhibit['source'] | undefined,
+      };
+    }
     default:
       throw new BadRequestException(`ops[${i}]: unknown op "${opName}"`);
   }
+}
+
+// Parse a `{ text }[]` list (subItems/footnotes on add_paragraph). Undefined → [].
+function parseTextItems(raw: unknown, i: number, op: string, field: string): { text: string }[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    throw new BadRequestException(`ops[${i}] (${op}): \`${field}\` must be an array`);
+  }
+  return raw.map((item) => {
+    if (item === null || typeof item !== 'object' || typeof (item as { text: unknown }).text !== 'string') {
+      throw new BadRequestException(`ops[${i}] (${op}): each \`${field}\` entry must be an object with a string \`text\``);
+    }
+    return { text: (item as { text: string }).text };
+  });
+}
+
+// Parse a `{ id?, text }[]` list (subItems/footnotes on update_paragraph).
+function parseIdTextItems(raw: unknown, i: number, op: string, field: string): { id?: string; text: string }[] {
+  if (!Array.isArray(raw)) {
+    throw new BadRequestException(`ops[${i}] (${op}): \`${field}\` must be an array`);
+  }
+  return raw.map((item) => {
+    if (item === null || typeof item !== 'object' || typeof (item as { text: unknown }).text !== 'string') {
+      throw new BadRequestException(`ops[${i}] (${op}): each \`${field}\` entry must be an object with a string \`text\``);
+    }
+    const obj = item as { id?: unknown; text: string };
+    if (obj.id !== undefined && typeof obj.id !== 'string') {
+      throw new BadRequestException(`ops[${i}] (${op}): \`${field}\` entry \`id\` must be a string`);
+    }
+    return { id: obj.id as string | undefined, text: obj.text };
+  });
+}
+
+// Parse a `string[]` list (exhibitIds). Undefined → [].
+function parseStringArray(raw: unknown, i: number, op: string, field: string): string[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || !raw.every((v): v is string => typeof v === 'string')) {
+    throw new BadRequestException(`ops[${i}] (${op}): \`${field}\` must be an array of strings`);
+  }
+  return raw as string[];
 }
 
 function applyOp(
@@ -264,6 +478,9 @@ function applyOp(
   }
   if (op.op.startsWith('chart_') && type !== ProductionType.CHART) {
     throw new BadRequestException(`ops[${i}] (${op.op}): production is type "${type}", not "chart"`);
+  }
+  if (op.op.startsWith('declaration_') && type !== ProductionType.DECLARATION) {
+    throw new BadRequestException(`ops[${i}] (${op.op}): production is type "${type}", not "declaration"`);
   }
   const entries = Array.isArray(data.entries) ? [...(data.entries as ChronologyEntry[])] : [];
 
@@ -353,5 +570,138 @@ function applyOp(
     }
     case 'chart_set_height':
       return { ...data, height: op.height };
+    case 'declaration_set_caption': {
+      const caption = { ...(data.caption as DeclarationCaption), ...op.caption };
+      return { ...data, caption };
+    }
+    case 'declaration_set_execution': {
+      const execution = { ...(data.execution as DeclarationData['execution']), ...op.execution };
+      return { ...data, execution };
+    }
+    case 'declaration_add_section': {
+      const sections = declSections(data);
+      const section: DeclarationSection = { id: randomUUID(), kind: op.kind, heading: op.heading, paragraphs: [] };
+      if (op.afterSectionId !== undefined) {
+        const idx = sections.findIndex((s) => s.id === op.afterSectionId);
+        if (idx < 0) throw new BadRequestException(`ops[${i}] (declaration_add_section): unknown section "${op.afterSectionId}"`);
+        sections.splice(idx + 1, 0, section);
+      } else {
+        sections.push(section);
+      }
+      return { ...data, sections };
+    }
+    case 'declaration_add_paragraph': {
+      const sections = declSections(data);
+      const section = sections.find((s) => s.id === op.sectionId);
+      if (!section) throw new BadRequestException(`ops[${i}] (declaration_add_paragraph): unknown section "${op.sectionId}"`);
+      const exhibits = declExhibits(data);
+      const exhibitIds = op.exhibitIds ?? [];
+      for (const id of exhibitIds) {
+        if (!exhibits.some((e) => e.id === id)) {
+          throw new BadRequestException(`ops[${i}] (declaration_add_paragraph): unknown exhibit "${id}"`);
+        }
+      }
+      const paragraph: DeclarationParagraph = {
+        id: randomUUID(),
+        text: op.text,
+        subItems: (op.subItems ?? []).map((s): DeclarationSubItem => ({ id: randomUUID(), text: s.text })),
+        exhibitIds,
+        footnotes: (op.footnotes ?? []).map((f): DeclarationFootnote => ({ id: randomUUID(), text: f.text })),
+      };
+      const paragraphs = [...section.paragraphs];
+      if (op.afterParagraphId !== undefined) {
+        const idx = paragraphs.findIndex((p) => p.id === op.afterParagraphId);
+        if (idx < 0) throw new BadRequestException(`ops[${i}] (declaration_add_paragraph): unknown paragraph "${op.afterParagraphId}"`);
+        paragraphs.splice(idx + 1, 0, paragraph);
+      } else {
+        paragraphs.push(paragraph);
+      }
+      const nextSections = sections.map((s) => (s.id === section.id ? { ...s, paragraphs } : s));
+      return { ...data, sections: nextSections };
+    }
+    case 'declaration_update_paragraph': {
+      const sections = declSections(data);
+      let found = false;
+      const exhibits = declExhibits(data);
+      if (op.exhibitIds !== undefined) {
+        for (const id of op.exhibitIds) {
+          if (!exhibits.some((e) => e.id === id)) {
+            throw new BadRequestException(`ops[${i}] (declaration_update_paragraph): unknown exhibit "${id}"`);
+          }
+        }
+      }
+      const nextSections = sections.map((s) => ({
+        ...s,
+        paragraphs: s.paragraphs.map((p) => {
+          if (p.id !== op.paragraphId) return p;
+          found = true;
+          const next: DeclarationParagraph = { ...p };
+          if (op.text !== undefined) next.text = op.text;
+          if (op.subItems !== undefined) {
+            next.subItems = op.subItems.map((s2): DeclarationSubItem => ({ id: s2.id ?? randomUUID(), text: s2.text }));
+          }
+          if (op.exhibitIds !== undefined) next.exhibitIds = op.exhibitIds;
+          if (op.footnotes !== undefined) {
+            next.footnotes = op.footnotes.map((f): DeclarationFootnote => ({ id: f.id ?? randomUUID(), text: f.text }));
+          }
+          return next;
+        }),
+      }));
+      if (!found) throw new BadRequestException(`ops[${i}] (declaration_update_paragraph): unknown paragraph "${op.paragraphId}"`);
+      return { ...data, sections: nextSections };
+    }
+    case 'declaration_remove_paragraph': {
+      const sections = declSections(data);
+      let found = false;
+      const nextSections = sections.map((s) => {
+        const paragraphs = s.paragraphs.filter((p) => {
+          if (p.id === op.paragraphId) {
+            found = true;
+            return false;
+          }
+          return true;
+        });
+        return paragraphs.length === s.paragraphs.length ? s : { ...s, paragraphs };
+      });
+      if (!found) throw new BadRequestException(`ops[${i}] (declaration_remove_paragraph): unknown paragraph "${op.paragraphId}"`);
+      return { ...data, sections: nextSections };
+    }
+    case 'declaration_add_exhibit': {
+      const exhibits = declExhibits(data);
+      const label = op.label ?? nextExhibitLabel(exhibits);
+      if (exhibits.some((e) => e.label === label)) {
+        throw new BadRequestException(`ops[${i}] (declaration_add_exhibit): label "${label}" is already in use`);
+      }
+      const exhibit: DeclarationExhibit = {
+        id: randomUUID(),
+        label,
+        description: op.description,
+        source: op.source ?? null,
+      };
+      return { ...data, exhibits: [...exhibits, exhibit] };
+    }
+    case 'declaration_update_exhibit': {
+      const exhibits = declExhibits(data);
+      const idx = exhibits.findIndex((e) => e.id === op.exhibitId);
+      if (idx < 0) throw new BadRequestException(`ops[${i}] (declaration_update_exhibit): unknown exhibit "${op.exhibitId}"`);
+      if (op.label !== undefined && exhibits.some((e) => e.label === op.label && e.id !== op.exhibitId)) {
+        throw new BadRequestException(`ops[${i}] (declaration_update_exhibit): label "${op.label}" is already in use`);
+      }
+      const next = { ...exhibits[idx] };
+      if (op.label !== undefined) next.label = op.label;
+      if (op.description !== undefined) next.description = op.description;
+      if (op.source !== undefined) next.source = op.source;
+      const nextExhibits = [...exhibits];
+      nextExhibits[idx] = next;
+      return { ...data, exhibits: nextExhibits };
+    }
   }
+}
+
+function declSections(data: Record<string, unknown>): DeclarationSection[] {
+  return Array.isArray(data.sections) ? (data.sections as DeclarationSection[]).map((s) => ({ ...s })) : [];
+}
+
+function declExhibits(data: Record<string, unknown>): DeclarationExhibit[] {
+  return Array.isArray(data.exhibits) ? [...(data.exhibits as DeclarationExhibit[])] : [];
 }

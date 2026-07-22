@@ -8,6 +8,7 @@ import { MessageEntity } from '../../database/entities/message.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
 import { ConversationEntity } from '../../database/entities/conversation.entity';
+import { CaseEntity } from '../../database/entities/case.entity';
 import { TokenUsageService } from '../superadmin/token-usage/token-usage.service';
 import { INVESTIGATOR_PROMPT } from '../../prompts/investigator';
 import { ConversationsService } from './conversations.service';
@@ -18,6 +19,9 @@ import { ProductionsService } from '../productions/productions.service';
 import { ProductionType } from '../../database/entities/production.entity';
 import { TracesService } from '../traces/traces.service';
 import { DataRoomService } from '../data-room/data-room.service';
+import { DeclarationLibraryService } from '../declaration-library/declaration-library.service';
+import { DeclarationLibraryBlockKind } from '../../database/entities/declaration-library-block.entity';
+import { DeclarantsService } from '../declarants/declarants.service';
 import { LabelAnchor } from '../traces/label-schema';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import {
@@ -32,6 +36,8 @@ import {
   CREATE_PRODUCTION_TOOL,
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
+  GET_DECLARATION_LIBRARY_TOOL,
+  GET_DECLARANTS_TOOL,
   ADD_LABEL_TOOL,
   UPDATE_LABEL_TOOL,
   DELETE_LABEL_TOOL,
@@ -292,6 +298,8 @@ export class AiService {
     private readonly productionsService: ProductionsService,
     private readonly tracesService: TracesService,
     private readonly dataRoomService: DataRoomService,
+    private readonly declarationLibraryService: DeclarationLibraryService,
+    private readonly declarantsService: DeclarantsService,
     private readonly tokenUsageService: TokenUsageService,
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
@@ -301,6 +309,8 @@ export class AiService {
     private readonly traceRepo: Repository<TraceEntity>,
     @InjectRepository(ConversationEntity)
     private readonly conversationRepo: Repository<ConversationEntity>,
+    @InjectRepository(CaseEntity)
+    private readonly caseRepo: Repository<CaseEntity>,
   ) {}
 
   /** Select the tool set appropriate for the caller's role. */
@@ -776,6 +786,56 @@ export class AiService {
           { name: input.name, data: input.data, ops: input.ops },
           { kind: 'script', caseId, role: viewerRole },
         );
+      }
+
+      case GET_DECLARATION_LIBRARY_TOOL.name: {
+        if (!caseId) {
+          return { error: 'No case context. Ask the user to open a case.' };
+        }
+        // Resolve the org id from the case — the CaseEntity field is `orgId`.
+        const caseRow = await this.caseRepo.findOne({ where: { id: caseId }, select: ['id', 'orgId'] });
+        if (!caseRow) return { error: 'Case not found.' };
+        const input = toolUse.input as { kind?: string };
+        const validKinds = new Set(Object.values(DeclarationLibraryBlockKind));
+        const kind = input.kind && validKinds.has(input.kind as DeclarationLibraryBlockKind)
+          ? (input.kind as DeclarationLibraryBlockKind)
+          : undefined;
+        const blocks = await this.declarationLibraryService.listForOrg(caseRow.orgId, kind);
+        return {
+          blocks: blocks.map((b) => ({
+            id: b.id,
+            kind: b.kind,
+            name: b.name,
+            category: b.category,
+            content: b.content,
+          })),
+        };
+      }
+
+      case GET_DECLARANTS_TOOL.name: {
+        if (!caseId) {
+          return { error: 'No case context. Ask the user to open a case.' };
+        }
+        // Resolve the org id from the case — the CaseEntity field is `orgId`.
+        const caseRow = await this.caseRepo.findOne({ where: { id: caseId }, select: ['id', 'orgId'] });
+        if (!caseRow) return { error: 'Case not found.' };
+        const declarants = await this.declarantsService.listForOrg(caseRow.orgId);
+        return {
+          declarants: declarants.map((d) => ({
+            id: d.id,
+            displayName: d.displayName,
+            title: d.title,
+            firm: d.firm,
+            qualifications: d.qualifications,
+            cvExhibit: d.cvExhibit,
+            priorTestimony: d.priorTestimony,
+            hourlyRate: d.hourlyRate,
+            nonContingencyDisclosure: d.nonContingencyDisclosure,
+            dateOfBirth: d.dateOfBirth,
+            address: d.address,
+            userId: d.userId,
+          })),
+        };
       }
 
       case ADD_LABEL_TOOL.name: {

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import { FaFileLines, FaChartLine, FaTableList } from 'react-icons/fa6';
+import { FaFileLines, FaChartLine, FaTableList, FaFileSignature } from 'react-icons/fa6';
 import { useCaseContext } from '@/contexts/CaseContext';
 import { ProductionViewer } from '@/components/Productions/ProductionViewer';
 import { PageHeader } from '@/components/Common/PageHeader';
@@ -13,12 +13,14 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   report: <FaFileLines className="w-3.5 h-3.5" />,
   chart: <FaChartLine className="w-3.5 h-3.5" />,
   chronology: <FaTableList className="w-3.5 h-3.5" />,
+  declaration: <FaFileSignature className="w-3.5 h-3.5" />,
 };
 
 const TYPE_COLORS: Record<string, string> = {
   report: 'bg-brand-soft text-brand',
   chart: 'bg-accent/10 text-accent',
   chronology: 'bg-surface-raised text-ink-muted',
+  declaration: 'bg-amber-100 text-amber-700',
 };
 
 function formatDate(iso: string): string {

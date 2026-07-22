@@ -9,6 +9,13 @@ import { InvestigationsService } from '../investigations/investigations.service'
 import { renderReport } from './templates/report';
 import { renderChronology, renderChronologyCsv } from './templates/chronology';
 import { renderChart } from './templates/chart';
+import {
+  renderDeclarationHtml,
+  buildDeclarationFooterTemplate,
+  resolveFormatId,
+} from './templates/declaration';
+import { getFormat } from './formats/registry';
+import { DeclarationData } from '../productions/declaration-data';
 import { renderReportBody } from './templates/report';
 import { renderChronologyBody } from './templates/chronology';
 import { renderChartBody } from './templates/chart';
@@ -63,9 +70,10 @@ export class ExportController {
     const production = await this.productionsService.findOne(id, { kind: 'user', userId });
 
     const ALLOWED: Record<string, string[]> = {
-      report:     ['pdf', 'docx'],
-      chronology: ['pdf', 'png', 'csv'],
-      chart:      ['pdf'],          // png is client-side, never hits backend
+      report:      ['pdf', 'docx'],
+      chronology:  ['pdf', 'png', 'csv'],
+      chart:       ['pdf'],          // png is client-side, never hits backend
+      declaration: ['pdf', 'docx'],  // pdf = pleading-paper Puppeteer; docx = gutterless
     };
     const allowed = ALLOWED[production.type];
     if (!allowed?.includes(format)) {
@@ -105,6 +113,10 @@ export class ExportController {
         html = renderChart(production.name, imageDataUrl);
         break;
       }
+      case 'declaration':
+        // docx can't honour the fixed pleading gutter — render gutterless.
+        html = renderDeclarationHtml(data as DeclarationData, { docx: format === 'docx' });
+        break;
       default:
         throw new BadRequestException(`Unsupported production type: ${production.type}`);
     }
@@ -122,6 +134,29 @@ export class ExportController {
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}.png"`);
       res.send(png);
+      return;
+    }
+
+    // Declarations render on Letter, portrait. Pleading-gutter formats (CA) get
+    // a per-page footer via Puppeteer's footerTemplate and margins tuned to the
+    // fixed line-number gutter; non-gutter formats use plain 1in @page margins.
+    if (production.type === 'declaration') {
+      const decl = data as DeclarationData;
+      const format = getFormat(resolveFormatId(decl));
+      const pdf = format.pleadingGutter
+        ? await this.exportService.htmlToPdf(html, {
+            pageFormat: format.pageFormat,
+            margin: { top: '0.5in', bottom: '0.75in', left: '0.4in', right: '0.5in' },
+            displayHeaderFooter: true,
+            footerTemplate: buildDeclarationFooterTemplate(decl),
+          })
+        : await this.exportService.htmlToPdf(html, {
+            pageFormat: format.pageFormat,
+            margin: { top: '1in', bottom: '1in', left: '1in', right: '1in' },
+          });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
+      res.send(pdf);
       return;
     }
 

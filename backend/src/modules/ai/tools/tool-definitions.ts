@@ -125,7 +125,7 @@ export const QUERY_LABELED_ENTITIES_TOOL: Anthropic.Tool = {
 export const CREATE_PRODUCTION_TOOL: Anthropic.Tool = {
   name: 'create_production',
   description:
-    'Create a production (report, chart, or chronology) for the current investigation. Reports store HTML content. Charts store Chart.js-compatible data. Chronologies store ordered entries with dates, descriptions, and source links. For large chronologies (expected to exceed ~50 entries), do NOT pass all entries here — the whole `data` blob counts against the per-turn output cap and routinely hits max_tokens. Instead seed an empty chronology (`data: { title, entries: [] }`), then loop `update_production` with `chronology_append` ops, ~50 entries per call. Same applies if you cannot bound the entry count up front.',
+    'Create a production (report, chart, chronology, or declaration) for the current investigation. Reports store HTML content. Charts store Chart.js-compatible data. Chronologies store ordered entries with dates, descriptions, and source links. Declarations are court-ready expert declarations/affirmations — the server seeds the section skeleton and manages numbering; you build the content with `update_production` declaration ops (load the `declarations` skill for format guidance before drafting). For large chronologies (expected to exceed ~50 entries), do NOT pass all entries here — the whole `data` blob counts against the per-turn output cap and routinely hits max_tokens. Instead seed an empty chronology (`data: { title, entries: [] }`), then loop `update_production` with `chronology_append` ops, ~50 entries per call. Same applies if you cannot bound the entry count up front.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -135,12 +135,12 @@ export const CREATE_PRODUCTION_TOOL: Anthropic.Tool = {
       },
       type: {
         type: 'string',
-        enum: ['report', 'chart', 'chronology'],
+        enum: ['report', 'chart', 'chronology', 'declaration'],
         description: 'Production type',
       },
       data: {
         type: 'object',
-        description: 'Production data. For report: { content: "<html>" }. For chart: { chartType, datasets[], labels[], options }. `options` accepts any Chart.js options object including `plugins.annotation.annotations` (chartjs-plugin-annotation is registered) for reference lines, thresholds, highlighted boxes, and labels — see the productions skill for the schema. For chronology: `{ entries: [{ source: { url, label? } | null, date, description, details?, highlight?, [customColumnKey]?: string }], columns?: [{ key, label, width: 5-80, kind: "text" | "link" }] }`. The chronology title comes from the top-level `name` field. `columns` is optional; defaults to source/date/description/details. **`kind: "link"` is reserved for the built-in `source` column (key: "source") only — all custom columns must be `kind: "text"`.** **Legacy entry shape** (`{ sourceUrl, sourceLabel, ... }` or `source` as a string) is silently normalized inbound. `highlight` is an optional row background color — `"yellow" | "gray" | "red" | "green" | "blue"`.',
+        description: 'Production data. For report: { content: "<html>" }. For chart: { chartType, datasets[], labels[], options }. `options` accepts any Chart.js options object including `plugins.annotation.annotations` (chartjs-plugin-annotation is registered) for reference lines, thresholds, highlighted boxes, and labels — see the productions skill for the schema. For chronology: `{ entries: [{ source: { url, label? } | null, date, description, details?, highlight?, [customColumnKey]?: string }], columns?: [{ key, label, width: 5-80, kind: "text" | "link" }] }`. The chronology title comes from the top-level `name` field. `columns` is optional; defaults to source/date/description/details. **`kind: "link"` is reserved for the built-in `source` column (key: "source") only — all custom columns must be `kind: "text"`.** **Legacy entry shape** (`{ sourceUrl, sourceLabel, ... }` or `source` as a string) is silently normalized inbound. `highlight` is an optional row background color — `"yellow" | "gray" | "red" | "green" | "blue"`. **For declaration:** pass `{ formatId: "ca-declaration" | "ny-affirmation" | "federal-1746" | "tx-declaration" | "fl-declaration", caption?, declarantName?, declarantDateOfBirth?, declarantAddress? }`. `formatId` selects the jurisdiction format — the server renders the correct oath/perjury language, caption chrome, and numbering automatically: `ca-declaration` (California pleading-paper declaration), `ny-affirmation` (NY CPLR § 2106 affirmation), `federal-1746` (Federal 28 U.S.C. § 1746 declaration), `tx-declaration` (Texas unsworn declaration, Tex. CPRC § 132.001), `fl-declaration` (Florida § 92.525 declaration). **`tx-declaration` additionally requires `declarantDateOfBirth` and `declarantAddress`** — that jurisdiction\'s jurat recites the declarant\'s date of birth and address alongside their name. (`variant: "ca-declaration" | "ny-affirmation"` is accepted as a deprecated alias for `formatId` on the two original formats, but prefer `formatId`.) The server seeds a default section skeleton (qualifications, assignment, summary of opinions, background, findings, conclusions) and empty exhibit/execution blocks — do NOT pass sections/exhibits here. After creating, build all content with `update_production` declaration ops. See the `declarations` skill for the drafting workflow.',
       },
     },
     required: ['name', 'type', 'data'],
@@ -220,6 +220,17 @@ Supported operations (extend over time):
 - \`{ op: "chronology_reorder_columns", keys: [...] }\` — reorder columns. \`keys\` must be a permutation of existing column keys.
 - \`{ op: "chart_set_height", height: <px> }\` — set the rendered height of a chart production. Pixels between 200 and 1200; default if unset is 384. The user normally sets this by dragging the handle below the chart, but you can adjust it when a chart needs more vertical room (e.g. many series, dense annotations, or wide axis labels causing crowding).
 
+**Declaration ops** (for \`declaration\` productions — load the \`declarations\` skill first). Paragraph numbering (¶ 1, 2, 3…), section letters (A., B.…), and exhibit references all render automatically from structure — NEVER hand-write them into text.
+
+- \`{ op: "declaration_set_caption", caption: {...} }\` — set caption fields (partial merge). Fields (all strings): \`attorneyBlock\`, \`court\`, \`county\`, \`plaintiff\`, \`defendant\`, \`caseNumber\`, \`documentTitle\`, \`hearingInfo\`.
+- \`{ op: "declaration_set_execution", execution: {...} }\` — set the execution block (partial merge): \`place\`, \`date\`, \`signatureName\`.
+- \`{ op: "declaration_add_section", kind, heading, afterSectionId? }\` — add a section. \`kind\` ∈ \`qualifications\` | \`assignment\` | \`summary_of_opinions\` | \`background\` | \`authentication\` | \`findings\` | \`conclusions\` | \`recommendations\` | \`custom\`. \`heading\` is the section title (letter prefix "A." is added at render — do NOT include it). Inserts after \`afterSectionId\` if given, else appends.
+- \`{ op: "declaration_add_paragraph", sectionId, text, subItems?, exhibitIds?, footnotes?, afterParagraphId? }\` — append (or insert after \`afterParagraphId\`) a paragraph into a section. \`text\` is plain prose (inline \`<b>\`/\`<i>\`/\`<u>\` allowed); do NOT write paragraph numbers or "See Exhibit …" into it. \`subItems\`: \`[{ text }]\` (lettered a./b./c. at render). \`exhibitIds\`: \`string[]\` referencing EXISTING exhibit ids — renders as "See Exhibit <label>." automatically. \`footnotes\`: \`[{ text }]\` (superscripted, rendered as endnotes).
+- \`{ op: "declaration_update_paragraph", paragraphId, text?, subItems?, exhibitIds?, footnotes? }\` — patch a paragraph. Only provided fields change. \`subItems\`/\`footnotes\` accept \`[{ id?, text }]\` — items with an \`id\` update in place, items without an \`id\` are added; omitting the field leaves it untouched, passing \`[]\` clears it. \`exhibitIds\` replaces the list.
+- \`{ op: "declaration_remove_paragraph", paragraphId }\` — remove a paragraph.
+- \`{ op: "declaration_add_exhibit", description, label?, source? }\` — register an exhibit. Omit \`label\` to auto-assign the next letter (A, B, C…). \`source\` is \`null\` or \`{ kind: "transaction" | "url" | "file" | "other", txHash?, chain?, url?, note? }\`. Add the exhibit, then reference its returned id from a paragraph's \`exhibitIds\`.
+- \`{ op: "declaration_update_exhibit", exhibitId, label?, description?, source? }\` — patch an exhibit's label, description, or source.
+
 Use atomic ops aggressively — they are the difference between a 200-token call and a 10,000-token call on a long chronology.`,
   input_schema: {
     type: 'object' as const,
@@ -243,6 +254,38 @@ Use atomic ops aggressively — they are the difference between a 200-token call
       },
     },
     required: ['productionId'],
+  },
+};
+
+// ---------- Declaration library ----------
+
+export const GET_DECLARATION_LIBRARY_TOOL: Anthropic.Tool = {
+  name: 'get_declaration_library',
+  description:
+    "List the organization's reusable boilerplate declaration blocks (technical chain primers, authentication language) with their paragraph content. Use before drafting background/authentication sections. For a declarant's qualifications, use `get_declarants` instead.",
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      kind: {
+        type: 'string',
+        enum: ['boilerplate'],
+        description: 'Optional filter. Omit to list all blocks.',
+      },
+    },
+    required: [],
+  },
+};
+
+// ---------- Declarants ----------
+
+export const GET_DECLARANTS_TOOL: Anthropic.Tool = {
+  name: 'get_declarants',
+  description:
+    "List the organization's saved declarants (expert witnesses / affiants) with their profile fields — display name, title, firm, qualifications paragraphs, prior testimony, CV exhibit, rate, and disclosures. Use before drafting a declaration to auto-fill the declarant's qualifications and background.",
+  input_schema: {
+    type: 'object' as const,
+    properties: {},
+    required: [],
   },
 };
 

@@ -4,19 +4,21 @@ import { useState, useEffect, useCallback } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
 import {
   FaPen, FaChevronRight, FaChevronDown, FaArrowLeft,
-  FaFileLines, FaChartLine, FaTableList, FaGear, FaPlus, FaFolder,
+  FaFileLines, FaChartLine, FaTableList, FaFileSignature, FaGear, FaPlus, FaFolder,
 } from 'react-icons/fa6';
 
-const PRODUCTION_TYPE_ORDER = ['report', 'chart', 'chronology'] as const;
+const PRODUCTION_TYPE_ORDER = ['report', 'chart', 'chronology', 'declaration'] as const;
 const PRODUCTION_TYPE_LABEL: Record<string, string> = {
   report: 'Reports',
   chart: 'Charts',
   chronology: 'Chronologies',
+  declaration: 'Declarations',
 };
 const PRODUCTION_TYPE_ICONS: Record<string, React.ReactNode> = {
   report: <FaFileLines className="w-3 h-3" />,
   chart: <FaChartLine className="w-3 h-3" />,
   chronology: <FaTableList className="w-3 h-3" />,
+  declaration: <FaFileSignature className="w-3 h-3" />,
 };
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { apiClient, type Investigation } from '@/lib/api-client';

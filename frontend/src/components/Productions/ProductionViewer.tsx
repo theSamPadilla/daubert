@@ -371,7 +371,7 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="h-12 px-4 border-b border-line bg-surface-panel flex items-center justify-between gap-4 shrink-0">
-        <div className="flex items-baseline gap-3 shrink-0 min-w-0">
+        <div className="flex items-baseline gap-3 min-w-0 flex-1">
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted shrink-0">
             Production
           </span>

@@ -26,7 +26,7 @@ A first-time case owner lands on "Select or create an investigation to begin" an
 Locked during ideation (anchor for autonomous execution):
 
 1. **Shape: hybrid (C).** Deterministic intake to first graph data; AI only for the declaration draft. Not a pure wizard, not an AI concierge.
-2. **Declaration = AI-drafted draft of the structured `declaration` production type** (see `declarations.md` — supersedes the earlier "declaration-shaped report" framing). Generated from traced data via the agent, using the declaration-template skill to fill the typed schema (caption → qualifications → assignment → background → findings → conclusions → exhibits); methodology/findings derive from actual case activity, not boilerplate; gaps are disclosed, not smoothed. Never presented as final.
+2. **Declaration = AI-drafted draft of the structured `declaration` production type** (now shipped — supersedes the earlier "declaration-shaped report" framing). Generated from traced data via the agent, using the declaration-template skill to fill the typed schema (caption → qualifications → assignment → background → findings → conclusions → exhibits); methodology/findings derive from actual case activity, not boilerplate; gaps are disclosed, not smoothed. Never presented as final.
 3. **Trigger: every case with zero investigations**, not just the user's first case. It's an intake surface, not a one-time tour — and needs no per-user seen-state.
 4. **Role-gated:** intake + checklist render for owners/editors only. Viewers/guests keep the current passive empty state.
 5. **No new agent creation powers needed.** The deterministic path creates the investigation/trace; the agent keeps its existing tool surface (+ one new skill document).

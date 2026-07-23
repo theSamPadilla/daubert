@@ -18,6 +18,7 @@ import { shortAddress, useCaseSeed, type SeedAddressError } from '@/hooks/useCas
 import { PageHeader } from '@/components/Common/PageHeader';
 import UserMenu from '@/components/Auth/UserMenu';
 import { Button, Badge, Field, Select, Textarea, Input } from '@/components/ui';
+import { ChainSelect } from '@/components/Graph/ChainSelect';
 import { DeclarantModal, type DeclarantDto } from '@/components/Declarants/DeclarantModal';
 import { applyDeclarant } from '@/components/Productions/DeclarantPicker';
 import { inspectInput } from '@/utils/addressParser';
@@ -121,7 +122,7 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
   const [chain, setChain] = useState<string>('ethereum');
   // Once the user manually changes the chain we stop auto-deriving it.
   const [chainTouched, setChainTouched] = useState(false);
-  const [engagementOpen, setEngagementOpen] = useState(false);
+  const [engagementOpen, setEngagementOpen] = useState(true);
   const [side, setSide] = useState<EngagementContext['side']>('');
   const [scope, setScope] = useState('');
   const [allegations, setAllegations] = useState('');
@@ -454,15 +455,33 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
                 </p>
               </div>
 
-              <Field label="Wallet addresses">
-                <Textarea
-                  value={addressInput}
-                  onChange={(e) => setAddressInput(e.target.value)}
-                  rows={4}
-                  placeholder="0x1234... , T9yD14..."
-                  disabled={seeding}
-                />
-              </Field>
+              <div className="flex items-end gap-3">
+                <div className="min-w-0 flex-1">
+                  <Field label="Wallet addresses">
+                    <Input
+                      type="text"
+                      value={addressInput}
+                      onChange={(e) => setAddressInput(e.target.value)}
+                      placeholder="0x1234... , T9yD14..."
+                      disabled={seeding}
+                    />
+                  </Field>
+                </div>
+                <div className="w-44 shrink-0">
+                  <Field label="Chain">
+                    <ChainSelect
+                      tone="surface"
+                      value={chain}
+                      options={Object.keys(SUPPORTED_CHAINS)}
+                      disabled={seeding}
+                      onChange={(next) => {
+                        setChain(next);
+                        setChainTouched(true);
+                      }}
+                    />
+                  </Field>
+                </div>
+              </div>
 
               {tokens.length > 0 && (
                 <div className="space-y-1.5 rounded-lg border border-line bg-surface-raised/50 p-3">
@@ -498,23 +517,6 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
                   One chain per seed. Remove either the Tron or the EVM addresses.
                 </p>
               )}
-
-              <Field label="Chain">
-                <Select
-                  value={chain}
-                  disabled={seeding}
-                  onChange={(e) => {
-                    setChain(e.target.value);
-                    setChainTouched(true);
-                  }}
-                >
-                  {Object.values(SUPPORTED_CHAINS).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
 
               {/* Engagement context disclosure */}
               <div className="rounded-lg border border-line">

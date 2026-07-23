@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Anthropic, { toFile } from '@anthropic-ai/sdk';
 import { GeneratedText, LlmProvider, StreamEvent } from './llm-provider.interface';
 
-const DEFAULT_MODEL = 'claude-opus-4-7';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 // Output budget for one streaming turn. Includes thinking, tool_use inputs,
 // and visible text — all share the same cap. With `thinking: adaptive`, the
 // model routinely burns 2-4k tokens on reasoning before emitting anything,
@@ -112,5 +112,39 @@ export class AnthropicProvider implements LlmProvider {
     const block = response.content[0];
     const text = block?.type === 'text' ? block.text.trim() : null;
     return { text, usage: response.usage, model };
+  }
+
+  /**
+   * One-shot structured extraction via a forced tool call. The tool's
+   * `input_schema` describes the desired output shape; `tool_choice` forces
+   * the model to emit exactly one `tool_use` block matching it, so the caller
+   * gets structured JSON without the fragility of parsing free-form text.
+   * Non-streaming: extraction outputs are small, so no HTTP-timeout concern.
+   */
+  async extractJson(params: {
+    model?: string;
+    maxTokens: number;
+    system?: string;
+    messages: Anthropic.MessageParam[];
+    tool: Anthropic.Tool; // schema of the desired output
+  }): Promise<{ input: Record<string, unknown> | null; usage: Anthropic.Usage; model: string }> {
+    const model = params.model ?? 'claude-sonnet-4-6';
+    const response = await this.client.messages.create({
+      model,
+      max_tokens: params.maxTokens,
+      system: params.system,
+      messages: params.messages,
+      tools: [params.tool],
+      tool_choice: { type: 'tool', name: params.tool.name },
+    });
+    const block = response.content.find((b) => b.type === 'tool_use');
+    return {
+      input:
+        block && block.type === 'tool_use'
+          ? (block.input as Record<string, unknown>)
+          : null,
+      usage: response.usage,
+      model,
+    };
   }
 }

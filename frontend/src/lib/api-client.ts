@@ -829,4 +829,129 @@ export const apiClient = {
     }),
   deleteDeclarant: (orgSlug: string, declarantId: string) =>
     request<void>(`/orgs/${orgSlug}/declarants/${declarantId}`, { method: 'DELETE' }),
+
+  /**
+   * Upload a CV or prior declaration and extract draft declarant fields from
+   * it. Uses XMLHttpRequest to mirror `dataRoomUpload`. Resolves with the
+   * extracted draft for the caller to review before creating the declarant.
+   */
+  extractDeclarant: async (
+    orgSlug: string,
+    file: File,
+    source: 'cv' | 'prior_declaration',
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<components['schemas']['DeclarantExtractionDraft']> => {
+    let token: string | null = null;
+    try {
+      const currentUser = getFirebaseAuth().currentUser;
+      if (currentUser) token = await currentUser.getIdToken();
+    } catch {
+      // proceed unauthenticated; backend will reject
+    }
+
+    const form = new FormData();
+    form.append('source', source);
+    form.append('file', file, file.name);
+
+    return new Promise<components['schemas']['DeclarantExtractionDraft']>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE}/orgs/${orgSlug}/declarants/extract`);
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+      if (onProgress) {
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) onProgress(ev.loaded, ev.total);
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText) as components['schemas']['DeclarantExtractionDraft']);
+          } catch {
+            reject(new Error('Malformed upload response'));
+          }
+        } else {
+          let message = `Upload failed (${xhr.status})`;
+          try {
+            const body = JSON.parse(xhr.responseText);
+            if (body?.message) message = body.message;
+          } catch {}
+          reject(new Error(message));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.onabort = () => reject(new Error('Upload aborted'));
+
+      xhr.send(form);
+    });
+  },
+
+  listDeclarantFiles: (orgSlug: string, declarantId: string) =>
+    request<components['schemas']['DeclarantFile'][]>(`/orgs/${orgSlug}/declarants/${declarantId}/files`),
+
+  /**
+   * Upload a CV or prior declaration file to a declarant's file list. Uses
+   * XMLHttpRequest to mirror `dataRoomUpload`/`extractDeclarant`.
+   */
+  uploadDeclarantFile: async (
+    orgSlug: string,
+    declarantId: string,
+    file: File,
+    kind: 'cv' | 'prior_declaration',
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<components['schemas']['DeclarantFile']> => {
+    let token: string | null = null;
+    try {
+      const currentUser = getFirebaseAuth().currentUser;
+      if (currentUser) token = await currentUser.getIdToken();
+    } catch {
+      // proceed unauthenticated; backend will reject
+    }
+
+    const form = new FormData();
+    form.append('kind', kind);
+    form.append('file', file, file.name);
+
+    return new Promise<components['schemas']['DeclarantFile']>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE}/orgs/${orgSlug}/declarants/${declarantId}/files`);
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+      if (onProgress) {
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) onProgress(ev.loaded, ev.total);
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText) as components['schemas']['DeclarantFile']);
+          } catch {
+            reject(new Error('Malformed upload response'));
+          }
+        } else {
+          let message = `Upload failed (${xhr.status})`;
+          try {
+            const body = JSON.parse(xhr.responseText);
+            if (body?.message) message = body.message;
+          } catch {}
+          reject(new Error(message));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.onabort = () => reject(new Error('Upload aborted'));
+
+      xhr.send(form);
+    });
+  },
+
+  downloadDeclarantFile: (orgSlug: string, declarantId: string, fileId: string, filename: string) =>
+    downloadFile(`/orgs/${orgSlug}/declarants/${declarantId}/files/${fileId}/download`, filename),
+
+  deleteDeclarantFile: (orgSlug: string, declarantId: string, fileId: string) =>
+    request<void>(`/orgs/${orgSlug}/declarants/${declarantId}/files/${fileId}`, { method: 'DELETE' }),
 };

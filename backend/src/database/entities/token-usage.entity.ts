@@ -6,7 +6,7 @@ import { MessageEntity } from './message.entity';
 import { OrganizationEntity } from './organization.entity';
 import { UserEntity } from './user.entity';
 
-export type TokenUsageSurface = 'chat' | 'title-generation';
+export type TokenUsageSurface = 'chat' | 'title-generation' | 'declarant-extraction';
 
 @Entity('token_usage')
 @Index(['orgId', 'createdAt'])

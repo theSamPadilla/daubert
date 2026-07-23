@@ -7,6 +7,7 @@ import { DataRoomAccessLogEntity } from './data-room-access-log.entity';
 import { DataRoomFileEntity } from './data-room-file.entity';
 import { DataRoomFolderEntity } from './data-room-folder.entity';
 import { DeclarantEntity } from './declarant.entity';
+import { DeclarantFileEntity } from './declarant-file.entity';
 import { DeclarationLibraryBlockEntity } from './declaration-library-block.entity';
 import { InvestigationEntity } from './investigation.entity';
 import { LabeledEntityEntity } from './labeled-entity.entity';
@@ -36,6 +37,7 @@ export const entities = [
   DataRoomFileEntity,
   DataRoomFolderEntity,
   DeclarantEntity,
+  DeclarantFileEntity,
   DeclarationLibraryBlockEntity,
   InvestigationEntity,
   LabeledEntityEntity,

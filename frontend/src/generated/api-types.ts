@@ -1456,6 +1456,87 @@ export interface paths {
         patch: operations["updateDeclarant"];
         trace?: never;
     };
+    "/orgs/{org}/declarants/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extract declarant draft fields from an uploaded CV or prior declaration (multipart)
+         * @description Streaming multipart upload. The body is parsed by busboy and piped
+         *     directly into extraction — the file itself is not persisted.
+         */
+        post: operations["extractDeclarant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orgs/{org}/declarants/{declarantId}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List files for a declarant */
+        get: operations["listDeclarantFiles"];
+        put?: never;
+        /**
+         * Upload a file for a declarant (multipart)
+         * @description Streaming multipart upload. The body is parsed by busboy and piped
+         *     directly into storage — peak memory is ~256KB regardless of file size.
+         */
+        post: operations["uploadDeclarantFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orgs/{org}/declarants/{declarantId}/files/{fileId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream a declarant file download
+         * @description Streams the file with Content-Type, Content-Disposition, and
+         *     Content-Length headers.
+         */
+        get: operations["downloadDeclarantFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orgs/{org}/declarants/{declarantId}/files/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a declarant file */
+        delete: operations["deleteDeclarantFile"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1954,6 +2035,36 @@ export interface components {
             nonContingencyDisclosure?: string | null;
             dateOfBirth?: string | null;
             address?: string | null;
+        };
+        /** @enum {string} */
+        DeclarantFileKind: "cv" | "prior_declaration";
+        DeclarantFile: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            declarantId: string;
+            kind: components["schemas"]["DeclarantFileKind"];
+            name: string;
+            mimeType: string;
+            size: string;
+            /** Format: uuid */
+            uploadedByUserId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        DeclarantExtractionDraft: {
+            displayName?: string;
+            title?: string;
+            firm?: string;
+            qualifications?: components["schemas"]["DeclarationParagraph"][];
+            priorTestimony?: string[];
+            hourlyRate?: string;
+            nonContingencyDisclosure?: string;
+            dateOfBirth?: string;
+            address?: string;
+            cvExhibit?: string;
         };
         /** @enum {string} */
         InviteRole: "owner" | "editor" | "viewer";
@@ -6462,6 +6573,249 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Declarant"];
                 };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    extractDeclarant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                    source: components["schemas"]["DeclarantFileKind"];
+                };
+            };
+        };
+        responses: {
+            /** @description Extracted draft declarant fields */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeclarantExtractionDraft"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listDeclarantFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+                declarantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declarant files */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeclarantFile"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadDeclarantFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+                declarantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                    kind: components["schemas"]["DeclarantFileKind"];
+                };
+            };
+        };
+        responses: {
+            /** @description Created declarant file metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeclarantFile"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    downloadDeclarantFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+                declarantId: string;
+                fileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File contents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteDeclarantFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+                declarantId: string;
+                fileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Forbidden */
             403: {

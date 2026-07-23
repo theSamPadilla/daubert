@@ -139,3 +139,238 @@
           application/json:
             schema:
               $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/orgs/{org}/declarants/extract:
+  post:
+    summary: Extract declarant draft fields from an uploaded CV or prior declaration (multipart)
+    description: |
+      Streaming multipart upload. The body is parsed by busboy and piped
+      directly into extraction — the file itself is not persisted.
+    operationId: extractDeclarant
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file, source]
+            properties:
+              file:
+                type: string
+                format: binary
+              source:
+                $ref: '../schemas/declarants.yaml#/DeclarantFileKind'
+    responses:
+      '200':
+        description: Extracted draft declarant fields
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/declarants.yaml#/DeclarantExtractionDraft'
+      '400':
+        description: Invalid input
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/orgs/{org}/declarants/{declarantId}/files:
+  get:
+    summary: List files for a declarant
+    operationId: listDeclarantFiles
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+      - name: declarantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Declarant files
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/declarants.yaml#/DeclarantFile'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    summary: Upload a file for a declarant (multipart)
+    description: |
+      Streaming multipart upload. The body is parsed by busboy and piped
+      directly into storage — peak memory is ~256KB regardless of file size.
+    operationId: uploadDeclarantFile
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+      - name: declarantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file, kind]
+            properties:
+              file:
+                type: string
+                format: binary
+              kind:
+                $ref: '../schemas/declarants.yaml#/DeclarantFileKind'
+    responses:
+      '200':
+        description: Created declarant file metadata
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/declarants.yaml#/DeclarantFile'
+      '400':
+        description: Invalid input
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/orgs/{org}/declarants/{declarantId}/files/{fileId}/download:
+  get:
+    summary: Stream a declarant file download
+    description: |
+      Streams the file with Content-Type, Content-Disposition, and
+      Content-Length headers.
+    operationId: downloadDeclarantFile
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+      - name: declarantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: File contents
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/orgs/{org}/declarants/{declarantId}/files/{fileId}:
+  delete:
+    summary: Delete a declarant file
+    operationId: deleteDeclarantFile
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+      - name: declarantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Deleted
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

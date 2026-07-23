@@ -84,6 +84,66 @@ CreateDeclarantRequest:
     address:
       type: string
 
+DeclarantFileKind:
+  type: string
+  enum: [cv, prior_declaration]
+
+DeclarantFile:
+  type: object
+  required: [id, declarantId, kind, name, mimeType, size, uploadedByUserId, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    declarantId:
+      type: string
+      format: uuid
+    kind:
+      $ref: '#/DeclarantFileKind'
+    name:
+      type: string
+    mimeType:
+      type: string
+    size:
+      type: string
+    uploadedByUserId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+DeclarantExtractionDraft:
+  type: object
+  properties:
+    displayName:
+      type: string
+    title:
+      type: string
+    firm:
+      type: string
+    qualifications:
+      type: array
+      items:
+        $ref: './productions.yaml#/DeclarationParagraph'
+    priorTestimony:
+      type: array
+      items:
+        type: string
+    hourlyRate:
+      type: string
+    nonContingencyDisclosure:
+      type: string
+    dateOfBirth:
+      type: string
+    address:
+      type: string
+    cvExhibit:
+      type: string
+
 UpdateDeclarantRequest:
   type: object
   properties:

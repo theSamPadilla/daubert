@@ -1,18 +1,11 @@
 import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
 import { CaseRole } from '../../database/entities/case-member.entity';
 import { RoleGuard } from './role.guard';
+import { REQUIRED_ROLE_KEY } from './role-hierarchy';
 
-export const REQUIRED_ROLE_KEY = 'requiredRole';
-
-export const ROLE_HIERARCHY: Record<CaseRole, number> = {
-  viewer: 0,
-  editor: 1,
-  owner: 2,
-};
-
-export function roleAtLeast(actual: CaseRole, required: CaseRole): boolean {
-  return ROLE_HIERARCHY[actual] >= ROLE_HIERARCHY[required];
-}
+// Re-exported for existing importers; the definitions live in role-hierarchy.ts
+// to keep this file (which imports RoleGuard) out of service/guard import chains.
+export { REQUIRED_ROLE_KEY, ROLE_HIERARCHY, roleAtLeast } from './role-hierarchy';
 
 /**
  * Route decorator: requires the caller to be a member of the case at `:caseId`

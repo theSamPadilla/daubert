@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CasesController } from './cases.controller';
 import { CasesService } from './cases.service';
+import { CaseAccessService } from '../auth/case-access.service';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
@@ -52,6 +53,7 @@ describe('CasesController', () => {
       controllers: [CasesController],
       providers: [
         { provide: CasesService, useValue: mockService },
+        CaseAccessService,
         { provide: Reflector, useValue: { getAllAndOverride: jest.fn().mockReturnValue(null) } },
         { provide: getRepositoryToken(CaseMemberEntity), useValue: mockMemberRepo },
         { provide: getRepositoryToken(CaseEntity), useValue: mockCaseRepo },

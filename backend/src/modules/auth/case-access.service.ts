@@ -6,7 +6,7 @@ import { CaseEntity } from '../../database/entities/case.entity';
 import { OrganizationEntity } from '../../database/entities/organization.entity';
 import { OrganizationMemberEntity, OrgRole } from '../../database/entities/organization-member.entity';
 import { AccessPrincipal } from './access-principal';
-import { roleAtLeast } from './require-role.decorator';
+import { roleAtLeast } from './role-hierarchy';
 
 /**
  * Implicit case role granted by org membership.

@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * Tests for the OrgCasesAdminSection on org settings.
+ * Tests for the OrgCasesAdminSection on the org Cases tab.
  *
  * What we care about:
  * - Lists cases filtered to the org by orgId.

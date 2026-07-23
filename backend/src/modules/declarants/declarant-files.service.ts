@@ -16,9 +16,10 @@ import { DeclarantRequester } from './declarants.service';
  * in object storage (via the injected {@link StorageProvider}) and are described
  * by `declarant_files` rows.
  *
- * Object keys are `org/<orgId>/declarant/<declarantId>/<fileId>`, mirroring the
- * data-room convention of binding the key to the row's primary key so storage
- * and DB stay in lockstep.
+ * Object keys are `org/<orgId>/<fileId>` — a flat, org-scoped file space shared
+ * by any future org-level files (the declarant linkage lives in the DB row, not
+ * the key). The key binds to the row's primary key, mirroring the data-room
+ * convention, so storage and DB stay in lockstep.
  *
  * Every method resolves the declarant org-scoped first (`{ id, organizationId }`)
  * so a cross-org id always reads as 404 before any ownership check runs. Reads
@@ -61,7 +62,7 @@ export class DeclarantFilesService {
     await this.loadOwned(organizationId, declarantId, requester);
 
     const id = randomUUID();
-    const objectKey = `org/${organizationId}/declarant/${declarantId}/${id}`;
+    const objectKey = `org/${organizationId}/${id}`;
 
     const { size } = await this.storage.upload(objectKey, stream, mimeType);
 

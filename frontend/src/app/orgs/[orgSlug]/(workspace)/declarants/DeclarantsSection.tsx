@@ -277,17 +277,19 @@ function DeclarantModal({
     setPriorTestimony((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // The self-checkbox and the admin picker are two ways to set the same userId.
-  // Selecting a member in the picker clears the self-checkbox and vice versa, so
-  // the two controls can never contradict each other.
+  // The self-checkbox and the admin picker are two views onto the same userId.
+  // Checking "this is my profile" resolves the picker to the current user (and
+  // unchecking clears it); picking yourself in the picker checks the box, while
+  // picking anyone else (or clearing) unchecks it — so the two controls always
+  // agree on who the declarant is linked to.
   const toggleLinkToMe = (checked: boolean) => {
     setLinkToMe(checked);
-    if (checked) setLinkedUserId('');
+    setLinkedUserId(checked ? currentUserId : '');
   };
 
   const pickMember = (userId: string) => {
     setLinkedUserId(userId);
-    if (userId) setLinkToMe(false);
+    setLinkToMe(userId !== '' && userId === currentUserId);
   };
 
   const resolvedUserId = (): string | undefined => {
@@ -1014,7 +1016,7 @@ export function DeclarantsSection({
   return (
     <Panel padded className="mb-6">
       <div className="flex items-center justify-between mb-1">
-        <Kicker index={3} className="block">Declarants</Kicker>
+        <Kicker className="block">Declarants</Kicker>
         <button
           onClick={() => setEditing('new')}
           className="inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink transition-colors"

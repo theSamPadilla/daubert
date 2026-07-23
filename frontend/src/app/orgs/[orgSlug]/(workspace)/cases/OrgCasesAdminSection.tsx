@@ -188,7 +188,7 @@ export function OrgCasesAdminSection({ orgId }: { orgId: string }) {
 
   return (
     <Panel padded className="mb-6">
-      <Kicker index={6} className="block mb-1">Cases (admin only)</Kicker>
+      <Kicker className="block mb-1">Cases (admin only)</Kicker>
       <p className="text-xs text-ink-muted mb-5">
         As an org admin you have implicit owner access on every case in this organization.
         Deleting a case permanently removes its investigations, productions, members, and all

@@ -172,7 +172,7 @@ export function DeclarationLibraryPicker({ open, data, onClose, onChange }: Decl
             <FaBookOpen className="w-6 h-6 text-ink-faint/60 mb-2" />
             <p className="text-sm text-ink-muted">The library is empty.</p>
             <p className="text-xs text-ink-faint mt-1">
-              Add reusable blocks in your organization settings.
+              Add reusable blocks in your organization&apos;s Library tab.
             </p>
           </div>
         )}

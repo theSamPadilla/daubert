@@ -34,7 +34,7 @@ function makeFile(overrides: any = {}) {
     name: 'cv.pdf',
     mimeType: 'application/pdf',
     size: '1024',
-    objectKey: `org/${ORG_ID}/declarant/${DECLARANT_ID}/${FILE_ID}`,
+    objectKey: `org/${ORG_ID}/${FILE_ID}`,
     uploadedByUserId: OWNER_USER_ID,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -181,7 +181,7 @@ describe('DeclarantFilesService — upload', () => {
 
     expect(callOrder).toEqual(['storage.upload', 'fileRepo.save']);
     expect(mockStorage.upload).toHaveBeenCalledWith(
-      expect.stringMatching(new RegExp(`^org/${ORG_ID}/declarant/${DECLARANT_ID}/.+`)),
+      expect.stringMatching(new RegExp(`^org/${ORG_ID}/.+`)),
       stream,
       'application/pdf',
     );
@@ -239,7 +239,7 @@ describe('DeclarantFilesService — upload', () => {
     const uploadedKey = mockStorage.upload.mock.calls[0][0];
     expect(created.objectKey).toBe(uploadedKey);
     expect(created.id).toBeDefined();
-    expect(uploadedKey).toBe(`org/${ORG_ID}/declarant/${DECLARANT_ID}/${created.id}`);
+    expect(uploadedKey).toBe(`org/${ORG_ID}/${created.id}`);
   });
 });
 

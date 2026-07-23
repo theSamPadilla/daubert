@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FaUserTie,
@@ -128,6 +128,7 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
   const [seedResultSummary, setSeedResultSummary] = useState<string | null>(null);
   const [seedAddressErrors, setSeedAddressErrors] = useState<SeedAddressError[]>([]);
   const { seed, phase } = useCaseSeed(caseId);
+  const seedInFlightRef = useRef(false);
 
   const tokens = useMemo(() => parseTokens(addressInput), [addressInput]);
   const validTokens = useMemo(() => tokens.filter((t) => t.valid), [tokens]);
@@ -218,45 +219,51 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
 
   // ---- Step 2 action ----------------------------------------------------
   const handleSeed = async () => {
-    setSeedError(null);
-    setSeedAddressErrors([]);
-    if (validTokens.length === 0) {
-      setSeedError('Enter at least one wallet address.');
-      return;
-    }
-    if (mixedFamilies) {
-      setSeedError('One chain per seed. Remove either the Tron or the EVM addresses.');
-      return;
-    }
-    const addresses = validTokens.map((t) => t.address);
-    const result = await seed(addresses, chain);
-    if (!result) {
-      setSeedError('We could not find any activity for those addresses. Check them and try again.');
-      return;
-    }
-
-    writeOnboardingRecord(caseId, {
-      seedNodeCount: result.nodeCount,
-      seededInvestigationId: result.investigationId,
-    });
-    setSeededInvestigationId(result.investigationId);
-    setSeedAddressErrors(result.errors);
-
-    // Persist engagement context onto the case summary if the user provided any
-    // and the case has no summary yet (never clobber an existing one).
-    const summary = buildEngagementSummary({ side, scope, allegations });
-    if (summary && !(caseSummary ?? '').trim()) {
-      try {
-        await apiClient.updateCase(caseId, { summary });
-      } catch {
-        /* non-fatal: the trace is already seeded */
+    if (seedInFlightRef.current) return;
+    seedInFlightRef.current = true;
+    try {
+      setSeedError(null);
+      setSeedAddressErrors([]);
+      if (validTokens.length === 0) {
+        setSeedError('Enter at least one wallet address.');
+        return;
       }
-    }
+      if (mixedFamilies) {
+        setSeedError('One chain per seed. Remove either the Tron or the EVM addresses.');
+        return;
+      }
+      const addresses = validTokens.map((t) => t.address);
+      const result = await seed(addresses, chain);
+      if (!result) {
+        setSeedError('We could not find any activity for those addresses. Check them and try again.');
+        return;
+      }
 
-    setSeedResultSummary(
-      `Imported ${result.txCount} ${result.txCount === 1 ? 'transaction' : 'transactions'} across ${result.nodeCount} ${result.nodeCount === 1 ? 'wallet' : 'wallets'}.`,
-    );
-    setStep('declaration');
+      writeOnboardingRecord(caseId, {
+        seedNodeCount: result.nodeCount,
+        seededInvestigationId: result.investigationId,
+      });
+      setSeededInvestigationId(result.investigationId);
+      setSeedAddressErrors(result.errors);
+
+      // Persist engagement context onto the case summary if the user provided any
+      // and the case has no summary yet (never clobber an existing one).
+      const summary = buildEngagementSummary({ side, scope, allegations });
+      if (summary && !(caseSummary ?? '').trim()) {
+        try {
+          await apiClient.updateCase(caseId, { summary });
+        } catch {
+          /* non-fatal: the trace is already seeded */
+        }
+      }
+
+      setSeedResultSummary(
+        `Imported ${result.txCount} ${result.txCount === 1 ? 'transaction' : 'transactions'} across ${result.nodeCount} ${result.nodeCount === 1 ? 'wallet' : 'wallets'}.`,
+      );
+      setStep('declaration');
+    } finally {
+      seedInFlightRef.current = false;
+    }
   };
 
   // ---- Step 3 action ----------------------------------------------------

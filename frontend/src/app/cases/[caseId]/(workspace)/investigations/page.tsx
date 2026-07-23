@@ -115,7 +115,7 @@ function InvestigationsWorkspace() {
     setRailDismissed(record.railDismissed ?? false);
     setSeedNodeCount(record.seedNodeCount ?? null);
     setDraftRequested(record.draftRequested ?? false);
-  }, [caseId]);
+  }, [caseId, activeInvestigationId]);
 
   const { loading, scriptRuns, reloadCurrent, refreshScriptRuns } = useInvestigationLoader({
     activeInvestigationId,

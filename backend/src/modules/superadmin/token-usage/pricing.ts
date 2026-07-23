@@ -9,8 +9,12 @@ type ModelPricing = {
 };
 
 export const PRICING: Record<string, ModelPricing> = {
+  // claude-opus-4-7 / claude-opus-4-6 are no longer offered in the chat model
+  // picker, but stay here so historical token-usage rows still price correctly.
+  'claude-opus-4-8':   { input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.50 },
   'claude-opus-4-7':   { input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.50 },
   'claude-opus-4-6':   { input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.50 },
+  'claude-sonnet-5':   { input: 3, output: 15, cacheWrite5m: 3.75, cacheWrite1h: 6,  cacheRead: 0.30 },
   'claude-sonnet-4-6': { input: 3, output: 15, cacheWrite5m: 3.75, cacheWrite1h: 6,  cacheRead: 0.30 },
   'claude-haiku-4-5':  { input: 1, output: 5,  cacheWrite5m: 1.25, cacheWrite1h: 2,  cacheRead: 0.10 },
 };

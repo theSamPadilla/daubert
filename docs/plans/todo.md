@@ -4,7 +4,6 @@
 
 ## Deferred
 
-- [ ] Agent tool list optimization — contextual filtering, then CRUD grouping. See [`2026-04-27-agent-tool-optimization.md`](./2026-04-27-agent-tool-optimization.md). Revisit when tool count exceeds ~15 (currently ~14).
 - [ ] Blockchain API key hardening — backend proxy and/or per-case key issuance. See [`2026-04-27-blockchain-api-key-hardening.md`](./2026-04-27-blockchain-api-key-hardening.md). Accepted risk; revisit when moving to paid keys, multi-user abuse, or observed quota pressure.
 
 ## Advanced Search backlog

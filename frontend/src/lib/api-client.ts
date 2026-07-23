@@ -814,6 +814,10 @@ export const apiClient = {
   deleteDeclarationLibraryBlock: (orgSlug: string, blockId: string) =>
     request<void>(`/orgs/${orgSlug}/declaration-library/${blockId}`, { method: 'DELETE' }),
 
+  // Org files (org-wide index of files across all declarants)
+  listOrgFiles: (orgSlug: string) =>
+    request<components['schemas']['OrgFile'][]>(`/orgs/${orgSlug}/files`),
+
   // Declarants
   listDeclarants: (orgSlug: string) =>
     request<components['schemas']['Declarant'][]>(`/orgs/${orgSlug}/declarants`),

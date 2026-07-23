@@ -291,6 +291,54 @@ describe('DeclarantFilesService — download', () => {
   });
 });
 
+describe('DeclarantFilesService — listForOrg', () => {
+  let service: DeclarantFilesService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = makeService();
+  });
+
+  it('scopes the query to the org through the declarant relation, newest first', async () => {
+    mockFileRepo.find.mockResolvedValue([]);
+
+    await service.listForOrg(ORG_ID);
+
+    expect(mockFileRepo.find).toHaveBeenCalledWith({
+      where: { declarant: { organizationId: ORG_ID } },
+      relations: ['declarant'],
+      order: { createdAt: 'DESC' },
+    });
+  });
+
+  it('excludes files belonging to another org\'s declarants', async () => {
+    const ownOrgFile = makeFile({
+      id: 'f1',
+      declarant: makeDeclarant({ organizationId: ORG_ID }),
+    });
+    // Only rows matching the queried org are ever returned by the (mocked) repo —
+    // this asserts the service trusts the where-clause result as-is rather than
+    // re-filtering, so a leak would have to come from the query shape itself.
+    mockFileRepo.find.mockResolvedValue([ownOrgFile]);
+
+    const result = await service.listForOrg(ORG_ID);
+
+    expect(result).toEqual([ownOrgFile]);
+    expect(mockFileRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { declarant: { organizationId: ORG_ID } } }),
+    );
+  });
+
+  it('returns rows with the declarant relation loaded', async () => {
+    const fileWithDeclarant = makeFile({ declarant: makeDeclarant() });
+    mockFileRepo.find.mockResolvedValue([fileWithDeclarant]);
+
+    const result = await service.listForOrg(ORG_ID);
+
+    expect(result[0].declarant).toEqual(makeDeclarant());
+  });
+});
+
 describe('DeclarantFilesService — remove', () => {
   let service: DeclarantFilesService;
 

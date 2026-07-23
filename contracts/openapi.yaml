@@ -209,6 +209,8 @@ paths:
     $ref: './paths/declaration-formats.yaml#/~1declaration-formats'
   /productions/{id}/declaration-preview:
     $ref: './paths/declaration-formats.yaml#/~1productions~1{id}~1declaration-preview'
+  /orgs/{org}/files:
+    $ref: './paths/declarants.yaml#/~1orgs~1{org}~1files'
   /orgs/{org}/declarants:
     $ref: './paths/declarants.yaml#/~1orgs~1{org}~1declarants'
   /orgs/{org}/declarants/{declarantId}:
@@ -334,6 +336,8 @@ components:
       $ref: './schemas/declarants.yaml#/DeclarantFileKind'
     DeclarantFile:
       $ref: './schemas/declarants.yaml#/DeclarantFile'
+    OrgFile:
+      $ref: './schemas/declarants.yaml#/OrgFile'
     DeclarantExtractionDraft:
       $ref: './schemas/declarants.yaml#/DeclarantExtractionDraft'
     InviteRole:

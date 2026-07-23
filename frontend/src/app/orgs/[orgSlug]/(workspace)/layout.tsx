@@ -10,6 +10,7 @@ const TABS = [
   { href: 'settings', label: 'Settings', adminOnly: false },
   { href: 'declarants', label: 'Declarants', adminOnly: false },
   { href: 'library', label: 'Library', adminOnly: false },
+  { href: 'files', label: 'Files', adminOnly: false },
   { href: 'cases', label: 'Cases', adminOnly: true },
 ];
 

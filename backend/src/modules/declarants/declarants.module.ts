@@ -7,6 +7,7 @@ import { AnthropicProvider } from '../ai/providers/anthropic.provider';
 import { TokenUsageModule } from '../superadmin/token-usage/token-usage.module';
 import { storageProvider } from '../data-room/storage/storage.factory';
 import { DeclarantsController } from './declarants.controller';
+import { OrgFilesController } from './org-files.controller';
 import { DeclarantsService } from './declarants.service';
 import { DeclarantFilesService } from './declarant-files.service';
 import { DeclarantExtractionService } from './declarant-extraction.service';
@@ -21,7 +22,7 @@ import { DeclarantExtractionService } from './declarant-extraction.service';
     AuthModule,
     TokenUsageModule,
   ],
-  controllers: [DeclarantsController],
+  controllers: [DeclarantsController, OrgFilesController],
   providers: [
     DeclarantsService,
     DeclarantFilesService,

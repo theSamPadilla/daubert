@@ -167,7 +167,7 @@ function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: Ca
           Who sees this case
         </p>
         <p className="text-sm text-ink-muted leading-relaxed">
-          Only the people listed below — plus any{' '}
+          Only the people listed below, plus any{' '}
           <span className="text-ink font-medium">org admins</span> of the org this case belongs
           to, who have implicit owner access on every case in their org.
         </p>
@@ -194,7 +194,7 @@ function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: Ca
                 </div>
                 {viewerRole === 'owner' ? (
                   <div
-                    title={isLastOwner(m) ? 'Cannot change — last owner' : undefined}
+                    title={isLastOwner(m) ? 'Cannot change: last owner' : undefined}
                   >
                     <Select
                       value={m.role}
@@ -213,7 +213,7 @@ function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: Ca
                   </Badge>
                 )}
                 {viewerRole === 'owner' && (
-                  <div title={isLastOwner(m) ? 'Cannot remove — last owner' : 'Remove member'}>
+                  <div title={isLastOwner(m) ? 'Cannot remove: last owner' : 'Remove member'}>
                     <button
                       disabled={isBusy || isLastOwner(m) || !canAct}
                       onClick={() => handleRemove(m.userId)}
@@ -335,7 +335,7 @@ function InvitesSection({ caseId }: { caseId: string }) {
         </div>
         <Input
           type="text"
-          placeholder="Name (optional) — e.g. Jane Doe"
+          placeholder="Name (optional), e.g. Jane Doe"
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={120}

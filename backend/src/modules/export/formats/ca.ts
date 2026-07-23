@@ -125,7 +125,7 @@ function caFooterTemplate(data: DeclarationData): string {
 
 export const caFormat: DeclarationFormat = {
   id: 'ca-declaration',
-  label: 'California — Declaration (pleading paper)',
+  label: 'California: Declaration (pleading paper)',
   jurisdiction: 'CA',
   description:
     'California pleading-paper declaration with numbered line gutter and per-page footer. Executed under CCP § 2015.5.',

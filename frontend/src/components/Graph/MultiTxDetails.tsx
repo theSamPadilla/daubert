@@ -165,7 +165,7 @@ export function MultiTxDetails({
             <span className="text-canvas-muted">Date span</span>
             <span className="text-canvas-ink">
               {fmtDate(oldest)}
-              {oldest.getTime() !== newest.getTime() ? ` — ${fmtDate(newest)}` : ''}
+              {oldest.getTime() !== newest.getTime() ? ` – ${fmtDate(newest)}` : ''}
             </span>
           </div>
         )}

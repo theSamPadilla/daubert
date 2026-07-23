@@ -47,7 +47,7 @@ export default function EntitiesPage() {
           <div>
             <h1 className="text-2xl font-bold text-ink">Labeled Entities</h1>
             <p className="mt-1 text-sm text-ink-muted">
-              Daubert&apos;s registry of known wallet operators. Read-only view — admins can manage entries from <code className="text-brand font-mono">/admin/entities</code>.
+              Daubert&apos;s registry of known wallet operators. Read-only view: admins can manage entries from <code className="text-brand font-mono">/admin/entities</code>.
             </p>
           </div>
           <div className="flex items-center gap-3">

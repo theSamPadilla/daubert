@@ -122,7 +122,7 @@ function CaseSelector() {
                       </p>
                     )}
                     <p className="text-[11px] text-ink-faint mt-3 italic">
-                      Not a case member — ask an admin to add you.
+                      Not a case member. Ask an admin to add you.
                     </p>
                   </div>
                 );

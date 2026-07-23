@@ -50,7 +50,7 @@ export function useGraphSnapshot() {
         const cnv = containerRef.current?.querySelector('canvas');
         if (!cnv || cnv.width === 0) {
           if (performance.now() > timeoutAt) {
-            reject(new Error('Graph snapshot timed out — canvas not ready'));
+            reject(new Error('Graph snapshot timed out: canvas not ready'));
             return;
           }
           raf = requestAnimationFrame(tryCapture);

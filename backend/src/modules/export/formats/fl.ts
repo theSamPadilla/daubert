@@ -34,7 +34,7 @@ function flClosing(data: DeclarationData): string {
 
 export const flFormat: DeclarationFormat = {
   id: 'fl-declaration',
-  label: 'Florida — Declaration (§ 92.525)',
+  label: 'Florida: Declaration (§ 92.525)',
   jurisdiction: 'FL',
   description:
     'Florida written declaration under penalties of perjury pursuant to Fla. Stat. § 92.525. Best-effort layout pending a reference filing.',

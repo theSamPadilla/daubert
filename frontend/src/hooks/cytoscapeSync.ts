@@ -160,7 +160,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
         if (oldestValid && newestValid) {
           dateRangeLabel = a.oldestTs === a.newestTs
             ? formatShortDate(a.oldestTs / 1000)
-            : `${formatShortDate(a.oldestTs / 1000)} — ${formatShortDate(a.newestTs / 1000)}`;
+            : `${formatShortDate(a.oldestTs / 1000)} – ${formatShortDate(a.newestTs / 1000)}`;
         }
         targetEdges.set(key, { data: { id: key, source: a.src, target: a.tgt, traceId: trace.id, label, date: dateRangeLabel, color: a.color, lineStyle: 'solid', edgeIds: a.edgeIds, isAggregatedEdge: true, ...(a.width ? { width: a.width } : {}) } });
       });
@@ -194,7 +194,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
           const newest = timestamps[timestamps.length - 1];
           dateLabel = oldest.getTime() === newest.getTime()
             ? formatShortDate(oldest.getTime() / 1000)
-            : `${formatShortDate(oldest.getTime() / 1000)} — ${formatShortDate(newest.getTime() / 1000)}`;
+            : `${formatShortDate(oldest.getTime() / 1000)} – ${formatShortDate(newest.getTime() / 1000)}`;
         }
         targetEdges.set(bundle.id, { data: { id: bundle.id, source: bundle.fromNodeId, target: bundle.toNodeId, traceId: trace.id, label, date: dateLabel, color, isBundleEdge: true, ...(bundleWidth ? { width: bundleWidth } : {}), ...(bundle.hasArc ? { hasArc: true, arcOffset: bundle.arcOffset ?? 0 } : {}) } });
       });

@@ -367,7 +367,7 @@ function DeclarantModal({
       },
     ];
     return (
-      <Modal open title={modalTitle} onClose={onClose} maxWidth="max-w-lg">
+      <Modal open title={modalTitle} onClose={onClose} maxWidth="max-w-3xl">
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {cards.map(({ choice, Icon, label, hint }) => (
@@ -425,7 +425,7 @@ function DeclarantModal({
         open
         title={modalTitle}
         onClose={extracting ? () => {} : onClose}
-        maxWidth="max-w-lg"
+        maxWidth="max-w-3xl"
         footer={
           <div className="flex items-center justify-between">
             <Button
@@ -497,7 +497,7 @@ function DeclarantModal({
       open
       title={modalTitle}
       onClose={saving ? () => {} : onClose}
-      maxWidth="max-w-lg"
+      maxWidth="max-w-3xl"
       footer={
         <div className="flex items-center justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>

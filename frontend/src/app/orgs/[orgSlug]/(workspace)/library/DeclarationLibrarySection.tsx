@@ -303,7 +303,7 @@ export function DeclarationLibrarySection({ orgSlug }: { orgSlug: string }) {
   return (
     <Panel padded className="mb-6">
       <div className="flex items-center justify-between mb-1">
-        <Kicker index={4} className="block">Boilerplate library</Kicker>
+        <Kicker className="block">Boilerplate library</Kicker>
         <button
           onClick={() => setEditing('new')}
           className="inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink transition-colors"
@@ -314,7 +314,10 @@ export function DeclarationLibrarySection({ orgSlug }: { orgSlug: string }) {
       </div>
       <p className="text-xs text-ink-muted mb-5">
         Reusable boilerplate paragraphs that any case in this organization can insert
-        into a declaration. Expert profiles now live in the Declarants tab.
+        into a declaration — e.g. a chain primer for a lay judge (&ldquo;A blockchain is a
+        public, append-only ledger&hellip;&rdquo;) or exhibit-authentication language
+        (&ldquo;The attached exhibits are true and correct copies obtained from
+        Solscan&hellip;&rdquo;). Expert profiles now live in the Declarants tab.
       </p>
 
       {error && (
@@ -329,6 +332,11 @@ export function DeclarationLibrarySection({ orgSlug }: { orgSlug: string }) {
         <div className="flex flex-col items-center justify-center text-center py-8">
           <FaBookOpen className="w-6 h-6 text-ink-faint/60 mb-2" />
           <p className="text-sm text-ink-muted">The library is empty.</p>
+          <p className="text-xs text-ink-faint mt-1 max-w-md">
+            Start with the language your filings reuse every time — a technical primer
+            explaining the chain to the court, or the authentication paragraphs for your
+            blockchain exhibits.
+          </p>
         </div>
       ) : (
         <div className="space-y-5">

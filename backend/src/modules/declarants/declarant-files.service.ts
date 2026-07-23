@@ -45,6 +45,24 @@ export class DeclarantFilesService {
   }
 
   /**
+   * List every file belonging to any declarant in the org — the org-wide
+   * Files tab. `declarant_files` has no `organizationId` column of its own,
+   * so scoping goes THROUGH the declarant relation (`declarant.organizationId`)
+   * rather than a raw `declarantId` filter, which is what keeps this
+   * cross-org-safe: a file can only match if its declarant row resolves to
+   * this org. The `declarant` relation is loaded so the controller can
+   * project `declarantName`/`declarantUserId` without a second query.
+   * Member read — no ownership check (mirrors `list`).
+   */
+  async listForOrg(organizationId: string): Promise<DeclarantFileEntity[]> {
+    return this.fileRepo.find({
+      where: { declarant: { organizationId } },
+      relations: ['declarant'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
    * Stream a new file into storage and record it. Owner/admin only. The row's
    * id IS the object key suffix, so the row id is resolved up front — storage
    * write happens BEFORE the row is saved, so a storage failure leaves no

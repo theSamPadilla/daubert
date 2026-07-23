@@ -1420,6 +1420,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orgs/{org}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all files across every declarant in an organization
+         * @description The org-wide Files tab. Backed by declarant_files — there is no
+         *     organizationId column on the file itself, scoping goes through the
+         *     declarant relation. Ordered newest first.
+         */
+        get: operations["listOrgFiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orgs/{org}/declarants": {
         parameters: {
             query?: never;
@@ -2043,6 +2065,29 @@ export interface components {
             id: string;
             /** Format: uuid */
             declarantId: string;
+            kind: components["schemas"]["DeclarantFileKind"];
+            name: string;
+            mimeType: string;
+            size: string;
+            /** Format: uuid */
+            uploadedByUserId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        OrgFile: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            declarantId: string;
+            /** @description Display name of the declarant this file is attached to. */
+            declarantName: string;
+            /**
+             * Format: uuid
+             * @description The member account linked to the declarant, if any.
+             */
+            declarantUserId: string | null;
             kind: components["schemas"]["DeclarantFileKind"];
             name: string;
             mimeType: string;
@@ -6418,6 +6463,47 @@ export interface operations {
                 };
                 content: {
                     "text/html": string;
+                };
+            };
+        };
+    };
+    listOrgFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Org files */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgFile"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

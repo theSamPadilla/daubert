@@ -96,7 +96,7 @@ export function SearchResults({ investigation, defaultTargetTraceId, results, on
       onImportDone(count);
     } catch (err: unknown) {
       const msg =
-        err instanceof Error ? err.message : 'Import failed — please try again';
+        err instanceof Error ? err.message : 'Import failed, please try again';
       setImportError(msg);
     } finally {
       setImporting(false);

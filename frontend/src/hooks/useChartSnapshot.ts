@@ -53,7 +53,7 @@ export function useChartSnapshot() {
         const canvas = containerRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
         if (!canvas || canvas.width === 0) {
           if (performance.now() > timeoutAt) {
-            reject(new Error('Chart snapshot timed out — canvas not ready'));
+            reject(new Error('Chart snapshot timed out: canvas not ready'));
             return;
           }
           raf = requestAnimationFrame(tryCapture);

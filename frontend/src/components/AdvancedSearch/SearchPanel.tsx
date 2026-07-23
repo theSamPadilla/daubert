@@ -177,7 +177,7 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
       const msg =
         err instanceof Error
           ? err.message
-          : 'Search failed — please try again';
+          : 'Search failed, please try again';
       setError(msg);
     } finally {
       if (!controller.signal.aborted) {

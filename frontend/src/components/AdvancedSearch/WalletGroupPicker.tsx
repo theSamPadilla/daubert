@@ -236,7 +236,7 @@ function TraceGroupPicker({ options, value, onSelect }: TraceGroupPickerProps) {
         onChange={onSelect}
         className="w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
       >
-        <option value="">— Select —</option>
+        <option value="">Select…</option>
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}

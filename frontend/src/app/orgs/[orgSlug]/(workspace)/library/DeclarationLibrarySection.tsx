@@ -183,7 +183,7 @@ function DeclarationLibraryBlockModal({
             </button>
           </div>
           <p className="text-xs text-ink-faint mb-2">
-            Paragraphs-only content is fine here — sub-items, exhibits, and footnotes can be
+            Paragraphs-only content is fine here: sub-items, exhibits, and footnotes can be
             added later, directly on a declaration.
           </p>
           <div className="space-y-2">
@@ -314,7 +314,7 @@ export function DeclarationLibrarySection({ orgSlug }: { orgSlug: string }) {
       </div>
       <p className="text-xs text-ink-muted mb-5">
         Reusable boilerplate paragraphs that any case in this organization can insert
-        into a declaration — e.g. a chain primer for a lay judge (&ldquo;A blockchain is a
+        into a declaration, e.g. a chain primer for a lay judge (&ldquo;A blockchain is a
         public, append-only ledger&hellip;&rdquo;) or exhibit-authentication language
         (&ldquo;The attached exhibits are true and correct copies obtained from
         Solscan&hellip;&rdquo;). Expert profiles now live in the Declarants tab.
@@ -333,7 +333,7 @@ export function DeclarationLibrarySection({ orgSlug }: { orgSlug: string }) {
           <FaBookOpen className="w-6 h-6 text-ink-faint/60 mb-2" />
           <p className="text-sm text-ink-muted">The library is empty.</p>
           <p className="text-xs text-ink-faint mt-1 max-w-md">
-            Start with the language your filings reuse every time — a technical primer
+            Start with the language your filings reuse every time: a technical primer
             explaining the chain to the court, or the authentication paragraphs for your
             blockchain exhibits.
           </p>

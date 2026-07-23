@@ -23,7 +23,7 @@ const ROLE_BLURBS: Record<OrgInviteRole, { headline: string; can: string; cant: 
   admin: {
     headline: 'Full org control.',
     can: 'Implicit owner on every case. Can manage org settings, members, and invites.',
-    cant: 'Treat with care — admins can remove other admins and rename the org.',
+    cant: 'Treat with care: admins can remove other admins and rename the org.',
   },
   member: {
     headline: 'Belongs to every case by default.',

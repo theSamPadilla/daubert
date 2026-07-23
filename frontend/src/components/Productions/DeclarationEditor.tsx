@@ -659,7 +659,7 @@ export function DeclarationEditor({ production, readOnly, onChange }: Declaratio
                                 </option>
                                 {data.exhibits.map((ex) => (
                                   <option key={ex.id} value={ex.id}>
-                                    {ex.label} — {ex.description || 'untitled'}
+                                    {ex.label}: {ex.description || 'untitled'}
                                   </option>
                                 ))}
                               </select>

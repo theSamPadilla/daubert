@@ -59,7 +59,7 @@ function ResultRow({ result }: { result: AddResult }) {
           <FaCheck size={12} className="text-emerald-500 flex-shrink-0" />
           <span className="flex-1">
             <span className="text-ink font-medium">{result.email}</span>
-            {' '}— invite ready
+            {': invite ready'}
           </span>
           <button
             type="button"
@@ -88,7 +88,7 @@ function ResultRow({ result }: { result: AddResult }) {
       <FaXmark size={12} className="flex-shrink-0" />
       <span>
         <span className="font-medium">{result.email}</span>
-        {' '}— {result.reason}
+        {': '}{result.reason}
       </span>
     </div>
   );

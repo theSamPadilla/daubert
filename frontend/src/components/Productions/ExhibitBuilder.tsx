@@ -159,7 +159,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
             <div>
               <h2 className="text-sm font-semibold text-ink">Create Exhibit</h2>
               <p className="text-xs text-ink-muted">
-                {itemCount === 0 ? 'No items yet — add from the left.' :
+                {itemCount === 0 ? 'No items yet. Add from the left.' :
                   `${itemCount} item${itemCount === 1 ? '' : 's'} · drag to reorder`}
               </p>
             </div>

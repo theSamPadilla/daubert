@@ -116,6 +116,42 @@ DeclarantFile:
       type: string
       format: date-time
 
+OrgFile:
+  type: object
+  required: [id, declarantId, declarantName, declarantUserId, kind, name, mimeType, size, uploadedByUserId, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    declarantId:
+      type: string
+      format: uuid
+    declarantName:
+      type: string
+      description: Display name of the declarant this file is attached to.
+    declarantUserId:
+      type: string
+      format: uuid
+      nullable: true
+      description: The member account linked to the declarant, if any.
+    kind:
+      $ref: '#/DeclarantFileKind'
+    name:
+      type: string
+    mimeType:
+      type: string
+    size:
+      type: string
+    uploadedByUserId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
 DeclarantExtractionDraft:
   type: object
   properties:

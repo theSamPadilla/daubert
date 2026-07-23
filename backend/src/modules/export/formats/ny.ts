@@ -78,7 +78,7 @@ function nyStyles(): string {
 
 export const nyFormat: DeclarationFormat = {
   id: 'ny-affirmation',
-  label: 'New York — Attorney Affirmation (C.P.L.R. § 2106)',
+  label: 'New York: Attorney Affirmation (C.P.L.R. § 2106)',
   jurisdiction: 'NY',
   description:
     'New York affirmation under penalty of perjury pursuant to C.P.L.R. § 2106. Double-spaced, bordered caption box, no pleading gutter.',

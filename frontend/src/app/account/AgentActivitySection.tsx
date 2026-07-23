@@ -66,8 +66,8 @@ export function AgentActivitySection() {
         <Loader inline />
       ) : actions.length === 0 ? (
         <p className="text-sm text-ink-muted">
-          No agent activity yet. Actions your agents take — creating investigations, importing
-          transactions, editing productions — will appear here.
+          No agent activity yet. Actions your agents take (creating investigations, importing
+          transactions, editing productions) will appear here.
         </p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-line -mx-5">

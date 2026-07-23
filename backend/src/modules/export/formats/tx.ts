@@ -41,7 +41,7 @@ function txClosing(data: DeclarationData): string {
 
 export const txFormat: DeclarationFormat = {
   id: 'tx-declaration',
-  label: 'Texas — Unsworn Declaration (§ 132.001)',
+  label: 'Texas: Unsworn Declaration (§ 132.001)',
   jurisdiction: 'TX',
   description:
     'Texas unsworn declaration under Tex. Civ. Prac. & Rem. Code § 132.001. Jurat recites declarant name, date of birth, and address. Best-effort layout pending a reference filing.',

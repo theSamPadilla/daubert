@@ -33,7 +33,7 @@ function federalClosing(data: DeclarationData): string {
 
 export const federal1746Format: DeclarationFormat = {
   id: 'federal-1746',
-  label: 'Federal — Unsworn Declaration (28 U.S.C. § 1746)',
+  label: 'Federal: Unsworn Declaration (28 U.S.C. § 1746)',
   jurisdiction: 'Federal',
   description:
     'Federal unsworn declaration under penalty of perjury pursuant to 28 U.S.C. § 1746. Best-effort layout pending a reference filing.',

@@ -328,7 +328,7 @@ function DeclarantModal({
           await apiClient.uploadDeclarantFile(orgSlug, created.id, pendingFile, source);
         } catch {
           setAttachWarning(
-            'Profile saved; attaching the source file failed — you can retry from the edit modal.',
+            'Profile saved; attaching the source file failed. You can retry from the edit modal.',
           );
           setSaving(false);
           return;
@@ -401,7 +401,7 @@ function DeclarantModal({
                   Link to a member (optional)
                 </label>
                 <Select value={linkedUserId} onChange={(e) => pickMember(e.target.value)}>
-                  <option value="">— Not linked —</option>
+                  <option value="">Not linked</option>
                   {members.map((m) => (
                     <option key={m.userId} value={m.userId}>
                       {m.user?.name || m.user?.email || m.userId}
@@ -512,7 +512,7 @@ function DeclarantModal({
       <div className="space-y-4">
         {fromExtraction && (
           <p className="text-xs text-ink-muted">
-            Extracted from your upload — review before saving.
+            Extracted from your upload: review before saving.
           </p>
         )}
 
@@ -732,7 +732,7 @@ function DeclarantModal({
                   Link to a member (optional)
                 </label>
                 <Select value={linkedUserId} onChange={(e) => pickMember(e.target.value)}>
-                  <option value="">— Not linked —</option>
+                  <option value="">Not linked</option>
                   {members.map((m) => (
                     <option key={m.userId} value={m.userId}>
                       {m.user?.name || m.user?.email || m.userId}
@@ -1026,7 +1026,7 @@ export function DeclarantsSection({
         </button>
       </div>
       <p className="text-xs text-ink-muted mb-5">
-        Reusable expert profiles — name, credentials, and qualifications paragraphs that any
+        Reusable expert profiles: name, credentials, and qualifications paragraphs that any
         case in this organization can insert into a declaration.
       </p>
 

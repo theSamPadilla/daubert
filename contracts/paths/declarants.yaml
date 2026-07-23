@@ -1,3 +1,40 @@
+/orgs/{org}/files:
+  get:
+    summary: List all files across every declarant in an organization
+    description: |
+      The org-wide Files tab. Backed by declarant_files — there is no
+      organizationId column on the file itself, scoping goes through the
+      declarant relation. Ordered newest first.
+    operationId: listOrgFiles
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    responses:
+      '200':
+        description: Org files
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/declarants.yaml#/OrgFile'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
 /orgs/{org}/declarants:
   get:
     summary: List declarants for an organization

@@ -10,7 +10,7 @@ export default function OrgIndexPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace(`/orgs/${orgSlug}/settings`);
+    router.replace(`/orgs/${orgSlug}/declarations`);
   }, [orgSlug, router]);
 
   return <Loader inline />;

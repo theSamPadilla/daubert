@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaChevronDown, FaBuilding, FaGear } from 'react-icons/fa6';
+import { FaChevronDown, FaBuilding } from 'react-icons/fa6';
 import { useOrgContext } from '@/contexts/OrgContext';
 import { useAuth } from '@/components/Auth/AuthProvider';
 
@@ -33,17 +33,28 @@ export function OrgSwitcher() {
 
   return (
     <div className="relative" ref={ref}>
-      <button
-        onClick={handleToggle}
-        title={activeOrg?.name ?? 'Select organization'}
-        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors border-line bg-surface hover:bg-surface-raised hover:border-line-strong"
-      >
-        <FaBuilding className="w-3.5 h-3.5 text-brand" />
-        <span className="text-sm font-medium truncate max-w-[180px] text-ink">
-          {activeOrg?.name ?? 'Select org'}
-        </span>
-        <FaChevronDown className="w-3 h-3 text-ink-muted" />
-      </button>
+      <div className="flex items-stretch rounded-lg border border-line bg-surface overflow-hidden transition-colors hover:border-line-strong">
+        <button
+          onClick={() => {
+            if (activeOrg) router.push(`/orgs/${activeOrg.slug}/declarations`);
+          }}
+          title={activeOrg ? `Open ${activeOrg.name}` : 'Select organization'}
+          className="flex items-center gap-2 pl-2.5 pr-2 py-1.5 transition-colors hover:bg-surface-raised"
+        >
+          <FaBuilding className="w-3.5 h-3.5 text-brand" />
+          <span className="text-sm font-medium truncate max-w-[180px] text-ink">
+            {activeOrg?.name ?? 'Select org'}
+          </span>
+        </button>
+        <button
+          onClick={handleToggle}
+          title="Switch organization"
+          aria-label="Switch organization"
+          className="flex items-center px-2 border-l border-line transition-colors hover:bg-surface-raised"
+        >
+          <FaChevronDown className="w-3 h-3 text-ink-muted" />
+        </button>
+      </div>
 
       {open && (
         <div className="absolute left-0 mt-1 w-56 bg-surface rounded-xl border border-line shadow-[0_24px_60px_-30px_rgba(11,18,32,0.18)] z-20 overflow-hidden">
@@ -70,13 +81,13 @@ export function OrgSwitcher() {
                 <button
                   onClick={() => {
                     setOpen(false);
-                    router.push(`/orgs/${org.slug}/settings`);
+                    router.push(`/orgs/${org.slug}/declarations`);
                   }}
-                  title={`${org.name} settings`}
-                  aria-label={`${org.name} settings`}
+                  title={`Open ${org.name}`}
+                  aria-label={`Open ${org.name}`}
                   className="px-3 flex items-center text-ink-faint hover:text-ink hover:bg-surface-raised transition-colors"
                 >
-                  <FaGear className="w-3.5 h-3.5" />
+                  <FaBuilding className="w-3.5 h-3.5" />
                 </button>
               </div>
             );

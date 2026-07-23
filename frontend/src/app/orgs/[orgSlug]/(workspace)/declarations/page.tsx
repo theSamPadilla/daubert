@@ -3,8 +3,9 @@
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/components/Auth/AuthProvider';
 import { DeclarantsSection } from './DeclarantsSection';
+import { DeclarationLibrarySection } from './DeclarationLibrarySection';
 
-export default function OrgDeclarantsPage() {
+export default function OrgDeclarationsPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
   const { user } = useAuth();
@@ -12,5 +13,10 @@ export default function OrgDeclarantsPage() {
   const isAdmin = orgForThisPage?.role === 'admin';
   const currentUserId = user?.id ?? '';
 
-  return <DeclarantsSection orgSlug={orgSlug} isAdmin={isAdmin} currentUserId={currentUserId} />;
+  return (
+    <div className="space-y-6">
+      <DeclarantsSection orgSlug={orgSlug} isAdmin={isAdmin} currentUserId={currentUserId} />
+      <DeclarationLibrarySection orgSlug={orgSlug} />
+    </div>
+  );
 }

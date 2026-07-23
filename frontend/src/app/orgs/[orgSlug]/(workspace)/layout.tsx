@@ -8,8 +8,7 @@ import { Kicker } from '@/components/ui/Kicker';
 
 const TABS = [
   { href: 'settings', label: 'Settings', adminOnly: false },
-  { href: 'declarants', label: 'Declarants', adminOnly: false },
-  { href: 'library', label: 'Library', adminOnly: false },
+  { href: 'declarations', label: 'Declarations', adminOnly: false },
   { href: 'files', label: 'Files', adminOnly: false },
   { href: 'cases', label: 'Cases', adminOnly: true },
 ];
@@ -40,7 +39,7 @@ export default function OrgWorkspaceLayout({ children }: { children: React.React
         </h2>
         <p className="mt-2 text-sm text-ink-muted">
           Manage {orgName ? <span className="text-ink font-medium">{orgName}</span> : 'your organization'}
-          &apos;s profile, members, declarants, and library.
+          &apos;s profile, members, declarations, and files.
         </p>
       </div>
 

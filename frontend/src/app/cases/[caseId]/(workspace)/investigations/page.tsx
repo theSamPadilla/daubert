@@ -19,7 +19,8 @@ import { ErrorModal } from '@/components/Common/ErrorModal';
 import { WorkspaceModals } from '@/components/Workspace/WorkspaceModals';
 import { WorkspaceEmptyState } from '@/components/Workspace/WorkspaceEmptyState';
 import { CaseOnboardingWizard } from '@/components/Onboarding/CaseOnboardingWizard';
-import { readOnboardingRecord } from '@/components/Onboarding/checklist';
+import { GettingStartedRail } from '@/components/Onboarding/GettingStartedRail';
+import { readOnboardingRecord, deriveChecklist } from '@/components/Onboarding/checklist';
 import { FaMagnifyingGlass, FaDownload } from 'react-icons/fa6';
 import { Button } from '@/components/ui';
 import { QuickAddInput } from '@/components/Graph/QuickAddInput';
@@ -103,6 +104,19 @@ function InvestigationsWorkspace() {
     setWizardDismissed(readOnboardingRecord(caseId).wizardDismissed ?? false);
   }, [caseId]);
 
+  // Getting-started rail visibility + derived progress. railDismissed and
+  // draftRequested are localStorage-backed but mirrored into state so
+  // dismiss/click updates render immediately without a reload.
+  const [railDismissed, setRailDismissed] = useState(false);
+  const [seedNodeCount, setSeedNodeCount] = useState<number | null>(null);
+  const [draftRequested, setDraftRequested] = useState(false);
+  useEffect(() => {
+    const record = readOnboardingRecord(caseId);
+    setRailDismissed(record.railDismissed ?? false);
+    setSeedNodeCount(record.seedNodeCount ?? null);
+    setDraftRequested(record.draftRequested ?? false);
+  }, [caseId]);
+
   const { loading, scriptRuns, reloadCurrent, refreshScriptRuns } = useInvestigationLoader({
     activeInvestigationId,
     investigation,
@@ -119,6 +133,22 @@ function InvestigationsWorkspace() {
       t.nodes.map((wallet) => ({ wallet, traceId: t.id }))
     );
   }, [investigation]);
+
+  // Re-derives every render from the live investigation object so labeling or
+  // adding nodes updates the getting-started rail immediately.
+  const checklist = useMemo(
+    () =>
+      deriveChecklist({
+        investigationCount: caseInvestigations?.length ?? 1,
+        nodes: investigation ? investigation.traces.flatMap((t) => t.nodes) : [],
+        seedNodeCount,
+        draftRequested,
+      }),
+    [caseInvestigations, investigation, seedNodeCount, draftRequested],
+  );
+  const allChecklistComplete =
+    checklist.seeded && checklist.labeled && checklist.expanded && checklist.draftRequested;
+  const showRail = canMutate && !!investigation && !railDismissed && !allChecklistComplete;
 
   const handleSelectTrace = useCallback((trace: Trace) => {
     setSelectedItem({ type: 'trace', data: trace });
@@ -363,6 +393,15 @@ function InvestigationsWorkspace() {
                 onDeleteAllInbound={canMutate ? handleDeleteAllInbound : () => {}}
                 onRefreshScriptRuns={refreshScriptRuns}
                 canMutate={canMutate}
+              />
+            )}
+
+            {showRail && (
+              <GettingStartedRail
+                caseId={caseId}
+                checklist={checklist}
+                onDraftRequested={() => setDraftRequested(true)}
+                onDismiss={() => setRailDismissed(true)}
               />
             )}
 

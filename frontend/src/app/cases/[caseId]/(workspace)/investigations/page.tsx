@@ -18,6 +18,8 @@ import { ExportModal } from '@/components/Common/ExportModal';
 import { ErrorModal } from '@/components/Common/ErrorModal';
 import { WorkspaceModals } from '@/components/Workspace/WorkspaceModals';
 import { WorkspaceEmptyState } from '@/components/Workspace/WorkspaceEmptyState';
+import { CaseOnboardingWizard } from '@/components/Onboarding/CaseOnboardingWizard';
+import { readOnboardingRecord } from '@/components/Onboarding/checklist';
 import { FaMagnifyingGlass, FaDownload } from 'react-icons/fa6';
 import { Button } from '@/components/ui';
 import { QuickAddInput } from '@/components/Graph/QuickAddInput';
@@ -90,8 +92,16 @@ function InvestigationsWorkspace() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [stagedItems, setStagedItems] = useState<TransactionEdge[]>([]);
-  const { updateSidebar, reloadInvestigations, viewerRole } = useCaseContext();
+  const { updateSidebar, reloadInvestigations, viewerRole, caseInvestigations } = useCaseContext();
   const canMutate = viewerRole === 'owner' || viewerRole === 'editor';
+
+  // Onboarding wizard visibility. Read the per-case dismissal flag on the client
+  // only (never during SSR). The setter lets "Skip setup" flip it immediately
+  // without a page reload.
+  const [wizardDismissed, setWizardDismissed] = useState(false);
+  useEffect(() => {
+    setWizardDismissed(readOnboardingRecord(caseId).wizardDismissed ?? false);
+  }, [caseId]);
 
   const { loading, scriptRuns, reloadCurrent, refreshScriptRuns } = useInvestigationLoader({
     activeInvestigationId,
@@ -378,6 +388,8 @@ function InvestigationsWorkspace() {
             />
           </div>
         </>
+      ) : caseInvestigations !== null && caseInvestigations.length === 0 && canMutate && !wizardDismissed ? (
+        <CaseOnboardingWizard onSkip={() => setWizardDismissed(true)} />
       ) : (
         <WorkspaceEmptyState />
       )}

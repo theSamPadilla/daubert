@@ -52,8 +52,9 @@ Full results stay in memory for the current agent loop; only the slim version is
 persisted. The model can re-read a production's full body via `read_production`
 when needed.
 
-Every other tool result (`get_case_data`, `get_skill`, `list_script_runs`,
-`query_labeled_entities`, `execute_script`) is **persisted verbatim**.
+Every other tool result (the retrieval tools: `get_case_data`, `get_skill`,
+`list_script_runs`, `query_labeled_entities`, `execute_script`, and the newer
+declarant / library reads) is **persisted verbatim**.
 Originally we slimmed retrieval results too, but it backfired: the model would
 see consecutive summaries in conversation history and conclude that re-calling
 wouldn't return more — even though the live tool returned full data. Trusting

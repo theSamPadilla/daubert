@@ -192,4 +192,4 @@ These are **separate paths**:
 | **Isolation** | In-process (NestJS service) | V8 isolate — no fs, child_process, net, os access |
 | **Graph mutations** | Frontend auto-saves via `PATCH /traces/:id` | Scripts POST to `/traces/:id/import-transactions` |
 
-The backend is the single authority for all data mutations. AI scripts fetch blockchain data via external APIs, then POST to the import endpoint to add nodes/edges to the graph. The skill documents (`blockchain-apis.md`, `graph-mutations.md`) provide endpoint formats and script patterns.
+The backend is the single authority for all data mutations. AI scripts fetch blockchain data via external APIs, then POST to the import endpoint to add nodes/edges to the graph. The skill documents (`etherscan-apis.md`, `tronscan-apis.md`, `graph-mutations.md`) provide endpoint formats and script patterns.

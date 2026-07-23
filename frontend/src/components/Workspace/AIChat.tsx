@@ -320,7 +320,7 @@ interface AIChatProps {
 }
 
 export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, onProductionUpdated }: AIChatProps) {
-  const { viewerRole } = useCaseContext();
+  const { viewerRole, pendingChatPrompt, consumeChatPrompt } = useCaseContext();
   const canMutate = viewerRole === 'owner' || viewerRole === 'editor';
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -393,6 +393,17 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [input]);
+
+  // Chat prompt injection — e.g. the onboarding wizard queues a prompt via
+  // requestChatPrompt(). Populate the composer without auto-sending so the
+  // user can review and edit before sending. If the user already has a draft
+  // in progress, append on a new line rather than clobbering it.
+  useEffect(() => {
+    if (pendingChatPrompt === null) return;
+    setInput((prev) => (prev.trim().length > 0 ? `${prev}\n${pendingChatPrompt}` : pendingChatPrompt));
+    consumeChatPrompt();
+    textareaRef.current?.focus();
+  }, [pendingChatPrompt, consumeChatPrompt]);
 
   // Revoke object URLs when attachments change to avoid memory leaks
   useEffect(() => {

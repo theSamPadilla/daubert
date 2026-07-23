@@ -28,10 +28,20 @@ export function CaseShell({ children }: { children: React.ReactNode }) {
     onGraphUpdated,
     onProductionUpdated,
     newPrimaryOpen,
+    pendingChatPrompt,
   } = useCaseContext();
 
   // Unified drag ref — tracks which panel is being resized
   const dragRef = useRef<{ panel: 'sidebar' | 'chat'; startX: number; startW: number } | null>(null);
+
+  // Auto-open the chat panel when a prompt is queued (e.g. from the onboarding
+  // wizard) so the user sees it land in the composer instead of silently
+  // queuing behind a collapsed panel.
+  useEffect(() => {
+    if (pendingChatPrompt !== null && !chatOpen) {
+      setChatOpen(true);
+    }
+  }, [pendingChatPrompt, chatOpen, setChatOpen]);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {

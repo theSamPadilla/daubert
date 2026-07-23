@@ -128,6 +128,15 @@ When the user says something like *"add transaction 0xabc… to the declaration 
 
 `source.kind` is `transaction` (on-chain record — set `txHash`, `chain`, `url`), `url` (a web/explorer page — set `url`), `file` (a data-room document — set `note` to identify it), or `other` (set `note`). Use `null` for an exhibit with no linkable source yet.
 
+## Drafting from case activity
+
+When asked to draft a declaration body from the case's work:
+
+- Read the case first: `get_case_data` for the graph (wallets, labels, transactions), the case summary (it may contain the engagement context: retained side, scope, key allegations), and `list_script_runs` for analysis already performed.
+- Methodology must describe what was actually done in this case (which addresses were fetched, on which chains, what was imported, what scripts ran). Never write generic methodology boilerplate.
+- Anchor factual claims to their sources. Cite transaction hashes for specific transfers where the graph carries them.
+- Qualifications and honesty follow the rules below: leave the qualifications section alone if it is already filled from a declarant profile, and insert a clearly marked placeholder for the expert to complete if it is empty rather than inventing credentials.
+
 ## Honesty rules
 
 The declaration carries the expert's name and perjury oath — accuracy and candor are non-negotiable.
@@ -135,3 +144,4 @@ The declaration carries the expert's name and perjury oath — accuracy and cand
 - **Disclose gaps explicitly.** If funds enter a mixer and cannot be followed, if a flow is unattributable, or if transaction history is incomplete, say so in plain terms. Do not paper over uncertainty.
 - **Never overstate.** Distinguish what the on-chain data shows from inference. Use hedged language where the evidence is circumstantial ("consistent with", "indicates", "I was unable to determine").
 - **The draft is for the expert to own and edit.** Produce a faithful, well-structured draft grounded in the evidence; the testifying expert reviews, corrects, and signs it. Do not invent facts, credentials, or citations to fill a slot — leave it for the expert or ask the user.
+- **Never invent qualifications, credentials, or facts.** This extends to the qualifications section specifically: if a declarant profile already filled it, leave it as is; if it is empty, insert a clearly marked placeholder rather than fabricating background.

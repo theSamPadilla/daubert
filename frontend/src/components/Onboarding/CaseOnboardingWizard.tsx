@@ -14,7 +14,7 @@ import { apiClient, type Production, type DeclarationFormat } from '@/lib/api-cl
 import type { components } from '@/generated/api-types';
 import { useCaseContext } from '@/contexts/CaseContext';
 import { useAuth } from '@/components/Auth/AuthProvider';
-import { useCaseSeed } from '@/hooks/useCaseSeed';
+import { shortAddress, useCaseSeed, type SeedAddressError } from '@/hooks/useCaseSeed';
 import { PageHeader } from '@/components/Common/PageHeader';
 import UserMenu from '@/components/Auth/UserMenu';
 import { Button, Badge, Field, Select, Textarea, Input } from '@/components/ui';
@@ -126,6 +126,7 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
   const [allegations, setAllegations] = useState('');
   const [seedError, setSeedError] = useState<string | null>(null);
   const [seedResultSummary, setSeedResultSummary] = useState<string | null>(null);
+  const [seedAddressErrors, setSeedAddressErrors] = useState<SeedAddressError[]>([]);
   const { seed, phase } = useCaseSeed(caseId);
 
   const tokens = useMemo(() => parseTokens(addressInput), [addressInput]);
@@ -218,6 +219,7 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
   // ---- Step 2 action ----------------------------------------------------
   const handleSeed = async () => {
     setSeedError(null);
+    setSeedAddressErrors([]);
     if (validTokens.length === 0) {
       setSeedError('Enter at least one wallet address.');
       return;
@@ -238,6 +240,7 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
       seededInvestigationId: result.investigationId,
     });
     setSeededInvestigationId(result.investigationId);
+    setSeedAddressErrors(result.errors);
 
     // Persist engagement context onto the case summary if the user provided any
     // and the case has no summary yet (never clobber an existing one).
@@ -599,6 +602,19 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
               {seedResultSummary && (
                 <div className="rounded-lg border border-brand/30 bg-brand-soft/40 px-3 py-2 text-[13px] text-ink-soft">
                   {seedResultSummary}
+                </div>
+              )}
+
+              {seedAddressErrors.length > 0 && (
+                <div className="space-y-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
+                  {seedAddressErrors.map((e, i) => (
+                    <div key={`${e.address}-${i}`} className="flex items-start gap-2">
+                      <FaTriangleExclamation className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        Could not fetch {shortAddress(e.address)}: {e.message}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
 

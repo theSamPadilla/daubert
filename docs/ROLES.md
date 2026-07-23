@@ -84,16 +84,13 @@ Org membership derives a default case role for every case in the org (`orgRoleTo
 | `member` | `editor` |
 | `guest` | none (explicit `case_members` row required) |
 
-At the service layer (`CaseAccessService.assertAccess` / `assertRole`, used by all id-scoped routes, script tokens, and MCP), the **explicit `case_members` row wins over the implicit role** -- an admin can downgrade a member to viewer on a specific case, or grant a guest editor access. The implicit role is the fallback when no explicit row exists.
+The **explicit `case_members` row wins over the implicit role** -- an admin can downgrade a member to viewer on a specific case, or grant a guest editor access. The implicit role is the fallback when no explicit row exists.
 
-Enforcement note -- the two layers currently differ:
-
-- **`RoleGuard`** (route-level, `:caseId` routes such as `GET /cases/:caseId`) implements only the **org-admin short-circuit**: an org admin of the case's host org gets a synthetic `req.caseMembership` with `role: 'owner'` and `source: 'org-admin-implicit'`, even if they also hold a lower explicit row. Non-admins must have an explicit `case_members` row to pass this guard; the member -> editor implicit is NOT applied here.
-- **`CaseAccessService`** (service layer, id-scoped routes like `/investigations/:id`, `/traces/:id`, `/productions/:id`, plus script and MCP principals) applies the full mapping: explicit row first, then implicit `admin -> owner` / `member -> editor`.
+There is exactly one resolution authority: `CaseAccessService.assertAccess` / `assertRole`. The route-level `RoleGuard` (on `:caseId` routes such as `GET /cases/:caseId`) delegates to it with a user principal, and the service-layer paths (id-scoped routes like `/investigations/:id`, `/traces/:id`, `/productions/:id`, plus script and MCP principals) call it directly -- both apply the same explicit-row-first, then implicit `admin -> owner` / `member -> editor` mapping.
 
 Practical consequences:
 - An org admin can edit, govern, and delete any case in their org from day one, without needing to be invited or to self-promote.
-- An org member collaborates as editor on every org case through the service-layer paths and sees all org cases in `GET /cases` with `role: 'editor'`.
+- An org member collaborates as editor on every org case and sees all org cases in `GET /cases` with `role: 'editor'`.
 - Neither implicit role appears in the case's `members` list (only real `case_members` rows do). The membership panel is the source of truth for explicit membership.
 - A case-only collaborator (no `organization_members` row in the host org) is unaffected. They see only the case they were invited to.
 
@@ -146,7 +143,7 @@ The superadmin column shows what a superadmin can do *as superadmin*, i.e., on p
 ² Superadmin has no special access to case contents in orgs they're not a member of.
 ³ Org admin gets implicit owner-equivalent access to every case in their org (see [Org role -> implicit case access](#org-role---implicit-case-access)).
 ⁴ Org guests are NOT case members by default. They access cases through explicit `case_members` rows (added by a case owner) or through case invites; org cases render as ghosted tiles until then.
-⁵ Org members get implicit editor access to every case in their org via the service-layer paths; explicit `case_members` rows override (including downgrades to viewer). See the enforcement note in [Org role -> implicit case access](#org-role---implicit-case-access) for the `:caseId` route-guard caveat.
+⁵ Org members get implicit editor access to every case in their org; explicit `case_members` rows override (including downgrades to viewer). See [Org role -> implicit case access](#org-role---implicit-case-access).
 ⁶ Declarants have a service-level self-ownership rule: an org member may create declarants and edit/delete only declarants whose `userId` links to themselves; org admins may edit/delete any declarant in the org.
 
 ## Invariants
@@ -175,12 +172,12 @@ Three guards stack atop the shared `AuthGuard` (which resolves the Firebase toke
 
 - `@RequireSuperAdmin()` -- `SuperAdminGuard`. Checks `req.user.isSuperAdmin`. 403s otherwise.
 - `@RequireOrgRole(minRole)` -- `OrgRoleGuard`. Resolves `:org` slug -> org -> membership. Filters out soft-deleted orgs. 404/403 as described above.
-- `@RequireRole(minRole)` -- `RoleGuard`. Reads `:caseId` from the route, short-circuits with implicit `owner` for org admins of the case's host org, else looks up the requesting user's `case_members` row.
+- `@RequireRole(minRole)` -- `RoleGuard`. Reads `:caseId` from the route, 404s if the case does not exist, then delegates to `CaseAccessService.assertRole` with the user principal (explicit `case_members` row first, then the implicit org role).
 
 ```ts
-@RequireRole('owner')   // owner only (or org admin of case's org)
-@RequireRole('editor')  // owner or editor (or org admin; org members need an explicit row here)
-@RequireRole('viewer')  // any case member (or org admin)
+@RequireRole('owner')   // owner only (explicit or org-admin implicit)
+@RequireRole('editor')  // owner or editor (explicit or implicit)
+@RequireRole('viewer')  // any case member (explicit or implicit)
 ```
 
 Routes addressed by a non-case id (`/investigations/:id`, `/traces/:id`, `/productions/:id`, `/conversations/:id`, ...) carry no guard decorator and enforce access in the service layer via `CaseAccessService.assertAccess` / `assertRole`, which applies the full explicit-then-implicit resolution (admin -> owner, member -> editor).

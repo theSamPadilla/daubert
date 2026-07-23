@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { RoleGuard } from './role.guard';
+import { CaseAccessService } from './case-access.service';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
 import { OrganizationEntity } from '../../database/entities/organization.entity';
@@ -38,24 +39,28 @@ function makeContext(req: FakeRequest): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
+// The guard delegates to the REAL CaseAccessService (over mocked repos), so
+// these tests exercise the unified explicit-row-first / implicit-org-role
+// resolution end-to-end rather than a guard-local reimplementation.
 describe('RoleGuard', () => {
   let guard: RoleGuard;
   let reflector: { getAllAndOverride: jest.Mock };
-  let memberRepo: { findOneBy: jest.Mock };
-  let caseRepo: { findOneBy: jest.Mock };
+  let memberRepo: { findOneBy: jest.Mock; findOne: jest.Mock };
+  let caseRepo: { findOneBy: jest.Mock; findOne: jest.Mock };
   let orgMemberRepo: { findOneBy: jest.Mock };
   let orgRepo: { findOneBy: jest.Mock };
 
   beforeEach(async () => {
     reflector = { getAllAndOverride: jest.fn().mockReturnValue(null) };
-    memberRepo = { findOneBy: jest.fn() };
-    caseRepo = { findOneBy: jest.fn() };
+    memberRepo = { findOneBy: jest.fn(), findOne: jest.fn() };
+    caseRepo = { findOneBy: jest.fn(), findOne: jest.fn() };
     orgMemberRepo = { findOneBy: jest.fn().mockResolvedValue(null) };
     orgRepo = { findOneBy: jest.fn().mockResolvedValue({ id: 'org-1', deletedAt: null }) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RoleGuard,
+        CaseAccessService,
         { provide: Reflector, useValue: reflector },
         { provide: getRepositoryToken(CaseMemberEntity), useValue: memberRepo },
         { provide: getRepositoryToken(CaseEntity), useValue: caseRepo },
@@ -92,10 +97,10 @@ describe('RoleGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  // ── 3: No membership ──────────────────────────────────────────────────────
+  // ── 3: No membership, no org relationship ─────────────────────────────────
 
   it('throws ForbiddenException when the user has no membership in the case', async () => {
-    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', organizationId: 'org-1' });
+    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', orgId: 'org-1' });
     memberRepo.findOneBy.mockResolvedValue(null);
 
     const req: FakeRequest = {
@@ -111,8 +116,8 @@ describe('RoleGuard', () => {
 
   // ── 4: Role too low ───────────────────────────────────────────────────────
 
-  it("throws ForbiddenException when membership role is below the required minimum", async () => {
-    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', organizationId: 'org-1' });
+  it('throws ForbiddenException when membership role is below the required minimum', async () => {
+    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', orgId: 'org-1' });
     memberRepo.findOneBy.mockResolvedValue({ userId: 'user-1', caseId: 'case-1', role: 'viewer' });
     reflector.getAllAndOverride.mockReturnValue('owner');
 
@@ -135,7 +140,7 @@ describe('RoleGuard', () => {
 
   it('returns true and attaches caseMembership when role meets the minimum', async () => {
     const membership = { userId: 'user-1', caseId: 'case-1', role: 'editor' };
-    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', organizationId: 'org-1' });
+    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', orgId: 'org-1' });
     memberRepo.findOneBy.mockResolvedValue(membership);
     reflector.getAllAndOverride.mockReturnValue('editor');
 
@@ -149,12 +154,13 @@ describe('RoleGuard', () => {
     expect(req.caseMembership).toBe(membership);
   });
 
-  // ── 6: Org-admin short-circuit — no case membership ───────────────────────
+  // ── 6: Org-admin implicit — no case membership ────────────────────────────
 
-  it('returns true with synthetic owner role when user is an org admin with no case membership', async () => {
-    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', organizationId: 'org-1' });
+  it('grants synthetic owner when user is an org admin with no case membership', async () => {
+    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', orgId: 'org-1' });
     orgMemberRepo.findOneBy.mockResolvedValue({ userId: 'user-1', organizationId: 'org-1', role: 'admin' });
     memberRepo.findOneBy.mockResolvedValue(null);
+    reflector.getAllAndOverride.mockReturnValue('owner');
 
     const req: FakeRequest = {
       user: { id: 'user-1' },
@@ -164,18 +170,20 @@ describe('RoleGuard', () => {
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     expect(req.caseMembership).toMatchObject({
-      id: 'org-admin-implicit',
+      id: 'org-implicit',
       userId: 'user-1',
       caseId: 'case-1',
       role: 'owner',
     });
   });
 
-  // ── 7: Org-admin short-circuit — viewer case membership overridden ─────────
+  // ── 7: Org-member implicit — no case membership ───────────────────────────
 
-  it('still grants owner-equivalent when org admin also has a viewer case membership', async () => {
-    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', organizationId: 'org-1' });
-    orgMemberRepo.findOneBy.mockResolvedValue({ userId: 'user-1', organizationId: 'org-1', role: 'admin' });
+  it('grants synthetic editor when user is an org member with no case membership', async () => {
+    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', orgId: 'org-1' });
+    orgMemberRepo.findOneBy.mockResolvedValue({ userId: 'user-1', organizationId: 'org-1', role: 'member' });
+    memberRepo.findOneBy.mockResolvedValue(null);
+    reflector.getAllAndOverride.mockReturnValue('editor');
 
     const req: FakeRequest = {
       user: { id: 'user-1' },
@@ -184,13 +192,93 @@ describe('RoleGuard', () => {
     const ctx = makeContext(req);
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
-    expect(req.caseMembership).toMatchObject({ role: 'owner', id: 'org-admin-implicit' });
+    expect(req.caseMembership).toMatchObject({
+      id: 'org-implicit',
+      userId: 'user-1',
+      caseId: 'case-1',
+      role: 'editor',
+    });
   });
 
-  // ── 8: Non-org-member, non-case-member → 403 ──────────────────────────────
+  // ── 8: Org-member implicit stops at editor ────────────────────────────────
 
-  it('throws ForbiddenException when user is neither an org admin nor a case member', async () => {
-    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', organizationId: 'org-1' });
+  it('rejects an implicit org member on an owner-gated route', async () => {
+    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', orgId: 'org-1' });
+    orgMemberRepo.findOneBy.mockResolvedValue({ userId: 'user-1', organizationId: 'org-1', role: 'member' });
+    memberRepo.findOneBy.mockResolvedValue(null);
+    reflector.getAllAndOverride.mockReturnValue('owner');
+
+    const req: FakeRequest = {
+      user: { id: 'user-1' },
+      params: { caseId: 'case-1' },
+    };
+    const ctx = makeContext(req);
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(
+      new ForbiddenException("Requires role 'owner' or higher"),
+    );
+  });
+
+  // ── 9: Explicit row wins over the implicit org role ───────────────────────
+
+  it('honors an explicit viewer row over the org-admin implicit (explicit row wins)', async () => {
+    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', orgId: 'org-1' });
+    orgMemberRepo.findOneBy.mockResolvedValue({ userId: 'user-1', organizationId: 'org-1', role: 'admin' });
+    memberRepo.findOneBy.mockResolvedValue({ userId: 'user-1', caseId: 'case-1', role: 'viewer' });
+    reflector.getAllAndOverride.mockReturnValue('editor');
+
+    const req: FakeRequest = {
+      user: { id: 'user-1' },
+      params: { caseId: 'case-1' },
+    };
+    const ctx = makeContext(req);
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(
+      new ForbiddenException("Requires role 'editor' or higher"),
+    );
+  });
+
+  // ── 10: Org guest gets no implicit access ─────────────────────────────────
+
+  it('throws ForbiddenException for an org guest with no case membership', async () => {
+    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', orgId: 'org-1' });
+    orgMemberRepo.findOneBy.mockResolvedValue({ userId: 'user-1', organizationId: 'org-1', role: 'guest' });
+    memberRepo.findOneBy.mockResolvedValue(null);
+
+    const req: FakeRequest = {
+      user: { id: 'user-1' },
+      params: { caseId: 'case-1' },
+    };
+    const ctx = makeContext(req);
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(
+      new ForbiddenException('You do not have access to this case'),
+    );
+  });
+
+  // ── 11: Soft-deleted org grants no implicit access ────────────────────────
+
+  it('throws ForbiddenException when the implicit role comes from a soft-deleted org', async () => {
+    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', orgId: 'org-1' });
+    orgMemberRepo.findOneBy.mockResolvedValue({ userId: 'user-1', organizationId: 'org-1', role: 'member' });
+    memberRepo.findOneBy.mockResolvedValue(null);
+    orgRepo.findOneBy.mockResolvedValue({ id: 'org-1', deletedAt: new Date() });
+
+    const req: FakeRequest = {
+      user: { id: 'user-1' },
+      params: { caseId: 'case-1' },
+    };
+    const ctx = makeContext(req);
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(
+      new ForbiddenException('You do not have access to this case'),
+    );
+  });
+
+  // ── 12: Non-org-member, non-case-member → 403 ─────────────────────────────
+
+  it('throws ForbiddenException when user is neither an org member nor a case member', async () => {
+    caseRepo.findOneBy.mockResolvedValue({ id: 'case-1', orgId: 'org-1' });
     orgMemberRepo.findOneBy.mockResolvedValue(null);
     memberRepo.findOneBy.mockResolvedValue(null);
 

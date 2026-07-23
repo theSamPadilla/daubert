@@ -79,6 +79,7 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
     caseSummary,
     refreshCase,
     reloadInvestigations,
+    onProductionUpdated,
   } = useCaseContext();
 
   const [step, setStep] = useState<WizardStep>('declarant');
@@ -200,10 +201,11 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
   };
 
   // ---- Finish -----------------------------------------------------------
-  // Refreshes case + investigation list, then routes based on what was created.
+  // Refreshes case + investigation list + productions, then routes based on what was created.
   const finish = (opts: { seededInvestigationId?: string; productionId?: string }) => {
     refreshCase();
     reloadInvestigations();
+    onProductionUpdated();
     if (opts.seededInvestigationId) {
       router.push(`/cases/${caseId}/investigations?inv=${opts.seededInvestigationId}`);
     } else if (opts.productionId) {

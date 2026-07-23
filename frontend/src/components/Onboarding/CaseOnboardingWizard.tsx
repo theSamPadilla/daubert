@@ -295,9 +295,23 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
 
   return (
     <>
-      <PageHeader title="Get started" rightContent={<UserMenu />} />
+      <PageHeader title="Case onboarding" rightContent={<UserMenu />} />
       <div className="flex-1 overflow-y-auto bg-surface">
         <div className="mx-auto w-full max-w-2xl px-6 py-8">
+          <div className="mb-8 flex flex-col items-center text-center">
+            <img
+              src="/logo.png"
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+              className="mb-3 h-16 w-16 select-none opacity-90"
+            />
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">Set up your case</h1>
+            <p className="mt-1 text-sm text-ink-muted">
+              Three quick steps to your first trace and declaration.
+            </p>
+          </div>
+
           {/* Stepper */}
           <div className="mb-8 flex items-center justify-between">
             <div className="flex items-center gap-3">

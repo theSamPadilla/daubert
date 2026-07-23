@@ -1,6 +1,6 @@
 # Extensions
 
-Demand-gated add-ons that sit **behind the `StorageProvider` interface** introduced by the built-in data room (see [`../ideas/built-in-data-room.md`](../ideas/built-in-data-room.md)). None of these block launch; each is pulled forward only when the trigger condition is real.
+Demand-gated add-ons that sit **behind the `StorageProvider` interface** introduced by the built-in data room (see [`../data-room.md`](../data-room.md)). None of these block launch; each is pulled forward only when the trigger condition is real.
 
 ## Bring-your-own-cloud providers
 

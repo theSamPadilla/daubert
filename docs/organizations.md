@@ -150,6 +150,21 @@ Case invites cannot grant `owner` — only `editor` or `viewer` (see `CaseInvite
 | Delete a case | Cascades through investigations, traces, productions, case_members, case_invites, and the data room connection. |
 | Soft-delete an org (superadmin) | Marks `deletedAt`. Strips implicit case access and rejects new joins. Restorable via `POST /superadmin/orgs/:id/restore`. Hard delete is `POST /superadmin/orgs/:id/purge`. |
 
+## The org workspace
+
+Beyond membership and settings, the org is a working surface: assets shared by every case in the organization live at `/orgs/[orgSlug]/*` in a tabbed workspace.
+
+| Tab | Who | What lives there |
+|-----|-----|------------------|
+| Declarations | member+ | **Declarants** (reusable expert profiles with credentials and qualifications paragraphs, optionally linked to a member account, creatable by manual entry or Sonnet extraction from an uploaded CV / prior declaration) and the **declaration library** (reusable boilerplate blocks any case can insert into a declaration). |
+| Files | member+ | Index of all org-level files. Today that is declarant source files (CVs, prior declarations) stored via the `StorageProvider` at `org/<orgId>/<fileId>`. |
+| Cases | admin | Admin view across the org's cases. |
+| Settings | member+ (admin to mutate) | Org profile, members, invites. |
+
+Entry points: the org name in the global header links straight to the workspace (the chevron beside it opens the org switcher), the home page shows an org strip above the cases grid with quick links, and each row in the switcher dropdown carries an open-workspace button. The workspace lands on the Declarations tab; `/orgs/[orgSlug]` redirects there.
+
+See [`declarations.md`](./declarations.md) for the full declarants / library / formats story.
+
 ## Reading list
 
 - New to the codebase? Start with [`architecture.md`](./architecture.md) for the module map, then this doc.

@@ -148,7 +148,7 @@ function InvestigationsWorkspace() {
   );
   const allChecklistComplete =
     checklist.seeded && checklist.labeled && checklist.expanded && checklist.draftRequested;
-  const showRail = canMutate && !!investigation && !railDismissed && !allChecklistComplete;
+  const showRail = canMutate && !!investigation && !railDismissed && !allChecklistComplete && stagedItems.length === 0;
 
   const handleSelectTrace = useCallback((trace: Trace) => {
     setSelectedItem({ type: 'trace', data: trace });

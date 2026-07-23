@@ -177,7 +177,7 @@ export function DeclarantPicker({ open, data, onClose, onChange }: DeclarantPick
             <FaUserTie className="w-6 h-6 text-ink-faint/60 mb-2" />
             <p className="text-sm text-ink-muted">No declarants yet.</p>
             <p className="text-xs text-ink-faint mt-1">
-              Add declarants in your organization&apos;s Declarants tab.
+              Add declarants in your organization&apos;s Declarations tab.
             </p>
           </div>
         )}

@@ -317,7 +317,7 @@ export function DeclarationLibrarySection({ orgSlug }: { orgSlug: string }) {
         into a declaration, e.g. a chain primer for a lay judge (&ldquo;A blockchain is a
         public, append-only ledger&hellip;&rdquo;) or exhibit-authentication language
         (&ldquo;The attached exhibits are true and correct copies obtained from
-        Solscan&hellip;&rdquo;). Expert profiles now live in the Declarants tab.
+        Solscan&hellip;&rdquo;). Expert profiles live in the Declarants section above.
       </p>
 
       {error && (

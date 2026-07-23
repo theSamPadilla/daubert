@@ -120,7 +120,7 @@ export function OrgFilesSection({
         <EmptyState
           icon={<FaFolderOpen className="w-6 h-6 text-ink-faint/60" />}
           title="No files yet."
-          body="Files attach to declarants from the Declarants tab: upload a CV or prior declaration there and it will show up here."
+          body="Files attach to declarants from the Declarations tab: upload a CV or prior declaration there and it will show up here."
           className="py-8"
         />
       ) : (

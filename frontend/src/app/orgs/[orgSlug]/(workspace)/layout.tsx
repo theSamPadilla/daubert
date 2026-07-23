@@ -7,10 +7,10 @@ import { useAuth } from '@/components/Auth/AuthProvider';
 import { Kicker } from '@/components/ui/Kicker';
 
 const TABS = [
-  { href: 'settings', label: 'Settings', adminOnly: false },
   { href: 'declarations', label: 'Declarations', adminOnly: false },
   { href: 'files', label: 'Files', adminOnly: false },
   { href: 'cases', label: 'Cases', adminOnly: true },
+  { href: 'settings', label: 'Settings', adminOnly: false },
 ];
 
 export default function OrgWorkspaceLayout({ children }: { children: React.ReactNode }) {
@@ -38,8 +38,8 @@ export default function OrgWorkspaceLayout({ children }: { children: React.React
           {orgName ?? 'Organization'}
         </h2>
         <p className="mt-2 text-sm text-ink-muted">
-          Manage {orgName ? <span className="text-ink font-medium">{orgName}</span> : 'your organization'}
-          &apos;s profile, members, declarations, and files.
+          Shared declarants, declaration library, and files for every case in{' '}
+          {orgName ? <span className="text-ink font-medium">{orgName}</span> : 'this organization'}.
         </p>
       </div>
 

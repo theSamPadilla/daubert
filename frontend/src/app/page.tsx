@@ -13,7 +13,7 @@ import { apiClient, type Case } from '@/lib/api-client';
 import { Loader } from '@/components/Common/Loader';
 import { NewCaseModal } from '@/components/Cases/NewCaseModal';
 import { Badge, Button, Kicker } from '@/components/ui';
-import { FaGear, FaLock, FaPlus } from 'react-icons/fa6';
+import { FaBuilding, FaGear, FaLock, FaPlus } from 'react-icons/fa6';
 
 function CaseSelector() {
   const router = useRouter();
@@ -63,6 +63,39 @@ function CaseSelector() {
 
       {/* Case grid */}
       <main className="relative max-w-5xl mx-auto px-6 py-14">
+        {activeOrg && (
+          <div className="mb-8 flex items-center justify-between gap-4 rounded-xl border border-line bg-surface px-4 py-3">
+            <Link
+              href={`/orgs/${activeOrg.slug}/declarations`}
+              className="group flex min-w-0 items-center gap-2.5"
+            >
+              <FaBuilding className="h-3.5 w-3.5 shrink-0 text-brand" />
+              <span className="truncate text-sm font-medium text-ink transition-colors group-hover:text-brand">
+                {activeOrg.name}
+              </span>
+            </Link>
+            <nav className="flex shrink-0 items-center gap-4">
+              <Link
+                href={`/orgs/${activeOrg.slug}/declarations`}
+                className="text-sm text-ink-muted transition-colors hover:text-ink"
+              >
+                Declarations
+              </Link>
+              <Link
+                href={`/orgs/${activeOrg.slug}/files`}
+                className="text-sm text-ink-muted transition-colors hover:text-ink"
+              >
+                Files
+              </Link>
+              <Link
+                href={`/orgs/${activeOrg.slug}/settings`}
+                className="text-sm text-ink-muted transition-colors hover:text-ink"
+              >
+                Members
+              </Link>
+            </nav>
+          </div>
+        )}
         <div className="mb-10">
           <Kicker className="block mb-3">Workspace</Kicker>
           <h2 className="text-4xl font-bold tracking-tight text-ink">

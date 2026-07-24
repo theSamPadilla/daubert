@@ -13,6 +13,7 @@ import { ChartDatasetEditor } from './ChartDatasetEditor';
 import { ChronologyTable } from './ChronologyTable';
 import { DeclarationEditor } from './DeclarationEditor';
 import { DeclarationPreviewPane } from './DeclarationPreviewPane';
+import { RedlineViewer } from './RedlineViewer';
 import { ExportModal, type ExportFormat } from '../Common/ExportModal';
 import { useChartSnapshot } from '@/hooks/useChartSnapshot';
 import type { ExportTheme } from '@/lib/exportTheme';
@@ -25,6 +26,7 @@ const TYPE_COLORS: Record<string, string> = {
   chart: 'bg-green-100 text-green-700',
   chronology: 'bg-purple-100 text-purple-700',
   declaration: 'bg-amber-100 text-amber-700',
+  redline: 'bg-redline/10 text-redline',
 };
 
 interface ProductionViewerProps {
@@ -536,12 +538,15 @@ export function ProductionViewer({ production, onUpdate, onDelete }: ProductionV
             />
           </>
         )}
+        {production.type === 'redline' && (
+          <RedlineViewer production={production} onUpdate={onUpdate} />
+        )}
       </div>
 
       <ExportModal
         open={exportOpen}
         onClose={() => setExportOpen(false)}
-        kind={production.type as 'chart' | 'report' | 'chronology' | 'declaration'}
+        kind={production.type as 'chart' | 'report' | 'chronology' | 'declaration' | 'redline'}
         defaultFilename={production.name}
         onExport={handleExport}
         previewGenerate={production.type === 'chart' ? previewGenerate : undefined}

@@ -1,0 +1,127 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`renderRedlineHtml — snapshots matches the accepted-mode snapshot for the sample document 1`] = `
+"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>Widmann Redline Draft</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Times New Roman', Times, serif; color: #000; font-size: 12pt; line-height: 1.5; }
+  .redline-banner { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; padding: 8pt 12pt; margin-bottom: 12pt; font-weight: bold; font-size: 10pt; }
+  .redline-header { margin-bottom: 18pt; border-bottom: 1px solid #999; padding-bottom: 8pt; }
+  .redline-title { font-size: 16pt; font-weight: bold; }
+  .redline-label { font-size: 11pt; color: #333; margin-top: 2pt; }
+  .redline-source { font-size: 10pt; color: #555; margin-top: 4pt; }
+  .redline-counts { font-size: 10pt; color: #555; margin-top: 4pt; }
+  .redline-body { margin-bottom: 18pt; }
+  p.redline-para { margin-bottom: 10pt; text-align: justify; }
+  del { color: #b91c1c; text-decoration: line-through; }
+  ins { color: #b91c1c; text-decoration: underline; }
+  .status-proposed { outline: 1px dashed #b91c1c; outline-offset: 1px; }
+  .status-rejected { opacity: 0.55; text-decoration: none; }
+  .fn-ref { font-size: 8pt; vertical-align: super; color: #b91c1c; }
+  .endnotes { margin-top: 24pt; border-top: 1px solid #999; padding-top: 8pt; }
+  .endnotes-title { font-weight: bold; margin-bottom: 8pt; }
+  .endnote { margin-bottom: 6pt; font-size: 9pt; }
+  .endnote-num { font-weight: bold; margin-right: 4pt; }
+  .reviewer-notes { margin-top: 24pt; border-top: 1px solid #999; padding-top: 8pt; }
+  .reviewer-notes-title { font-weight: bold; margin-bottom: 8pt; }
+  .reviewer-note { margin-bottom: 8pt; font-size: 10pt; }
+  .reviewer-note-title { font-weight: bold; }
+  </style>
+</head><body>
+
+<div class="redline-header">
+    <div class="redline-title">Widmann Redline Draft</div>
+    <div class="redline-label">Redline — accepted edits</div>
+    <div class="redline-source">Source: Agreement &amp; Terms.docx</div>
+    
+  </div>
+<div class="redline-body"><p class="redline-para">The quick brown fox jumps over the lazy dog &amp; &lt;runs&gt; away.</p><p class="redline-para">This second paragraph mentions Acme Corp<ins data-edit-id="edit-accept" class="status-accepted"> (a Delaware corporation)</ins> explicitly here.</p></div>
+
+
+</body></html>"
+`;
+
+exports[`renderRedlineHtml — snapshots matches the pdf-source snapshot 1`] = `
+"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>Widmann Redline Draft</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Times New Roman', Times, serif; color: #000; font-size: 12pt; line-height: 1.5; }
+  .redline-banner { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; padding: 8pt 12pt; margin-bottom: 12pt; font-weight: bold; font-size: 10pt; }
+  .redline-header { margin-bottom: 18pt; border-bottom: 1px solid #999; padding-bottom: 8pt; }
+  .redline-title { font-size: 16pt; font-weight: bold; }
+  .redline-label { font-size: 11pt; color: #333; margin-top: 2pt; }
+  .redline-source { font-size: 10pt; color: #555; margin-top: 4pt; }
+  .redline-counts { font-size: 10pt; color: #555; margin-top: 4pt; }
+  .redline-body { margin-bottom: 18pt; }
+  p.redline-para { margin-bottom: 10pt; text-align: justify; }
+  del { color: #b91c1c; text-decoration: line-through; }
+  ins { color: #b91c1c; text-decoration: underline; }
+  .status-proposed { outline: 1px dashed #b91c1c; outline-offset: 1px; }
+  .status-rejected { opacity: 0.55; text-decoration: none; }
+  .fn-ref { font-size: 8pt; vertical-align: super; color: #b91c1c; }
+  .endnotes { margin-top: 24pt; border-top: 1px solid #999; padding-top: 8pt; }
+  .endnotes-title { font-weight: bold; margin-bottom: 8pt; }
+  .endnote { margin-bottom: 6pt; font-size: 9pt; }
+  .endnote-num { font-weight: bold; margin-right: 4pt; }
+  .reviewer-notes { margin-top: 24pt; border-top: 1px solid #999; padding-top: 8pt; }
+  .reviewer-notes-title { font-weight: bold; margin-bottom: 8pt; }
+  .reviewer-note { margin-bottom: 8pt; font-size: 10pt; }
+  .reviewer-note-title { font-weight: bold; }
+  </style>
+</head><body>
+<div class="redline-banner">Reconstructed redline — layout is not the original document</div>
+<div class="redline-header">
+    <div class="redline-title">Widmann Redline Draft</div>
+    <div class="redline-label">Redline — triage</div>
+    <div class="redline-source">Source: Agreement &amp; Terms.docx</div>
+    <div class="redline-counts">Proposed: 1 | Accepted: 1 | Rejected: 1</div>
+  </div>
+<div class="redline-body"><p class="redline-para">The <del data-edit-id="edit-replace" class="status-proposed">quick brown fox</del><ins data-edit-id="edit-replace" class="status-proposed">slow red fox</ins><sup class="fn-ref" data-edit-id="edit-replace">[1]</sup> jumps over the <span class="status-rejected" data-edit-id="edit-reject">lazy dog</span><sup class="fn-ref" data-edit-id="edit-reject">[2]</sup> &amp; &lt;runs&gt; away.</p><p class="redline-para">This second paragraph mentions Acme Corp<ins data-edit-id="edit-accept" class="status-accepted"> (a Delaware corporation)</ins><sup class="fn-ref" data-edit-id="edit-accept">[3]</sup> explicitly here.</p></div>
+<div class="endnotes"><div class="endnotes-title">EDIT NOTES</div><div class="endnote"><span class="endnote-num">[1]</span><span class="endnote-body"><b>Kind:</b> replace &nbsp; <b>Status:</b> proposed &nbsp; <b>Basis:</b> Ambiguous species reference in original filing</span></div><div class="endnote"><span class="endnote-num">[2]</span><span class="endnote-body"><b>Kind:</b> delete &nbsp; <b>Status:</b> rejected &nbsp; <b>Basis:</b> Redundant modifier &nbsp; <b>Comment:</b> Discussed with client on call</span></div><div class="endnote"><span class="endnote-num">[3]</span><span class="endnote-body"><b>Kind:</b> insert_after &nbsp; <b>Status:</b> accepted &nbsp; <b>Basis:</b> Clarify corporate identity</span></div></div>
+<div class="reviewer-notes"><div class="reviewer-notes-title">Reviewer notes</div><div class="reviewer-note"><div class="reviewer-note-title">Overall</div><div class="reviewer-note-text">Reviewed for consistency across sections.</div></div></div>
+</body></html>"
+`;
+
+exports[`renderRedlineHtml — snapshots matches the triage-mode snapshot for the sample document 1`] = `
+"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>Widmann Redline Draft</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Times New Roman', Times, serif; color: #000; font-size: 12pt; line-height: 1.5; }
+  .redline-banner { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; padding: 8pt 12pt; margin-bottom: 12pt; font-weight: bold; font-size: 10pt; }
+  .redline-header { margin-bottom: 18pt; border-bottom: 1px solid #999; padding-bottom: 8pt; }
+  .redline-title { font-size: 16pt; font-weight: bold; }
+  .redline-label { font-size: 11pt; color: #333; margin-top: 2pt; }
+  .redline-source { font-size: 10pt; color: #555; margin-top: 4pt; }
+  .redline-counts { font-size: 10pt; color: #555; margin-top: 4pt; }
+  .redline-body { margin-bottom: 18pt; }
+  p.redline-para { margin-bottom: 10pt; text-align: justify; }
+  del { color: #b91c1c; text-decoration: line-through; }
+  ins { color: #b91c1c; text-decoration: underline; }
+  .status-proposed { outline: 1px dashed #b91c1c; outline-offset: 1px; }
+  .status-rejected { opacity: 0.55; text-decoration: none; }
+  .fn-ref { font-size: 8pt; vertical-align: super; color: #b91c1c; }
+  .endnotes { margin-top: 24pt; border-top: 1px solid #999; padding-top: 8pt; }
+  .endnotes-title { font-weight: bold; margin-bottom: 8pt; }
+  .endnote { margin-bottom: 6pt; font-size: 9pt; }
+  .endnote-num { font-weight: bold; margin-right: 4pt; }
+  .reviewer-notes { margin-top: 24pt; border-top: 1px solid #999; padding-top: 8pt; }
+  .reviewer-notes-title { font-weight: bold; margin-bottom: 8pt; }
+  .reviewer-note { margin-bottom: 8pt; font-size: 10pt; }
+  .reviewer-note-title { font-weight: bold; }
+  </style>
+</head><body>
+
+<div class="redline-header">
+    <div class="redline-title">Widmann Redline Draft</div>
+    <div class="redline-label">Redline — triage</div>
+    <div class="redline-source">Source: Agreement &amp; Terms.docx</div>
+    <div class="redline-counts">Proposed: 1 | Accepted: 1 | Rejected: 1</div>
+  </div>
+<div class="redline-body"><p class="redline-para">The <del data-edit-id="edit-replace" class="status-proposed">quick brown fox</del><ins data-edit-id="edit-replace" class="status-proposed">slow red fox</ins><sup class="fn-ref" data-edit-id="edit-replace">[1]</sup> jumps over the <span class="status-rejected" data-edit-id="edit-reject">lazy dog</span><sup class="fn-ref" data-edit-id="edit-reject">[2]</sup> &amp; &lt;runs&gt; away.</p><p class="redline-para">This second paragraph mentions Acme Corp<ins data-edit-id="edit-accept" class="status-accepted"> (a Delaware corporation)</ins><sup class="fn-ref" data-edit-id="edit-accept">[3]</sup> explicitly here.</p></div>
+<div class="endnotes"><div class="endnotes-title">EDIT NOTES</div><div class="endnote"><span class="endnote-num">[1]</span><span class="endnote-body"><b>Kind:</b> replace &nbsp; <b>Status:</b> proposed &nbsp; <b>Basis:</b> Ambiguous species reference in original filing</span></div><div class="endnote"><span class="endnote-num">[2]</span><span class="endnote-body"><b>Kind:</b> delete &nbsp; <b>Status:</b> rejected &nbsp; <b>Basis:</b> Redundant modifier &nbsp; <b>Comment:</b> Discussed with client on call</span></div><div class="endnote"><span class="endnote-num">[3]</span><span class="endnote-body"><b>Kind:</b> insert_after &nbsp; <b>Status:</b> accepted &nbsp; <b>Basis:</b> Clarify corporate identity</span></div></div>
+<div class="reviewer-notes"><div class="reviewer-notes-title">Reviewer notes</div><div class="reviewer-note"><div class="reviewer-note-title">Overall</div><div class="reviewer-note-text">Reviewed for consistency across sections.</div></div></div>
+</body></html>"
+`;

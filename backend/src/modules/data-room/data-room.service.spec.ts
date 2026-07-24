@@ -11,6 +11,7 @@ import { DataRoomService } from './data-room.service';
 import { GoogleDriveExportService } from './google-drive-export.service';
 import { GoogleDriveImportService } from './google-drive-import.service';
 import { STORAGE_PROVIDER } from './storage/storage-provider.interface';
+import { DOCX_MIME } from '../productions/redline-extract';
 
 interface MockRepo {
   find: jest.Mock;
@@ -826,6 +827,132 @@ describe('DataRoomService', () => {
       expect(res.stream).toBeUndefined();
       expect(storage.download).not.toHaveBeenCalled();
       expect(logRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getFileBufferForAgent
+  // ---------------------------------------------------------------------------
+  describe('getFileBufferForAgent', () => {
+    const fileRow = { id: 'a', caseId: 'c1', name: 'doc.pdf', mimeType: 'application/pdf', size: '100', objectKey: 'org/o/case/c1/a' };
+
+    it('buffers the stream and returns tooLarge:false with the buffered bytes; logs agent_read', async () => {
+      fileRepo.findOne.mockResolvedValue(fileRow);
+      storage.download.mockResolvedValue({ stream: Readable.from([Buffer.from('hello world')]) });
+      logRepo.save.mockImplementation(async (e) => e);
+
+      const res = await service.getFileBufferForAgent('c1', 'u1', 'a', 5 * 1024 * 1024);
+
+      expect(res).toEqual({
+        tooLarge: false,
+        name: 'doc.pdf',
+        mimeType: 'application/pdf',
+        size: 100,
+        buffer: Buffer.from('hello world'),
+      });
+      expect(storage.download).toHaveBeenCalledWith('org/o/case/c1/a');
+      expect(logRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'agent_read', fileId: 'a', caseId: 'c1', userId: 'u1' }),
+      );
+      expect(logRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns tooLarge without buffering or downloading when size exceeds the cap', async () => {
+      fileRepo.findOne.mockResolvedValue({ ...fileRow, size: String(99 * 1024 * 1024) });
+
+      const res = await service.getFileBufferForAgent('c1', 'u1', 'a', 5 * 1024 * 1024);
+
+      expect(res).toEqual({
+        tooLarge: true,
+        name: 'doc.pdf',
+        mimeType: 'application/pdf',
+        size: 99 * 1024 * 1024,
+      });
+      expect((res as { buffer?: Buffer }).buffer).toBeUndefined();
+      expect(storage.download).not.toHaveBeenCalled();
+      expect(logRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('propagates NotFoundException when no row matches {id, caseId}', async () => {
+      fileRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getFileBufferForAgent('c1', 'u1', 'missing', 5 * 1024 * 1024),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(storage.download).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getFileForRedline
+  // ---------------------------------------------------------------------------
+  describe('getFileForRedline', () => {
+    const fileRow = {
+      id: 'a',
+      caseId: 'c1',
+      name: 'contract.docx',
+      mimeType: DOCX_MIME,
+      size: '100',
+      objectKey: 'org/o/case/c1/a',
+    };
+
+    it('returns { name, mimeType, buffer } and logs a download access row', async () => {
+      fileRepo.findOne.mockResolvedValue(fileRow);
+      storage.download.mockResolvedValue({ stream: Readable.from([Buffer.from('hello docx')]) });
+      logRepo.save.mockImplementation(async (e) => e);
+
+      const result = await service.getFileForRedline('c1', 'a', 'u1');
+
+      expect(fileRepo.findOne).toHaveBeenCalledWith({ where: { id: 'a', caseId: 'c1' } });
+      expect(storage.download).toHaveBeenCalledWith('org/o/case/c1/a');
+      expect(result).toEqual({
+        name: 'contract.docx',
+        mimeType: DOCX_MIME,
+        buffer: Buffer.from('hello docx'),
+      });
+      expect(logRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ caseId: 'c1', userId: 'u1', fileId: 'a', action: 'download' }),
+      );
+      expect(logRepo.save).toHaveBeenCalled();
+    });
+
+    it('accepts application/pdf sources', async () => {
+      fileRepo.findOne.mockResolvedValue({ ...fileRow, mimeType: 'application/pdf' });
+      storage.download.mockResolvedValue({ stream: Readable.from([Buffer.from('pdf bytes')]) });
+      logRepo.save.mockImplementation(async (e) => e);
+
+      const result = await service.getFileForRedline('c1', 'a', 'u1');
+
+      expect(result.mimeType).toBe('application/pdf');
+    });
+
+    it('rejects a mime type that is neither docx nor pdf', async () => {
+      fileRepo.findOne.mockResolvedValue({ ...fileRow, mimeType: 'text/plain' });
+
+      await expect(service.getFileForRedline('c1', 'a', 'u1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(storage.download).not.toHaveBeenCalled();
+      expect(logRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects a file larger than 20MB', async () => {
+      fileRepo.findOne.mockResolvedValue({ ...fileRow, size: String(21 * 1024 * 1024) });
+
+      await expect(service.getFileForRedline('c1', 'a', 'u1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(storage.download).not.toHaveBeenCalled();
+      expect(logRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when no row matches {id, caseId}', async () => {
+      fileRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.getFileForRedline('c1', 'missing', 'u1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(storage.download).not.toHaveBeenCalled();
     });
   });
 

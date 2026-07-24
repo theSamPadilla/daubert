@@ -135,12 +135,12 @@ export const CREATE_PRODUCTION_TOOL: Anthropic.Tool = {
       },
       type: {
         type: 'string',
-        enum: ['report', 'chart', 'chronology', 'declaration'],
+        enum: ['report', 'chart', 'chronology', 'declaration', 'redline'],
         description: 'Production type',
       },
       data: {
         type: 'object',
-        description: 'Production data. For report: { content: "<html>" }. For chart: { chartType, datasets[], labels[], options }. `options` accepts any Chart.js options object including `plugins.annotation.annotations` (chartjs-plugin-annotation is registered) for reference lines, thresholds, highlighted boxes, and labels — see the productions skill for the schema. For chronology: `{ entries: [{ source: { url, label? } | null, date, description, details?, highlight?, [customColumnKey]?: string }], columns?: [{ key, label, width: 5-80, kind: "text" | "link" }] }`. The chronology title comes from the top-level `name` field. `columns` is optional; defaults to source/date/description/details. **`kind: "link"` is reserved for the built-in `source` column (key: "source") only — all custom columns must be `kind: "text"`.** **Legacy entry shape** (`{ sourceUrl, sourceLabel, ... }` or `source` as a string) is silently normalized inbound. `highlight` is an optional row background color — `"yellow" | "gray" | "red" | "green" | "blue"`. **For declaration:** pass `{ formatId: "ca-declaration" | "ny-affirmation" | "federal-1746" | "tx-declaration" | "fl-declaration", caption?, declarantName?, declarantDateOfBirth?, declarantAddress? }`. `formatId` selects the jurisdiction format — the server renders the correct oath/perjury language, caption chrome, and numbering automatically: `ca-declaration` (California pleading-paper declaration), `ny-affirmation` (NY CPLR § 2106 affirmation), `federal-1746` (Federal 28 U.S.C. § 1746 declaration), `tx-declaration` (Texas unsworn declaration, Tex. CPRC § 132.001), `fl-declaration` (Florida § 92.525 declaration). **`tx-declaration` additionally requires `declarantDateOfBirth` and `declarantAddress`** — that jurisdiction\'s jurat recites the declarant\'s date of birth and address alongside their name. (`variant: "ca-declaration" | "ny-affirmation"` is accepted as a deprecated alias for `formatId` on the two original formats, but prefer `formatId`.) The server seeds a default section skeleton (qualifications, assignment, summary of opinions, background, findings, conclusions) and empty exhibit/execution blocks — do NOT pass sections/exhibits here. After creating, build all content with `update_production` declaration ops. See the `declarations` skill for the drafting workflow.',
+        description: 'Production data. For report: { content: "<html>" }. For chart: { chartType, datasets[], labels[], options }. `options` accepts any Chart.js options object including `plugins.annotation.annotations` (chartjs-plugin-annotation is registered) for reference lines, thresholds, highlighted boxes, and labels — see the productions skill for the schema. For chronology: `{ entries: [{ source: { url, label? } | null, date, description, details?, highlight?, [customColumnKey]?: string }], columns?: [{ key, label, width: 5-80, kind: "text" | "link" }] }`. The chronology title comes from the top-level `name` field. `columns` is optional; defaults to source/date/description/details. **`kind: "link"` is reserved for the built-in `source` column (key: "source") only — all custom columns must be `kind: "text"`.** **Legacy entry shape** (`{ sourceUrl, sourceLabel, ... }` or `source` as a string) is silently normalized inbound. `highlight` is an optional row background color — `"yellow" | "gray" | "red" | "green" | "blue"`. **For declaration:** pass `{ formatId: "ca-declaration" | "ny-affirmation" | "federal-1746" | "tx-declaration" | "fl-declaration", caption?, declarantName?, declarantDateOfBirth?, declarantAddress? }`. `formatId` selects the jurisdiction format — the server renders the correct oath/perjury language, caption chrome, and numbering automatically: `ca-declaration` (California pleading-paper declaration), `ny-affirmation` (NY CPLR § 2106 affirmation), `federal-1746` (Federal 28 U.S.C. § 1746 declaration), `tx-declaration` (Texas unsworn declaration, Tex. CPRC § 132.001), `fl-declaration` (Florida § 92.525 declaration). **`tx-declaration` additionally requires `declarantDateOfBirth` and `declarantAddress`** — that jurisdiction\'s jurat recites the declarant\'s date of birth and address alongside their name. (`variant: "ca-declaration" | "ny-affirmation"` is accepted as a deprecated alias for `formatId` on the two original formats, but prefer `formatId`.) The server seeds a default section skeleton (qualifications, assignment, summary of opinions, background, findings, conclusions) and empty exhibit/execution blocks — do NOT pass sections/exhibits here. After creating, build all content with `update_production` declaration ops. See the `declarations` skill for the drafting workflow. **For redline:** pass { sourceFileId } — a data-room file id for the draft to review (.docx preferred, .pdf fallback). The server snapshots the document text; you then propose edits with update_production redline ops. Load the redlining skill first.',
       },
     },
     required: ['name', 'type', 'data'],
@@ -160,7 +160,7 @@ export const READ_PRODUCTION_TOOL: Anthropic.Tool = {
       },
       type: {
         type: 'string',
-        enum: ['report', 'chart', 'chronology'],
+        enum: ['report', 'chart', 'chronology', 'declaration', 'redline'],
         description: 'Filter by type when listing.',
       },
     },
@@ -230,6 +230,15 @@ Supported operations (extend over time):
 - \`{ op: "declaration_remove_paragraph", paragraphId }\` — remove a paragraph.
 - \`{ op: "declaration_add_exhibit", description, label?, source? }\` — register an exhibit. Omit \`label\` to auto-assign the next letter (A, B, C…). \`source\` is \`null\` or \`{ kind: "transaction" | "url" | "file" | "other", txHash?, chain?, url?, note? }\`. Add the exhibit, then reference its returned id from a paragraph's \`exhibitIds\`.
 - \`{ op: "declaration_update_exhibit", exhibitId, label?, description?, source? }\` — patch an exhibit's label, description, or source.
+
+**Redline ops** (for \`redline\` productions — load the \`redlining\` skill first). A redline reviews a draft document (snapshotted verbatim into an immutable \`baseText\` at creation) by proposing spans to change, each grounded in a cited basis.
+
+- \`{ op: "redline_add_edit", kind: "replace" | "delete" | "insert_after", anchorText, newText?, basis, comment?, origin? }\` — propose an edit. \`anchorText\` MUST be quoted VERBATIM from the document, at least 8 characters, and lie within a single paragraph. \`newText\` is required for \`replace\`/\`insert_after\` and must be omitted or empty for \`delete\`. \`basis\` is required and must cite the specific on-chain fact (tx hash, figure, production name) justifying the change. On \`anchor_ambiguous\` or \`anchor_not_found\`, retry once with a longer exact quote.
+- \`{ op: "redline_update_edit", editId, status?, newText?, basis?, comment? }\` — triage or modify an existing edit. \`status\` ∈ \`proposed\` | \`accepted\` | \`rejected\`. The anchor and \`kind\` are immutable.
+- \`{ op: "redline_remove_edit", editId }\` — remove an edit.
+- \`{ op: "redline_add_comment", title, text }\` — add a document-level reviewer note (risk flags, open items) that is NOT tied to a span.
+- \`{ op: "redline_update_comment", commentId, title?, text? }\` — patch a document-level comment.
+- \`{ op: "redline_remove_comment", commentId }\` — remove a document-level comment.
 
 Use atomic ops aggressively — they are the difference between a 200-token call and a 10,000-token call on a long chronology.`,
   input_schema: {

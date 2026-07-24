@@ -7,6 +7,8 @@ description: How to create reports (HTML), charts (Chart.js), and chronologies f
 
 Productions are deliverables attached to a case. Use the `create_production`, `read_production`, and `update_production` tools to manage them. Three types are supported.
 
+For reviewing or redlining an existing draft document (a brief, memo, or expert declaration someone else wrote) against the case record, use the `redline` production type — see the `redlining` skill instead of this one.
+
 ## Reports
 
 Reports store HTML content rendered in a TipTap WYSIWYG editor.

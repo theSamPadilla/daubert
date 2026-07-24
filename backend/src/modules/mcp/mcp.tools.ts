@@ -43,6 +43,7 @@ const PROMPT_SKILL_HANDLES = [
   'tronscan-apis',
   'productions',
   'declarations',
+  'redlining',
 ] as const;
 
 @Injectable()

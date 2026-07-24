@@ -217,7 +217,7 @@ export interface LabeledEntity {
 export interface Production {
   id: string;
   name: string;
-  type: 'report' | 'chart' | 'chronology' | 'declaration';
+  type: 'report' | 'chart' | 'chronology' | 'declaration' | 'redline';
   data: Record<string, unknown>;
   caseId: string;
   createdAt: string;

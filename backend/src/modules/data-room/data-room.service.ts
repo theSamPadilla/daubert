@@ -22,6 +22,7 @@ import {
   STORAGE_PROVIDER,
   StorageProvider,
 } from './storage/storage-provider.interface';
+import { DOCX_MIME } from '../productions/redline-extract';
 
 /**
  * Files-API ceiling for AI-agent PDF reads. PDFs upload by `file_id` (full
@@ -29,6 +30,12 @@ import {
  * other types stay on the caller-supplied (smaller) inline ceiling.
  */
 const PDF_AGENT_READ_BYTES = 32 * 1024 * 1024;
+
+/**
+ * Ceiling for redline source ingestion. The extractor (mammoth/unpdf) buffers
+ * the whole file in memory, so this stays well under the agent-read ceiling.
+ */
+const REDLINE_MAX_BYTES = 20 * 1024 * 1024;
 
 /** Shape returned to callers for a single data-room file. */
 export interface DataRoomFileDto {
@@ -369,6 +376,63 @@ export class DataRoomService {
   }
 
   /**
+   * Thin buffering wrapper around {@link getFileForAgentRead}: same tenancy
+   * scoping, size gate, and `agent_read` audit row (all handled there — this
+   * does not re-log or re-gate). A too-large result short-circuits before any
+   * buffering; otherwise the resolved stream is fully buffered into memory.
+   */
+  async getFileBufferForAgent(
+    caseId: string,
+    userId: string,
+    fileId: string,
+    maxBytes: number,
+  ): Promise<
+    | { tooLarge: true; name: string; mimeType: string; size: number }
+    | { tooLarge: false; name: string; mimeType: string; size: number; buffer: Buffer }
+  > {
+    const read = await this.getFileForAgentRead(caseId, userId, fileId, maxBytes);
+    if (read.tooLarge) {
+      return { tooLarge: true, name: read.name, mimeType: read.mimeType, size: read.size };
+    }
+    const buffer = await this.streamToBuffer(read.stream!);
+    return { tooLarge: false, name: read.name, mimeType: read.mimeType, size: read.size, buffer };
+  }
+
+  /**
+   * Resolve a file for redline ingestion. Scoped by `{ id, caseId }` so a file
+   * from a different case reads as not found. Only DOCX/PDF sources are
+   * eligible, and the file must be at or under {@link REDLINE_MAX_BYTES} —
+   * the extractor buffers the whole file in memory. A successful read
+   * buffers the storage stream and writes a `download` audit row before
+   * returning.
+   */
+  async getFileForRedline(
+    caseId: string,
+    fileId: string,
+    actorUserId: string,
+  ): Promise<{ name: string; mimeType: string; buffer: Buffer }> {
+    const row = await this.fileRepo.findOne({ where: { id: fileId, caseId } });
+    if (!row) {
+      throw new NotFoundException('file_not_found');
+    }
+    if (row.mimeType !== DOCX_MIME && row.mimeType !== 'application/pdf') {
+      throw new BadRequestException(
+        `Unsupported redline source type: ${row.mimeType}. Upload a .docx (preferred) or .pdf.`,
+      );
+    }
+    if (Number(row.size) > REDLINE_MAX_BYTES) {
+      throw new BadRequestException(
+        'File exceeds the 20MB redline ingestion limit',
+      );
+    }
+    const { stream } = await this.storage.download(row.objectKey);
+    const buffer = await this.streamToBuffer(stream);
+    await this.log(caseId, actorUserId, 'download', fileId);
+    this.logger.log(`redline download caseId=${caseId} fileId=${fileId}`);
+    return { name: row.name, mimeType: row.mimeType, buffer };
+  }
+
+  /**
    * Cache the Anthropic Files API id on a file row so repeat oversized-PDF reads
    * reference the existing upload instead of re-uploading. Scoped by `{ id, caseId }`.
    */
@@ -660,6 +724,15 @@ export class DataRoomService {
     await this.logRepo.save(
       this.logRepo.create({ caseId, fileId, userId, action }),
     );
+  }
+
+  /** Buffer a Readable fully in memory. Used for redline ingestion only. */
+  private async streamToBuffer(stream: Readable): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 
   private toDto(row: DataRoomFileEntity): DataRoomFileDto {

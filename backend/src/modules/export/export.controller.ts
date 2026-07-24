@@ -1,11 +1,12 @@
 import {
   Controller, Post, Param, Body, Res, Req,
-  BadRequestException, ForbiddenException,
+  BadRequestException, ForbiddenException, NotFoundException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ExportService } from './export.service';
 import { ProductionsService } from '../productions/productions.service';
 import { InvestigationsService } from '../investigations/investigations.service';
+import { DataRoomService } from '../data-room/data-room.service';
 import { renderReport } from './templates/report';
 import { renderChronology, renderChronologyCsv } from './templates/chronology';
 import { renderChart } from './templates/chart';
@@ -14,8 +15,11 @@ import {
   buildDeclarationFooterTemplate,
   resolveFormatId,
 } from './templates/declaration';
+import { renderRedlineHtml } from './templates/redline';
+import { applyTrackedChangesToDocx } from './docx-redline';
 import { getFormat } from './formats/registry';
 import { DeclarationData } from '../productions/declaration-data';
+import { RedlineData } from '../productions/redline-data';
 import { renderReportBody } from './templates/report';
 import { renderChronologyBody } from './templates/chronology';
 import { renderChartBody } from './templates/chart';
@@ -39,6 +43,7 @@ export class ExportController {
     private readonly exportService: ExportService,
     private readonly productionsService: ProductionsService,
     private readonly investigationsService: InvestigationsService,
+    private readonly dataRoom: DataRoomService,
   ) {}
 
   private getUserId(req: any): string {
@@ -74,6 +79,7 @@ export class ExportController {
       chronology:  ['pdf', 'png', 'csv'],
       chart:       ['pdf'],          // png is client-side, never hits backend
       declaration: ['pdf', 'docx'],  // pdf = pleading-paper Puppeteer; docx = gutterless
+      redline:     ['pdf', 'docx'],  // docx: tracked-changes gold path (source.kind 'docx') or reconstructed htmlToDocx (source.kind 'pdf')
     };
     const allowed = ALLOWED[production.type];
     if (!allowed?.includes(format)) {
@@ -117,14 +123,65 @@ export class ExportController {
         // docx can't honour the fixed pleading gutter — render gutterless.
         html = renderDeclarationHtml(data as DeclarationData, { docx: format === 'docx' });
         break;
+      case 'redline':
+        // Export always renders the clean, accepted-only view; the triage
+        // (all-edits) view is preview-only via RedlineController.
+        html = renderRedlineHtml(data as RedlineData, { mode: 'accepted', productionName: production.name });
+        break;
       default:
         throw new BadRequestException(`Unsupported production type: ${production.type}`);
     }
 
     if (format === 'docx') {
+      // Redline docx has two sub-paths. Gold path (source.kind === 'docx'):
+      // apply the accepted edits as native Word tracked changes directly onto
+      // the uploaded source bytes. Reconstructed path (source.kind === 'pdf'):
+      // no source docx exists, so fall through to the generic htmlToDocx
+      // render below — but flag the filename as reconstructed so users don't
+      // mistake it for a tracked-changes redline of the original file.
+      let docxFilename = filename;
+      if (production.type === 'redline') {
+        const redline = data as RedlineData;
+        const accepted = (redline.edits ?? []).filter((e) => e.status === 'accepted');
+        if (accepted.length === 0) {
+          throw new BadRequestException('No accepted edits to export');
+        }
+
+        if (redline.source?.kind === 'docx') {
+          let buffer: Buffer;
+          try {
+            ({ buffer } = await this.dataRoom.getFileForRedline(production.caseId, redline.source.fileId, userId));
+          } catch (e) {
+            if (e instanceof NotFoundException) {
+              throw new BadRequestException('Source document no longer in the data room — export PDF instead');
+            }
+            throw e;
+          }
+
+          const { docx, failed } = await applyTrackedChangesToDocx(buffer, accepted, {
+            author: 'Daubert',
+            date: new Date().toISOString(),
+          });
+          if (failed.length > 0) {
+            throw new BadRequestException(
+              `Could not place ${failed.length} accepted edit(s) in the source document: ${failed
+                .map((f) => JSON.stringify(f.anchorText))
+                .join(', ')}`,
+            );
+          }
+
+          res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+          res.setHeader('Content-Disposition', `attachment; filename="${docxFilename}.docx"`);
+          res.send(docx);
+          return;
+        }
+
+        docxFilename = `${filename}_reconstructed`;
+      }
+
       const docx = await this.exportService.htmlToDocx(html);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}.docx"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${docxFilename}.docx"`);
       res.send(docx);
       return;
     }
@@ -161,12 +218,19 @@ export class ExportController {
     }
 
     // pdf — chart always lands landscape (image); chronology honours the
-    // user's choice (falls back to portrait); report stays portrait.
+    // user's choice (falls back to portrait); report stays portrait; redline
+    // renders portrait Letter with plain 1in margins (mirrors the non-gutter
+    // declaration branch above).
     let landscape = false;
     if (production.type === 'chart') landscape = true;
     else if (production.type === 'chronology') landscape = orientation === 'landscape';
 
-    const pdf = await this.exportService.htmlToPdf(html, { landscape });
+    const pdfOptions =
+      production.type === 'redline'
+        ? { landscape, pageFormat: 'Letter' as const, margin: { top: '1in', bottom: '1in', left: '1in', right: '1in' } }
+        : { landscape };
+
+    const pdf = await this.exportService.htmlToPdf(html, pdfOptions);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
     res.send(pdf);

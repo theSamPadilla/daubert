@@ -5,6 +5,7 @@ ProductionType:
     - chart
     - chronology
     - declaration
+    - redline
 
 Production:
   type: object
@@ -243,3 +244,107 @@ DeclarationData:
           type: string
         signatureName:
           type: string
+
+RedlineSource:
+  type: object
+  required: [fileId, fileName, mimeType, kind, extractedAt]
+  properties:
+    fileId:
+      type: string
+      description: data_room_files.id at snapshot time.
+    fileName:
+      type: string
+    mimeType:
+      type: string
+    kind:
+      type: string
+      enum:
+        - docx
+        - pdf
+    extractedAt:
+      type: string
+      format: date-time
+
+RedlineAnchor:
+  type: object
+  required: [text, start, end]
+  properties:
+    text:
+      type: string
+      description: The verbatim quoted span as matched in baseText (raw, not normalized).
+    start:
+      type: integer
+      description: Raw char offset into baseText, inclusive.
+    end:
+      type: integer
+      description: Raw char offset into baseText, exclusive.
+
+RedlineEdit:
+  type: object
+  required: [id, kind, anchor, newText, basis, status, origin]
+  properties:
+    id:
+      type: string
+      description: Server-generated UUID.
+    kind:
+      type: string
+      enum:
+        - replace
+        - delete
+        - insert_after
+    anchor:
+      $ref: '#/RedlineAnchor'
+    newText:
+      type: string
+      description: Empty string for kind "delete".
+    basis:
+      type: string
+      description: The forensic justification.
+    comment:
+      type: string
+      description: Optional extra drafting note.
+    status:
+      type: string
+      enum:
+        - proposed
+        - accepted
+        - rejected
+      description: Always 'proposed' on creation.
+    origin:
+      type: string
+      enum:
+        - agent
+        - user
+
+RedlineComment:
+  type: object
+  required: [id, title, text]
+  description: Document-level cover note.
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    text:
+      type: string
+
+RedlineData:
+  type: object
+  required: [schemaVersion, source, baseText, edits, comments]
+  properties:
+    schemaVersion:
+      type: integer
+      enum: [1]
+    source:
+      $ref: '#/RedlineSource'
+    baseText:
+      type: string
+      description: Immutable snapshot; paragraphs separated by '\n\n'.
+    edits:
+      type: array
+      items:
+        $ref: '#/RedlineEdit'
+    comments:
+      type: array
+      items:
+        $ref: '#/RedlineComment'

@@ -63,7 +63,7 @@ The `fileId` is the `data_room_files` row's primary key, so storage and database
 | `case_id` | UUID | Indexed |
 | `file_id` | varchar | Nullable (reserved for future bulk actions) |
 | `user_id` | varchar | Firebase UID |
-| `action` | varchar | `upload` \| `download` \| `delete` |
+| `action` | varchar | `upload` \| `download` \| `delete` \| `agent_read` (agent file read, see Agent Access below) |
 | `created_at` | timestamp | Auto |
 
 **What is and is not logged:** upload, download, and delete each write a log row as part of the operation — a log failure fails the operation. Listing files is not logged (browsing is not access).
@@ -138,6 +138,10 @@ There are no public GCS objects and no presigned URLs. Every file access goes th
 - The backend verifies the caller's Firebase token and case role before serving or accepting any data.
 - Reads require `viewer` role or above; writes require `editor` role or above.
 - Each write (upload, download, delete) appends an `access_log` row before the response is sent — this is the chain-of-custody guarantee.
+
+## Agent Access
+
+Data-room files are readable by both agent surfaces, not just the human UI: the built-in chat agent and the MCP bring-your-own-agent server (`docs/ai-system.md`) each expose `list_data_room_files` (full manifest, up to 500 files, `truncated` flag beyond that) and `read_data_room_file` (extracted text for docx/pdf/xlsx/csv/txt, an image block for images, or a size note if the file exceeds the ceiling). Both tools require viewer role on the case and share the same underlying `DataRoomService` methods, so the two surfaces have identical read behavior. A successful `read_data_room_file` call writes an `agent_read` row to `data_room_access_log` — the same chain-of-custody guarantee as a human download.
 
 ## Endpoints
 

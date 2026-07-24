@@ -1844,7 +1844,7 @@ export interface components {
             };
         };
         /** @enum {string} */
-        ProductionType: "report" | "chart" | "chronology" | "declaration";
+        ProductionType: "report" | "chart" | "chronology" | "declaration" | "redline";
         Production: {
             /** Format: uuid */
             id: string;
@@ -1958,6 +1958,59 @@ export interface components {
                 date: string;
                 signatureName: string;
             };
+        };
+        RedlineSource: {
+            /** @description data_room_files.id at snapshot time. */
+            fileId: string;
+            fileName: string;
+            mimeType: string;
+            /** @enum {string} */
+            kind: "docx" | "pdf";
+            /** Format: date-time */
+            extractedAt: string;
+        };
+        RedlineAnchor: {
+            /** @description The verbatim quoted span as matched in baseText (raw, not normalized). */
+            text: string;
+            /** @description Raw char offset into baseText, inclusive. */
+            start: number;
+            /** @description Raw char offset into baseText, exclusive. */
+            end: number;
+        };
+        RedlineEdit: {
+            /** @description Server-generated UUID. */
+            id: string;
+            /** @enum {string} */
+            kind: "replace" | "delete" | "insert_after";
+            anchor: components["schemas"]["RedlineAnchor"];
+            /** @description Empty string for kind "delete". */
+            newText: string;
+            /** @description The forensic justification. */
+            basis: string;
+            /** @description Optional extra drafting note. */
+            comment?: string;
+            /**
+             * @description Always 'proposed' on creation.
+             * @enum {string}
+             */
+            status: "proposed" | "accepted" | "rejected";
+            /** @enum {string} */
+            origin: "agent" | "user";
+        };
+        /** @description Document-level cover note. */
+        RedlineComment: {
+            id: string;
+            title: string;
+            text: string;
+        };
+        RedlineData: {
+            /** @enum {integer} */
+            schemaVersion: 1;
+            source: components["schemas"]["RedlineSource"];
+            /** @description Immutable snapshot; paragraphs separated by '\n\n'. */
+            baseText: string;
+            edits: components["schemas"]["RedlineEdit"][];
+            comments: components["schemas"]["RedlineComment"][];
         };
         /** @enum {string} */
         DeclarationLibraryBlockKind: "declarant_profile" | "boilerplate";

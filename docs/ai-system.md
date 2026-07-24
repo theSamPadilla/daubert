@@ -199,12 +199,12 @@ Used by `DeclarantsModule` to prefill the declarant form; the draft is reviewed 
 
 **Session principal:** every call is authenticated by `McpAuthHelper`: bearer token validation, then a per-call re-check of the owner's `organization_members` row (removal or downgrade to guest rejects immediately with `membership_revoked`, even mid-token-TTL), then a 60 req/60s per-session throttle. Success yields `{ kind: 'mcp', userId, organizationId, sessionId }`; the principal is org-bound, and case-scoped tools additionally call `CaseAccessService.assertRole()` per call.
 
-**Tool surface (18):**
+**Tool surface (19):**
 
 | Group | Tools |
 |-------|-------|
 | Navigate | `list_cases`, `get_case`, `list_investigations` |
-| Read | `get_case_data`, `read_production`, `query_labeled_entities`, `get_skill`, `get_declarants`, `get_declaration_library`, `list_data_room_files`, `read_data_room_file` |
+| Read | `get_case_data`, `get_investigation`, `read_production`, `query_labeled_entities`, `get_skill`, `get_declarants`, `get_declaration_library`, `list_data_room_files`, `read_data_room_file` |
 | Blockchain | `blockchain_fetch_history`, `blockchain_get_transaction`, `blockchain_get_address_info` |
 | Write | `create_investigation`, `import_transactions`, `create_production`, `update_production` |
 

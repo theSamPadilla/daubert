@@ -1,9 +1,11 @@
 /**
  * ReadToolsService unit tests.
  *
- * Eight tools under test:
+ * Nine tools under test:
  *   - get_case_data         — aggregates investigations, productions, data-room manifest.
  *   - read_production       — delegates to ProductionsService, with optional productionId/type.
+ *   - get_investigation     — investigation graph data; summaries without investigationId,
+ *                             full slimmed graph (stripTraceForAgent + filterTraceData) with it.
  *   - query_labeled_entities — dispatches to LabeledEntitiesService (no case scope).
  *   - get_skill             — reads a skill file from the registry by name.
  *   - get_declarants        — dispatches to DeclarantsService (no case scope).
@@ -77,6 +79,7 @@ function buildService(overrides: {
 
   const investigationRepo = {
     find: jest.fn().mockResolvedValue([]),
+    findOne: jest.fn().mockResolvedValue(null),
     ...overrides.investigationRepo,
   };
 
@@ -282,6 +285,234 @@ describe('ReadToolsService', () => {
       const call = (productions.findAllForCase as jest.Mock).mock.calls[0];
       expect(call[0]).toBe(CASE_ID);   // caseId
       expect(call[2]).toBe('report');  // type
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // get_investigation
+  // -------------------------------------------------------------------------
+
+  describe('get_investigation', () => {
+    const INV_ID = 'inv-uuid-1';
+
+    it('summaries mode: no investigationId returns per-investigation summaries with trace counts', async () => {
+      const assertRole = jest.fn().mockResolvedValue({ role: 'viewer' });
+      const rows = [
+        {
+          id: 'inv-1',
+          name: 'Inv A',
+          notes: 'notes A',
+          traces: [
+            { id: 't-1', name: 'Trace 1', data: { nodes: [1, 2, 3], edges: [1, 2] } },
+          ],
+        },
+        {
+          id: 'inv-2',
+          name: 'Inv B',
+          notes: null,
+          traces: [
+            { id: 't-2', name: 'Trace 2', data: { nodes: [1], edges: [] } },
+          ],
+        },
+      ];
+      const find = jest.fn().mockResolvedValue(rows);
+      const { server, investigationRepo } = buildService({
+        caseAccess: { assertRole },
+        investigationRepo: { find },
+      });
+
+      const result = await callTool(server, 'get_investigation', { caseId: CASE_ID });
+
+      expect(assertRole).toHaveBeenCalledWith(AUTH.principal, CASE_ID, 'viewer');
+      expect(find).toHaveBeenCalledWith({
+        where: { caseId: CASE_ID },
+        relations: ['traces'],
+        order: { createdAt: 'ASC' },
+      });
+      expect(result.isError).toBeUndefined();
+
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed).toEqual([
+        {
+          id: 'inv-1',
+          name: 'Inv A',
+          notes: 'notes A',
+          traces: [{ id: 't-1', name: 'Trace 1', nodeCount: 3, edgeCount: 2 }],
+        },
+        {
+          id: 'inv-2',
+          name: 'Inv B',
+          notes: null,
+          traces: [{ id: 't-2', name: 'Trace 2', nodeCount: 1, edgeCount: 0 }],
+        },
+      ]);
+      expect(investigationRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('full mode: with investigationId returns a slimmed, denormalized graph', async () => {
+      const assertRole = jest.fn().mockResolvedValue({ role: 'viewer' });
+      const rawData = {
+        nodes: [
+          { id: 'n-1', address: '0xAAA', chain: 'eth', label: 'Wallet A', tags: [], position: { x: 1, y: 2 }, color: '#fff' },
+          { id: 'n-2', address: '0xBBB', chain: 'eth', label: 'Wallet B', tags: [], position: { x: 3, y: 4 }, color: '#000' },
+        ],
+        edges: [
+          {
+            id: 'e-1', from: 'n-1', to: 'n-2', txHash: '0xhash', chain: 'eth',
+            timestamp: '2024-01-01T00:00:00Z', amount: '1.0', token: 'ETH',
+          },
+        ],
+        groups: [],
+        edgeBundles: [],
+      };
+      const findOne = jest.fn().mockResolvedValue({
+        id: INV_ID,
+        name: 'Inv Full',
+        notes: 'full notes',
+        traces: [{ id: 't-1', name: 'Trace 1', data: rawData }],
+      });
+      const { server, investigationRepo } = buildService({
+        caseAccess: { assertRole },
+        investigationRepo: { findOne },
+      });
+
+      const result = await callTool(server, 'get_investigation', {
+        caseId: CASE_ID,
+        investigationId: INV_ID,
+      });
+
+      expect(findOne).toHaveBeenCalledWith({
+        where: { id: INV_ID, caseId: CASE_ID },
+        relations: ['traces'],
+      });
+      expect(result.isError).toBeUndefined();
+
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed).toMatchObject({ id: INV_ID, name: 'Inv Full', notes: 'full notes' });
+      expect(parsed.traces).toHaveLength(1);
+      const trace = parsed.traces[0];
+      expect(trace.id).toBe('t-1');
+      expect(trace.name).toBe('Trace 1');
+
+      // Nodes are slimmed — no visual metadata.
+      expect(trace.nodes).toHaveLength(2);
+      for (const n of trace.nodes) {
+        expect(n).not.toHaveProperty('position');
+        expect(n).not.toHaveProperty('color');
+      }
+
+      // Edges are denormalized with fromAddress/toAddress from the node ids.
+      expect(trace.edges).toHaveLength(1);
+      expect(trace.edges[0]).toMatchObject({
+        id: 'e-1',
+        from: 'n-1',
+        to: 'n-2',
+        fromAddress: '0xAAA',
+        toAddress: '0xBBB',
+      });
+
+      expect(investigationRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('filter mode: an address filter narrows to the matching node and its incident edges', async () => {
+      const rawData = {
+        nodes: [
+          { id: 'n-1', address: '0xAAA', chain: 'eth', label: 'Wallet A', tags: [] },
+          { id: 'n-2', address: '0xBBB', chain: 'eth', label: 'Wallet B', tags: [] },
+          { id: 'n-3', address: '0xCCC', chain: 'eth', label: 'Wallet C', tags: [] },
+        ],
+        edges: [
+          { id: 'e-1', from: 'n-1', to: 'n-2', txHash: '0xh1', chain: 'eth', timestamp: 't1', amount: '1', token: 'ETH' },
+          { id: 'e-2', from: 'n-2', to: 'n-3', txHash: '0xh2', chain: 'eth', timestamp: 't2', amount: '2', token: 'ETH' },
+        ],
+        groups: [],
+        edgeBundles: [],
+      };
+      const findOne = jest.fn().mockResolvedValue({
+        id: INV_ID,
+        name: 'Inv Filtered',
+        notes: null,
+        traces: [{ id: 't-1', name: 'Trace 1', data: rawData }],
+      });
+      const { server } = buildService({ investigationRepo: { findOne } });
+
+      const result = await callTool(server, 'get_investigation', {
+        caseId: CASE_ID,
+        investigationId: INV_ID,
+        address: '0xAAA',
+      });
+
+      const parsed = JSON.parse(result.content[0].text);
+      const trace = parsed.traces[0];
+
+      // Only n-1 (the address match) and its incident-edge neighbor n-2 survive.
+      const nodeIds = trace.nodes.map((n: any) => n.id).sort();
+      expect(nodeIds).toEqual(['n-1', 'n-2']);
+
+      // Only the edge incident to n-1 survives.
+      expect(trace.edges).toHaveLength(1);
+      expect(trace.edges[0].id).toBe('e-1');
+    });
+
+    it('not found: returns { error } (not isError) when the investigation does not exist', async () => {
+      const findOne = jest.fn().mockResolvedValue(null);
+      const { server } = buildService({ investigationRepo: { findOne } });
+
+      const result = await callTool(server, 'get_investigation', {
+        caseId: CASE_ID,
+        investigationId: INV_ID,
+      });
+
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed).toEqual({ error: `Investigation ${INV_ID} not found` });
+    });
+
+    it('viewer gate: surfaces ForbiddenException from assertRole as isError', async () => {
+      const assertRole = jest.fn().mockRejectedValue(new ForbiddenException('cross_org_access'));
+      const { server, investigationRepo } = buildService({ caseAccess: { assertRole } });
+
+      const result = await callTool(server, 'get_investigation', { caseId: CASE_ID });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('cross_org_access');
+      expect(investigationRepo.find).not.toHaveBeenCalled();
+      expect(investigationRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('cap-bypass: a large full-mode graph is NOT truncated to the 8 KB textResult cap', async () => {
+      const nodes = Array.from({ length: 400 }, (_, i) => ({
+        id: `n-${i}`,
+        address: `0x${i.toString().padStart(40, '0')}`,
+        chain: 'eth',
+        label: `Wallet ${i}`,
+        tags: [],
+      }));
+      const edges = Array.from({ length: 399 }, (_, i) => ({
+        id: `e-${i}`,
+        from: `n-${i}`,
+        to: `n-${i + 1}`,
+        txHash: `0xhash${i}`,
+        chain: 'eth',
+        timestamp: '2024-01-01T00:00:00Z',
+        amount: '1.0',
+        token: 'ETH',
+      }));
+      const findOne = jest.fn().mockResolvedValue({
+        id: INV_ID,
+        name: 'Big Inv',
+        notes: null,
+        traces: [{ id: 't-1', name: 'Trace 1', data: { nodes, edges, groups: [], edgeBundles: [] } }],
+      });
+      const { server } = buildService({ investigationRepo: { findOne } });
+
+      const result = await callTool(server, 'get_investigation', {
+        caseId: CASE_ID,
+        investigationId: INV_ID,
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text.length).toBeGreaterThan(8192);
     });
   });
 

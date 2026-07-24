@@ -323,7 +323,7 @@ No relations. Independent entity.
 | Column | Type | Constraints |
 |--------|------|------------|
 | `name` | varchar | not null |
-| `type` | varchar | `'report'`, `'chart'`, `'chronology'`, or `'declaration'` |
+| `type` | varchar | `'report'`, `'chart'`, `'chronology'`, `'declaration'`, or `'redline'` |
 | `data` | jsonb | default `{}` |
 | `case_id` | uuid | FK -> cases, not null |
 
@@ -352,6 +352,22 @@ No relations. Independent entity.
 ```
 
 Section `kind` is one of `qualifications`, `assignment`, `summary_of_opinions`, `background`, `authentication`, `findings`, `conclusions`, `recommendations`, `custom`. New declarations are seeded with six default sections; exhibit labels auto-assign A-Z then Z1, Z2, ...
+
+- **`redline`**: typed schema `RedlineData` in `backend/src/modules/productions/redline-data.ts`, not freeform:
+
+```typescript
+{
+  schemaVersion: 1,
+  source: { fileId, fileName, mimeType, kind: 'docx' | 'pdf', extractedAt },
+  baseText: string,   // immutable snapshot of the source document, seeded at creation
+  edits: [{ id, kind: 'replace' | 'delete' | 'insert_after',
+            anchor: { text, start, end }, newText, basis, comment?,
+            status: 'proposed' | 'accepted' | 'rejected', origin: 'agent' | 'user' }],
+  comments: [{ id, title, text }],
+}
+```
+
+`baseText` is seeded once from the uploaded source file (`RedlineIngestService`, see `docs/redlining.md`) and is never overwritten afterward; a full `data` replace or a type change to/from `redline` both 400 at the service layer.
 
 ---
 
@@ -620,7 +636,7 @@ Core org/case tree:
 ┌───┴──────────┐ ┌─┴────────────┐ ┌┴───────────┐ ┌┴────────────┐ ┌───────────────────┴┐
 │investigations│ │ productions  │ │script_runs │ │conversations│ │ data room          │
 │ name         │ │ name         │ │ name, code │ │ title       │ │ data_room_folders  │
-│ notes        │ │ type (4)     │ │ output     │ │ case_id     │ │ data_room_files    │
+│ notes        │ │ type (5)     │ │ output     │ │ case_id     │ │ data_room_files    │
 │ case_id (FK) │ │ data{}       │ │ status     │ │ user_id     │ │ data_room_access_  │
 └───┬──────────┘ │ case_id (FK) │ │ case_id FK │ └──────┬──────┘ │   log              │
     │ 1:N        └──────────────┘ │ inv_id (SN)│        │ 1:N    └────────────────────┘
@@ -681,6 +697,7 @@ The frontend uses different type names than the backend entities:
 | `ChatMessage` (api-client) | `MessageEntity` | 1:1 mapping |
 | `Production` (api-client) | `ProductionEntity` | 1:1 mapping; `data` typed per production type |
 | `DeclarationData` (generated) | -- | Typed JSONB inside `productions.data` for `type = 'declaration'` |
+| `RedlineData` (generated) | -- | Typed JSONB inside `productions.data` for `type = 'redline'`; `baseText` immutable after creation |
 | `DataRoomFile` / `DataRoomFolder` (api-client) | `DataRoomFileEntity` / `DataRoomFolderEntity` | 1:1 mapping |
 | `Declarant` (generated) | `DeclarantEntity` | 1:1 mapping |
 | `DeclarantFile` (api-client) | `DeclarantFileEntity` | 1:1 mapping |

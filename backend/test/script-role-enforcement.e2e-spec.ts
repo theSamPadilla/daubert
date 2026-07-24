@@ -38,6 +38,7 @@ import { CaseAccessService } from '../src/modules/auth/case-access.service';
 import { ScriptTokenService } from '../src/modules/script/script-token.service';
 import { ProductionsController } from '../src/modules/productions/productions.controller';
 import { ProductionsService } from '../src/modules/productions/productions.service';
+import { RedlineIngestService } from '../src/modules/productions/redline-ingest.service';
 
 // Use the dev DB (running on port 5455 in this environment).
 // If DATABASE_URL is already set in the process (e.g. CI), keep it.
@@ -116,6 +117,11 @@ describe('PATCH /productions/:id — script token role enforcement (e2e)', () =>
         ScriptTokenService,
         CaseAccessService,
         ProductionsService,
+        // Stub — this suite only exercises PATCH, never redline creation.
+        {
+          provide: RedlineIngestService,
+          useValue: { buildData: jest.fn() },
+        },
       ],
     }).compile();
 

@@ -248,7 +248,7 @@ export class WriteToolsService {
       'create_production',
       {
         description:
-          'Create a new production (report, chart, chronology, or declaration) under a case. Requires editor access. For declarations pass `data: { formatId, caption?, declarantName?, declarantDateOfBirth?, declarantAddress? }` — `formatId` is one of `ca-declaration`, `ny-affirmation`, `federal-1746`, `tx-declaration`, `fl-declaration`; the server seeds the section skeleton and renders the jurisdiction\'s oath, caption chrome, and numbering automatically. `tx-declaration` additionally requires `declarantDateOfBirth` and `declarantAddress`. Build declaration content afterwards with `update_production` declaration ops — read the `declarations` skill first.',
+          'Create a new production (report, chart, chronology, declaration, or redline) under a case. Requires editor access. For declarations pass `data: { formatId, caption?, declarantName?, declarantDateOfBirth?, declarantAddress? }` — `formatId` is one of `ca-declaration`, `ny-affirmation`, `federal-1746`, `tx-declaration`, `fl-declaration`; the server seeds the section skeleton and renders the jurisdiction\'s oath, caption chrome, and numbering automatically. `tx-declaration` additionally requires `declarantDateOfBirth` and `declarantAddress`. Build declaration content afterwards with `update_production` declaration ops — read the `declarations` skill first. For redlines pass `data: { sourceFileId }` — a data-room file id for the draft to review (.docx preferred, .pdf fallback); the server snapshots its text into an immutable baseText. Read the `redlining` prompt first.',
         inputSchema: {
           caseId: z.string().uuid(),
           name: z.string(),
@@ -294,7 +294,7 @@ export class WriteToolsService {
       'update_production',
       {
         description:
-          'Update a production: rename, replace its `data` payload, or apply atomic `ops`. `data` and `ops` are mutually exclusive. Requires editor access. Chronology/chart ops are documented in the `productions` skill; declaration ops (declaration_set_caption, declaration_add_section, declaration_add_paragraph, declaration_add_exhibit, …) in the `declarations` skill — read the relevant skill before applying ops.',
+          'Update a production: rename, replace its `data` payload, or apply atomic `ops`. `data` and `ops` are mutually exclusive. Requires editor access. Chronology/chart ops are documented in the `productions` skill; declaration ops (declaration_set_caption, declaration_add_section, declaration_add_paragraph, declaration_add_exhibit, …) in the `declarations` skill; redline productions support redline_* ops (add_edit/update_edit/remove_edit + add/update/remove_comment) with anchors quoted verbatim, at least 8 characters, within one paragraph — full shapes in the `redlining` skill. Read the relevant skill before applying ops.',
         inputSchema: {
           productionId: z.string().uuid(),
           name: z.string().optional(),

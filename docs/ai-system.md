@@ -2,7 +2,7 @@
 
 The AI module powers an agentic chat assistant for blockchain forensics. Built on Claude (Anthropic) with streaming, tool use, sandboxed script execution, and an MCP server for bring-your-own-agent access.
 
-Related: [architecture.md](./architecture.md), [exec-environment.md](./exec-environment.md), [declarations.md](./declarations.md), [organizations.md](./organizations.md), [data-room.md](./data-room.md).
+Related: [architecture.md](./architecture.md), [exec-environment.md](./exec-environment.md), [declarations.md](./declarations.md), [redlining.md](./redlining.md), [organizations.md](./organizations.md), [data-room.md](./data-room.md).
 
 ## Directory Structure
 
@@ -18,6 +18,7 @@ backend/src/
 │   ├── graph-mutations.md
 │   ├── product-knowledge.md
 │   ├── productions.md
+│   ├── redlining.md
 │   └── tronscan-apis.md
 └── modules/
     ├── ai/
@@ -89,9 +90,9 @@ The frontend model picker (`frontend/src/components/Workspace/AIChat.tsx`) offer
 | `execute_script` | Run JavaScript in the isolated-vm V8 sandbox; `{ name, code }` |
 | `list_script_runs` | Last 20 script runs for the case (output truncated) |
 | `query_labeled_entities` | Search entity registry by address, name, or category |
-| `create_production` | Create a `report` (HTML), `chart` (Chart.js), `chronology`, or `declaration` (typed schema; requires `formatId`, see [declarations.md](./declarations.md)) |
+| `create_production` | Create a `report` (HTML), `chart` (Chart.js), `chronology`, `declaration` (typed schema; requires `formatId`, see [declarations.md](./declarations.md)), or `redline` (requires `sourceFileId`, see [redlining.md](./redlining.md)) |
 | `read_production` | Read one production by id or list all for the case |
-| `update_production` | Rename, apply atomic ops (chronology + declaration), or full-replace data |
+| `update_production` | Rename, apply atomic ops (chronology + declaration + redline), or full-replace data (redline is ops-only; full-replace 400s) |
 | `get_declaration_library` | List the org's reusable declaration boilerplate blocks |
 | `get_declarants` | List the org's saved declarant (expert) profiles |
 | `list_data_room_files` | List the case's data-room files |
@@ -163,6 +164,7 @@ Every execution saved to `script_runs` with name, code, output, status, duration
 | `graph-mutations` | Adding, editing, deleting nodes, edges, and groups via scripts |
 | `product-knowledge` | Daubert product overview for answering user questions about the tool |
 | `productions` | Creating reports (HTML), charts (Chart.js), and chronologies |
+| `redlining` | Reviewing and redlining a draft document against the case record — anchored ops, verify-before-propose workflow |
 | `tronscan-apis` | Tronscan and TronGrid API reference for TRON |
 
 ## Token Usage Metering
@@ -197,18 +199,20 @@ Used by `DeclarantsModule` to prefill the declarant form; the draft is reviewed 
 
 **Session principal:** every call is authenticated by `McpAuthHelper`: bearer token validation, then a per-call re-check of the owner's `organization_members` row (removal or downgrade to guest rejects immediately with `membership_revoked`, even mid-token-TTL), then a 60 req/60s per-session throttle. Success yields `{ kind: 'mcp', userId, organizationId, sessionId }`; the principal is org-bound, and case-scoped tools additionally call `CaseAccessService.assertRole()` per call.
 
-**Tool surface (16):**
+**Tool surface (18):**
 
 | Group | Tools |
 |-------|-------|
 | Navigate | `list_cases`, `get_case`, `list_investigations` |
-| Read | `get_case_data`, `read_production`, `query_labeled_entities`, `get_skill`, `get_declarants`, `get_declaration_library` |
+| Read | `get_case_data`, `read_production`, `query_labeled_entities`, `get_skill`, `get_declarants`, `get_declaration_library`, `list_data_room_files`, `read_data_room_file` |
 | Blockchain | `blockchain_fetch_history`, `blockchain_get_transaction`, `blockchain_get_address_info` |
 | Write | `create_investigation`, `import_transactions`, `create_production`, `update_production` |
 
-Six skills (`daubert-overview`, `graph-mutations`, `etherscan-apis`, `tronscan-apis`, `productions`, `declarations`) are also registered as MCP prompts; `product-knowledge` is chat-only.
+`list_data_room_files` / `read_data_room_file` give MCP the same data-room file access as chat — full manifest (up to 500 files) and extracted-text/image reads, both viewer-gated (see [data-room.md](./data-room.md)).
 
-**Audit:** the four write tools log every call (success and failure) to `agent_audit_log` via `AgentAuditService` with session, user, org, action, status, and target ref; audit-write failures are swallowed so they never mask a tool result. Users see their own agent activity at `GET /me/agent-actions`. Read tools are not audited.
+Seven skills (`daubert-overview`, `graph-mutations`, `etherscan-apis`, `tronscan-apis`, `productions`, `declarations`, `redlining`) are also registered as MCP prompts; `product-knowledge` is chat-only.
+
+**Audit:** the four write tools log every call (success and failure) to `agent_audit_log` via `AgentAuditService` with session, user, org, action, status, and target ref; audit-write failures are swallowed so they never mask a tool result. Users see their own agent activity at `GET /me/agent-actions`. Read tools are not written to `agent_audit_log`; the exception is `read_data_room_file`, which writes an `agent_read` row to the data room's own `data_room_access_log` (chain-of-custody) — the same log entry the chat surface writes, since both call the same `DataRoomService` method.
 
 ## SSE Event Types
 

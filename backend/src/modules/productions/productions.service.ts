@@ -22,6 +22,15 @@ import {
   seedDeclarationData,
   nextExhibitLabel,
 } from './declaration-data';
+import { RedlineIngestService } from './redline-ingest.service';
+import {
+  RedlineComment,
+  RedlineEdit,
+  RedlineEditKind,
+  RedlineEditStatus,
+  resolveAnchor,
+  spansOverlap,
+} from './redline-data';
 
 // Discriminated union of atomic ops. The list is intentionally small —
 // extend with `report_*` and `chart_*` shapes as those types acquire
@@ -59,7 +68,21 @@ type Op =
     }
   | { op: 'declaration_remove_paragraph'; paragraphId: string }
   | { op: 'declaration_add_exhibit'; label?: string; description: string; source?: DeclarationExhibit['source'] }
-  | { op: 'declaration_update_exhibit'; exhibitId: string; label?: string; description?: string; source?: DeclarationExhibit['source'] };
+  | { op: 'declaration_update_exhibit'; exhibitId: string; label?: string; description?: string; source?: DeclarationExhibit['source'] }
+  | {
+      op: 'redline_add_edit';
+      kind: RedlineEditKind;
+      anchorText: string;
+      newText: string;
+      basis: string;
+      comment?: string;
+      origin?: string;
+    }
+  | { op: 'redline_update_edit'; editId: string; status?: RedlineEditStatus; newText?: string; basis?: string; comment?: string }
+  | { op: 'redline_remove_edit'; editId: string }
+  | { op: 'redline_add_comment'; title: string; text: string }
+  | { op: 'redline_update_comment'; commentId: string; title?: string; text?: string }
+  | { op: 'redline_remove_comment'; commentId: string };
 
 const CHART_HEIGHT_MIN = 200;
 const CHART_HEIGHT_MAX = 1200;
@@ -82,6 +105,7 @@ export class ProductionsService {
     @InjectRepository(ProductionEntity)
     private readonly repo: Repository<ProductionEntity>,
     private readonly caseAccess: CaseAccessService,
+    private readonly redlineIngest: RedlineIngestService,
   ) {}
 
   async findAllForCase(caseId: string, principal: AccessPrincipal, type?: ProductionType) {
@@ -105,6 +129,13 @@ export class ProductionsService {
       data = seedChronologyData(dto.data as Record<string, unknown> | undefined) as unknown as Record<string, unknown>;
     } else if (dto.type === ProductionType.DECLARATION) {
       data = seedDeclarationData(dto.data as Partial<DeclarationData> | undefined) as unknown as Record<string, unknown>;
+    } else if (dto.type === ProductionType.REDLINE) {
+      const sourceFileId = (dto.data as any)?.sourceFileId;
+      if (typeof sourceFileId !== 'string' || !sourceFileId) {
+        throw new BadRequestException('redline productions require data.sourceFileId');
+      }
+      const actorUserId = 'userId' in principal ? principal.userId : 'system';
+      data = (await this.redlineIngest.buildData(caseId, sourceFileId, actorUserId)) as unknown as Record<string, unknown>;
     } else {
       data = dto.data;
     }
@@ -118,6 +149,20 @@ export class ProductionsService {
     }
 
     const production = await this.findOne(id, principal, 'editor');
+
+    // Redline productions are ops-only: their baseText snapshot is immutable, so
+    // a full `data` replacement is never allowed.
+    if (production.type === ProductionType.REDLINE && dto.data !== undefined) {
+      throw new BadRequestException('redline productions are ops-only');
+    }
+    // The redline boundary is one-way sealed: a production cannot be converted
+    // into or out of the redline type (XOR rejects transitions in either direction).
+    if (
+      dto.type !== undefined &&
+      (dto.type === ProductionType.REDLINE) !== (production.type === ProductionType.REDLINE)
+    ) {
+      throw new BadRequestException('cannot change a production type to or from "redline"');
+    }
 
     if (dto.name !== undefined) production.name = dto.name;
     if (dto.type !== undefined) production.type = dto.type;
@@ -422,6 +467,110 @@ function parseOp(raw: Record<string, unknown>, i: number): Op {
         source: raw.source as DeclarationExhibit['source'] | undefined,
       };
     }
+    case 'redline_add_edit': {
+      const kind = raw.kind;
+      if (kind !== 'replace' && kind !== 'delete' && kind !== 'insert_after') {
+        throw new BadRequestException(`ops[${i}] (redline_add_edit): \`kind\` must be one of replace|delete|insert_after`);
+      }
+      if (typeof raw.anchorText !== 'string' || !raw.anchorText.trim()) {
+        throw new BadRequestException(`ops[${i}] (redline_add_edit): \`anchorText\` must be a non-empty string`);
+      }
+      if (typeof raw.basis !== 'string' || !raw.basis.trim()) {
+        throw new BadRequestException(`ops[${i}] (redline_add_edit): \`basis\` must be a non-empty string`);
+      }
+      let newText: string;
+      if (kind === 'delete') {
+        if (raw.newText !== undefined && raw.newText !== '') {
+          throw new BadRequestException(`ops[${i}] (redline_add_edit): \`newText\` must be absent or empty for kind "delete"`);
+        }
+        newText = '';
+      } else {
+        if (typeof raw.newText !== 'string' || raw.newText.length === 0) {
+          throw new BadRequestException(`ops[${i}] (redline_add_edit): \`newText\` must be a non-empty string for kind "${kind}"`);
+        }
+        newText = raw.newText;
+      }
+      if (raw.comment !== undefined && typeof raw.comment !== 'string') {
+        throw new BadRequestException(`ops[${i}] (redline_add_edit): \`comment\` must be a string`);
+      }
+      if (raw.origin !== undefined && typeof raw.origin !== 'string') {
+        throw new BadRequestException(`ops[${i}] (redline_add_edit): \`origin\` must be a string`);
+      }
+      return {
+        op: 'redline_add_edit',
+        kind,
+        anchorText: raw.anchorText,
+        newText,
+        basis: raw.basis,
+        comment: raw.comment as string | undefined,
+        origin: raw.origin as string | undefined,
+      };
+    }
+    case 'redline_update_edit': {
+      if (typeof raw.editId !== 'string' || !raw.editId.trim()) {
+        throw new BadRequestException(`ops[${i}] (redline_update_edit): \`editId\` must be a non-empty string`);
+      }
+      if ('anchorText' in raw || 'anchor' in raw || 'kind' in raw) {
+        throw new BadRequestException(`ops[${i}] (redline_update_edit): anchor and kind are immutable`);
+      }
+      let status: RedlineEditStatus | undefined;
+      if (raw.status !== undefined) {
+        if (raw.status !== 'proposed' && raw.status !== 'accepted' && raw.status !== 'rejected') {
+          throw new BadRequestException(`ops[${i}] (redline_update_edit): \`status\` must be one of proposed|accepted|rejected`);
+        }
+        status = raw.status;
+      }
+      if (raw.newText !== undefined && typeof raw.newText !== 'string') {
+        throw new BadRequestException(`ops[${i}] (redline_update_edit): \`newText\` must be a string`);
+      }
+      if (raw.basis !== undefined && (typeof raw.basis !== 'string' || !raw.basis.trim())) {
+        throw new BadRequestException(`ops[${i}] (redline_update_edit): \`basis\` must be a non-empty string`);
+      }
+      if (raw.comment !== undefined && typeof raw.comment !== 'string') {
+        throw new BadRequestException(`ops[${i}] (redline_update_edit): \`comment\` must be a string`);
+      }
+      return {
+        op: 'redline_update_edit',
+        editId: raw.editId,
+        status,
+        newText: raw.newText as string | undefined,
+        basis: raw.basis as string | undefined,
+        comment: raw.comment as string | undefined,
+      };
+    }
+    case 'redline_remove_edit': {
+      if (typeof raw.editId !== 'string' || !raw.editId.trim()) {
+        throw new BadRequestException(`ops[${i}] (redline_remove_edit): \`editId\` must be a non-empty string`);
+      }
+      return { op: 'redline_remove_edit', editId: raw.editId };
+    }
+    case 'redline_add_comment': {
+      if (typeof raw.title !== 'string') {
+        throw new BadRequestException(`ops[${i}] (redline_add_comment): \`title\` must be a string`);
+      }
+      if (typeof raw.text !== 'string') {
+        throw new BadRequestException(`ops[${i}] (redline_add_comment): \`text\` must be a string`);
+      }
+      return { op: 'redline_add_comment', title: raw.title, text: raw.text };
+    }
+    case 'redline_update_comment': {
+      if (typeof raw.commentId !== 'string' || !raw.commentId.trim()) {
+        throw new BadRequestException(`ops[${i}] (redline_update_comment): \`commentId\` must be a non-empty string`);
+      }
+      if (raw.title !== undefined && typeof raw.title !== 'string') {
+        throw new BadRequestException(`ops[${i}] (redline_update_comment): \`title\` must be a string`);
+      }
+      if (raw.text !== undefined && typeof raw.text !== 'string') {
+        throw new BadRequestException(`ops[${i}] (redline_update_comment): \`text\` must be a string`);
+      }
+      return { op: 'redline_update_comment', commentId: raw.commentId, title: raw.title as string | undefined, text: raw.text as string | undefined };
+    }
+    case 'redline_remove_comment': {
+      if (typeof raw.commentId !== 'string' || !raw.commentId.trim()) {
+        throw new BadRequestException(`ops[${i}] (redline_remove_comment): \`commentId\` must be a non-empty string`);
+      }
+      return { op: 'redline_remove_comment', commentId: raw.commentId };
+    }
     default:
       throw new BadRequestException(`ops[${i}]: unknown op "${opName}"`);
   }
@@ -481,6 +630,9 @@ function applyOp(
   }
   if (op.op.startsWith('declaration_') && type !== ProductionType.DECLARATION) {
     throw new BadRequestException(`ops[${i}] (${op.op}): production is type "${type}", not "declaration"`);
+  }
+  if (op.op.startsWith('redline_') && type !== ProductionType.REDLINE) {
+    throw new BadRequestException(`ops[${i}] (${op.op}): production is type "${type}", not "redline"`);
   }
   const entries = Array.isArray(data.entries) ? [...(data.entries as ChronologyEntry[])] : [];
 
@@ -695,6 +847,88 @@ function applyOp(
       nextExhibits[idx] = next;
       return { ...data, exhibits: nextExhibits };
     }
+    case 'redline_add_edit': {
+      const baseText = typeof data.baseText === 'string' ? data.baseText : '';
+      const res = resolveAnchor(baseText, op.anchorText);
+      if ('error' in res) {
+        if (res.error === 'anchor_ambiguous') {
+          throw new BadRequestException(
+            `ops[${i}] (redline_add_edit): anchor_ambiguous — matched ${res.count} times; quote a longer span to disambiguate`,
+          );
+        }
+        throw new BadRequestException(`ops[${i}] (redline_add_edit): ${res.error}`);
+      }
+      const { start, end } = res;
+      const edits = redlineEdits(data);
+      // Overlap gate: replace/delete edits may not overlap a live (non-rejected,
+      // non-insert_after) edit. insert_after never participates — as adder or obstacle.
+      if (op.kind === 'replace' || op.kind === 'delete') {
+        for (const e of edits) {
+          if (e.status === 'rejected' || e.kind === 'insert_after') continue;
+          if (spansOverlap(start, end, e.anchor.start, e.anchor.end)) {
+            throw new BadRequestException(
+              `ops[${i}] (redline_add_edit): span [${start},${end}) overlaps existing edit ${e.id} [${e.anchor.start},${e.anchor.end})`,
+            );
+          }
+        }
+      }
+      const edit: RedlineEdit = {
+        id: randomUUID(),
+        kind: op.kind,
+        anchor: { text: baseText.slice(start, end), start, end },
+        newText: op.newText,
+        basis: op.basis,
+        status: 'proposed',
+        origin: op.origin === 'user' ? 'user' : 'agent',
+      };
+      if (op.comment !== undefined) edit.comment = op.comment;
+      return { ...data, edits: [...edits, edit] };
+    }
+    case 'redline_update_edit': {
+      const edits = redlineEdits(data);
+      const idx = edits.findIndex((e) => e.id === op.editId);
+      if (idx < 0) throw new BadRequestException(`ops[${i}] (redline_update_edit): unknown edit "${op.editId}"`);
+      const next = { ...edits[idx] };
+      if (op.status !== undefined) next.status = op.status;
+      if (op.newText !== undefined) next.newText = op.newText;
+      if (op.basis !== undefined) next.basis = op.basis;
+      if (op.comment !== undefined) next.comment = op.comment;
+      const nextEdits = [...edits];
+      nextEdits[idx] = next;
+      return { ...data, edits: nextEdits };
+    }
+    case 'redline_remove_edit': {
+      const edits = redlineEdits(data);
+      const idx = edits.findIndex((e) => e.id === op.editId);
+      if (idx < 0) throw new BadRequestException(`ops[${i}] (redline_remove_edit): unknown edit "${op.editId}"`);
+      const nextEdits = [...edits];
+      nextEdits.splice(idx, 1);
+      return { ...data, edits: nextEdits };
+    }
+    case 'redline_add_comment': {
+      const comments = redlineComments(data);
+      const comment: RedlineComment = { id: randomUUID(), title: op.title, text: op.text };
+      return { ...data, comments: [...comments, comment] };
+    }
+    case 'redline_update_comment': {
+      const comments = redlineComments(data);
+      const idx = comments.findIndex((c) => c.id === op.commentId);
+      if (idx < 0) throw new BadRequestException(`ops[${i}] (redline_update_comment): unknown comment "${op.commentId}"`);
+      const next = { ...comments[idx] };
+      if (op.title !== undefined) next.title = op.title;
+      if (op.text !== undefined) next.text = op.text;
+      const nextComments = [...comments];
+      nextComments[idx] = next;
+      return { ...data, comments: nextComments };
+    }
+    case 'redline_remove_comment': {
+      const comments = redlineComments(data);
+      const idx = comments.findIndex((c) => c.id === op.commentId);
+      if (idx < 0) throw new BadRequestException(`ops[${i}] (redline_remove_comment): unknown comment "${op.commentId}"`);
+      const nextComments = [...comments];
+      nextComments.splice(idx, 1);
+      return { ...data, comments: nextComments };
+    }
   }
 }
 
@@ -704,4 +938,12 @@ function declSections(data: Record<string, unknown>): DeclarationSection[] {
 
 function declExhibits(data: Record<string, unknown>): DeclarationExhibit[] {
   return Array.isArray(data.exhibits) ? [...(data.exhibits as DeclarationExhibit[])] : [];
+}
+
+function redlineEdits(data: Record<string, unknown>): RedlineEdit[] {
+  return Array.isArray(data.edits) ? [...(data.edits as RedlineEdit[])] : [];
+}
+
+function redlineComments(data: Record<string, unknown>): RedlineComment[] {
+  return Array.isArray(data.comments) ? [...(data.comments as RedlineComment[])] : [];
 }

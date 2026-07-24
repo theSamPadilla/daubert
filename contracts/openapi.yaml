@@ -316,6 +316,16 @@ components:
       $ref: './schemas/productions.yaml#/DeclarationExhibit'
     DeclarationData:
       $ref: './schemas/productions.yaml#/DeclarationData'
+    RedlineSource:
+      $ref: './schemas/productions.yaml#/RedlineSource'
+    RedlineAnchor:
+      $ref: './schemas/productions.yaml#/RedlineAnchor'
+    RedlineEdit:
+      $ref: './schemas/productions.yaml#/RedlineEdit'
+    RedlineComment:
+      $ref: './schemas/productions.yaml#/RedlineComment'
+    RedlineData:
+      $ref: './schemas/productions.yaml#/RedlineData'
     DeclarationLibraryBlockKind:
       $ref: './schemas/declaration-library.yaml#/DeclarationLibraryBlockKind'
     DeclarationLibraryBlock:

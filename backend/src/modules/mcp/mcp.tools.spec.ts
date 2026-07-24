@@ -79,6 +79,7 @@ describe('McpToolsService.registerPromptsForScope', () => {
     'tronscan-apis',
     'productions',
     'declarations',
+    'redlining',
   ];
 
   describe('when all skill files are present', () => {

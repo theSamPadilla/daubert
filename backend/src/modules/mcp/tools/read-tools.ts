@@ -1,5 +1,5 @@
 /**
- * ReadToolsService — six read-only MCP tools for the BYOA MCP session.
+ * ReadToolsService — eight read-only MCP tools for the BYOA MCP session.
  *
  *   - get_case_data           → aggregated case overview (investigations,
  *                               productions summary, data-room manifest).
@@ -10,6 +10,10 @@
  *   - get_declarants          → org-wide list of saved declarants (no case scope).
  *   - get_declaration_library → org-wide list of boilerplate declaration
  *                               blocks, optionally filtered by kind (no case scope).
+ *   - list_data_room_files    → flat data-room file manifest for a case (id,
+ *                               name, mimeType, size, folder path).
+ *   - read_data_room_file     → read one data-room file's contents (extracted
+ *                               text/image blocks), or a size-note if too large.
  *
  * Pattern mirrors NavigateToolsService (Task 12):
  *   - `server.registerTool(name, { description, inputSchema }, handler)`.
@@ -41,10 +45,13 @@ import { DeclarantsService } from '../../declarants/declarants.service';
 import { DeclarationLibraryService } from '../../declaration-library/declaration-library.service';
 import { DeclarationLibraryBlockKind } from '../../../database/entities/declaration-library-block.entity';
 import { getSkillContent, SKILL_REGISTRY } from '../../../skills/skill-registry';
+import { extractFileForMcp } from '../../data-room/file-text';
 import { AuthSuccess } from '../mcp-auth.helper';
 import { errorResult, textResult } from './tool-utils';
 
 const DATA_ROOM_MANIFEST_LIMIT = 25;
+const MCP_AGENT_READ_BYTES = 5 * 1024 * 1024;
+const LIST_FILES_LIMIT = 500;
 
 @Injectable()
 export class ReadToolsService {
@@ -313,6 +320,67 @@ export class ReadToolsService {
               content: b.content,
             })),
           });
+        } catch (e) {
+          return errorResult(e);
+        }
+      },
+    );
+
+    // -----------------------------------------------------------------------
+    // list_data_room_files / read_data_room_file — data-room reads.
+    //
+    // Both bypass `textResult`: a document read or a large file manifest
+    // would be gutted by the 8 KB result cap, so they return the MCP content
+    // envelope directly. Only the catch path (`errorResult`) stays capped.
+    // -----------------------------------------------------------------------
+    server.registerTool(
+      'list_data_room_files',
+      {
+        description:
+          'List every data-room file for a case: id, name, mimeType, size, and folder path. Use a file id with read_data_room_file. Returns up to 500 files — check `truncated`. Requires viewer access.',
+        inputSchema: { caseId: z.string().uuid() },
+      },
+      async ({ caseId }) => {
+        try {
+          await this.caseAccess.assertRole(principal, caseId, 'viewer');
+          const manifest = await this.dataRoomService.getManifest(caseId, LIST_FILES_LIMIT);
+          return { content: [{ type: 'text' as const, text: JSON.stringify(manifest) }] };
+        } catch (e) {
+          return errorResult(e);
+        }
+      },
+    );
+
+    server.registerTool(
+      'read_data_room_file',
+      {
+        description:
+          'Read a data-room file\'s contents. Pass a fileId from list_data_room_files or the get_case_data manifest. docx/pdf/xlsx/csv/txt are returned as extracted text; images as an image block; oversized files return a note (PDFs up to 32 MB, others up to 5 MB). Requires viewer access.',
+        inputSchema: { caseId: z.string().uuid(), fileId: z.string().uuid() },
+      },
+      async ({ caseId, fileId }) => {
+        try {
+          await this.caseAccess.assertRole(principal, caseId, 'viewer');
+          const actorUserId = 'userId' in principal ? principal.userId : 'system';
+          const read = await this.dataRoomService.getFileBufferForAgent(
+            caseId,
+            actorUserId,
+            fileId,
+            MCP_AGENT_READ_BYTES,
+          );
+          if (read.tooLarge) {
+            const mb = (read.size / (1024 * 1024)).toFixed(1);
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `[File "${read.name}" is ${mb} MB — too large to read inline. PDFs are read up to 32 MB; other types up to 5 MB. Ask the user for the relevant excerpt.]`,
+                },
+              ],
+            };
+          }
+          const blocks = await extractFileForMcp(read.buffer, read.mimeType, read.name);
+          return { content: blocks };
         } catch (e) {
           return errorResult(e);
         }

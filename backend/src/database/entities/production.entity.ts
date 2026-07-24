@@ -7,6 +7,7 @@ export enum ProductionType {
   CHART = 'chart',
   CHRONOLOGY = 'chronology',
   DECLARATION = 'declaration',
+  REDLINE = 'redline',
 }
 
 @Entity('productions')

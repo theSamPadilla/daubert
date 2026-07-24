@@ -1,13 +1,16 @@
 /**
  * ReadToolsService unit tests.
  *
- * Six tools under test:
+ * Eight tools under test:
  *   - get_case_data         — aggregates investigations, productions, data-room manifest.
  *   - read_production       — delegates to ProductionsService, with optional productionId/type.
  *   - query_labeled_entities — dispatches to LabeledEntitiesService (no case scope).
  *   - get_skill             — reads a skill file from the registry by name.
  *   - get_declarants        — dispatches to DeclarantsService (no case scope).
  *   - get_declaration_library — dispatches to DeclarationLibraryService (no case scope).
+ *   - list_data_room_files  — dispatches to DataRoomService.getManifest.
+ *   - read_data_room_file   — dispatches to DataRoomService.getFileBufferForAgent +
+ *                             extractFileForMcp; bypasses textResult's 8 KB cap.
  *
  * Same harness pattern as navigate-tools.spec:
  *   - Build a real McpServer and register handlers via ReadToolsService.registerAll().
@@ -15,12 +18,19 @@
  *   - Services are mocked; DI container never runs.
  */
 
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { CaseAccessService } from '../../auth/case-access.service';
 import { AuthSuccess } from '../mcp-auth.helper';
 import { ReadToolsService } from './read-tools';
+import { extractFileForMcp } from '../../data-room/file-text';
+
+jest.mock('../../data-room/file-text', () => ({
+  extractFileForMcp: jest.fn(),
+}));
+
+const mockExtractFileForMcp = extractFileForMcp as jest.Mock;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -78,6 +88,13 @@ function buildService(overrides: {
 
   const dataRoom = {
     getManifest: jest.fn().mockResolvedValue({ files: [], total: 0, truncated: false }),
+    getFileBufferForAgent: jest.fn().mockResolvedValue({
+      tooLarge: false,
+      name: 'f',
+      mimeType: 'text/plain',
+      size: 0,
+      buffer: Buffer.from(''),
+    }),
     ...overrides.dataRoom,
   };
 
@@ -405,6 +422,137 @@ describe('ReadToolsService', () => {
       const { server } = buildService({ caseAccess: { assertRole } });
       await callTool(server, 'get_declaration_library', {});
       expect(assertRole).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // list_data_room_files
+  // -------------------------------------------------------------------------
+
+  describe('list_data_room_files', () => {
+    it('asserts viewer role, calls getManifest with the 500 cap, and returns the manifest verbatim', async () => {
+      const assertRole = jest.fn().mockResolvedValue({ role: 'viewer' });
+      const manifest = {
+        files: [{ id: 'f1', name: 'draft.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 1234, folderPath: '/' }],
+        total: 1,
+        truncated: false,
+      };
+      const getManifest = jest.fn().mockResolvedValue(manifest);
+      const { server } = buildService({
+        caseAccess: { assertRole },
+        dataRoom: { getManifest },
+      });
+
+      const result = await callTool(server, 'list_data_room_files', { caseId: CASE_ID });
+
+      expect(assertRole).toHaveBeenCalledWith(AUTH.principal, CASE_ID, 'viewer');
+      expect(getManifest).toHaveBeenCalledWith(CASE_ID, 500);
+      expect(result.isError).toBeUndefined();
+      expect(JSON.parse(result.content[0].text)).toEqual(manifest);
+    });
+
+    it('surfaces ForbiddenException from assertRole; getManifest NOT called', async () => {
+      const assertRole = jest.fn().mockRejectedValue(new ForbiddenException('cross_org_access'));
+      const { server, dataRoom } = buildService({ caseAccess: { assertRole } });
+
+      const result = await callTool(server, 'list_data_room_files', { caseId: CASE_ID });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('cross_org_access');
+      expect(dataRoom.getManifest).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // read_data_room_file
+  // -------------------------------------------------------------------------
+
+  describe('read_data_room_file', () => {
+    beforeEach(() => {
+      mockExtractFileForMcp.mockClear();
+    });
+
+    it('asserts viewer role and returns extracted content blocks directly (happy path)', async () => {
+      const assertRole = jest.fn().mockResolvedValue({ role: 'viewer' });
+      const getFileBufferForAgent = jest.fn().mockResolvedValue({
+        tooLarge: false,
+        name: 'draft.docx',
+        mimeType: 'text/plain',
+        size: 11,
+        buffer: Buffer.from('hello world'),
+      });
+      mockExtractFileForMcp.mockResolvedValue([{ type: 'text', text: 'hello world' }]);
+      const { server } = buildService({
+        caseAccess: { assertRole },
+        dataRoom: { getFileBufferForAgent },
+      });
+
+      const result = await callTool(server, 'read_data_room_file', { caseId: CASE_ID, fileId: 'f1' });
+
+      expect(assertRole).toHaveBeenCalledWith(AUTH.principal, CASE_ID, 'viewer');
+      expect(result).toEqual({ content: [{ type: 'text', text: 'hello world' }] });
+    });
+
+    it('cap-bypass regression: a large extracted text block is NOT truncated to the 8 KB textResult cap', async () => {
+      const bigText = 'x'.repeat(20000);
+      const getFileBufferForAgent = jest.fn().mockResolvedValue({
+        tooLarge: false,
+        name: 'draft.docx',
+        mimeType: 'text/plain',
+        size: 20000,
+        buffer: Buffer.from(bigText),
+      });
+      mockExtractFileForMcp.mockResolvedValue([{ type: 'text', text: bigText }]);
+      const { server } = buildService({
+        dataRoom: { getFileBufferForAgent },
+      });
+
+      const result = await callTool(server, 'read_data_room_file', { caseId: CASE_ID, fileId: 'f1' });
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text.length).toBe(20000);
+    });
+
+    it('returns a text note (not isError) when the file is too large to read inline', async () => {
+      const getFileBufferForAgent = jest.fn().mockResolvedValue({
+        tooLarge: true,
+        name: 'big.pdf',
+        mimeType: 'application/pdf',
+        size: 40 * 1024 * 1024,
+      });
+      const { server } = buildService({
+        dataRoom: { getFileBufferForAgent },
+      });
+
+      const result = await callTool(server, 'read_data_room_file', { caseId: CASE_ID, fileId: 'f1' });
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].type).toBe('text');
+      expect(result.content[0].text).toContain('big.pdf');
+      expect(mockExtractFileForMcp).not.toHaveBeenCalled();
+    });
+
+    it('surfaces NotFoundException from getFileBufferForAgent as isError', async () => {
+      const getFileBufferForAgent = jest.fn().mockRejectedValue(new NotFoundException('file_not_found'));
+      const { server } = buildService({
+        dataRoom: { getFileBufferForAgent },
+      });
+
+      const result = await callTool(server, 'read_data_room_file', { caseId: CASE_ID, fileId: 'nope' });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('file_not_found');
+    });
+
+    it('surfaces ForbiddenException from assertRole; getFileBufferForAgent NOT called', async () => {
+      const assertRole = jest.fn().mockRejectedValue(new ForbiddenException('cross_org_access'));
+      const { server, dataRoom } = buildService({ caseAccess: { assertRole } });
+
+      const result = await callTool(server, 'read_data_room_file', { caseId: CASE_ID, fileId: 'f1' });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('cross_org_access');
+      expect(dataRoom.getFileBufferForAgent).not.toHaveBeenCalled();
     });
   });
 });

@@ -67,7 +67,7 @@ Never apply migrations directly -- always use the script.
 
 Cases > Investigations > Traces (graph data as JSONB)
 
-Supporting entities: Users, Case Members, Conversations, Messages, Productions, Labeled Entities, Script Runs, Data Room Connections.
+Supporting entities: Users, Case Members, Conversations, Messages, Productions (report/chart/chronology/declaration/redline), Labeled Entities, Script Runs, Data Room Connections.
 
 ## Backend Modules
 

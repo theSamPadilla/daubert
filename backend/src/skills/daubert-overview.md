@@ -12,7 +12,7 @@ Daubert is a blockchain-transaction investigation tool. It organizes work as:
 - **Cases** — a top-level container for an investigation (e.g. "FTX fraud", "Ronin Bridge hack")
 - **Investigations** — workspaces inside a case, each containing one or more **traces**
 - **Traces** — graph layers within an investigation. Each trace holds wallet nodes and transaction edges
-- **Productions** — deliverables attached to a case: HTML reports, Chart.js charts, or chronologies
+- **Productions** — deliverables attached to a case: HTML reports, Chart.js charts, chronologies, declarations, and redlines
 - **Data room** — file storage for a case (PDFs, CSVs, supporting documents)
 
 You operate inside one organization. Cases, investigations, and traces all belong to that organization. Your access to each case is bounded by your role on it (see Access Model below).
@@ -31,10 +31,19 @@ You operate inside one organization. Cases, investigations, and traces all belon
 
 | Tool | What it does |
 |------|-------------|
-| `get_case_data` | Get graph data (nodes, edges, groups) for a trace |
-| `read_production` | Read the content of a production (report/chart/chronology) |
+| `get_case_data` | Get an aggregated case overview: investigations (with trace counts), productions (name + type), and the data-room file manifest |
+| `read_production` | Read the content of a production (report/chart/chronology/declaration/redline) |
 | `query_labeled_entities` | Search for wallet nodes with a given label across an investigation |
 | `get_skill` | Retrieve a skill document by name (workflow guidance for this agent) |
+| `list_data_room_files` | List every data-room file for a case (id, name, mimeType, size, folder path) |
+| `read_data_room_file` | Read a data-room file's contents — extracted text for docx/pdf/xlsx/csv/txt, an image block for images, or a size note if too large |
+
+### Org library (org-scoped, no case role needed)
+
+| Tool | What it does |
+|------|-------------|
+| `get_declarants` | List the org's saved declarant (expert witness) profiles |
+| `get_declaration_library` | List the org's reusable boilerplate declaration blocks |
 
 ### Blockchain (no case role needed — uses Daubert's server-side API keys)
 
@@ -52,7 +61,7 @@ Supported chains: `ethereum`, `polygon`, `arbitrum`, `base`, `tron`.
 |------|-------------|
 | `create_investigation` | Create a new investigation inside a case |
 | `import_transactions` | Import transaction records into a trace (creates nodes + edges) |
-| `create_production` | Create a new production (report, chart, or chronology) |
+| `create_production` | Create a new production (report, chart, chronology, declaration, or redline) |
 | `update_production` | Update an existing production's content |
 
 ## Canonical Workflow: Fetch → Import

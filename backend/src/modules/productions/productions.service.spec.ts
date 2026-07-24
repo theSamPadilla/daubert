@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ProductionsService } from './productions.service';
 import {
   ProductionEntity,
@@ -10,6 +10,8 @@ import { CaseAccessService } from '../auth/case-access.service';
 import { AccessPrincipal } from '../auth/access-principal';
 import { seedChronologyData } from './chronology-schema';
 import { seedDeclarationData, DeclarationData } from './declaration-data';
+import { seedRedlineData, RedlineData } from './redline-data';
+import { RedlineIngestService } from './redline-ingest.service';
 
 const mockProductionRepo = {
   find: jest.fn(),
@@ -21,6 +23,10 @@ const mockProductionRepo = {
 
 const mockCaseAccess = {
   assertRole: jest.fn(),
+};
+
+const mockRedlineIngest = {
+  buildData: jest.fn(),
 };
 
 const USER_PRINCIPAL: AccessPrincipal = { kind: 'user', userId: 'user-1' };
@@ -64,6 +70,7 @@ describe('ProductionsService', () => {
         ProductionsService,
         { provide: getRepositoryToken(ProductionEntity), useValue: mockProductionRepo },
         { provide: CaseAccessService, useValue: mockCaseAccess },
+        { provide: RedlineIngestService, useValue: mockRedlineIngest },
       ],
     }).compile();
 
@@ -199,6 +206,54 @@ describe('ProductionsService', () => {
         name: 'R', type: ProductionType.REPORT, data: { content: '<p>x</p>' },
       }, principal);
       expect((out.data as any).columns).toBeUndefined();
+    });
+  });
+
+  // ── create() — redline seeding ──────────────────────────────────────
+
+  describe('create() — redline seeding', () => {
+    beforeEach(() => {
+      mockProductionRepo.create.mockImplementation((obj: any) => ({ ...obj }));
+      mockProductionRepo.save.mockImplementation((p: any) => Promise.resolve({ ...p }));
+    });
+
+    it('seeds RedlineData built by RedlineIngestService.buildData', async () => {
+      const seeded = seedRedlineData(
+        {
+          fileId: 'file-1',
+          fileName: 'contract.docx',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          kind: 'docx',
+          extractedAt: '2026-01-01T00:00:00.000Z',
+        },
+        'Paragraph one.\n\nParagraph two.',
+      );
+      mockRedlineIngest.buildData.mockResolvedValue(seeded);
+
+      const out = await service.create('case-1', {
+        name: 'Redline', type: ProductionType.REDLINE, data: { sourceFileId: 'file-1' },
+      }, USER_PRINCIPAL);
+
+      expect(mockRedlineIngest.buildData).toHaveBeenCalledWith('case-1', 'file-1', 'user-1');
+      const d = out.data as unknown as RedlineData;
+      expect(d.source.kind).toBe('docx');
+      expect(d.baseText).toBe('Paragraph one.\n\nParagraph two.');
+      expect(d.edits).toEqual([]);
+      expect(d.comments).toEqual([]);
+    });
+
+    it('rejects when data.sourceFileId is missing', async () => {
+      await expect(service.create('case-1', {
+        name: 'Redline', type: ProductionType.REDLINE, data: {},
+      }, USER_PRINCIPAL)).rejects.toThrow(BadRequestException);
+      expect(mockRedlineIngest.buildData).not.toHaveBeenCalled();
+    });
+
+    it('propagates NotFoundException when the source file is from another case', async () => {
+      mockRedlineIngest.buildData.mockRejectedValue(new NotFoundException('file_not_found'));
+      await expect(service.create('case-1', {
+        name: 'Redline', type: ProductionType.REDLINE, data: { sourceFileId: 'file-1' },
+      }, USER_PRINCIPAL)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -999,6 +1054,478 @@ describe('ProductionsService', () => {
       await expect(service.update('prod-1', {
         ops: [{ op: 'declaration_set_caption', caption: { court: 'X' } }],
       }, principal)).rejects.toThrow(/not "declaration"/);
+    });
+  });
+
+  // ── redline ops ────────────────────────────────────────────────────────
+
+  describe('redline ops', () => {
+    // baseText: two paragraphs joined by '\n\n'.
+    //   "the parties agree" appears twice → ambiguous.
+    //   "the quarterly financial report" appears once → unique.
+    //   "quarterly financial report was filed" overlaps the unique anchor.
+    //   "more terms. Second para" spans the paragraph break → crosses_paragraphs.
+    //   "terms" normalizes to < 8 chars → too_short.
+    const BASE_TEXT =
+      'First para: the parties agree to terms here, and the parties agree to more terms.\n\nSecond para: the quarterly financial report was filed on time.';
+    const UNIQUE = 'the quarterly financial report';
+    const OVERLAP = 'quarterly financial report was filed';
+
+    async function seedRedline(overrides: Partial<RedlineData> = {}): Promise<ProductionEntity> {
+      const data = seedRedlineData(
+        {
+          fileId: 'file-1',
+          fileName: 'contract.docx',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          kind: 'docx',
+          extractedAt: '2026-01-01T00:00:00.000Z',
+        },
+        BASE_TEXT,
+      );
+      const prod = makeProduction({
+        type: ProductionType.REDLINE,
+        data: { ...data, ...overrides } as unknown as Record<string, unknown>,
+      });
+      mockProductionRepo.findOneBy.mockResolvedValue(prod);
+      mockProductionRepo.save.mockImplementation((p: ProductionEntity) => Promise.resolve({ ...p }));
+      return prod;
+    }
+
+    const rl = (out: ProductionEntity): RedlineData => out.data as unknown as RedlineData;
+
+    // ── redline_add_edit ──────────────────────────────────────────────────
+    describe('redline_add_edit', () => {
+      it('resolves the anchor and appends a proposed agent edit with a server UUID', async () => {
+        const prod = await seedRedline();
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'the annual report', basis: 'stale figure' }],
+        }, principal);
+        const edits = rl(out).edits;
+        expect(edits).toHaveLength(1);
+        const e = edits[0];
+        expect(e.id).toMatch(/^[0-9a-f-]{36}$/);
+        expect(e.kind).toBe('replace');
+        expect(e.status).toBe('proposed');
+        expect(e.origin).toBe('agent');
+        expect(e.newText).toBe('the annual report');
+        expect(e.basis).toBe('stale figure');
+        // anchor.text is the RAW matched span, re-derived from baseText.slice
+        expect(e.anchor.text).toBe(UNIQUE);
+        expect(BASE_TEXT.slice(e.anchor.start, e.anchor.end)).toBe(UNIQUE);
+      });
+
+      it('honors origin: "user" and defaults anything else to "agent"', async () => {
+        const prod = await seedRedline();
+        const asUser = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: 'b', origin: 'user' }],
+        }, principal);
+        expect(rl(asUser).edits[0].origin).toBe('user');
+
+        const prod2 = await seedRedline();
+        const asOther = await service.update(prod2.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: 'b', origin: 'robot' }],
+        }, principal);
+        expect(rl(asOther).edits[0].origin).toBe('agent');
+      });
+
+      it('stores an optional comment when provided', async () => {
+        const prod = await seedRedline();
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: 'b', comment: 'see para 4' }],
+        }, principal);
+        expect(rl(out).edits[0].comment).toBe('see para 4');
+      });
+
+      it('stores "" for a delete edit and omits newText requirement', async () => {
+        const prod = await seedRedline();
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'delete', anchorText: UNIQUE, basis: 'b' }],
+        }, principal);
+        const e = rl(out).edits[0];
+        expect(e.kind).toBe('delete');
+        expect(e.newText).toBe('');
+      });
+
+      it('rejects an ambiguous anchor with the count and disambiguation guidance', async () => {
+        const prod = await seedRedline();
+        const err = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: 'the parties agree', newText: 'x', basis: 'b' }],
+        }, principal).catch((e) => e);
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err.message).toContain('anchor_ambiguous');
+        expect(err.message).toContain('2');
+        expect(err.message).toContain('quote a longer span');
+      });
+
+      it('rejects a not-found anchor naming anchor_not_found', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: 'this phrase does not exist anywhere', newText: 'x', basis: 'b' }],
+        }, principal)).rejects.toThrow(/anchor_not_found/);
+      });
+
+      it('rejects a too-short anchor naming anchor_too_short', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: 'terms', newText: 'x', basis: 'b' }],
+        }, principal)).rejects.toThrow(/anchor_too_short/);
+      });
+
+      it('rejects an anchor that crosses paragraphs naming anchor_crosses_paragraphs', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: 'more terms. Second para', newText: 'x', basis: 'b' }],
+        }, principal)).rejects.toThrow(/anchor_crosses_paragraphs/);
+      });
+
+      it('rejects a delete with a non-empty newText', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'delete', anchorText: UNIQUE, newText: 'nope', basis: 'b' }],
+        }, principal)).rejects.toThrow(BadRequestException);
+      });
+
+      it('rejects an insert_after without newText', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'insert_after', anchorText: UNIQUE, basis: 'b' }],
+        }, principal)).rejects.toThrow(/newText/);
+      });
+
+      it('rejects a replace without newText', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, basis: 'b' }],
+        }, principal)).rejects.toThrow(/newText/);
+      });
+
+      it('rejects a missing or empty basis', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x' }],
+        }, principal)).rejects.toThrow(/basis/);
+        const prod2 = await seedRedline();
+        await expect(service.update(prod2.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: '  ' }],
+        }, principal)).rejects.toThrow(/basis/);
+      });
+
+      it('rejects an invalid kind', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'bogus', anchorText: UNIQUE, newText: 'x', basis: 'b' }],
+        }, principal)).rejects.toThrow(/kind/);
+      });
+
+      it('re-derives anchor.text as the raw document span, not the caller\'s straight-quote input', async () => {
+        const curlyText =
+          'The report “Q3 figures” was filed on time.\n\nSecond para: the quarterly financial report was filed on time.';
+        const data = seedRedlineData(
+          {
+            fileId: 'file-1',
+            fileName: 'contract.docx',
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            kind: 'docx',
+            extractedAt: '2026-01-01T00:00:00.000Z',
+          },
+          curlyText,
+        );
+        const prod = makeProduction({
+          type: ProductionType.REDLINE,
+          data: data as unknown as Record<string, unknown>,
+        });
+        mockProductionRepo.findOneBy.mockResolvedValue(prod);
+        mockProductionRepo.save.mockImplementation((p: ProductionEntity) => Promise.resolve({ ...p }));
+
+        const out = await service.update(prod.id, {
+          ops: [{
+            op: 'redline_add_edit',
+            kind: 'replace',
+            anchorText: '"Q3 figures" was filed',
+            newText: 'x',
+            basis: 'b',
+          }],
+        }, principal);
+        const e = rl(out).edits[0];
+        expect(curlyText.slice(e.anchor.start, e.anchor.end)).toBe(e.anchor.text);
+        expect(e.anchor.text).toContain('“');
+        expect(e.anchor.text).toContain('”');
+      });
+    });
+
+    // ── redline_add_edit overlap gate ─────────────────────────────────────
+    describe('redline_add_edit overlap gate', () => {
+      it('rejects a replace overlapping a proposed edit', async () => {
+        const prod = await seedRedline();
+        const withA = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: 'b' }],
+        }, principal);
+        mockProductionRepo.findOneBy.mockResolvedValue(withA);
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: OVERLAP, newText: 'y', basis: 'b' }],
+        }, principal)).rejects.toThrow(/overlap/i);
+      });
+
+      it('rejects a delete overlapping an accepted edit', async () => {
+        const prod = await seedRedline();
+        const withA = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: 'b' }],
+        }, principal);
+        const editA = rl(withA).edits[0];
+        mockProductionRepo.findOneBy.mockResolvedValue(withA);
+        const accepted = await service.update(prod.id, {
+          ops: [{ op: 'redline_update_edit', editId: editA.id, status: 'accepted' }],
+        }, principal);
+        mockProductionRepo.findOneBy.mockResolvedValue(accepted);
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'delete', anchorText: OVERLAP, basis: 'b' }],
+        }, principal)).rejects.toThrow(/overlap/i);
+      });
+
+      it('allows a replace overlapping a rejected edit', async () => {
+        const prod = await seedRedline();
+        const withA = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: 'b' }],
+        }, principal);
+        const editA = rl(withA).edits[0];
+        mockProductionRepo.findOneBy.mockResolvedValue(withA);
+        const rejected = await service.update(prod.id, {
+          ops: [{ op: 'redline_update_edit', editId: editA.id, status: 'rejected' }],
+        }, principal);
+        mockProductionRepo.findOneBy.mockResolvedValue(rejected);
+        const withB = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: OVERLAP, newText: 'y', basis: 'b' }],
+        }, principal);
+        expect(rl(withB).edits).toHaveLength(2);
+      });
+
+      it('allows an insert_after overlapping a proposed edit (insert_after never conflicts as adder)', async () => {
+        const prod = await seedRedline();
+        const withA = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: 'b' }],
+        }, principal);
+        mockProductionRepo.findOneBy.mockResolvedValue(withA);
+        const withB = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'insert_after', anchorText: OVERLAP, newText: ' (added)', basis: 'b' }],
+        }, principal);
+        expect(rl(withB).edits).toHaveLength(2);
+      });
+
+      it('allows a replace overlapping an existing insert_after (insert_after is not an obstacle)', async () => {
+        const prod = await seedRedline();
+        const withA = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'insert_after', anchorText: UNIQUE, newText: ' (added)', basis: 'b' }],
+        }, principal);
+        mockProductionRepo.findOneBy.mockResolvedValue(withA);
+        const withB = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: OVERLAP, newText: 'y', basis: 'b' }],
+        }, principal);
+        expect(rl(withB).edits).toHaveLength(2);
+      });
+    });
+
+    // ── redline_update_edit ───────────────────────────────────────────────
+    describe('redline_update_edit', () => {
+      async function seedWithEdit(): Promise<{ prodId: string; editId: string }> {
+        const prod = await seedRedline();
+        const withA = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: 'b' }],
+        }, principal);
+        mockProductionRepo.findOneBy.mockResolvedValue(withA);
+        return { prodId: prod.id, editId: rl(withA).edits[0].id };
+      }
+
+      it('walks status proposed → accepted → rejected → proposed', async () => {
+        const { prodId, editId } = await seedWithEdit();
+        for (const status of ['accepted', 'rejected', 'proposed'] as const) {
+          const out = await service.update(prodId, {
+            ops: [{ op: 'redline_update_edit', editId, status }],
+          }, principal);
+          expect(rl(out).edits[0].status).toBe(status);
+          mockProductionRepo.findOneBy.mockResolvedValue(out);
+        }
+      });
+
+      it('patches newText, basis, and comment', async () => {
+        const { prodId, editId } = await seedWithEdit();
+        const out = await service.update(prodId, {
+          ops: [{ op: 'redline_update_edit', editId, newText: 'revised', basis: 'better reason', comment: 'note' }],
+        }, principal);
+        const e = rl(out).edits[0];
+        expect(e.newText).toBe('revised');
+        expect(e.basis).toBe('better reason');
+        expect(e.comment).toBe('note');
+        // anchor & kind unchanged
+        expect(e.anchor.text).toBe(UNIQUE);
+        expect(e.kind).toBe('replace');
+      });
+
+      it('rejects an invalid status', async () => {
+        const { prodId, editId } = await seedWithEdit();
+        await expect(service.update(prodId, {
+          ops: [{ op: 'redline_update_edit', editId, status: 'maybe' }],
+        }, principal)).rejects.toThrow(/status/);
+      });
+
+      it('rejects an unknown editId', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_update_edit', editId: 'nope', status: 'accepted' }],
+        }, principal)).rejects.toThrow(/unknown edit/i);
+      });
+
+      it('rejects an attempt to change the anchor', async () => {
+        const { prodId, editId } = await seedWithEdit();
+        await expect(service.update(prodId, {
+          ops: [{ op: 'redline_update_edit', editId, anchorText: 'something else here' }],
+        }, principal)).rejects.toThrow(BadRequestException);
+      });
+
+      it('rejects an attempt to change the kind', async () => {
+        const { prodId, editId } = await seedWithEdit();
+        await expect(service.update(prodId, {
+          ops: [{ op: 'redline_update_edit', editId, kind: 'delete' }],
+        }, principal)).rejects.toThrow(BadRequestException);
+      });
+
+      it('rejects an empty/whitespace basis on update', async () => {
+        const { prodId, editId } = await seedWithEdit();
+        await expect(service.update(prodId, {
+          ops: [{ op: 'redline_update_edit', editId, basis: '   ' }],
+        }, principal)).rejects.toThrow(/basis/);
+      });
+
+      it('rejects an attempt to set a literal `anchor` key', async () => {
+        const { prodId, editId } = await seedWithEdit();
+        await expect(service.update(prodId, {
+          ops: [{ op: 'redline_update_edit', editId, anchor: { text: 'x', start: 0, end: 1 } }],
+        }, principal)).rejects.toThrow(/immutable/);
+      });
+    });
+
+    // ── redline_remove_edit ───────────────────────────────────────────────
+    describe('redline_remove_edit', () => {
+      it('removes the edit by id', async () => {
+        const prod = await seedRedline();
+        const withA = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: 'b' }],
+        }, principal);
+        const editId = rl(withA).edits[0].id;
+        mockProductionRepo.findOneBy.mockResolvedValue(withA);
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'redline_remove_edit', editId }],
+        }, principal);
+        expect(rl(out).edits).toHaveLength(0);
+      });
+
+      it('rejects an unknown editId', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_remove_edit', editId: 'nope' }],
+        }, principal)).rejects.toThrow(/unknown edit/i);
+      });
+    });
+
+    // ── redline comment ops ───────────────────────────────────────────────
+    describe('redline comment ops', () => {
+      it('appends a comment with a server UUID', async () => {
+        const prod = await seedRedline();
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_comment', title: 'Cover note', text: 'Overall this is fine.' }],
+        }, principal);
+        const comments = rl(out).comments;
+        expect(comments).toHaveLength(1);
+        expect(comments[0].id).toMatch(/^[0-9a-f-]{36}$/);
+        expect(comments[0].title).toBe('Cover note');
+        expect(comments[0].text).toBe('Overall this is fine.');
+      });
+
+      it('patches title and text on an existing comment', async () => {
+        const prod = await seedRedline();
+        const withC = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_comment', title: 't', text: 'x' }],
+        }, principal);
+        const commentId = rl(withC).comments[0].id;
+        mockProductionRepo.findOneBy.mockResolvedValue(withC);
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'redline_update_comment', commentId, title: 'T2', text: 'y' }],
+        }, principal);
+        expect(rl(out).comments[0]).toMatchObject({ id: commentId, title: 'T2', text: 'y' });
+      });
+
+      it('rejects update on an unknown commentId', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_update_comment', commentId: 'nope', title: 'X' }],
+        }, principal)).rejects.toThrow(/unknown comment/i);
+      });
+
+      it('removes a comment by id', async () => {
+        const prod = await seedRedline();
+        const withC = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_comment', title: 't', text: 'x' }],
+        }, principal);
+        const commentId = rl(withC).comments[0].id;
+        mockProductionRepo.findOneBy.mockResolvedValue(withC);
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'redline_remove_comment', commentId }],
+        }, principal);
+        expect(rl(out).comments).toHaveLength(0);
+      });
+
+      it('rejects remove on an unknown commentId', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_remove_comment', commentId: 'nope' }],
+        }, principal)).rejects.toThrow(/unknown comment/i);
+      });
+    });
+
+    // ── prefix gate ───────────────────────────────────────────────────────
+    describe('prefix gate', () => {
+      it('rejects a redline op on a chronology production', async () => {
+        mockProductionRepo.findOneBy.mockResolvedValue(
+          makeProduction({ type: ProductionType.CHRONOLOGY, data: { entries: [] } }),
+        );
+        mockProductionRepo.save.mockImplementation((p: ProductionEntity) => Promise.resolve({ ...p }));
+        await expect(service.update('prod-1', {
+          ops: [{ op: 'redline_add_edit', kind: 'replace', anchorText: UNIQUE, newText: 'x', basis: 'b' }],
+        }, principal)).rejects.toThrow(/not "redline"/);
+      });
+
+      it('rejects a redline op on a declaration production', async () => {
+        mockProductionRepo.findOneBy.mockResolvedValue(
+          makeProduction({ type: ProductionType.DECLARATION, data: seedDeclarationData({}) as unknown as Record<string, unknown> }),
+        );
+        mockProductionRepo.save.mockImplementation((p: ProductionEntity) => Promise.resolve({ ...p }));
+        await expect(service.update('prod-1', {
+          ops: [{ op: 'redline_add_comment', title: 't', text: 'x' }],
+        }, principal)).rejects.toThrow(/not "redline"/);
+      });
+    });
+
+    // ── update() immutability guards ──────────────────────────────────────
+    describe('update() immutability guards', () => {
+      it('rejects a full data replacement on a redline production', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          data: { baseText: 'tampered' },
+        }, principal)).rejects.toThrow(/redline productions are ops-only/);
+      });
+
+      it('rejects changing a redline production to another type', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          type: ProductionType.REPORT,
+        }, principal)).rejects.toThrow(/redline/);
+      });
+
+      it('rejects changing a non-redline production to redline', async () => {
+        mockProductionRepo.findOneBy.mockResolvedValue(makeProduction()); // REPORT
+        await expect(service.update('prod-1', {
+          type: ProductionType.REDLINE,
+        }, principal)).rejects.toThrow(/redline/);
+      });
     });
   });
 });

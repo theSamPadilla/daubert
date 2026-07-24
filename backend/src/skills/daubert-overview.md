@@ -32,6 +32,7 @@ You operate inside one organization. Cases, investigations, and traces all belon
 | Tool | What it does |
 |------|-------------|
 | `get_case_data` | Get an aggregated case overview: investigations (with trace counts), productions (name + type), and the data-room file manifest |
+| `get_investigation` | Read investigation graph data (nodes/edges/groups/bundles). Summaries without `investigationId`; full slimmed graph with it. Optional `address`/`token` filters. Requires viewer access. |
 | `read_production` | Read the content of a production (report/chart/chronology/declaration/redline) |
 | `query_labeled_entities` | Search for wallet nodes with a given label across an investigation |
 | `get_skill` | Retrieve a skill document by name (workflow guidance for this agent) |
@@ -66,7 +67,7 @@ Supported chains: `ethereum`, `polygon`, `arbitrum`, `base`, `tron`.
 
 ## Canonical Workflow: Fetch → Import
 
-1. **Identify the target**: use `list_cases` / `get_case` / `list_investigations` to find the right investigation and trace id.
+1. **Identify the target**: use `list_cases` / `get_case` / `list_investigations` to find the right investigation and trace id. Once identified, `get_investigation` reads its actual graph (nodes/edges).
 2. **Fetch on-chain data**: call `blockchain_fetch_history` for the address(es) of interest. Results are pre-truncated to ~8 KB; use `page` and `limit` params to paginate if `truncated: true`.
 3. **Filter and transform client-side**: select the transactions you want (by token, direction, time range, counterparties). Convert amounts to human-readable form (÷ 10^decimals). Map fields to the `import_transactions` shape: `{ from, to, txHash, chain, timestamp, amount, token, blockNumber?, fromLabel?, toLabel? }`.
 4. **Import**: call `import_transactions` with the transformed records and the target `traceId`. The endpoint deduplicates by `{txHash}-{from}-{to}` — safe to call multiple times with overlapping data.

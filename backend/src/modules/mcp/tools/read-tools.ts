@@ -1,9 +1,14 @@
 /**
- * ReadToolsService — eight read-only MCP tools for the BYOA MCP session.
+ * ReadToolsService — nine read-only MCP tools for the BYOA MCP session.
  *
  *   - get_case_data           → aggregated case overview (investigations,
  *                               productions summary, data-room manifest).
  *   - read_production         → one or all productions under a case.
+ *   - get_investigation       → investigation graph data — summaries across
+ *                               every investigation without investigationId,
+ *                               or the full slimmed graph (nodes, edges,
+ *                               groups, bundles) for one, with optional
+ *                               address/token filters.
  *   - query_labeled_entities  → address lookup or filtered search across the
  *                               shared labeled-entity catalog (no case scope).
  *   - get_skill               → read a skill document by name from the registry.
@@ -48,6 +53,7 @@ import { getSkillContent, SKILL_REGISTRY } from '../../../skills/skill-registry'
 import { extractFileForMcp } from '../../data-room/file-text';
 import { AuthSuccess } from '../mcp-auth.helper';
 import { errorResult, textResult } from './tool-utils';
+import { stripTraceForAgent, filterTraceData } from '../../ai/investigation-data.utils';
 
 const DATA_ROOM_MANIFEST_LIMIT = 25;
 const MCP_AGENT_READ_BYTES = 5 * 1024 * 1024;
@@ -177,6 +183,81 @@ export class ReadToolsService {
             type,
           );
           return textResult(results);
+        } catch (e) {
+          return errorResult(e);
+        }
+      },
+    );
+
+    // -----------------------------------------------------------------------
+    // get_investigation — investigation graph data.
+    //
+    // Without investigationId → summary of every investigation in the case
+    // (id, name, notes, per-trace node/edge counts).
+    // With investigationId → full graph per trace (nodes, edges denormalized
+    // with from/to addresses, groups, bundles), visual metadata stripped via
+    // stripTraceForAgent, optionally narrowed via filterTraceData. Mirrors
+    // AiService.executeInvestigationTool. Bypasses textResult's 8 KB cap —
+    // a slimmed graph routinely exceeds it.
+    // -----------------------------------------------------------------------
+    server.registerTool(
+      'get_investigation',
+      {
+        description:
+          "Read an investigation's graph. With only caseId: returns a summary of every investigation in the case (id, name, notes, and per-trace node/edge counts). With investigationId: returns the full graph per trace — nodes, edges (denormalized with from/to addresses), groups, and bundles, with visual metadata stripped. Optional address and token filters narrow to matching nodes/edges. Requires viewer access.",
+        inputSchema: {
+          caseId: z.string().uuid(),
+          investigationId: z.string().uuid().optional(),
+          address: z.string().optional(),
+          token: z.string().optional(),
+        },
+      },
+      async ({ caseId, investigationId, address, token }) => {
+        try {
+          await this.caseAccess.assertRole(principal, caseId, 'viewer');
+
+          if (!investigationId) {
+            const rows = await this.investigationRepo.find({
+              where: { caseId },
+              relations: ['traces'],
+              order: { createdAt: 'ASC' },
+            });
+            const summaries = rows.map((inv) => ({
+              id: inv.id,
+              name: inv.name,
+              notes: inv.notes,
+              traces: inv.traces.map((t) => ({
+                id: t.id,
+                name: t.name,
+                nodeCount: ((t.data as any)?.nodes?.length) || 0,
+                edgeCount: ((t.data as any)?.edges?.length) || 0,
+              })),
+            }));
+            return { content: [{ type: 'text' as const, text: JSON.stringify(summaries) }] };
+          }
+
+          const inv = await this.investigationRepo.findOne({
+            where: { id: investigationId, caseId },
+            relations: ['traces'],
+          });
+          if (!inv) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({ error: `Investigation ${investigationId} not found` }),
+                },
+              ],
+            };
+          }
+
+          const traces = inv.traces.map((t) => {
+            const stripped = stripTraceForAgent(t.data);
+            const filtered = filterTraceData(stripped, address, token);
+            return { id: t.id, name: t.name, ...filtered };
+          });
+          const result = { id: inv.id, name: inv.name, notes: inv.notes, traces };
+          return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
         } catch (e) {
           return errorResult(e);
         }

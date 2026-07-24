@@ -12,7 +12,11 @@ COPY tsconfig.json ./
 RUN npm ci --legacy-peer-deps
 
 COPY . .
-RUN npm run build
+# Give tsc/nest headroom on constrained build machines. The build itself only
+# needs ~1.8 GB now that specs are excluded (tsconfig.build.json), but the
+# default old-space ceiling (~2 GB) leaves no margin — raise it so growth in
+# the type-checked surface doesn't OOM the image build.
+RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build
 
 # ---------- Runtime stage ----------
 FROM node:22-slim AS runtime

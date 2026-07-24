@@ -118,6 +118,11 @@ export default function DataRoomPage() {
     null,
   );
 
+  // Drag-and-drop state. `dragDepth` counts enter/leave across nested children
+  // so the overlay doesn't flicker as the cursor crosses child boundaries.
+  const [isDragging, setIsDragging] = useState(false);
+  const dragDepth = useRef(0);
+
   // Google Drive import state
   const [importing, setImporting] = useState(false);
 
@@ -176,32 +181,81 @@ export default function DataRoomPage() {
     fileInputRef.current?.click();
   };
 
-  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    // Reset the input so selecting the same file again triggers another change.
-    if (e.target) e.target.value = '';
-    if (!file) return;
-
-    setError(null);
-    setUploadingName(file.name);
-    setUploadProgress({ loaded: 0, total: file.size });
-
-    try {
-      await apiClient.dataRoomUpload(
-        caseId,
-        file,
-        (loaded, total) => {
-          setUploadProgress({ loaded, total });
-        },
-        currentFolderId,
-      );
-      await fetchContents();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
-    } finally {
+  // Upload one or more files sequentially to the current folder, streaming
+  // per-file progress. A failure on one file is surfaced but does not abort the
+  // rest. Shared by the file picker, the "Upload file" button, and drag-and-drop.
+  const uploadFiles = useCallback(
+    async (fileList: File[]) => {
+      if (!canMutate || fileList.length === 0) return;
+      setError(null);
+      let failed = 0;
+      for (const file of fileList) {
+        setUploadingName(file.name);
+        setUploadProgress({ loaded: 0, total: file.size });
+        try {
+          await apiClient.dataRoomUpload(
+            caseId,
+            file,
+            (loaded, total) => setUploadProgress({ loaded, total }),
+            currentFolderId,
+          );
+        } catch (err) {
+          failed += 1;
+          setError(err instanceof Error ? err.message : `Upload failed for ${file.name}`);
+        }
+      }
       setUploadingName(null);
       setUploadProgress(null);
+      await fetchContents();
+      if (failed > 0 && fileList.length > 1) {
+        setError(`${failed} of ${fileList.length} file(s) failed to upload.`);
+      }
+    },
+    [canMutate, caseId, currentFolderId, fetchContents],
+  );
+
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files ?? []);
+    // Reset the input so selecting the same file again triggers another change.
+    if (e.target) e.target.value = '';
+    if (selected.length) await uploadFiles(selected);
+  };
+
+  // ----------------------------- Drag-and-drop -----------------------------
+  // The whole data-room surface is a dropzone: drag files anywhere over the
+  // content area to upload them into the current folder. Editors only.
+
+  const isFileDrag = (e: React.DragEvent) => e.dataTransfer?.types?.includes('Files');
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!canMutate || !isFileDrag(e)) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setIsDragging(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!canMutate || !isFileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!canMutate || !isFileDrag(e)) return;
+    dragDepth.current -= 1;
+    if (dragDepth.current <= 0) {
+      dragDepth.current = 0;
+      setIsDragging(false);
     }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!canMutate) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setIsDragging(false);
+    const dropped = Array.from(e.dataTransfer.files ?? []);
+    if (dropped.length) void uploadFiles(dropped);
   };
 
   const handleDownload = async (file: DataRoomFile) => {
@@ -358,7 +412,24 @@ export default function DataRoomPage() {
         title="Data Room"
         rightContent={<UserMenu />}
       />
-      <div className="flex-1 overflow-y-auto p-6">
+      <div
+        className="flex-1 overflow-y-auto p-6 relative"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drag-over overlay — covers the whole surface so files can be dropped
+            anywhere. pointer-events-none so the drop lands on the container. */}
+        {isDragging && canMutate && (
+          <div className="absolute inset-3 z-40 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-brand bg-brand/10 backdrop-blur-sm pointer-events-none">
+            <FaCloudArrowUp className="w-10 h-10 text-brand mb-3" />
+            <p className="text-ink text-sm font-medium">Drop files to upload</p>
+            <p className="text-ink-faint text-xs mt-1">
+              into {breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : 'Data Room'}
+            </p>
+          </div>
+        )}
         <div className="max-w-6xl mx-auto">
           {/* Error banner */}
           {error && (
@@ -415,6 +486,7 @@ export default function DataRoomPage() {
                   <input
                     ref={fileInputRef}
                     type="file"
+                    multiple
                     onChange={handleUploadFile}
                     className="hidden"
                   />
@@ -477,7 +549,7 @@ export default function DataRoomPage() {
                   <p className="text-ink text-sm font-medium">No files yet.</p>
                   {canMutate && (
                     <p className="text-ink-faint text-xs mt-1">
-                      Upload one to get started, or add files from Google Drive.
+                      Drag files anywhere here to upload, or add from Google Drive.
                     </p>
                   )}
                 </div>

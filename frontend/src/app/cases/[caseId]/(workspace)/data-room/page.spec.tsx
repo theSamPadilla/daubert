@@ -204,8 +204,42 @@ describe('DataRoomPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/Upload one to get started/)).toBeTruthy();
+      expect(screen.getByText(/Drag files anywhere here to upload/)).toBeTruthy();
     });
+  });
+
+  // Drag-and-drop: files dropped onto the surface upload to the current folder
+  it('uploads files dropped onto the surface for a mutator', async () => {
+    mockDataRoomUpload.mockResolvedValue(undefined);
+    mockViewerRole = 'editor';
+    const { container } = renderPage();
+    await waitFor(() => expect(mockDataRoomContents).toHaveBeenCalled());
+
+    const dropzone = container.querySelector('.overflow-y-auto') as HTMLElement;
+    const file = new File(['hello'], 'draft.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    fireEvent.drop(dropzone, { dataTransfer: { files: [file], types: ['Files'] } });
+
+    await waitFor(() => expect(mockDataRoomUpload).toHaveBeenCalledTimes(1));
+    // Second positional arg is the File; last is the target folder id (null at root).
+    expect(mockDataRoomUpload.mock.calls[0][1]).toBe(file);
+    expect(mockDataRoomUpload.mock.calls[0][3]).toBeNull();
+  });
+
+  // Viewers cannot upload — dropping is a no-op
+  it('does not upload on drop for viewers', async () => {
+    mockViewerRole = 'viewer';
+    const { container } = renderPage();
+    await waitFor(() => expect(mockDataRoomContents).toHaveBeenCalled());
+
+    const dropzone = container.querySelector('.overflow-y-auto') as HTMLElement;
+    const file = new File(['x'], 'x.txt', { type: 'text/plain' });
+    fireEvent.drop(dropzone, { dataTransfer: { files: [file], types: ['Files'] } });
+
+    // give any async handler a chance to (not) fire
+    await Promise.resolve();
+    expect(mockDataRoomUpload).not.toHaveBeenCalled();
   });
 
   // Google Drive import — editor sees button, clicks it, calls import + refreshes list

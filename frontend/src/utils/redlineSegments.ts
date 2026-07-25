@@ -18,6 +18,15 @@ export interface Segment {
 /** One rendered document paragraph: an ordered list of segments. */
 export type Paragraph = Segment[];
 
+/**
+ * How the document pane renders baseText:
+ *   - 'original' → the untouched draft, no marks.
+ *   - 'markup'   → inline redline marks (del/ins), respecting the status filter.
+ *   - 'final'    → the draft with ACCEPTED edits applied, no marks — i.e. the
+ *                  clean text as it would export.
+ */
+export type RedlineView = 'original' | 'markup' | 'final';
+
 interface ParaRange {
   /** Raw UTF-16 offset of this paragraph's first char in baseText. */
   start: number;
@@ -131,4 +140,48 @@ function buildParagraph(
 
   pushContext(para.text.slice(cursor));
   return segments;
+}
+
+/**
+ * Apply only the ACCEPTED edits to baseText and return the resulting plain
+ * text — the document as it would export. Proposed and rejected edits are left
+ * un-applied. Edits are walked in `anchor.start` order with a cursor; a span
+ * already consumed by an earlier accepted edit is skipped (overlap-safe, same
+ * clamping discipline as buildParagraph). Slicing only at backend offsets keeps
+ * it UTF-16-safe.
+ */
+export function applyAcceptedEdits(baseText: string, edits: RedlineEdit[]): string {
+  const accepted = edits
+    .filter((e) => e.status === 'accepted')
+    .sort((a, b) => a.anchor.start - b.anchor.start || a.anchor.end - b.anchor.end);
+
+  let out = '';
+  let cursor = 0;
+  for (const edit of accepted) {
+    const start = Math.max(edit.anchor.start, cursor);
+    const end = edit.anchor.end;
+    if (end <= cursor) continue; // fully consumed by an earlier accepted edit
+    if (start > cursor) out += baseText.slice(cursor, start);
+
+    if (edit.kind === 'insert_after') {
+      out += baseText.slice(start, end) + edit.newText; // anchor kept, then insertion
+    } else if (edit.kind === 'delete') {
+      // drop the anchor span entirely
+    } else {
+      out += edit.newText; // replace
+    }
+    cursor = Math.max(cursor, end);
+  }
+  out += baseText.slice(cursor);
+  return out;
+}
+
+/**
+ * Split plain text into renderable paragraphs of unmarked 'context' segments —
+ * used for the 'original' and 'final' views, which carry no redline marks.
+ */
+export function buildPlainParagraphs(text: string): Paragraph[] {
+  return text
+    .split('\n\n')
+    .map((part) => (part.length > 0 ? [{ text: part, role: 'context' as const }] : []));
 }

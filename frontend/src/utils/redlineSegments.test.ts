@@ -1,4 +1,4 @@
-import { buildRedlineSegments } from './redlineSegments';
+import { buildRedlineSegments, applyAcceptedEdits, buildPlainParagraphs } from './redlineSegments';
 import type { RedlineEdit, RedlineEditStatus } from './redlineSegments';
 
 // ── Fixture builder ──────────────────────────────────────────────────────────
@@ -148,5 +148,64 @@ describe('buildRedlineSegments', () => {
     expect(context?.text).toBe(' 😀 ');
     // the emoji code point survives intact
     expect(context?.text).toContain('😀');
+  });
+});
+
+describe('applyAcceptedEdits', () => {
+  it('applies an accepted replace, drops an accepted delete, keeps insert_after anchor', () => {
+    // "one two three four five." — replace [0,7), delete [8,13), insert_after [14,23)
+    const base = 'one two three four five.';
+    const edits = [
+      mkEdit('r', 'replace', 0, 7, 'one two', '1 2', 'accepted'),
+      mkEdit('d', 'delete', 8, 13, 'three', '', 'accepted'),
+      mkEdit('i', 'insert_after', 14, 23, 'four five', ' (added)', 'accepted'),
+    ];
+    // "one two"→"1 2"; " " stays; "three"→""; " " stays; "four five" kept + " (added)"; "." stays
+    expect(applyAcceptedEdits(base, edits)).toBe('1 2  four five (added).');
+  });
+
+  it('does NOT apply proposed or rejected edits', () => {
+    const base = 'The quick brown fox.';
+    const edits = [
+      mkEdit('p', 'replace', 4, 15, 'quick brown', 'swift red', 'proposed'),
+      mkEdit('x', 'delete', 4, 15, 'quick brown', '', 'rejected'),
+    ];
+    expect(applyAcceptedEdits(base, edits)).toBe(base);
+  });
+
+  it('applies only the accepted subset when statuses are mixed', () => {
+    const base = 'one two three four five.';
+    const edits = [
+      mkEdit('A', 'replace', 0, 7, 'one two', 'X', 'accepted'),
+      mkEdit('B', 'replace', 14, 23, 'four five', 'YY', 'proposed'),
+    ];
+    // A applied, B (proposed) left as original
+    expect(applyAcceptedEdits(base, edits)).toBe('X three four five.');
+  });
+
+  it('is a no-op when there are no accepted edits', () => {
+    const base = 'nothing changes here.';
+    const edits = [mkEdit('p', 'delete', 0, 7, 'nothing', '', 'proposed')];
+    expect(applyAcceptedEdits(base, edits)).toBe(base);
+  });
+});
+
+describe('buildPlainParagraphs', () => {
+  it('splits on blank lines into unmarked context segments', () => {
+    const paras = buildPlainParagraphs('First para.\n\nSecond para.');
+    expect(paras).toEqual([
+      [{ text: 'First para.', role: 'context' }],
+      [{ text: 'Second para.', role: 'context' }],
+    ]);
+  });
+
+  it('represents an empty paragraph as an empty segment list', () => {
+    // baseText with a doubled blank line yields an empty middle part
+    const paras = buildPlainParagraphs('A\n\n\n\nB');
+    expect(paras).toEqual([
+      [{ text: 'A', role: 'context' }],
+      [],
+      [{ text: 'B', role: 'context' }],
+    ]);
   });
 });

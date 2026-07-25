@@ -82,6 +82,7 @@ type Op =
   | { op: 'redline_remove_edit'; editId: string }
   | { op: 'redline_add_comment'; title: string; text: string }
   | { op: 'redline_update_comment'; commentId: string; title?: string; text?: string }
+  | { op: 'redline_dismiss_comment'; commentId: string; dismissed: boolean }
   | { op: 'redline_remove_comment'; commentId: string };
 
 const CHART_HEIGHT_MIN = 200;
@@ -170,7 +171,8 @@ export class ProductionsService {
     if (dto.data !== undefined) {
       production.data = dto.data;
     } else if (dto.ops !== undefined) {
-      production.data = applyOps(production.type, production.data ?? {}, dto.ops);
+      const actorUserId = 'userId' in principal ? principal.userId : 'system';
+      production.data = applyOps(production.type, production.data ?? {}, dto.ops, actorUserId);
     }
 
     return this.repo.save(production);
@@ -188,11 +190,12 @@ function applyOps(
   type: ProductionType,
   initial: Record<string, unknown>,
   rawOps: Record<string, unknown>[],
+  actorUserId: string,
 ): Record<string, unknown> {
   let data: Record<string, unknown> = { ...initial };
   rawOps.forEach((raw, i) => {
     const op = parseOp(raw, i);
-    data = applyOp(type, data, op, i);
+    data = applyOp(type, data, op, i, actorUserId);
   });
   return data;
 }
@@ -565,6 +568,15 @@ function parseOp(raw: Record<string, unknown>, i: number): Op {
       }
       return { op: 'redline_update_comment', commentId: raw.commentId, title: raw.title as string | undefined, text: raw.text as string | undefined };
     }
+    case 'redline_dismiss_comment': {
+      if (typeof raw.commentId !== 'string' || !raw.commentId.trim()) {
+        throw new BadRequestException(`ops[${i}] (redline_dismiss_comment): \`commentId\` must be a non-empty string`);
+      }
+      if (typeof raw.dismissed !== 'boolean') {
+        throw new BadRequestException(`ops[${i}] (redline_dismiss_comment): \`dismissed\` must be a boolean`);
+      }
+      return { op: 'redline_dismiss_comment', commentId: raw.commentId, dismissed: raw.dismissed };
+    }
     case 'redline_remove_comment': {
       if (typeof raw.commentId !== 'string' || !raw.commentId.trim()) {
         throw new BadRequestException(`ops[${i}] (redline_remove_comment): \`commentId\` must be a non-empty string`);
@@ -621,6 +633,7 @@ function applyOp(
   data: Record<string, unknown>,
   op: Op,
   i: number,
+  actorUserId: string,
 ): Record<string, unknown> {
   if (op.op.startsWith('chronology_') && type !== ProductionType.CHRONOLOGY) {
     throw new BadRequestException(`ops[${i}] (${op.op}): production is type "${type}", not "chronology"`);
@@ -917,6 +930,24 @@ function applyOp(
       const next = { ...comments[idx] };
       if (op.title !== undefined) next.title = op.title;
       if (op.text !== undefined) next.text = op.text;
+      const nextComments = [...comments];
+      nextComments[idx] = next;
+      return { ...data, comments: nextComments };
+    }
+    case 'redline_dismiss_comment': {
+      const comments = redlineComments(data);
+      const idx = comments.findIndex((c) => c.id === op.commentId);
+      if (idx < 0) throw new BadRequestException(`ops[${i}] (redline_dismiss_comment): unknown comment "${op.commentId}"`);
+      // Dismissal is acknowledgment, not deletion: stamp who/when (server clock),
+      // or clear both to restore. The comment itself is retained for the record.
+      const next = { ...comments[idx] };
+      if (op.dismissed) {
+        next.dismissedAt = new Date().toISOString();
+        next.dismissedBy = actorUserId;
+      } else {
+        next.dismissedAt = null;
+        next.dismissedBy = null;
+      }
       const nextComments = [...comments];
       nextComments[idx] = next;
       return { ...data, comments: nextComments };

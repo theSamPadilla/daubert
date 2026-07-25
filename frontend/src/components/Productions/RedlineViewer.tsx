@@ -217,6 +217,12 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
           onRemove={(commentId) =>
             applyOps([{ op: 'redline_remove_comment', commentId }], 'Failed to remove the note. Try again.')
           }
+          onDismiss={(commentId, dismissed) =>
+            applyOps(
+              [{ op: 'redline_dismiss_comment', commentId, dismissed }],
+              dismissed ? 'Failed to dismiss the item. Try again.' : 'Failed to restore the item. Try again.',
+            )
+          }
         />
       </div>
 
@@ -410,14 +416,29 @@ interface OpenItemsProps {
   onAdd: (title: string, text: string) => void;
   onUpdate: (commentId: string, title: string, text: string) => void;
   onRemove: (commentId: string) => void;
+  onDismiss: (commentId: string, dismissed: boolean) => void;
 }
 
-function OpenItems({ comments, open, editable, onToggle, onAdd, onUpdate, onRemove }: OpenItemsProps) {
+function OpenItems({
+  comments,
+  open,
+  editable,
+  onToggle,
+  onAdd,
+  onUpdate,
+  onRemove,
+  onDismiss,
+}: OpenItemsProps) {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [dismissedOpen, setDismissedOpen] = useState(false);
 
   // Nothing to show and nothing to add → don't render the panel at all.
   if (comments.length === 0 && !editable) return null;
+
+  // Dismissing acknowledges an item (kept for the record) rather than deleting it.
+  const openItems = comments.filter((c) => !c.dismissedAt);
+  const dismissedItems = comments.filter((c) => c.dismissedAt);
 
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50/40">
@@ -428,7 +449,7 @@ function OpenItems({ comments, open, editable, onToggle, onAdd, onUpdate, onRemo
         {open ? <FaChevronDown className="w-3 h-3" /> : <FaChevronRight className="w-3 h-3" />}
         <FaFlag className="w-3 h-3 text-amber-600" />
         Open items for attorney
-        <span className="font-normal text-amber-700/70">({comments.length})</span>
+        <span className="font-normal text-amber-700/70">({openItems.length})</span>
       </button>
 
       {open && (
@@ -437,13 +458,15 @@ function OpenItems({ comments, open, editable, onToggle, onAdd, onUpdate, onRemo
             Not proposed edits — risk flags and open questions to resolve before filing.
           </p>
 
-          {comments.length === 0 && !adding && (
-            <p className="text-xs text-ink-muted">No open items.</p>
+          {openItems.length === 0 && !adding && (
+            <p className="text-xs text-ink-muted">
+              {dismissedItems.length > 0 ? 'All open items dismissed.' : 'No open items.'}
+            </p>
           )}
 
           {/* Bounded so a long list scrolls internally instead of crowding the document. */}
           <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-0.5">
-            {comments.map((c) =>
+            {openItems.map((c) =>
               editingId === c.id ? (
                 <NoteForm
                   key={c.id}
@@ -464,10 +487,17 @@ function OpenItems({ comments, open, editable, onToggle, onAdd, onUpdate, onRemo
                     </div>
                     {editable && (
                       <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          onClick={() => onDismiss(c.id, true)}
+                          title="Dismiss — mark acknowledged (kept under Dismissed)"
+                          className="inline-flex items-center gap-1 rounded px-1.5 h-7 text-xs font-medium text-accent hover:bg-accent/10 transition-colors"
+                        >
+                          <FaCheck className="w-3 h-3" /> Dismiss
+                        </button>
                         <IconButton aria-label="Edit open item" className="h-7 w-7" onClick={() => setEditingId(c.id)}>
                           <FaPenToSquare className="w-3 h-3" />
                         </IconButton>
-                        <IconButton aria-label="Remove open item" className="h-7 w-7" onClick={() => onRemove(c.id)}>
+                        <IconButton aria-label="Delete open item" className="h-7 w-7" onClick={() => onRemove(c.id)}>
                           <FaTrash className="w-3 h-3" />
                         </IconButton>
                       </div>
@@ -496,6 +526,49 @@ function OpenItems({ comments, open, editable, onToggle, onAdd, onUpdate, onRemo
                 <FaPlus className="w-3 h-3" /> Add item
               </button>
             ))}
+
+          {/* Dismissed (acknowledged) items — kept for the record, collapsible. */}
+          {dismissedItems.length > 0 && (
+            <div className="mt-1 border-t border-amber-200/70 pt-2">
+              <button
+                onClick={() => setDismissedOpen((v) => !v)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-ink transition-colors"
+              >
+                {dismissedOpen ? <FaChevronDown className="w-3 h-3" /> : <FaChevronRight className="w-3 h-3" />}
+                Dismissed <span className="text-ink-faint">({dismissedItems.length})</span>
+              </button>
+
+              {dismissedOpen && (
+                <div className="flex flex-col gap-2 mt-2 max-h-56 overflow-y-auto pr-0.5">
+                  {dismissedItems.map((c) => (
+                    <div key={c.id} className="rounded-md border border-line bg-surface-panel px-3 py-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-1.5 min-w-0">
+                          <FaCheck className="w-3 h-3 mt-0.5 shrink-0 text-accent" />
+                          <div className="text-sm font-medium text-ink-muted line-through">{c.title}</div>
+                        </div>
+                        {editable && (
+                          <button
+                            onClick={() => onDismiss(c.id, false)}
+                            title="Restore to open items"
+                            className="inline-flex items-center gap-1 rounded px-1.5 h-7 text-xs font-medium text-ink-muted hover:text-ink hover:bg-surface-raised transition-colors shrink-0"
+                          >
+                            <FaArrowRotateLeft className="w-3 h-3" /> Restore
+                          </button>
+                        )}
+                      </div>
+                      <div className="text-xs text-ink-faint mt-0.5 pl-[18px] whitespace-pre-wrap">{c.text}</div>
+                      {c.dismissedAt && (
+                        <div className="text-[10px] text-ink-faint mt-1 pl-[18px]">
+                          Dismissed {new Date(c.dismissedAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

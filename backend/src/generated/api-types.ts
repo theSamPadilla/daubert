@@ -1997,11 +1997,15 @@ export interface components {
             /** @enum {string} */
             origin: "agent" | "user";
         };
-        /** @description Document-level cover note. */
+        /** @description Document-level cover note ("open item"). May be dismissed (acknowledged) rather than deleted. */
         RedlineComment: {
             id: string;
             title: string;
             text: string;
+            /** @description ISO timestamp when the item was acknowledged/dismissed. Absent or null means open. */
+            dismissedAt?: string | null;
+            /** @description userId that dismissed the item ('system' if no user context). */
+            dismissedBy?: string | null;
         };
         RedlineData: {
             /** @enum {integer} */

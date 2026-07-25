@@ -70,6 +70,16 @@
 }
 
 @layer utilities {
+  /* Hide the scrollbar while keeping the element scrollable. Scrollability is
+     implied by content overflow + panel styling rather than a visible bar. */
+  .no-scrollbar {
+    scrollbar-width: none;        /* Firefox */
+    -ms-overflow-style: none;     /* legacy Edge */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;                /* Chromium / Safari */
+  }
+
   /* Light-mode grid: dark dots + dark lines on white surface */
   .bg-grid-faint {
     background-image:

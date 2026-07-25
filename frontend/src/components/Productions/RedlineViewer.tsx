@@ -12,10 +12,20 @@ import {
   FaTrash,
   FaChevronDown,
   FaChevronRight,
+  FaChevronLeft,
+  FaFlag,
 } from 'react-icons/fa6';
 import { apiClient, type Production } from '@/lib/api-client';
 import { Badge, Button, Field, IconButton, Input, Modal, Textarea } from '@/components/ui';
-import { buildRedlineSegments, type Paragraph, type RedlineEdit, type RedlineEditStatus } from '@/utils/redlineSegments';
+import {
+  buildRedlineSegments,
+  applyAcceptedEdits,
+  buildPlainParagraphs,
+  type Paragraph,
+  type RedlineEdit,
+  type RedlineEditStatus,
+  type RedlineView,
+} from '@/utils/redlineSegments';
 import type { components } from '@/generated/api-types';
 
 type RedlineData = components['schemas']['RedlineData'];
@@ -28,6 +38,12 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'proposed', label: 'Proposed' },
   { key: 'accepted', label: 'Accepted' },
   { key: 'rejected', label: 'Rejected' },
+];
+
+const VIEWS: { key: RedlineView; label: string }[] = [
+  { key: 'original', label: 'Original' },
+  { key: 'markup', label: 'Markup' },
+  { key: 'final', label: 'Final' },
 ];
 
 const KIND_LABEL: Record<RedlineEdit['kind'], string> = {
@@ -65,12 +81,38 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
   const editable = !!onUpdate;
 
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [view, setView] = useState<RedlineView>('markup');
   const [selectedEditId, setSelectedEditId] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [modifyEdit, setModifyEdit] = useState<RedlineEdit | null>(null);
   const [notesOpen, setNotesOpen] = useState((data.comments ?? []).length > 0);
+  const [railWidth, setRailWidth] = useState(400);
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Drag the divider to resize the edits rail. The rail is on the right, so
+  // dragging left (decreasing clientX) widens it. Bounded [280, 760].
+  const startRailResize = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = railWidth;
+      const onMove = (ev: MouseEvent) => {
+        const next = Math.min(760, Math.max(280, startWidth + (startX - ev.clientX)));
+        setRailWidth(next);
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        document.body.style.userSelect = '';
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      document.body.style.userSelect = 'none';
+    },
+    [railWidth],
+  );
 
   const edits = data.edits ?? [];
   const comments = data.comments ?? [];
@@ -86,10 +128,12 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
     [filter],
   );
 
-  const paragraphs: Paragraph[] = useMemo(
-    () => buildRedlineSegments(data.baseText ?? '', edits, filterSet),
-    [data.baseText, edits, filterSet],
-  );
+  const paragraphs: Paragraph[] = useMemo(() => {
+    const baseText = data.baseText ?? '';
+    if (view === 'original') return buildPlainParagraphs(baseText);
+    if (view === 'final') return buildPlainParagraphs(applyAcceptedEdits(baseText, edits));
+    return buildRedlineSegments(baseText, edits, filterSet);
+  }, [view, data.baseText, edits, filterSet]);
 
   const applyOps = useCallback(
     async (ops: Record<string, unknown>[], failMessage: string) => {
@@ -170,7 +214,7 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
           </div>
         )}
 
-        <ReviewerNotes
+        <OpenItems
           comments={comments}
           open={notesOpen}
           editable={editable}
@@ -190,64 +234,140 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
         />
       </div>
 
-      {/* Two panes: marked-up document + card rail */}
-      <div className="flex-1 min-h-0 flex gap-4">
+      {/* Two panes: marked-up document + resizable/collapsible edits rail */}
+      <div className="flex-1 min-h-0 flex">
         {/* Document pane */}
-        <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-line bg-surface-panel p-6">
-          {paragraphs.map((segments, pi) => (
-            <p key={pi} className="mb-3 text-[15px] leading-relaxed text-ink whitespace-pre-wrap break-words">
-              {segments.map((seg, si) => {
-                if (seg.role === 'context') return <span key={si}>{seg.text}</span>;
-                const decoration = seg.role === 'del' ? 'line-through' : 'underline';
-                const statusCls =
-                  seg.status === 'proposed'
-                    ? 'border border-dashed border-redline rounded-sm px-0.5'
-                    : seg.status === 'rejected'
-                      ? 'opacity-50'
-                      : '';
-                const selectedCls =
-                  seg.editId === selectedEditId ? 'ring-2 ring-brand/40 rounded-sm bg-brand/5' : '';
-                return (
-                  <span
-                    key={si}
-                    data-edit-id={seg.editId}
-                    onClick={() => seg.editId && selectFromMark(seg.editId)}
-                    className={`text-redline cursor-pointer ${decoration} ${statusCls} ${selectedCls}`}
-                  >
-                    {seg.text}
-                  </span>
-                );
-              })}
-            </p>
-          ))}
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-lg border border-line bg-surface-panel">
+          {/* View toggle: Original / Markup / Final — governs how the document reads */}
+          <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-line">
+            <span className="text-[10px] uppercase tracking-wider text-ink-faint">View</span>
+            <div className="flex items-center h-7 bg-surface border border-line rounded-md overflow-hidden text-xs font-medium">
+              {VIEWS.map((v, i) => (
+                <button
+                  key={v.key}
+                  onClick={() => setView(v.key)}
+                  className={`px-2.5 h-full flex items-center transition-colors ${i > 0 ? 'border-l border-line' : ''} ${
+                    view === v.key
+                      ? 'bg-brand/10 text-brand'
+                      : 'text-ink-muted hover:text-ink hover:bg-surface-raised'
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+            <span className="ml-auto text-[11px] text-ink-faint truncate">
+              {view === 'markup' && (
+                <span className="inline-flex items-center gap-2">
+                  <span className="text-redline line-through">deletion</span>
+                  <span className="text-brand underline">insertion</span>
+                </span>
+              )}
+              {view === 'final' &&
+                `Reads as it will export — ${counts.accepted} accepted edit${counts.accepted === 1 ? '' : 's'} applied`}
+              {view === 'original' && 'The untouched draft'}
+            </span>
+          </div>
+
+          {/* Scrollable document body — scrollbar hidden, overflow implies scroll */}
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-6">
+            {paragraphs.map((segments, pi) => (
+              <p key={pi} className="mb-3 text-[15px] leading-relaxed text-ink whitespace-pre-wrap break-words">
+                {segments.map((seg, si) => {
+                  if (seg.role === 'context') return <span key={si}>{seg.text}</span>;
+                  const isDel = seg.role === 'del';
+                  const roleCls = isDel ? 'text-redline line-through' : 'text-brand underline';
+                  const proposedBorder = isDel ? 'border-redline' : 'border-brand';
+                  const statusCls =
+                    seg.status === 'proposed'
+                      ? `border border-dashed ${proposedBorder} rounded-sm px-0.5`
+                      : seg.status === 'rejected'
+                        ? 'opacity-50'
+                        : '';
+                  const selectedCls =
+                    seg.editId === selectedEditId ? 'ring-2 ring-brand/40 rounded-sm bg-brand/5' : '';
+                  return (
+                    <span
+                      key={si}
+                      data-edit-id={seg.editId}
+                      onClick={() => seg.editId && selectFromMark(seg.editId)}
+                      className={`cursor-pointer ${roleCls} ${statusCls} ${selectedCls}`}
+                    >
+                      {seg.text}
+                    </span>
+                  );
+                })}
+              </p>
+            ))}
+          </div>
         </div>
 
-        {/* Card rail */}
-        <div className="w-[400px] shrink-0 min-h-0 overflow-y-auto flex flex-col gap-2.5 pr-0.5">
-          {orderedEdits.length === 0 ? (
-            <div className="text-sm text-ink-muted px-1 py-6 text-center">
-              No proposed edits yet.
+        {railCollapsed ? (
+          /* Collapsed: a slim strip to bring the edits rail back. */
+          <button
+            onClick={() => setRailCollapsed(false)}
+            title="Show edits"
+            className="ml-3 shrink-0 w-8 rounded-lg border border-line bg-surface-raised flex flex-col items-center justify-center gap-2 text-ink-muted hover:text-ink hover:border-line-strong transition-colors"
+          >
+            <FaChevronLeft className="w-3 h-3" />
+            <span className="text-[10px] font-medium tracking-wide [writing-mode:vertical-rl] rotate-180">
+              Edits ({orderedEdits.length})
+            </span>
+          </button>
+        ) : (
+          <>
+            {/* Drag handle — resize the edits rail. */}
+            <div
+              onMouseDown={startRailResize}
+              title="Drag to resize"
+              className="group mx-1.5 shrink-0 w-1.5 cursor-col-resize flex items-center justify-center"
+            >
+              <div className="h-10 w-1 rounded-full bg-line-strong group-hover:bg-brand transition-colors" />
             </div>
-          ) : (
-            orderedEdits.map((edit) => (
-              <RedlineCard
-                key={edit.id}
-                edit={edit}
-                selected={edit.id === selectedEditId}
-                editable={editable}
-                registerRef={(el) => {
-                  if (el) cardRefs.current.set(edit.id, el);
-                  else cardRefs.current.delete(edit.id);
-                }}
-                onSelect={() => setSelectedEditId(edit.id)}
-                onAccept={() => setStatus(edit.id, 'accepted')}
-                onReject={() => setStatus(edit.id, 'rejected')}
-                onUndo={() => setStatus(edit.id, 'proposed')}
-                onModify={() => setModifyEdit(edit)}
-              />
-            ))
-          )}
-        </div>
+
+            {/* Edits rail */}
+            <div
+              style={{ width: railWidth }}
+              className="shrink-0 min-h-0 flex flex-col rounded-lg border border-line bg-surface-raised"
+            >
+              <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-line">
+                <span className="text-[10px] uppercase tracking-wider text-ink-faint">
+                  Edits ({orderedEdits.length})
+                </span>
+                <IconButton aria-label="Collapse edits" className="h-6 w-6" onClick={() => setRailCollapsed(true)}>
+                  <FaChevronRight className="w-3 h-3" />
+                </IconButton>
+              </div>
+
+              {/* Scrollable card list — scrollbar hidden, overflow implies scroll */}
+              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col gap-2.5 p-2.5">
+                {orderedEdits.length === 0 ? (
+                  <div className="text-sm text-ink-muted px-1 py-6 text-center">
+                    No proposed edits yet.
+                  </div>
+                ) : (
+                  orderedEdits.map((edit) => (
+                    <RedlineCard
+                      key={edit.id}
+                      edit={edit}
+                      selected={edit.id === selectedEditId}
+                      editable={editable}
+                      registerRef={(el) => {
+                        if (el) cardRefs.current.set(edit.id, el);
+                        else cardRefs.current.delete(edit.id);
+                      }}
+                      onSelect={() => setSelectedEditId(edit.id)}
+                      onAccept={() => setStatus(edit.id, 'accepted')}
+                      onReject={() => setStatus(edit.id, 'rejected')}
+                      onUndo={() => setStatus(edit.id, 'proposed')}
+                      onModify={() => setModifyEdit(edit)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {modifyEdit && (
@@ -257,9 +377,14 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
   );
 }
 
-// ── Reviewer notes ───────────────────────────────────────────────────────────
+// ── Open items ───────────────────────────────────────────────────────────────
+// Document-level cover notes (RedlineComment): risk flags, open questions, and
+// attorney action items the agent could NOT auto-fix. They are deliberately not
+// tied to a text span — see the redlining skill, step 5. Framed distinctly from
+// the proposed edits so their purpose ("resolve before filing") is legible, and
+// height-bounded so a long list can't starve the document pane below.
 
-interface ReviewerNotesProps {
+interface OpenItemsProps {
   comments: RedlineComment[];
   open: boolean;
   editable: boolean;
@@ -269,58 +394,72 @@ interface ReviewerNotesProps {
   onRemove: (commentId: string) => void;
 }
 
-function ReviewerNotes({ comments, open, editable, onToggle, onAdd, onUpdate, onRemove }: ReviewerNotesProps) {
+function OpenItems({ comments, open, editable, onToggle, onAdd, onUpdate, onRemove }: OpenItemsProps) {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Nothing to show and nothing to add → don't render the panel at all.
+  if (comments.length === 0 && !editable) return null;
+
   return (
-    <div className="rounded-lg border border-line bg-surface">
+    <div className="rounded-lg border border-amber-200 bg-amber-50/40">
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-ink-soft hover:text-ink transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-800 hover:text-amber-900 transition-colors"
       >
         {open ? <FaChevronDown className="w-3 h-3" /> : <FaChevronRight className="w-3 h-3" />}
-        Reviewer notes
-        <span className="text-ink-faint">({comments.length})</span>
+        <FaFlag className="w-3 h-3 text-amber-600" />
+        Open items for attorney
+        <span className="font-normal text-amber-700/70">({comments.length})</span>
       </button>
 
       {open && (
         <div className="px-3 pb-3 flex flex-col gap-2">
+          <p className="text-[11px] text-amber-700/90 -mt-1">
+            Not proposed edits — risk flags and open questions to resolve before filing.
+          </p>
+
           {comments.length === 0 && !adding && (
-            <p className="text-xs text-ink-muted">No reviewer notes.</p>
+            <p className="text-xs text-ink-muted">No open items.</p>
           )}
 
-          {comments.map((c) =>
-            editingId === c.id ? (
-              <NoteForm
-                key={c.id}
-                initialTitle={c.title}
-                initialText={c.text}
-                onCancel={() => setEditingId(null)}
-                onSave={(title, text) => {
-                  onUpdate(c.id, title, text);
-                  setEditingId(null);
-                }}
-              />
-            ) : (
-              <div key={c.id} className="rounded-md border border-line bg-surface-panel px-3 py-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="text-sm font-medium text-ink">{c.title}</div>
-                  {editable && (
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <IconButton aria-label="Edit note" className="h-7 w-7" onClick={() => setEditingId(c.id)}>
-                        <FaPenToSquare className="w-3 h-3" />
-                      </IconButton>
-                      <IconButton aria-label="Remove note" className="h-7 w-7" onClick={() => onRemove(c.id)}>
-                        <FaTrash className="w-3 h-3" />
-                      </IconButton>
+          {/* Bounded so a long list scrolls internally instead of crowding the document. */}
+          <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-0.5">
+            {comments.map((c) =>
+              editingId === c.id ? (
+                <NoteForm
+                  key={c.id}
+                  initialTitle={c.title}
+                  initialText={c.text}
+                  onCancel={() => setEditingId(null)}
+                  onSave={(title, text) => {
+                    onUpdate(c.id, title, text);
+                    setEditingId(null);
+                  }}
+                />
+              ) : (
+                <div key={c.id} className="rounded-md border border-amber-200 bg-surface px-3 py-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-1.5 min-w-0">
+                      <FaTriangleExclamation className="w-3 h-3 mt-0.5 shrink-0 text-amber-500" />
+                      <div className="text-sm font-medium text-ink">{c.title}</div>
                     </div>
-                  )}
+                    {editable && (
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <IconButton aria-label="Edit open item" className="h-7 w-7" onClick={() => setEditingId(c.id)}>
+                          <FaPenToSquare className="w-3 h-3" />
+                        </IconButton>
+                        <IconButton aria-label="Remove open item" className="h-7 w-7" onClick={() => onRemove(c.id)}>
+                          <FaTrash className="w-3 h-3" />
+                        </IconButton>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-sm text-ink-muted mt-0.5 pl-[18px] whitespace-pre-wrap">{c.text}</div>
                 </div>
-                <div className="text-sm text-ink-muted mt-0.5 whitespace-pre-wrap">{c.text}</div>
-              </div>
-            ),
-          )}
+              ),
+            )}
+          </div>
 
           {editable &&
             (adding ? (
@@ -334,9 +473,9 @@ function ReviewerNotes({ comments, open, editable, onToggle, onAdd, onUpdate, on
             ) : (
               <button
                 onClick={() => setAdding(true)}
-                className="self-start inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:text-brand-strong transition-colors"
+                className="self-start inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 hover:text-amber-900 transition-colors"
               >
-                <FaPlus className="w-3 h-3" /> Add note
+                <FaPlus className="w-3 h-3" /> Add item
               </button>
             ))}
         </div>

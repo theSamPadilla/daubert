@@ -33,11 +33,12 @@ type RedlineComment = components['schemas']['RedlineComment'];
 
 type FilterKey = 'all' | RedlineEditStatus;
 
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'proposed', label: 'Proposed' },
-  { key: 'accepted', label: 'Accepted' },
-  { key: 'rejected', label: 'Rejected' },
+// Status chips that double as filters, shown in the Edits rail header. No "All"
+// chip — clicking the active chip clears the filter back to showing everything.
+const STATUS_FILTERS: { key: RedlineEditStatus; label: string }[] = [
+  { key: 'proposed', label: 'proposed' },
+  { key: 'accepted', label: 'accepted' },
+  { key: 'rejected', label: 'rejected' },
 ];
 
 const VIEWS: { key: RedlineView; label: string }[] = [
@@ -123,6 +124,13 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
     [edits],
   );
 
+  // The status filter scopes the card rail (and, in markup view, the inline
+  // marks) to one status. 'all' = no filter (default).
+  const visibleEdits = useMemo(
+    () => (filter === 'all' ? orderedEdits : orderedEdits.filter((e) => e.status === filter)),
+    [orderedEdits, filter],
+  );
+
   const filterSet: Set<RedlineEditStatus> | 'all' = useMemo(
     () => (filter === 'all' ? 'all' : new Set<RedlineEditStatus>([filter])),
     [filter],
@@ -176,31 +184,9 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
 
   return (
     <div className="h-full flex flex-col gap-3 min-h-0">
-      {/* Header: counts, filter, reviewer notes */}
+      {/* Header: PDF notice, errors, open items. Status counts/filter now live
+          in the Edits rail header (below), not at the top of the page. */}
       <div className="shrink-0 flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            <Badge tone={STATUS_TONE.proposed}>{counts.proposed} proposed</Badge>
-            <Badge tone={STATUS_TONE.accepted}>{counts.accepted} accepted</Badge>
-            <Badge tone={STATUS_TONE.rejected}>{counts.rejected} rejected</Badge>
-          </div>
-          <div className="flex items-center h-8 bg-surface border border-line rounded-md overflow-hidden text-xs font-medium">
-            {FILTERS.map((f, i) => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`px-3 h-full flex items-center transition-colors ${i > 0 ? 'border-l border-line' : ''} ${
-                  filter === f.key
-                    ? 'bg-brand/10 text-brand'
-                    : 'text-ink-muted hover:text-ink hover:bg-surface-raised'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {data.source?.kind === 'pdf' && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-xs">
             <FaTriangleExclamation className="w-3.5 h-3.5 shrink-0" />
@@ -330,13 +316,41 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
               style={{ width: railWidth }}
               className="shrink-0 min-h-0 flex flex-col rounded-lg border border-line bg-surface-raised"
             >
-              <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-line">
-                <span className="text-[10px] uppercase tracking-wider text-ink-faint">
-                  Edits ({orderedEdits.length})
-                </span>
-                <IconButton aria-label="Collapse edits" className="h-6 w-6" onClick={() => setRailCollapsed(true)}>
-                  <FaChevronRight className="w-3 h-3" />
-                </IconButton>
+              <div className="shrink-0 border-b border-line">
+                <div className="flex items-center justify-between px-3 pt-1.5">
+                  <span className="text-[10px] uppercase tracking-wider text-ink-faint">
+                    Edits ({orderedEdits.length})
+                  </span>
+                  <IconButton aria-label="Collapse edits" className="h-6 w-6" onClick={() => setRailCollapsed(true)}>
+                    <FaChevronRight className="w-3 h-3" />
+                  </IconButton>
+                </div>
+                {/* Status counts that double as filters. Click to filter the
+                    rail (and markup) to that status; click the active one to clear. */}
+                <div className="flex items-center flex-wrap gap-1.5 px-3 pb-2 pt-1.5">
+                  {STATUS_FILTERS.map((s) => {
+                    const active = filter === s.key;
+                    const dimmed = filter !== 'all' && !active;
+                    const tone =
+                      s.key === 'accepted'
+                        ? 'text-brand bg-brand/10'
+                        : s.key === 'rejected'
+                          ? 'text-redline bg-redline/10'
+                          : 'text-ink-muted bg-surface-panel';
+                    return (
+                      <button
+                        key={s.key}
+                        onClick={() => setFilter(active ? 'all' : s.key)}
+                        title={active ? 'Show all edits' : `Show only ${s.label} edits`}
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium transition-all ${tone} ${
+                          active ? 'ring-1 ring-current' : ''
+                        } ${dimmed ? 'opacity-40 hover:opacity-80' : 'hover:brightness-95'}`}
+                      >
+                        {counts[s.key]} {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Scrollable card list — scrollbar hidden, overflow implies scroll */}
@@ -345,8 +359,12 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
                   <div className="text-sm text-ink-muted px-1 py-6 text-center">
                     No proposed edits yet.
                   </div>
+                ) : visibleEdits.length === 0 ? (
+                  <div className="text-sm text-ink-muted px-1 py-6 text-center">
+                    No {filter} edits.
+                  </div>
                 ) : (
-                  orderedEdits.map((edit) => (
+                  visibleEdits.map((edit) => (
                     <RedlineCard
                       key={edit.id}
                       edit={edit}

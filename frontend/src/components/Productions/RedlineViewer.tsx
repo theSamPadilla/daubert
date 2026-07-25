@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaCheck,
   FaXmark,
@@ -42,7 +42,6 @@ const STATUS_FILTERS: { key: RedlineEditStatus; label: string }[] = [
 ];
 
 const VIEWS: { key: RedlineView; label: string }[] = [
-  { key: 'original', label: 'Original' },
   { key: 'markup', label: 'Markup' },
   { key: 'final', label: 'Final' },
 ];
@@ -89,8 +88,12 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
   const [notesOpen, setNotesOpen] = useState((data.comments ?? []).length > 0);
   const [railWidth, setRailWidth] = useState(400);
   const [railCollapsed, setRailCollapsed] = useState(false);
+  // Text selected in the document → anchor for a new user-authored edit.
+  const [sel, setSel] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [composing, setComposing] = useState(false);
 
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const docBodyRef = useRef<HTMLDivElement>(null);
 
   // Drag the divider to resize the edits rail. The rail is on the right, so
   // dragging left (decreasing clientX) widens it. Bounded [280, 760].
@@ -138,7 +141,6 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
 
   const paragraphs: Paragraph[] = useMemo(() => {
     const baseText = data.baseText ?? '';
-    if (view === 'original') return buildPlainParagraphs(baseText);
     if (view === 'final') return buildPlainParagraphs(applyAcceptedEdits(baseText, edits));
     return buildRedlineSegments(baseText, edits, filterSet);
   }, [view, data.baseText, edits, filterSet]);
@@ -181,6 +183,67 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
     },
     [applyOps],
   );
+
+  const closeComposer = useCallback(() => {
+    setSel(null);
+    setComposing(false);
+  }, []);
+
+  // Capture a text selection inside the document body as the anchor for a new
+  // edit. Only in Markup view (where unmarked text still equals the base draft)
+  // and only for editors. The selected string is the anchor — the server
+  // resolves it to offsets, same as an agent-authored edit.
+  const captureSelection = useCallback(() => {
+    if (!editable || view !== 'markup') return;
+    const s = window.getSelection();
+    const node = s?.anchorNode ?? null;
+    const text = s?.toString() ?? '';
+    if (!s || s.isCollapsed || !text.trim() || !docBodyRef.current || !node || !docBodyRef.current.contains(node)) {
+      setSel(null);
+      setComposing(false);
+      return;
+    }
+    const rect = s.getRangeAt(0).getBoundingClientRect();
+    setSel({ text, x: rect.left + rect.width / 2, y: rect.top });
+    setComposing(false);
+  }, [editable, view]);
+
+  // Create a user-authored edit from the selection. Returns null on success,
+  // or the server's reason (e.g. anchor_ambiguous) so the composer can show it.
+  const addUserEdit = useCallback(
+    async (kind: RedlineEdit['kind'], anchorText: string, newText: string, basis: string): Promise<string | null> => {
+      try {
+        const updated = await apiClient.updateProduction(production.id, {
+          ops: [
+            {
+              op: 'redline_add_edit',
+              kind,
+              anchorText,
+              newText: kind === 'delete' ? '' : newText,
+              basis,
+              origin: 'user',
+            },
+          ],
+        });
+        onUpdate?.(updated);
+        return null;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '';
+        return msg || 'Could not add the edit. Try selecting a longer, unique passage.';
+      }
+    },
+    [production.id, onUpdate],
+  );
+
+  // Dismiss the selection UI on Escape.
+  useEffect(() => {
+    if (!sel) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeComposer();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sel, closeComposer]);
 
   return (
     <div className="h-full flex flex-col gap-3 min-h-0">
@@ -257,12 +320,16 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
               )}
               {view === 'final' &&
                 `Reads as it will export — ${counts.accepted} accepted edit${counts.accepted === 1 ? '' : 's'} applied`}
-              {view === 'original' && 'The untouched draft'}
             </span>
           </div>
 
           {/* Scrollable document body — scrollbar hidden, overflow implies scroll */}
-          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-6">
+          <div
+            ref={docBodyRef}
+            onMouseUp={captureSelection}
+            onScroll={() => sel && closeComposer()}
+            className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-6"
+          >
             {paragraphs.map((segments, pi) => (
               <p key={pi} className="mb-3 text-[15px] leading-relaxed text-ink whitespace-pre-wrap break-words">
                 {segments.map((seg, si) => {
@@ -397,7 +464,128 @@ export function RedlineViewer({ production, onUpdate }: RedlineViewerProps) {
       {modifyEdit && (
         <ModifyModal edit={modifyEdit} onClose={() => setModifyEdit(null)} onSave={saveModify} />
       )}
+
+      {/* Selection → new user-authored edit (Markup view only). */}
+      {editable && view === 'markup' && sel && !composing && (
+        <button
+          style={{ position: 'fixed', top: Math.max(8, sel.y - 42), left: sel.x }}
+          onMouseDown={(e) => e.preventDefault()} // don't collapse the selection
+          onClick={() => setComposing(true)}
+          className="z-50 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-md bg-ink text-white text-xs font-medium px-2.5 py-1.5 shadow-lg hover:bg-ink-soft transition-colors"
+        >
+          <FaPenToSquare className="w-3 h-3" /> Create edit
+        </button>
+      )}
+
+      {editable && view === 'markup' && sel && composing && (
+        <EditComposer
+          anchorText={sel.text}
+          x={sel.x}
+          y={sel.y}
+          onCancel={closeComposer}
+          onSubmit={async (kind, newText, basis) => {
+            const err = await addUserEdit(kind, sel.text, newText, basis);
+            if (!err) closeComposer();
+            return err;
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// ── New-edit composer ────────────────────────────────────────────────────────
+// A floating form anchored at a text selection. The selected string is the
+// edit anchor; the server resolves it (must be a unique ≥8-char span within one
+// paragraph). onSubmit returns null on success or the server's reason on failure.
+
+interface EditComposerProps {
+  anchorText: string;
+  x: number;
+  y: number;
+  onCancel: () => void;
+  onSubmit: (kind: RedlineEdit['kind'], newText: string, basis: string) => Promise<string | null>;
+}
+
+function EditComposer({ anchorText, x, y, onCancel, onSubmit }: EditComposerProps) {
+  const [kind, setKind] = useState<RedlineEdit['kind']>('replace');
+  const [newText, setNewText] = useState(anchorText);
+  const [basis, setBasis] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const needsText = kind !== 'delete';
+  const canSave = basis.trim().length > 0 && (!needsText || newText.trim().length > 0) && !saving;
+
+  const submit = async () => {
+    setSaving(true);
+    setError(null);
+    const err = await onSubmit(kind, newText, basis.trim());
+    setSaving(false);
+    if (err) setError(err);
+  };
+
+  const width = 360;
+  const left = Math.min(Math.max(x - width / 2, 8), (typeof window !== 'undefined' ? window.innerWidth : 1200) - width - 8);
+  const top = Math.min(y + 12, (typeof window !== 'undefined' ? window.innerHeight : 800) - 360);
+
+  return (
+    <>
+      {/* click-away backdrop */}
+      <div className="fixed inset-0 z-40" onMouseDown={onCancel} />
+      <div
+        style={{ position: 'fixed', top, left, width }}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="z-50 max-w-[92vw] rounded-lg border border-line-strong bg-surface shadow-xl p-3 flex flex-col gap-2.5"
+      >
+        <div className="text-[10px] uppercase tracking-wider text-ink-faint">Anchored text</div>
+        <div className="text-xs font-mono text-ink-soft bg-surface-raised rounded px-2 py-1.5 max-h-20 overflow-y-auto no-scrollbar whitespace-pre-wrap break-words">
+          {anchorText}
+        </div>
+
+        <div className="flex items-center h-7 self-start rounded-md border border-line overflow-hidden text-xs font-medium">
+          {(['replace', 'delete', 'insert_after'] as const).map((k, i) => (
+            <button
+              key={k}
+              onClick={() => {
+                if (k === 'insert_after' && newText === anchorText) setNewText('');
+                if (k === 'replace' && newText === '') setNewText(anchorText);
+                setKind(k);
+              }}
+              className={`px-2.5 h-full flex items-center transition-colors ${i > 0 ? 'border-l border-line' : ''} ${
+                kind === k ? 'bg-brand/10 text-brand' : 'text-ink-muted hover:text-ink hover:bg-surface-raised'
+              }`}
+            >
+              {KIND_LABEL[k]}
+            </button>
+          ))}
+        </div>
+
+        {needsText && (
+          <Field label={kind === 'insert_after' ? 'Text to insert after the selection' : 'Replacement text'}>
+            <Textarea rows={2} value={newText} onChange={(e) => setNewText(e.target.value)} />
+          </Field>
+        )}
+        <Field label="Basis">
+          <Input
+            value={basis}
+            onChange={(e) => setBasis(e.target.value)}
+            placeholder="Why this edit — shown on the card"
+          />
+        </Field>
+
+        {error && <div className="text-xs text-redline whitespace-pre-wrap break-words">{error}</div>}
+
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" disabled={!canSave} onClick={submit}>
+            {saving ? 'Adding…' : 'Add edit'}
+          </Button>
+        </div>
+      </div>
+    </>
   );
 }
 

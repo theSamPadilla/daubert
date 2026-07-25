@@ -20,12 +20,11 @@ export type Paragraph = Segment[];
 
 /**
  * How the document pane renders baseText:
- *   - 'original' → the untouched draft, no marks.
- *   - 'markup'   → inline redline marks (del/ins), respecting the status filter.
- *   - 'final'    → the draft with ACCEPTED edits applied, no marks — i.e. the
- *                  clean text as it would export.
+ *   - 'markup' → inline redline marks (del/ins), respecting the status filter.
+ *   - 'final'  → the draft with ACCEPTED edits applied, no marks — i.e. the
+ *                clean text as it would export.
  */
-export type RedlineView = 'original' | 'markup' | 'final';
+export type RedlineView = 'markup' | 'final';
 
 interface ParaRange {
   /** Raw UTF-16 offset of this paragraph's first char in baseText. */

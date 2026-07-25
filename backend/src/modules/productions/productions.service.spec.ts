@@ -1479,6 +1479,64 @@ describe('ProductionsService', () => {
           ops: [{ op: 'redline_remove_comment', commentId: 'nope' }],
         }, principal)).rejects.toThrow(/unknown comment/i);
       });
+
+      it('dismisses a comment: stamps dismissedAt + dismissedBy, keeps the comment', async () => {
+        const prod = await seedRedline();
+        const withC = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_comment', title: 't', text: 'x' }],
+        }, principal);
+        const commentId = rl(withC).comments[0].id;
+        mockProductionRepo.findOneBy.mockResolvedValue(withC);
+
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'redline_dismiss_comment', commentId, dismissed: true }],
+        }, principal);
+
+        const comment = rl(out).comments[0];
+        expect(rl(out).comments).toHaveLength(1); // retained, not deleted
+        expect(comment.dismissedBy).toBe('user-1');
+        expect(typeof comment.dismissedAt).toBe('string');
+        expect(Number.isNaN(Date.parse(comment.dismissedAt!))).toBe(false);
+      });
+
+      it('restores a dismissed comment: clears dismissedAt + dismissedBy', async () => {
+        const prod = await seedRedline();
+        const withC = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_comment', title: 't', text: 'x' }],
+        }, principal);
+        const commentId = rl(withC).comments[0].id;
+        mockProductionRepo.findOneBy.mockResolvedValue(withC);
+        const dismissed = await service.update(prod.id, {
+          ops: [{ op: 'redline_dismiss_comment', commentId, dismissed: true }],
+        }, principal);
+        mockProductionRepo.findOneBy.mockResolvedValue(dismissed);
+
+        const out = await service.update(prod.id, {
+          ops: [{ op: 'redline_dismiss_comment', commentId, dismissed: false }],
+        }, principal);
+
+        expect(rl(out).comments[0].dismissedAt).toBeNull();
+        expect(rl(out).comments[0].dismissedBy).toBeNull();
+      });
+
+      it('rejects dismiss with a non-boolean `dismissed`', async () => {
+        const prod = await seedRedline();
+        const withC = await service.update(prod.id, {
+          ops: [{ op: 'redline_add_comment', title: 't', text: 'x' }],
+        }, principal);
+        const commentId = rl(withC).comments[0].id;
+        mockProductionRepo.findOneBy.mockResolvedValue(withC);
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_dismiss_comment', commentId, dismissed: 'yes' as unknown as boolean }],
+        }, principal)).rejects.toThrow(/must be a boolean/i);
+      });
+
+      it('rejects dismiss on an unknown commentId', async () => {
+        const prod = await seedRedline();
+        await expect(service.update(prod.id, {
+          ops: [{ op: 'redline_dismiss_comment', commentId: 'nope', dismissed: true }],
+        }, principal)).rejects.toThrow(/unknown comment/i);
+      });
     });
 
     // ── prefix gate ───────────────────────────────────────────────────────

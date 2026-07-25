@@ -29,10 +29,12 @@ export interface RedlineEdit {
 }
 
 export interface RedlineComment {
-  // document-level cover note
+  // document-level cover note ("open item")
   id: string;
   title: string;
   text: string;
+  dismissedAt?: string | null; // ISO timestamp when acknowledged/dismissed; absent/null = open
+  dismissedBy?: string | null; // userId that dismissed it ('system' if no user context)
 }
 
 export interface RedlineData {

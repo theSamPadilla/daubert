@@ -40,14 +40,20 @@ const BTC_TOKEN = { address: '', symbol: 'BTC', decimals: 8 };
  * `change` / `changeEvidence` verdicts from detectChange(), the pattern
  * `warnings` from detectPatterns(), and the `junction` flag.
  *
- * The hard rule: **a sender is NEVER synthesized.** An incoming payment is
- * attributed to a concrete `from` address only when the transaction has
+ * The hard rule: **a counterparty is NEVER synthesized.** An incoming payment
+ * is attributed to a concrete `from` address only when the transaction has
  * exactly one input and that input's previous output carries a decodable
  * address -- the single case where the ledger itself names the payer.
  * In every other case (multiple inputs, coinbase, undecodable prevout, or
  * any junction pattern) the row is emitted with `from: ''` and
  * `junction: true`, so the canvas shows the transaction as an
  * unattributed junction rather than inventing a counterparty.
+ *
+ * The same applies in the other direction: an OUTGOING transaction with a
+ * payable output whose script carries no decodable address (bare multisig,
+ * non-standard scripts) is drawn as a junction too, rather than as a direct
+ * edge to an empty `to`. Such an edge would reference no node -- it would
+ * vanish from the canvas while still counting in the trace data.
  *
  * Direction:
  * - `A` among the inputs -> OUTGOING. One row per non-OP_RETURN output,
@@ -161,7 +167,19 @@ function mapTx(address: string, tx: EsploraTx): TransactionResult[] {
     // OUTGOING (also covers self-sends and A-in-both).
     const payable = outputs.filter((o) => !o.opReturn);
     const paymentCount = payable.filter((o) => !o.change).length;
-    const junction = txIsJunction || paymentCount > MAX_DIRECT_PAYMENT_OUTPUTS;
+    // An output whose script carries no decodable address -- bare multisig and
+    // other non-standard scripts -- names no payee. Drawing it as a direct edge
+    // would point at a counterparty the ledger never names, so the transaction
+    // is drawn as a junction instead: the same answer this module already gives
+    // for an unnameable SENDER, applied to an unnameable RECIPIENT. The output
+    // keeps its value and index verbatim in `utxo.outputs`, and planJunction
+    // omits the leg (it refuses to invent an endpoint), so the value stays
+    // visible in the junction's outputs table without asserting who received it.
+    const hasUnnamedPayee = payable.some((o) => !o.address);
+    const junction =
+      txIsJunction ||
+      hasUnnamedPayee ||
+      paymentCount > MAX_DIRECT_PAYMENT_OUTPUTS;
 
     return payable.map((out) => row(address, out.address ?? '', out, junction));
   }

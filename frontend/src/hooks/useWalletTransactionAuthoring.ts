@@ -110,10 +110,27 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
     const ch = data.chain || 'ethereum';
     let fromId = data.from || '';
     let toId = data.to || '';
-    const isExistingWallet = (val: string) =>
-      allWallets.some((w) => w.wallet.id === val || addressKey(w.wallet.address) === addressKey(val));
-    if (fromId && !isExistingWallet(fromId)) fromId = findOrCreateWallet(fromId, ch, traceId);
-    if (toId && !isExistingWallet(toId)) toId = findOrCreateWallet(toId, ch, traceId);
+    /**
+     * An endpoint arrives as either a wallet id (picked from the dropdown) or a
+     * raw address (typed free-text). Both must end up as a NODE ID, because
+     * that is what an edge's from/to reference.
+     *
+     * Resolving by address is the load-bearing case: leaving the raw address in
+     * place produced an edge pointing at no node, which Cytoscape silently drops
+     * while the edge still persists in the trace and counts in every consumer
+     * (exports, aggregation, the agent's view of the graph).
+     *
+     * `findOrCreateWallet` already returns the existing node's id on a
+     * case-insensitive address match, so it covers both "matches an existing
+     * wallet by address" and "brand new address"; only an id has to short-circuit
+     * ahead of it, since it would otherwise treat the id as an address to create.
+     */
+    const resolveEndpoint = (val: string): string =>
+      allWallets.some((w) => w.wallet.id === val)
+        ? val
+        : findOrCreateWallet(val, ch, traceId);
+    if (fromId) fromId = resolveEndpoint(fromId);
+    if (toId) toId = resolveEndpoint(toId);
 
     const fromTrace = allWallets.find((w) => w.wallet.id === fromId)?.traceId;
     const toTrace = allWallets.find((w) => w.wallet.id === toId)?.traceId;

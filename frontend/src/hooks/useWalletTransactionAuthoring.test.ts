@@ -429,3 +429,67 @@ describe('findOrCreateWallet — manual Tron entry via transaction endpoints', (
     expect(t1.nodes.map((n) => n.address).sort()).toEqual([FROM_RAW, TO_RAW].sort());
   });
 });
+
+describe('handleSaveNewTransaction — endpoint resolves to a node id', () => {
+  it('reuses an existing node when the endpoint is typed in a different case (no duplicate, no dangling edge)', () => {
+    const CANON = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+    const TYPED = CANON.toLowerCase();
+    const existing: WalletNode = {
+      id: 'tron-node-1',
+      label: 'Existing',
+      address: CANON,
+      chain: 'tron',
+      notes: '',
+      tags: [],
+      position: { x: 0, y: 0 },
+      parentTrace: 'trace-1',
+    };
+
+    const { result } = renderHook(() =>
+      useHarness(inv([trace('trace-1', { nodes: [existing] })])),
+    );
+    act(() => {
+      result.current.handleSaveNewTransaction('trace-1', {
+        from: TYPED,
+        to: 'TGzgVdQszcAHbEd9VELwifASLRdQY9kTcx',
+        chain: 'tron',
+      });
+    });
+
+    const t1 = result.current.investigation!.traces.find((t) => t.id === 'trace-1')!;
+    // No duplicate node for the differently-cased spelling.
+    expect(t1.nodes.filter((n) => n.address === CANON)).toHaveLength(1);
+    // And the edge references the node ID, not the raw address string.
+    const edge = t1.edges[0];
+    expect(edge.from).toBe('tron-node-1');
+    // Every endpoint resolves to a real node — no dangling references.
+    const ids = new Set(t1.nodes.map((n) => n.id));
+    expect(ids.has(edge.from)).toBe(true);
+    expect(ids.has(edge.to)).toBe(true);
+  });
+
+  it('still accepts an endpoint given as a wallet id (regression)', () => {
+    const a: WalletNode = {
+      id: 'node-a', label: 'A', address: '0xaaa', chain: 'ethereum',
+      notes: '', tags: [], position: { x: 0, y: 0 }, parentTrace: 'trace-1',
+    };
+    const b: WalletNode = {
+      id: 'node-b', label: 'B', address: '0xbbb', chain: 'ethereum',
+      notes: '', tags: [], position: { x: 0, y: 0 }, parentTrace: 'trace-1',
+    };
+
+    const { result } = renderHook(() =>
+      useHarness(inv([trace('trace-1', { nodes: [a, b] })])),
+    );
+    act(() => {
+      result.current.handleSaveNewTransaction('trace-1', {
+        from: 'node-a', to: 'node-b', chain: 'ethereum',
+      });
+    });
+
+    const t1 = result.current.investigation!.traces.find((t) => t.id === 'trace-1')!;
+    expect(t1.nodes).toHaveLength(2); // no spurious node minted from the ids
+    expect(t1.edges[0].from).toBe('node-a');
+    expect(t1.edges[0].to).toBe('node-b');
+  });
+});

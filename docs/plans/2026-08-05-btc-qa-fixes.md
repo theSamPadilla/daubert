@@ -1,6 +1,6 @@
 # BTC QA Fixes Implementation Plan
 
-**Goal:** Fix the three failures from the Bitcoin-support QA run (`docs/qa/btc-support.md`): 5.1 aggregated BTC amounts lose precision, 1.5 Tron addresses lowercased on manual create, 6.2 junction nodes selectable as search wallets.
+**Goal:** Fix the three failures from the Bitcoin-support QA run: 5.1 aggregated BTC amounts lose precision, 1.5 Tron addresses lowercased on manual create, 6.2 junction nodes selectable as search wallets.
 
 ## Summary
 
@@ -460,4 +460,4 @@ cd ../backend && npx jest --silent
 ```
 Expected: full frontend suite green (347 pre-existing + new), typecheck clean, backend suite unchanged-green (backend untouched). Then `git status` to surface the working-tree diff for review. **Do not commit.**
 
-Manual spot-check (optional, mirrors the QA repro steps in `docs/qa/btc-support.md`): collapse a BTC group → aggregated edge shows `0.0114 BTC (2)`-style precision; Quick Add a Tron address → details panel shows mixed case + working tronscan link; open search-between on a junction-bearing trace → no junction rows in the picker.
+Manual spot-check (optional, mirrors the QA repro steps): collapse a BTC group → aggregated edge shows `0.0114 BTC (2)`-style precision; Quick Add a Tron address → details panel shows mixed case + working tronscan link; open search-between on a junction-bearing trace → no junction rows in the picker.

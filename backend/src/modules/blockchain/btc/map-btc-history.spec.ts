@@ -611,3 +611,62 @@ describe('mapBtcHistory', () => {
     });
   });
 });
+
+describe('address-less payable outputs (bare multisig / non-standard scripts)', () => {
+  it('draws the tx as a junction rather than a direct edge to an empty `to`', () => {
+    // Real shape: mempool.space returns scriptpubkey_address: null for a bare
+    // `multisig` output. It is NOT an OP_RETURN — it pays real value — so it
+    // must not be dropped, but it names no payee either.
+    const rows = mapBtcHistory(A, [
+      tx({
+        vin: [vin({ address: A })],
+        vout: [
+          vout({ address: 'bc1qnamed-payee', value: 790 }),
+          vout({ address: null, scriptType: 'multisig', value: 790 }),
+        ],
+      }),
+    ]);
+
+    expect(rows).toHaveLength(2);
+    // Every row of the tx is a junction — a junction is a property of the
+    // transaction, not of the individual output.
+    expect(rows.every((r) => r.utxo!.junction)).toBe(true);
+    // The address-less output still carries its value and index verbatim.
+    const unnamed = rows.find((r) => r.to === '')!;
+    expect(unnamed).toBeDefined();
+    expect(unnamed.amount).toBe('790');
+    expect(unnamed.utxo!.vout).toBe(1);
+    expect(unnamed.utxo!.outputs[1].address).toBeNull();
+  });
+
+  it('leaves an all-named outgoing tx as direct edges (regression)', () => {
+    const rows = mapBtcHistory(A, [
+      tx({
+        vin: [vin({ address: A })],
+        vout: [
+          vout({ address: 'bc1qpayee-one', value: 790 }),
+          vout({ address: 'bc1qpayee-two', value: 790 }),
+        ],
+      }),
+    ]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.utxo!.junction)).toBe(false);
+    expect(rows.every((r) => r.to !== '')).toBe(true);
+  });
+
+  it('does not junction a tx whose only address-less output is an OP_RETURN', () => {
+    // OP_RETURN is filtered out before the payee check — it pays no one, so it
+    // is not evidence of an unnameable recipient.
+    const rows = mapBtcHistory(A, [
+      tx({
+        vin: [vin({ address: A })],
+        vout: [vout({ address: 'bc1qpayee', value: 790 }), opReturnVout()],
+      }),
+    ]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].utxo!.junction).toBe(false);
+    expect(rows[0].to).toBe('bc1qpayee');
+  });
+});

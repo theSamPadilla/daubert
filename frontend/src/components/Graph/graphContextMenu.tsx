@@ -160,11 +160,16 @@ export function buildGraphContextMenu(
         // Track the focused trace.
         setLastFocusedTraceId(walletData.traceId);
         const wd = walletData;
+        // Tx junction nodes stand for a Bitcoin transaction, not an address —
+        // there is no address to edit and no history to fetch for a txid.
+        const isJunction = wd.wallet.kind === 'txJunction';
         // Node-anchored label: place above the node. dy is in model coords;
         // using a fixed offset of -40 model units (≈ one node radius at default size).
         items.push(
-          { label: 'Edit Address', icon: icon(FaPenToSquare), onClick: () => setSelectedItem({ type: 'wallet', data: wd.wallet }) },
-          { label: 'Fetch History', icon: icon(FaClockRotateLeft), onClick: () => handleFetchHistory(wd.wallet.address, wd.wallet.chain) },
+          ...(isJunction ? [] : [
+            { label: 'Edit Address', icon: icon(FaPenToSquare), onClick: () => setSelectedItem({ type: 'wallet', data: wd.wallet }) },
+            { label: 'Fetch History', icon: icon(FaClockRotateLeft), onClick: () => handleFetchHistory(wd.wallet.address, wd.wallet.chain) },
+          ]),
           {
             label: 'Attach label to this node',
             icon: icon(FaTag),

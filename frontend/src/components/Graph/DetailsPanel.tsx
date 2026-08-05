@@ -11,6 +11,7 @@ import { TraceDetails } from './details/TraceDetails';
 import { ScriptRunDetails } from './details/ScriptRunDetails';
 import { TransactionDetails } from './details/TransactionDetails';
 import { WalletDetails } from './details/WalletDetails';
+import { TxJunctionDetails } from './details/TxJunctionDetails';
 
 interface DetailsPanelProps {
   selectedItem: any | null;
@@ -45,6 +46,7 @@ const TYPE_DISPLAY: Record<string, string> = {
   scriptRun: 'Script',
   edgeBundle: 'Edge Bundle',
   aggregatedEdge: 'Aggregated Transactions',
+  txJunction: 'Transaction Junction',
 };
 
 export interface DetailsPanelHandle {
@@ -168,6 +170,9 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
 
   return (
     <div className="p-4">
+      {selectedItem.type === 'txJunction' && (
+        <TxJunctionDetails node={selectedItem.data} />
+      )}
       {selectedItem.type === 'wallet' && (
         <WalletDetails
           wallet={selectedItem.data}

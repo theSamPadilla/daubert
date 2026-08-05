@@ -1,5 +1,5 @@
-import { SUPPORTED_CHAINS } from '../services/types';
-import { EVM_ADDRESS_RE, TRON_ADDRESS_RE } from '../generated/shared/address';
+import { EVM_ADDRESS_RE, TRON_ADDRESS_RE, isBtcAddress } from '../generated/shared/address';
+import { explorerAddressUrl, explorerTxUrl } from '../generated/shared/chains';
 
 interface ParsedAddress {
   address: string;
@@ -14,6 +14,8 @@ const EXPLORER_PATTERNS: { host: string; chain: string }[] = [
   { host: 'basescan.org', chain: 'base' },
   { host: 'tronscan.org', chain: 'tron' },
   { host: 'tronscan.io', chain: 'tron' },
+  { host: 'mempool.space', chain: 'bitcoin' },
+  { host: 'blockstream.info', chain: 'bitcoin' },
 ];
 
 export function parseAddressInput(input: string): ParsedAddress {
@@ -25,8 +27,12 @@ export function parseAddressInput(input: string): ParsedAddress {
     const match = EXPLORER_PATTERNS.find((p) => url.hostname === p.host || url.hostname === `www.${p.host}`);
     if (match) {
       // Extract address from path: /address/0x... or /#/address/T... or /#/contract/T...
+      // Also matches BTC paths: mempool.space/address/{addr}, blockstream.info/address/{addr}
+      // (base58 1.../3... or bech32 bc1...).
       const fullPath = url.pathname + url.hash;
-      const addrMatch = fullPath.match(/\/(?:address|contract)\/(0x[0-9a-fA-F]{40}|T[1-9A-HJ-NP-Za-km-z]{33})/);
+      const addrMatch = fullPath.match(
+        /\/(?:address|contract)\/(0x[0-9a-fA-F]{40}|T[1-9A-HJ-NP-Za-km-z]{33}|bc1[02-9ac-hj-np-z]{11,87}|[13][1-9A-HJ-NP-Za-km-z]{24,33})/,
+      );
       if (addrMatch) {
         const address = addrMatch[1];
         return {
@@ -54,6 +60,15 @@ export function parseAddressInput(input: string): ParsedAddress {
     return {
       address: trimmed,
       // chain left undefined — user picks, default ethereum
+    };
+  }
+
+  // Raw Bitcoin address (base58 or bech32)
+  if (isBtcAddress(trimmed)) {
+    return {
+      address: trimmed,
+      chain: 'bitcoin',
+      explorerUrl: buildExplorerUrl('bitcoin', trimmed),
     };
   }
 
@@ -119,30 +134,22 @@ export function detectInputType(input: string): 'address' | 'transaction' | 'unk
   if (/^[0-9a-fA-F]{64}$/.test(trimmed)) return 'transaction';
   if (EVM_ADDRESS_RE.test(trimmed)) return 'address';
   if (TRON_ADDRESS_RE.test(trimmed)) return 'address';
+  if (isBtcAddress(trimmed)) return 'address';
   return 'unknown';
 }
 
 export function buildExplorerUrl(chain: string, address: string): string {
-  const config = SUPPORTED_CHAINS[chain];
-  if (!config) return '';
-  if (chain === 'tron') {
-    return `${config.explorerUrl}/#/address/${address}`;
-  }
-  return `${config.explorerUrl}/address/${address}`;
+  return explorerAddressUrl(chain, address);
 }
 
 export function buildTxExplorerUrl(chain: string, txHash: string): string {
-  const config = SUPPORTED_CHAINS[chain];
-  if (!config || !txHash) return '';
-  if (chain === 'tron') {
-    return `${config.explorerUrl}/#/transaction/${txHash}`;
-  }
-  return `${config.explorerUrl}/tx/${txHash}`;
+  if (!txHash) return '';
+  return explorerTxUrl(chain, txHash);
 }
 
 export interface InspectedInput {
   kind: 'address' | 'transaction' | 'unknown';
-  family: 'evm' | 'tron' | 'unknown';
+  family: 'evm' | 'tron' | 'bitcoin' | 'unknown';
   chain?: string;        // exact chain id when derivable (URL host or Tron prefix); undefined for ambiguous EVM
   address?: string;      // populated when kind === 'address'
   txHash?: string;       // populated when kind === 'transaction'
@@ -160,12 +167,16 @@ export function inspectInput(input: string): InspectedInput {
     let family: InspectedInput['family'];
     if (chain === 'tron') {
       family = 'tron';
+    } else if (chain === 'bitcoin') {
+      family = 'bitcoin';
     } else if (chain) {
       family = 'evm';
     } else if (TRON_ADDRESS_RE.test(trimmed)) {
       family = 'tron';
     } else if (EVM_ADDRESS_RE.test(trimmed)) {
       family = 'evm';
+    } else if (isBtcAddress(trimmed)) {
+      family = 'bitcoin';
     } else {
       family = 'unknown';
     }
@@ -184,9 +195,14 @@ export function inspectInput(input: string): InspectedInput {
     let family: InspectedInput['family'];
     if (chain === 'tron') {
       family = 'tron';
+    } else if (chain === 'bitcoin') {
+      family = 'bitcoin';
     } else if (chain) {
       family = 'evm';
     } else if (/^0x[0-9a-fA-F]{64}$/.test(trimmed) || /^[0-9a-fA-F]{64}$/.test(trimmed)) {
+      // Bare 64-hex is ambiguous (Tron txid vs EVM txid) and is NEVER inferred as
+      // bitcoin here — bitcoin tx family is only derived from an explorer URL
+      // (chain branch above). Keep this fallback byte-identical to pre-BTC behavior.
       family = 'evm';
     } else {
       family = 'unknown';

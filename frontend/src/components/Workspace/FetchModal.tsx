@@ -7,12 +7,15 @@ import { apiClient } from '@/lib/api-client';
 import { SUPPORTED_CHAINS } from '@/services/types';
 import { Trace, TransactionEdge } from '@/types/investigation';
 import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
+import { classifyBtcRow } from '@/utils/btcRowDisplay';
+import { evidenceTitle } from '@/utils/utxoDisplay';
+import { edgeIdentityKey } from '../../generated/shared/edge-identity';
 
 interface FetchModalProps {
   initialAddress?: string;
   initialChain?: string;
   traces: Trace[];
-  existingTxKeys: Set<string>;   // `${txHash}-${from}-${to}`
+  existingTxKeys: Set<string>;   // built via edgeIdentityKey()
   onAdd: (traceId: string, transactions: TransactionEdge[]) => void;
   onClose: () => void;
 }
@@ -25,6 +28,44 @@ function formatTs(ts: string) {
   return parseTimestamp(ts).toLocaleDateString(undefined, {
     year: '2-digit', month: 'short', day: 'numeric',
   });
+}
+
+const BADGE_CLASS = 'px-1.5 py-0.5 rounded text-[10px] font-medium border whitespace-nowrap';
+
+/** Bitcoin-only row badges (direction, in/out counts, change?, junction). Renders nothing for non-BTC rows. */
+function BtcBadges({ tx, fetchedAddress }: { tx: TransactionEdge; fetchedAddress: string }) {
+  const info = classifyBtcRow(tx, fetchedAddress);
+  if (!info) return null;
+
+  const dirClass =
+    info.direction === 'in'
+      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      : info.direction === 'out'
+      ? 'bg-red-50 text-red-700 border-red-200'
+      : 'bg-surface-raised text-ink-muted border-line';
+  const dirLabel = info.direction === 'in' ? 'In' : info.direction === 'out' ? 'Out' : 'Self';
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      <span className={`${BADGE_CLASS} ${dirClass}`}>{dirLabel}</span>
+      <span className={`${BADGE_CLASS} bg-surface-raised text-ink-muted border-line`}>
+        {info.inCount} in / {info.outCount} out
+      </span>
+      {info.isChange && (
+        <span
+          className={`${BADGE_CLASS} bg-amber-50 text-amber-700 border-amber-200`}
+          title={evidenceTitle(info.changeEvidence)}
+        >
+          change?
+        </span>
+      )}
+      {info.isJunction && (
+        <span className={`${BADGE_CLASS} bg-indigo-50 text-indigo-700 border-indigo-200`}>
+          junction
+        </span>
+      )}
+    </div>
+  );
 }
 
 export function FetchModal({
@@ -51,38 +92,58 @@ export function FetchModal({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [targetTraceId, setTargetTraceId] = useState(traces[0]?.id || '');
+  // Snapshot of the address actually used for the last fetch — decoupled from
+  // the (still-editable) `address` input so BTC direction badges stay correct
+  // even if the user edits the field after fetching but before adding rows.
+  const [fetchedAddress, setFetchedAddress] = useState('');
 
   // Deduplicate against existing graph
   const isDuplicate = useMemo(() => {
     const map = new Map<string, boolean>();
     results?.forEach((tx) => {
-      map.set(tx.id, existingTxKeys.has(`${tx.txHash}-${tx.from}-${tx.to}`));
+      map.set(tx.id, existingTxKeys.has(edgeIdentityKey(tx, tx.from, tx.to)));
     });
     return map;
   }, [results, existingTxKeys]);
 
   const newResults = useMemo(() => results?.filter((tx) => !isDuplicate.get(tx.id)) ?? [], [results, isDuplicate]);
 
+  const hasBtcRows = useMemo(() => !!results?.some((tx) => !!tx.utxo), [results]);
+
+  // Rows eligible for the "select all" bulk-toggle. Change-flagged BTC rows
+  // are excluded — they default to unchecked and require a deliberate manual
+  // click, since an investigator should confirm a change output before it's
+  // treated as a real counterparty transfer. Non-BTC rows are always eligible
+  // (classifyBtcRow returns null -> isChange is never true for them).
+  const selectableResults = useMemo(
+    () => newResults.filter((tx) => !classifyBtcRow(tx, fetchedAddress)?.isChange),
+    [newResults, fetchedAddress],
+  );
+
   const handleFetch = async () => {
     if (!address.trim()) return;
+    const addr = address.trim();
     setLoading(true);
     setError(null);
     setResults(null);
     setSelected(new Set());
     try {
-      const res = await apiClient.fetchHistory(address.trim(), chain, {
-        ...(startBlock ? { startBlock: parseInt(startBlock) } : {}),
-        ...(endBlock ? { endBlock: parseInt(endBlock) } : {}),
+      const res = await apiClient.fetchHistory(addr, chain, {
+        ...(chain !== 'bitcoin' && startBlock ? { startBlock: parseInt(startBlock) } : {}),
+        ...(chain !== 'bitcoin' && endBlock ? { endBlock: parseInt(endBlock) } : {}),
         ...(startDate ? { startDate } : {}),
         ...(endDate ? { endDate } : {}),
-        offset: limit,
+        ...(chain === 'bitcoin' ? { maxTotal: limit } : { offset: limit }),
         sort,
       });
-      setResults(res.transactions as TransactionEdge[]);
-      // Auto-select all non-duplicates
+      const rows = res.transactions as TransactionEdge[];
+      setFetchedAddress(addr);
+      setResults(rows);
+      // Auto-select all non-duplicates, excluding change-flagged BTC rows.
       setSelected(new Set(
-        (res.transactions as TransactionEdge[])
-          .filter((tx) => !existingTxKeys.has(`${tx.txHash}-${tx.from}-${tx.to}`))
+        rows
+          .filter((tx) => !existingTxKeys.has(edgeIdentityKey(tx, tx.from, tx.to)))
+          .filter((tx) => !classifyBtcRow(tx, addr)?.isChange)
           .map((tx) => tx.id)
       ));
     } catch (err: any) {
@@ -93,11 +154,13 @@ export function FetchModal({
   };
 
   const toggleAll = () => {
-    if (selected.size === newResults.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(newResults.map((tx) => tx.id)));
-    }
+    setSelected((prev) => {
+      const allSelectableSelected =
+        selectableResults.length > 0 && selectableResults.every((tx) => prev.has(tx.id));
+      const next = new Set(prev);
+      selectableResults.forEach((tx) => (allSelectableSelected ? next.delete(tx.id) : next.add(tx.id)));
+      return next;
+    });
   };
 
   const toggleOne = (id: string) => {
@@ -115,7 +178,8 @@ export function FetchModal({
     onClose();
   };
 
-  const allNewSelected = newResults.length > 0 && selected.size === newResults.length;
+  const allSelectableSelected =
+    selectableResults.length > 0 && selectableResults.every((tx) => selected.has(tx.id));
 
   const fieldClass =
     'w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
@@ -192,32 +256,36 @@ export function FetchModal({
                 className={fieldClass}
               />
             </div>
-            <div>
-              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
-                Start Block <span className="text-ink-faint normal-case font-normal">(optional)</span>
-              </label>
-              <input
-                type="number"
-                value={startBlock}
-                onChange={(e) => setStartBlock(e.target.value)}
-                placeholder="e.g. 18000000"
-                disabled={!!startDate}
-                className={`${fieldClass} disabled:opacity-40 disabled:cursor-not-allowed`}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
-                End Block <span className="text-ink-faint normal-case font-normal">(optional)</span>
-              </label>
-              <input
-                type="number"
-                value={endBlock}
-                onChange={(e) => setEndBlock(e.target.value)}
-                placeholder="e.g. 19000000"
-                disabled={!!endDate}
-                className={`${fieldClass} disabled:opacity-40 disabled:cursor-not-allowed`}
-              />
-            </div>
+            {chain !== 'bitcoin' && (
+              <div>
+                <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
+                  Start Block <span className="text-ink-faint normal-case font-normal">(optional)</span>
+                </label>
+                <input
+                  type="number"
+                  value={startBlock}
+                  onChange={(e) => setStartBlock(e.target.value)}
+                  placeholder="e.g. 18000000"
+                  disabled={!!startDate}
+                  className={`${fieldClass} disabled:opacity-40 disabled:cursor-not-allowed`}
+                />
+              </div>
+            )}
+            {chain !== 'bitcoin' && (
+              <div>
+                <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
+                  End Block <span className="text-ink-faint normal-case font-normal">(optional)</span>
+                </label>
+                <input
+                  type="number"
+                  value={endBlock}
+                  onChange={(e) => setEndBlock(e.target.value)}
+                  placeholder="e.g. 19000000"
+                  disabled={!!endDate}
+                  className={`${fieldClass} disabled:opacity-40 disabled:cursor-not-allowed`}
+                />
+              </div>
+            )}
             <div>
               <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">Limit</label>
               <select
@@ -250,7 +318,7 @@ export function FetchModal({
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
-                  checked={allNewSelected}
+                  checked={allSelectableSelected}
                   onChange={toggleAll}
                   className="accent-brand"
                 />
@@ -276,6 +344,7 @@ export function FetchModal({
                       <th className="px-3 py-2">Token</th>
                       <th className="px-3 py-2">From</th>
                       <th className="px-3 py-2">To</th>
+                      {hasBtcRows && <th className="px-3 py-2">Info</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -315,6 +384,11 @@ export function FetchModal({
                           <td className="px-3 py-1.5 text-ink-muted">{tok.symbol}</td>
                           <td className="px-3 py-1.5 font-mono text-ink-muted">{truncate(tx.from)}</td>
                           <td className="px-3 py-1.5 font-mono text-ink-muted">{truncate(tx.to)}</td>
+                          {hasBtcRows && (
+                            <td className="px-3 py-1.5">
+                              <BtcBadges tx={tx} fetchedAddress={fetchedAddress} />
+                            </td>
+                          )}
                         </tr>
                       );
                     })}

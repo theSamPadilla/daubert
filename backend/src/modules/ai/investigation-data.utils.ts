@@ -9,6 +9,34 @@ export interface AgentNode {
   notes?: string;
   addressType?: string;
   groupId?: string;
+  /** 'txJunction' for Bitcoin transaction junctions; absent for wallets. */
+  kind?: string;
+}
+
+/**
+ * A COUNT-ONLY view of an edge's UTXO provenance.
+ *
+ * The full inputs/outputs arrays are deliberately NOT sent to the agent: a
+ * 400-input consolidation would blow the context window for information the
+ * model can request on demand. Counts, fee, and the change verdict for this
+ * particular edge are what a model needs to reason about the flow.
+ */
+export interface AgentUtxoSummary {
+  inputs: number;
+  outputs: number;
+  /** Satoshis, as a decimal string. */
+  fee: string;
+  /** Which output of the transaction this edge represents. */
+  vout?: number;
+  /** 'input' | 'output' on junction leg edges. */
+  legType?: string;
+  warnings?: string[];
+  /**
+   * True when THIS edge's output is flagged as change. Absent means "not
+   * flagged" — change detection is an inference, so we surface only the
+   * positive verdict rather than asserting a negative.
+   */
+  change?: boolean;
 }
 
 export interface AgentEdge {
@@ -26,6 +54,7 @@ export interface AgentEdge {
   tags: string[];
   notes?: string;
   crossTrace?: boolean;
+  utxoSummary?: AgentUtxoSummary;
 }
 
 export interface AgentGroup {
@@ -49,6 +78,52 @@ export interface AgentTraceData {
   edgeBundles: AgentEdgeBundle[];
 }
 
+/**
+ * Collapse an edge's raw `utxo` block into counts + this edge's own slice.
+ *
+ * Junction LEG edges carry a slim context with no fee and no transaction-wide
+ * inputs/outputs — the full ledger record lives once on the junction node. An
+ * input leg therefore summarizes as 0/0 with an empty fee; an output leg
+ * carries a single-entry `outputs` array describing only its OWN output, so it
+ * summarizes as 0 in / 1 out and its change verdict still surfaces. Both are
+ * honest: the leg carries exactly the slice it represents.
+ *
+ * Exported: also reused by the MCP blockchain_fetch_history handler
+ * (mcp/tools/blockchain-tools.ts) to collapse each row's `utxo` block before
+ * the 8 KB result cap is applied — same duck-typed shape (a TransactionResult
+ * row's UtxoContext), same reasoning (never send raw inputs/outputs arrays to
+ * a model).
+ */
+export function summarizeUtxo(utxo: unknown): AgentUtxoSummary | undefined {
+  if (!utxo || typeof utxo !== 'object') return undefined;
+  const u = utxo as Record<string, any>;
+
+  const inputs = Array.isArray(u.inputs) ? u.inputs.length : 0;
+  const outputs = Array.isArray(u.outputs) ? u.outputs.length : 0;
+  const vout = typeof u.vout === 'number' ? u.vout : undefined;
+
+  // The change verdict that applies to THIS edge is the one on the output the
+  // edge represents — not any change output elsewhere in the transaction.
+  const ownOutput =
+    vout !== undefined && Array.isArray(u.outputs)
+      ? u.outputs.find((o: any) => o?.index === vout)
+      : undefined;
+  const change = ownOutput?.change === true ? true : undefined;
+
+  const warnings =
+    Array.isArray(u.warnings) && u.warnings.length > 0 ? u.warnings : undefined;
+
+  return {
+    inputs,
+    outputs,
+    fee: typeof u.fee === 'string' ? u.fee : '',
+    vout,
+    legType: typeof u.legType === 'string' ? u.legType : undefined,
+    warnings,
+    change,
+  };
+}
+
 export function stripTraceForAgent(data: Record<string, unknown>): AgentTraceData {
   const rawNodes: any[] = (data as any)?.nodes || [];
   const rawEdges: any[] = (data as any)?.edges || [];
@@ -69,6 +144,7 @@ export function stripTraceForAgent(data: Record<string, unknown>): AgentTraceDat
     notes: n.notes || undefined,
     addressType: n.addressType || undefined,
     groupId: n.groupId || undefined,
+    kind: n.kind || undefined,
   }));
 
   const edges: AgentEdge[] = rawEdges.map((e) => ({
@@ -86,6 +162,8 @@ export function stripTraceForAgent(data: Record<string, unknown>): AgentTraceDat
     tags: e.tags ?? [],
     notes: e.notes || undefined,
     crossTrace: e.crossTrace || undefined,
+    // Counts only — the raw inputs/outputs arrays never reach the agent.
+    utxoSummary: summarizeUtxo(e.utxo),
   }));
 
   const groupNodeIds = new Map<string, string[]>();

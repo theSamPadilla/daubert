@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { TransactionEdge, Trace } from '@/types/investigation';
+import { formatTokenAmount } from '@/utils/formatAmount';
+import { classifyBtcRow } from '@/utils/btcRowDisplay';
+import { ChangeBadge } from '@/components/Graph/details/UtxoBreakdown';
 
 interface StagingPanelProps {
   items: TransactionEdge[];
@@ -13,17 +16,31 @@ function truncateAddr(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-function formatAmount(amount: string, decimals: number): string {
-  if (!amount || amount === '0') return '0';
-  const num = Number(amount);
-  if (isNaN(num)) return amount;
-  const adjusted = num / Math.pow(10, decimals);
-  if (adjusted < 0.001) return '<0.001';
-  if (adjusted >= 1e12) return `${(adjusted / 1e12).toFixed(2).replace(/\.?0+$/, '')}T`;
-  if (adjusted >= 1e9) return `${(adjusted / 1e9).toFixed(2).replace(/\.?0+$/, '')}B`;
-  if (adjusted >= 1e6) return `${(adjusted / 1e6).toFixed(2).replace(/\.?0+$/, '')}M`;
-  if (adjusted >= 1e3) return `${(adjusted / 1e3).toFixed(2).replace(/\.?0+$/, '')}K`;
-  return adjusted.toLocaleString(undefined, { maximumFractionDigits: 4 });
+const CHIP_CLASS = 'px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap';
+
+/**
+ * Bitcoin-only row badges for a staged item. Staged rows carry no
+ * fetched-address context (StagingPanel.items is a flat TransactionEdge[]
+ * with no accompanying "fetched for address X" metadata — see
+ * useWalletTransactionAuthoring / WorkspaceModals), so direction (in/out/self)
+ * can't be determined here and is intentionally omitted. The direction-
+ * agnostic badges (in/out counts, change?, junction) don't need an address
+ * and are shown as-is.
+ */
+function BtcBadges({ item }: { item: TransactionEdge }) {
+  const info = classifyBtcRow(item, '');
+  if (!info) return null;
+  return (
+    <span className="flex items-center gap-1">
+      <span className={`${CHIP_CLASS} bg-canvas-fill text-canvas-muted border border-canvas-line`}>
+        {info.inCount} in / {info.outCount} out
+      </span>
+      {info.isChange && <ChangeBadge evidence={info.changeEvidence} />}
+      {info.isJunction && (
+        <span className={`${CHIP_CLASS} bg-indigo-500/20 text-indigo-300`}>junction</span>
+      )}
+    </span>
+  );
 }
 
 export function StagingPanel({ items, traces, onAddToTrace, onClear }: StagingPanelProps) {
@@ -92,8 +109,9 @@ export function StagingPanel({ items, traces, onAddToTrace, onClear }: StagingPa
             <span className="font-mono text-canvas-muted">{truncateAddr(item.from)}</span>
             <span className="text-canvas-muted">-&gt;</span>
             <span className="font-mono text-canvas-muted">{truncateAddr(item.to)}</span>
+            <BtcBadges item={item} />
             <span className="ml-auto text-canvas-muted">
-              {formatAmount(item.amount, item.token.decimals)} {item.token.symbol}
+              {formatTokenAmount(item.amount, item.token.decimals)} {item.token.symbol}
             </span>
           </label>
         ))}

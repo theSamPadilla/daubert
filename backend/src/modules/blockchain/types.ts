@@ -1,3 +1,5 @@
+import { CHAINS } from '../../generated/shared/chains';
+
 export const ETHERSCAN_V2_BASE = 'https://api.etherscan.io/v2/api';
 
 export interface ChainConfig {
@@ -70,6 +72,61 @@ export interface TokenMetadata {
   name?: string;
 }
 
+/**
+ * One spent input of a Bitcoin transaction, as recorded on-chain.
+ * `address` is null when the previous output's script carries no decodable
+ * address (bare scripts, unknown types) or when the input is a coinbase.
+ */
+export interface UtxoInput {
+  address: string | null;
+  /** Satoshis, as a decimal string. */
+  value: string;
+  prevTxid: string;
+  prevVout: number;
+  scriptType?: string;
+  coinbase?: boolean;
+}
+
+/**
+ * One output of a Bitcoin transaction. `change` / `changeEvidence` are the
+ * verdict of detectChange() -- an INFERENCE, never a ledger fact -- and are
+ * surfaced to investigators alongside their evidence strings.
+ */
+export interface UtxoOutput {
+  address: string | null;
+  /** Satoshis, as a decimal string. */
+  value: string;
+  index: number;
+  scriptType?: string;
+  change?: boolean;
+  changeEvidence?: string[];
+  opReturn?: boolean;
+}
+
+/**
+ * Full UTXO provenance carried by every Bitcoin transaction row. The
+ * inputs/outputs/fee/warnings block is the shared, per-transaction ledger
+ * record (identical on every row derived from the same tx); the trailing
+ * fields identify which slice of that transaction this particular row
+ * represents.
+ */
+export interface UtxoContext {
+  inputs: UtxoInput[];
+  outputs: UtxoOutput[];
+  /** Satoshis, as a decimal string. */
+  fee: string;
+  warnings?: string[];
+  confirmed?: boolean;
+  blockHeight?: number | null;
+  /** Which output this edge represents (payment edges). */
+  vout?: number;
+  /** Junction leg edges (used by later tasks). */
+  legType?: 'input' | 'output';
+  legIndex?: number;
+  /** Row should materialize as a tx-junction node. */
+  junction?: boolean;
+}
+
 export interface FetchOptions {
   startBlock?: number;
   endBlock?: number;
@@ -89,40 +146,23 @@ export interface FetchOptions {
   maxTotal?: number;
 }
 
-export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
-  ethereum: {
-    id: 'ethereum',
-    name: 'Ethereum',
-    chainId: 1,
-    nativeCurrency: { symbol: 'ETH', decimals: 18 },
-    explorerUrl: 'https://etherscan.io',
-  },
-  polygon: {
-    id: 'polygon',
-    name: 'Polygon',
-    chainId: 137,
-    nativeCurrency: { symbol: 'MATIC', decimals: 18 },
-    explorerUrl: 'https://polygonscan.com',
-  },
-  arbitrum: {
-    id: 'arbitrum',
-    name: 'Arbitrum',
-    chainId: 42161,
-    nativeCurrency: { symbol: 'ETH', decimals: 18 },
-    explorerUrl: 'https://arbiscan.io',
-  },
-  base: {
-    id: 'base',
-    name: 'Base',
-    chainId: 8453,
-    nativeCurrency: { symbol: 'ETH', decimals: 18 },
-    explorerUrl: 'https://basescan.org',
-  },
-  tron: {
-    id: 'tron',
-    name: 'Tron',
-    chainId: 728126428,
-    nativeCurrency: { symbol: 'TRX', decimals: 6 },
-    explorerUrl: 'https://tronscan.org',
-  },
-};
+// Derived from the shared chain registry so backend and frontend never drift.
+// Adds 'bitcoin' automatically. Bitcoin is a UTXO chain with no
+// account-scoped transaction list, so it is served through the registry's
+// separate two-path split: ProviderRegistry.get() for the account-model
+// chains (EVM via EtherscanProvider, Tron via TronscanProvider) and
+// ProviderRegistry.getUtxo() for bitcoin (BitcoinProvider). get('bitcoin')
+// still throws — it exists only to fail loudly if a caller uses the wrong
+// path instead of routing through getUtxo().
+export const CHAIN_CONFIGS: Record<string, ChainConfig> = Object.fromEntries(
+  Object.entries(CHAINS).map(([id, def]) => [
+    id,
+    {
+      id: def.id,
+      name: def.name,
+      chainId: def.chainId,
+      nativeCurrency: def.nativeCurrency,
+      explorerUrl: def.explorerUrl,
+    },
+  ]),
+);

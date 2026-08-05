@@ -1,3 +1,5 @@
+import { CHAINS } from '../generated/shared/chains';
+
 export interface ChainConfig {
   id: string;
   name: string;
@@ -6,40 +8,16 @@ export interface ChainConfig {
   explorerUrl: string;
 }
 
-export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
-  ethereum: {
-    id: 'ethereum',
-    name: 'Ethereum',
-    chainId: 1,
-    nativeCurrency: { symbol: 'ETH', decimals: 18 },
-    explorerUrl: 'https://etherscan.io',
-  },
-  polygon: {
-    id: 'polygon',
-    name: 'Polygon',
-    chainId: 137,
-    nativeCurrency: { symbol: 'MATIC', decimals: 18 },
-    explorerUrl: 'https://polygonscan.com',
-  },
-  arbitrum: {
-    id: 'arbitrum',
-    name: 'Arbitrum',
-    chainId: 42161,
-    nativeCurrency: { symbol: 'ETH', decimals: 18 },
-    explorerUrl: 'https://arbiscan.io',
-  },
-  base: {
-    id: 'base',
-    name: 'Base',
-    chainId: 8453,
-    nativeCurrency: { symbol: 'ETH', decimals: 18 },
-    explorerUrl: 'https://basescan.org',
-  },
-  tron: {
-    id: 'tron',
-    name: 'Tron',
-    chainId: 728126428,
-    nativeCurrency: { symbol: 'TRX', decimals: 6 },
-    explorerUrl: 'https://tronscan.org',
-  },
-};
+// Derived from the shared chain registry so backend and frontend never drift.
+export const SUPPORTED_CHAINS: Record<string, ChainConfig> = Object.fromEntries(
+  Object.entries(CHAINS).map(([id, def]) => [
+    id,
+    {
+      id: def.id,
+      name: def.name,
+      chainId: def.chainId,
+      nativeCurrency: def.nativeCurrency,
+      explorerUrl: def.explorerUrl,
+    },
+  ]),
+);

@@ -31,6 +31,10 @@ class FetchHistoryOptions {
   @IsOptional()
   @IsIn(['asc', 'desc'])
   sort?: 'asc' | 'desc';
+
+  @IsOptional()
+  @IsNumber()
+  maxTotal?: number;
 }
 
 export class FetchHistoryDto {

@@ -24,6 +24,12 @@ export function useSelectedItem(investigation: Investigation | null) {
         if (found) { setSelectedItem({ type: 'wallet', data: found }); return; }
       }
       setSelectedItem(null);
+    } else if (type === 'txJunction' && data) {
+      for (const trace of investigation.traces) {
+        const found = trace.nodes.find((n: WalletNode) => n.id === data.id);
+        if (found) { setSelectedItem({ type: 'txJunction', data: found }); return; }
+      }
+      setSelectedItem(null);
     } else if (type === 'transaction' && data) {
       for (const trace of investigation.traces) {
         const found = trace.edges.find((e: TransactionEdge) => e.id === data.id);

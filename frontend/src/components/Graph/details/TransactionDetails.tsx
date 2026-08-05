@@ -4,6 +4,8 @@ import { TransactionEdge, WalletNode } from '@/types/investigation';
 import { CopyButton } from '@/components/Common/CopyButton';
 import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
 import { buildTxExplorerUrl } from '@/utils/addressParser';
+import { truncateMiddle } from '@/utils/utxoDisplay';
+import { UtxoBreakdown, ChangeBadge } from './UtxoBreakdown';
 
 function resolveWalletDisplay(id: string, allWallets: { wallet: WalletNode; traceId: string }[]) {
   const match = allWallets.find((w) => w.wallet.id === id);
@@ -235,6 +237,29 @@ export function TransactionDetails({
           </div>
         )}
       </div>
+      {transaction.utxo && !transaction.utxo.legType && (
+        <div>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">UTXO</h4>
+          <UtxoBreakdown utxo={transaction.utxo} highlightVout={transaction.utxo.vout} />
+        </div>
+      )}
+      {transaction.utxo?.legType && (
+        <div>
+          <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">UTXO</h4>
+          <p className="text-sm text-canvas-muted">
+            Part of transaction{' '}
+            <span className="font-mono text-canvas-ink">{truncateMiddle(transaction.txHash, 10, 6)}</span>
+          </p>
+          <p className="text-xs text-canvas-muted mt-1 flex items-center gap-1.5">
+            {transaction.utxo.legType === 'input'
+              ? `input leg #${transaction.utxo.legIndex}`
+              : `output #${transaction.utxo.vout}`}
+            {transaction.utxo.legType === 'output' && transaction.utxo.outputs[0]?.change && (
+              <ChangeBadge evidence={transaction.utxo.outputs[0].changeEvidence} />
+            )}
+          </p>
+        </div>
+      )}
       <div>
         <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Timestamp</h4>
         <p className="text-sm text-canvas-muted">

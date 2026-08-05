@@ -9,7 +9,7 @@ FetchHistoryRequest:
       description: Wallet address to fetch history for
     chain:
       type: string
-      description: Blockchain network (ethereum, polygon, arbitrum, base)
+      description: Blockchain network (ethereum, polygon, arbitrum, base, tron, bitcoin)
     options:
       type: object
       properties:
@@ -32,6 +32,9 @@ FetchHistoryRequest:
         sort:
           type: string
           enum: [asc, desc]
+        maxTotal:
+          type: integer
+          description: Max total transactions to fetch (paginated internally). Used by the bitcoin provider.
 
 FetchHistoryResponse:
   type: object
@@ -83,3 +86,84 @@ TransactionResult:
         type: string
     crossTrace:
       type: boolean
+    utxo:
+      $ref: '#/UtxoContext'
+
+# Single source of truth for UTXO provenance across the contract surface.
+# Referenced by TransactionResult (fetch results) and by
+# `traces.yaml#/ImportTransactionItem` (import payloads) — the two must never
+# drift, because a fetch result is forwarded verbatim to /import-transactions.
+# Mirrors `backend/src/modules/blockchain/types.ts#UtxoContext`.
+UtxoContext:
+  type: object
+  description: UTXO provenance. Present only on rows from UTXO chains (Bitcoin).
+  required: [inputs, outputs, fee]
+  properties:
+    inputs:
+      type: array
+      items:
+        type: object
+        required: [address, value, prevTxid, prevVout]
+        properties:
+          address:
+            type: string
+            nullable: true
+          value:
+            type: string
+            description: Satoshis, as a decimal string.
+          prevTxid:
+            type: string
+          prevVout:
+            type: integer
+          scriptType:
+            type: string
+          coinbase:
+            type: boolean
+    outputs:
+      type: array
+      items:
+        type: object
+        required: [address, value, index]
+        properties:
+          address:
+            type: string
+            nullable: true
+          value:
+            type: string
+            description: Satoshis, as a decimal string.
+          index:
+            type: integer
+          scriptType:
+            type: string
+          change:
+            type: boolean
+          changeEvidence:
+            type: array
+            items:
+              type: string
+          opReturn:
+            type: boolean
+    fee:
+      type: string
+      description: Satoshis, as a decimal string.
+    warnings:
+      type: array
+      items:
+        type: string
+    confirmed:
+      type: boolean
+    blockHeight:
+      type: integer
+      nullable: true
+    vout:
+      type: integer
+      description: Which output this edge represents (payment edges).
+    legType:
+      type: string
+      enum: [input, output]
+      description: Junction leg edges.
+    legIndex:
+      type: integer
+    junction:
+      type: boolean
+      description: Row should materialize as a tx-junction node.

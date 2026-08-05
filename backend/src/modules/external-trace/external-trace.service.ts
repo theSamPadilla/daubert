@@ -3,6 +3,7 @@ import { BlockchainService, TransactionResult } from '../blockchain/blockchain.s
 import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.service';
 import { buildGraph, GraphResult } from './graph-builder';
 import { normalizeAddressForChain, validateAddressForChain } from '../../generated/shared/address';
+import { edgeIdentityKey } from '../../generated/shared/edge-identity';
 
 // Per-direction cap: 5 incoming + 5 outgoing per address (root and hop-2 alike).
 // The previous flat 10-tx cap let one direction dominate when an address skewed
@@ -64,9 +65,11 @@ export class ExternalTraceService {
 
     // Hop 1: fetch a window, partition by direction relative to `address`,
     // keep up to PER_DIRECTION_LIMIT of each.
-    const rootHistory = await this.blockchain.fetchHistory(address, chain, {
-      offset: FETCH_WINDOW,
-    });
+    const rootHistory = await this.blockchain.fetchHistory(
+      address,
+      chain,
+      this.fetchWindowOptions(chain),
+    );
     const rootTrimmed = this.trimByDirection(rootHistory.transactions, address);
     allTxs.push(...rootTrimmed);
 
@@ -75,11 +78,26 @@ export class ExternalTraceService {
     if (hops === 2) {
       const counterCounts = new Map<string, number>();
       for (const tx of rootTrimmed) {
+        // BTC junction rows (coinjoin/consolidation/coinbase/wide fan-out)
+        // draw the transaction as an unattributed junction node, not an
+        // address edge -- the graph never connects `address` to a single
+        // counterparty for these rows, so hop-2 must not rank one either.
+        // Junction rows come in TWO shapes: incoming (`from: ''`, `to` =
+        // traced address) and outgoing (`from` = traced address, `to` = a
+        // real counterparty address). Only `utxo.junction === true`
+        // reliably flags both -- keying off `!tx.from` alone would miss
+        // the outgoing shape and rank a counterparty the canvas never draws.
+        if (tx.chain === 'bitcoin' && tx.utxo?.junction) continue;
+
         // tx.from/tx.to are already chain-normalized by BlockchainService.fetchHistory
         // (lowercased for EVM, base58 preserved for Tron). The same normalization
         // produced `address` above, so equality holds without further transform.
         const other = tx.from === address ? tx.to : tx.from;
         if (!other || other === address) continue;
+        // Defensive, belt-and-braces: never rank/fetch something that isn't
+        // a real address for this chain (e.g. a stray txid) as a hop-2
+        // counterparty.
+        if (!tx.from || validateAddressForChain(other, chain) != null) continue;
         counterCounts.set(other, (counterCounts.get(other) ?? 0) + 1);
       }
       const topCps = [...counterCounts.entries()]
@@ -90,7 +108,7 @@ export class ExternalTraceService {
       const hop2Results = await Promise.all(
         topCps.map((cp) =>
           this.withHop2Slot(() =>
-            this.blockchain.fetchHistory(cp, chain, { offset: FETCH_WINDOW }),
+            this.blockchain.fetchHistory(cp, chain, this.fetchWindowOptions(chain)),
           )
             .then((r) => ({ cp, transactions: r.transactions }))
             .catch((err) => {
@@ -142,6 +160,17 @@ export class ExternalTraceService {
     this.cache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS });
   }
 
+  // EVM/Tron read `offset` as the page size. The BTC path ignores `offset`
+  // entirely and bounds its paging with `maxTotal`. Setting `maxTotal` on the
+  // account-model path would flip fetchHistory into its paginated branch,
+  // which caps the MERGED native+token list at FETCH_WINDOW rows instead of
+  // FETCH_WINDOW per source -- a narrower window than the widget has today.
+  private fetchWindowOptions(chain: string) {
+    return chain === 'bitcoin'
+      ? { offset: FETCH_WINDOW, maxTotal: FETCH_WINDOW }
+      : { offset: FETCH_WINDOW };
+  }
+
   private deepFreeze<T>(obj: T): T {
     if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
       Object.freeze(obj);
@@ -165,13 +194,24 @@ export class ExternalTraceService {
     const outgoing: TransactionResult[] = [];
     const seen = new Set<string>();
     for (const tx of txs) {
-      if (seen.has(tx.txHash)) continue;
+      // BTC self/change rows (from === to) are noise at a 5-per-direction
+      // cap: the product canvas keeps them (they're a real ledger fact),
+      // but this widget only shows counterparty flows, so they're dropped
+      // here rather than upstream.
+      if (tx.chain === 'bitcoin' && tx.from === tx.to) continue;
+
+      // BTC rows carry `utxo.vout`, so one txid's several outputs to
+      // different counterparties each get their own dedup slot instead of
+      // collapsing onto a single bare `txHash` key like account-model chains.
+      const key =
+        tx.chain === 'bitcoin' ? edgeIdentityKey(tx, tx.from, tx.to) : tx.txHash;
+      if (seen.has(key)) continue;
       if (tx.to === address && incoming.length < PER_DIRECTION_LIMIT) {
         incoming.push(tx);
-        seen.add(tx.txHash);
+        seen.add(key);
       } else if (tx.from === address && outgoing.length < PER_DIRECTION_LIMIT) {
         outgoing.push(tx);
-        seen.add(tx.txHash);
+        seen.add(key);
       }
       if (
         incoming.length >= PER_DIRECTION_LIMIT &&

@@ -1,3 +1,13 @@
+import type { components } from '../generated/api-types';
+
+/**
+ * UTXO provenance carried by Bitcoin nodes/edges. Aliased from the generated
+ * OpenAPI schema (contracts/schemas/blockchain.yaml#UtxoContext →
+ * backend/src/modules/blockchain/types.ts#UtxoContext) rather than
+ * hand-mirrored, so frontend and backend never drift.
+ */
+export type UtxoContext = components['schemas']['UtxoContext'];
+
 export interface Group {
   id: string;
   name: string;
@@ -93,6 +103,10 @@ export interface WalletNode {
   groupId?: string;
   addressType?: 'wallet' | 'contract' | 'unknown';
   explorerUrl?: string;
+  /** 'txJunction' when this node stands for a Bitcoin transaction (many inputs/outputs) rather than a wallet. Absent/'wallet' for ordinary address nodes. */
+  kind?: 'wallet' | 'txJunction';
+  /** Full UTXO ledger record for a txJunction node. Absent on ordinary wallets. */
+  utxoTx?: UtxoContext;
 }
 
 export interface TransactionEdge {
@@ -122,4 +136,6 @@ export interface TransactionEdge {
   // arcs survive reloads and appear in exhibit-rendered snapshots.
   hasArc?: boolean;
   arcOffset?: number;
+  /** UTXO provenance (Bitcoin only). Present on payment edges and junction leg edges. */
+  utxo?: UtxoContext;
 }

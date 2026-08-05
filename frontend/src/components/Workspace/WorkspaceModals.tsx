@@ -8,6 +8,7 @@ import { StagingPanel } from '@/components/Graph/StagingPanel';
 import { SearchPanel } from '@/components/AdvancedSearch/SearchPanel';
 import { apiClient, type Investigation as ApiInvestigation } from '@/lib/api-client';
 import type { Investigation, TransactionEdge } from '@/types/investigation';
+import { edgeIdentityKey } from '../../generated/shared/edge-identity';
 
 interface WorkspaceModalsProps {
   caseId: string;
@@ -114,9 +115,22 @@ export function WorkspaceModals(props: WorkspaceModalsProps) {
           initialChain={fetchModalWallet.chain}
           traces={investigation.traces}
           existingTxKeys={new Set(
-            investigation.traces.flatMap((t) =>
-              t.edges.map((e) => `${e.txHash}-${e.from}-${e.to}`)
-            )
+            (() => {
+              // Edges reference node UUIDs after import, not raw addresses — resolve
+              // through a nodeId -> address map before computing the dedup key (fall
+              // back to the raw value for edges that predate import normalization).
+              const nodeAddressById = new Map<string, string>();
+              investigation.traces.forEach((t) =>
+                t.nodes.forEach((n) => nodeAddressById.set(n.id, n.address))
+              );
+              return investigation.traces.flatMap((t) =>
+                t.edges.map((e) => {
+                  const fromAddr = nodeAddressById.get(e.from) ?? e.from;
+                  const toAddr = nodeAddressById.get(e.to) ?? e.to;
+                  return edgeIdentityKey(e, fromAddr, toAddr);
+                })
+              );
+            })()
           )}
           onAdd={onAddStagedToTrace}
           onClose={() => setFetchModalWallet(null)}

@@ -24,6 +24,7 @@ import { BlockchainService } from '../../blockchain/blockchain.service';
 import { AuthSuccess } from '../mcp-auth.helper';
 import { BlockchainToolsService } from './blockchain-tools';
 import { RESULT_CAP_BYTES } from './tool-utils';
+import { summarizeUtxo } from '../../ai/investigation-data.utils';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -263,6 +264,196 @@ describe('BlockchainToolsService', () => {
       expect(result.isError).toBeUndefined();
       expect(blockchain.fetchHistory).toHaveBeenCalledWith('0xabc', 'tron', expect.anything());
     });
+
+    it('summarizes a row utxo (50-in/50-out) to counts, fits the cap, and is not truncated', async () => {
+      // A 50-in/50-out CoinJoin-style row: raw utxo arrays alone serialize to
+      // well over the 8 KB cap, but the summarized {inputs, outputs, fee, ...}
+      // shape is tiny — the whole payload should fit without truncation.
+      const bigUtxo = {
+        inputs: Array.from({ length: 50 }, (_, i) => ({
+          address: `bc1qinput${i}`,
+          value: '100000',
+          prevTxid: 'a'.repeat(64),
+          prevVout: i,
+          scriptType: 'witness_v0_keyhash',
+        })),
+        outputs: Array.from({ length: 50 }, (_, i) => ({
+          address: `bc1qoutput${i}`,
+          value: '99000',
+          index: i,
+          scriptType: 'witness_v0_keyhash',
+          change: i === 3,
+        })),
+        fee: '5000',
+        vout: 3,
+        warnings: ['coinjoin_suspected'],
+      };
+      const rowWithUtxo = {
+        ...SAMPLE_TX,
+        id: 'tx-coinjoin',
+        txHash: '0xcoinjoin',
+        chain: 'bitcoin',
+        utxo: bigUtxo,
+      };
+
+      // Sanity check on the fixture: the raw row must actually exceed the cap
+      // so this test proves summarization (not luck) keeps it under.
+      expect(JSON.stringify(rowWithUtxo).length).toBeGreaterThan(RESULT_CAP_BYTES);
+
+      const { server } = buildService({
+        blockchain: {
+          fetchHistory: jest.fn().mockResolvedValue({
+            transactions: [rowWithUtxo],
+            chain: 'bitcoin',
+            address: 'bc1qxyz',
+          }),
+        },
+      });
+
+      const result = await callTool(server, 'blockchain_fetch_history', {
+        address: 'bc1qxyz',
+        chain: 'bitcoin',
+      });
+
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse(result.content[0].text);
+
+      // Fits fully — no truncation needed once utxo is summarized.
+      expect(parsed.truncated).toBeFalsy();
+      expect(parsed.transactions).toHaveLength(1);
+
+      const utxo = parsed.transactions[0].utxo;
+      expect(utxo).toEqual({
+        inputs: 50,
+        outputs: 50,
+        fee: '5000',
+        vout: 3,
+        change: true,
+        warnings: ['coinjoin_suspected'],
+      });
+      // Counts, not arrays.
+      expect(Array.isArray(utxo.inputs)).toBe(false);
+      expect(Array.isArray(utxo.outputs)).toBe(false);
+    });
+
+    it('never returns zero rows when data exists, even if binary search would land on 0', async () => {
+      // Each row carries a 50-in/50-out utxo PLUS a padded non-utxo field
+      // (notes), sized so that even a single SUMMARIZED row alone exceeds
+      // the per-transactions budget under the envelope. This forces the
+      // binary search to legitimately land on best === 0 — the guard must
+      // then still return the first row rather than an empty array.
+      //
+      // The padding length is calibrated dynamically (via the same
+      // envelope/budget math buildFetchHistoryPayload uses, and the real
+      // summarizeUtxo) rather than hardcoded, so the test doesn't silently
+      // stop exercising the guard if unrelated field sizes shift.
+      const chain = 'bitcoin';
+      const address = 'bc1qxyz';
+      const totalCount = 5;
+
+      const makeUtxo = (n: number) => ({
+        inputs: Array.from({ length: n }, (_, i) => ({
+          address: `bc1qinput${i}`,
+          value: '100000',
+          prevTxid: 'a'.repeat(64),
+          prevVout: i,
+        })),
+        outputs: Array.from({ length: n }, (_, i) => ({
+          address: `bc1qoutput${i}`,
+          value: '99000',
+          index: i,
+        })),
+        fee: '5000',
+      });
+      const makeRow = (padLen: number) => ({
+        ...SAMPLE_TX,
+        id: 'tx-huge',
+        txHash: '0xhugetx',
+        chain,
+        notes: 'x'.repeat(padLen),
+        utxo: makeUtxo(50),
+      });
+
+      const envelopeSize = JSON.stringify({
+        chain,
+        address,
+        truncated: true,
+        totalCount,
+        transactions: [],
+      }).length;
+      const budgetForTxs = RESULT_CAP_BYTES - envelopeSize - 2;
+
+      const summarizedSoloSize = (padLen: number) => {
+        const row = makeRow(padLen);
+        const summarizedRow = { ...row, utxo: summarizeUtxo(row.utxo) };
+        return JSON.stringify([summarizedRow]).length;
+      };
+
+      // Smallest padding where a single summarized row alone overflows the
+      // per-transactions budget.
+      let lo = 0;
+      let hi = 8000;
+      while (lo < hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        if (summarizedSoloSize(mid) > budgetForTxs) {
+          hi = mid;
+        } else {
+          lo = mid + 1;
+        }
+      }
+      const padLen = lo;
+      expect(summarizedSoloSize(padLen)).toBeGreaterThan(budgetForTxs);
+
+      const manyHugeRows = Array.from({ length: totalCount }, (_, i) => ({
+        ...makeRow(padLen),
+        id: `tx-huge-${i}`,
+        txHash: `0xhuge${i}`,
+      }));
+
+      const { server } = buildService({
+        blockchain: {
+          fetchHistory: jest.fn().mockResolvedValue({
+            transactions: manyHugeRows,
+            chain,
+            address,
+          }),
+        },
+      });
+
+      const result = await callTool(server, 'blockchain_fetch_history', {
+        address,
+        chain,
+      });
+
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse(
+        result.content[0].text.replace(/\n…\[truncated:.*$/, ''),
+      );
+
+      // Never zero rows when data exists.
+      expect(parsed.transactions.length).toBeGreaterThanOrEqual(1);
+      expect(parsed.truncated).toBe(true);
+      expect(parsed.totalCount).toBe(totalCount);
+      // The returned row's utxo is still summarized (counts, not arrays).
+      expect(parsed.transactions[0].utxo.inputs).toBe(50);
+      expect(parsed.transactions[0].utxo.outputs).toBe(50);
+    });
+
+    it('accepts chain "bitcoin" at the schema level (derived from CHAIN_IDS)', async () => {
+      // The zod enum now derives from the shared registry, which includes
+      // bitcoin. Schema parsing must accept it and let the call reach the
+      // (mocked) service — the real ProviderRegistry guard for the transient
+      // UTXO-less window is exercised elsewhere, not here.
+      const { server, blockchain } = buildService();
+
+      const result = await callTool(server, 'blockchain_fetch_history', {
+        address: 'bc1qxyz',
+        chain: 'bitcoin',
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(blockchain.fetchHistory).toHaveBeenCalledWith('bc1qxyz', 'bitcoin', expect.anything());
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -314,6 +505,92 @@ describe('BlockchainToolsService', () => {
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('badchain');
+    });
+
+    it('returns the full utxo (inputs/outputs arrays) untouched — no summarization', async () => {
+      // blockchain_get_transaction returns a single bounded object; unlike
+      // fetch_history it must NOT collapse utxo down to counts UNLESS the
+      // combined inputs+outputs count crosses the 100-row clamp threshold
+      // (see the next test). Sized well under both that threshold and the
+      // generic 8 KB textResult cap so this test isolates the summarization
+      // behavior from those unrelated, pre-existing caps.
+      const utxo = {
+        inputs: Array.from({ length: 10 }, (_, i) => ({
+          address: `bc1qinput${i}`,
+          value: '100000',
+          prevTxid: 'a'.repeat(64),
+          prevVout: i,
+        })),
+        outputs: Array.from({ length: 10 }, (_, i) => ({
+          address: `bc1qoutput${i}`,
+          value: '99000',
+          index: i,
+        })),
+        fee: '5000',
+        warnings: ['coinjoin_suspected'],
+      };
+      const detailWithUtxo = { ...SAMPLE_TX_DETAIL, chain: 'bitcoin', utxo };
+
+      const { server } = buildService({
+        blockchain: {
+          getTransaction: jest.fn().mockResolvedValue(detailWithUtxo),
+        },
+      });
+
+      const result = await callTool(server, 'blockchain_get_transaction', {
+        txHash: '0xhash1',
+        chain: 'bitcoin',
+      });
+
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.utxo.inputs).toHaveLength(10);
+      expect(parsed.utxo.outputs).toHaveLength(10);
+      expect(parsed.utxo.inputs[0]).toMatchObject({ address: 'bc1qinput0' });
+      expect(parsed.utxo.warnings).toEqual(['coinjoin_suspected']);
+    });
+
+    it('clamps a large utxo (>100 combined inputs+outputs) to a count-only summary', async () => {
+      // A big CoinJoin/consolidation row can blow the 8 KB cap on its own even
+      // as a single transaction — once combined inputs+outputs cross 100, the
+      // handler must fall back to the same count-only summarizeUtxo shape
+      // fetch_history uses, rather than serializing the raw arrays.
+      const utxo = {
+        inputs: Array.from({ length: 60 }, (_, i) => ({
+          address: `bc1qinput${i}`,
+          value: '100000',
+          prevTxid: 'a'.repeat(64),
+          prevVout: i,
+        })),
+        outputs: Array.from({ length: 60 }, (_, i) => ({
+          address: `bc1qoutput${i}`,
+          value: '99000',
+          index: i,
+        })),
+        fee: '5000',
+        warnings: ['coinjoin_suspected'],
+      };
+      const detailWithUtxo = { ...SAMPLE_TX_DETAIL, chain: 'bitcoin', utxo };
+
+      const { server } = buildService({
+        blockchain: {
+          getTransaction: jest.fn().mockResolvedValue(detailWithUtxo),
+        },
+      });
+
+      const result = await callTool(server, 'blockchain_get_transaction', {
+        txHash: '0xhash1',
+        chain: 'bitcoin',
+      });
+
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.utxo.inputs).toBe(60);
+      expect(parsed.utxo.outputs).toBe(60);
+      expect(parsed.utxo.fee).toBe('5000');
+      expect(parsed.utxo.warnings).toEqual(['coinjoin_suspected']);
+      // The raw arrays must not be present on the summarized shape.
+      expect(Array.isArray(parsed.utxo.inputs)).toBe(false);
     });
   });
 

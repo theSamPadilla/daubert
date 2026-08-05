@@ -7,8 +7,9 @@ import { InvestigationEntity } from '../../database/entities/investigation.entit
 import { CaseAccessService } from '../auth/case-access.service';
 import { AccessPrincipal } from '../auth/access-principal';
 import { CaseRole } from '../../database/entities/case-member.entity';
-import { CHAIN_CONFIGS, FetchOptions } from '../blockchain/types';
+import { FetchOptions } from '../blockchain/types';
 import { BlockchainService, TransactionResult } from '../blockchain/blockchain.service';
+import { explorerAddressUrl, explorerTxUrl } from '../../generated/shared/chains';
 import { CreateTraceDto } from './dto/create-trace.dto';
 import { UpdateTraceDto } from './dto/update-trace.dto';
 import { UpdateNodeDto } from './dto/update-node.dto';
@@ -18,7 +19,24 @@ import { CreateEdgeBundleDto, UpdateEdgeBundleDto } from './dto/bundle.dto';
 import { ImportTransactionItem, ImportTransactionsDto } from './dto/import-transactions.dto';
 import { SearchBetweenDto, WalletSetDto } from './dto/search-between.dto';
 import { normalizeAddressForChain } from '../../generated/shared/address';
+import { edgeIdentityKey } from '../../generated/shared/edge-identity';
+import { planJunction } from '../../generated/shared/utxo';
 import { normalizeLabels } from './label-schema';
+
+/**
+ * Canonical lookup key for an address.
+ *
+ * Trimmed AND lowercased. Lowercasing alone is not enough: the PERSISTED value
+ * is chain-aware (`normalizeAddressForChain` trims, and preserves case for
+ * Bitcoin and Tron), so a key that does not also trim puts `'  bc1q…  '` and
+ * `'bc1q…'` under two different keys — and mints two nodes whose stored
+ * `address` is byte-identical. Every map key, membership test, and endpoint
+ * lookup in the import path must go through this one function; a single site
+ * keying differently resolves to `undefined` and silently drops the edge.
+ */
+function addressKey(addr: string): string {
+  return addr.trim().toLowerCase();
+}
 
 @Injectable()
 export class TracesService {
@@ -201,12 +219,7 @@ export class TracesService {
           continue;
         }
 
-        const config = CHAIN_CONFIGS[def.chain];
-        const explorerUrl = config
-          ? def.chain === 'tron'
-            ? `${config.explorerUrl}/#/address/${def.address}`
-            : `${config.explorerUrl}/address/${def.address}`
-          : '';
+        const explorerUrl = explorerAddressUrl(def.chain, def.address);
 
         const nodeId = crypto.randomUUID();
         const x = maxX + 150 + Math.floor(placed / 5) * 150;
@@ -402,8 +415,12 @@ export class TracesService {
       // Filter to nodes on the search chain so we don't pollute the set with
       // (e.g.) EVM nodes when chain='tron'. Use chain-aware normalization —
       // Tron base58 is case-sensitive; lowercasing would corrupt addresses.
+      // Junction nodes (kind: 'txJunction') stand for a transaction, not a
+      // wallet — their "address" is a txid, so fetching it would burn a
+      // wallet-cap slot and land straight in failedAddresses.
       return new Set(
         (data.nodes ?? [])
+          .filter((n: any) => n.kind !== 'txJunction')
           .filter((n: any) => !n.chain || n.chain === chain)
           .map((n: any) => normalizeAddressForChain(n.address as string, chain)),
       );
@@ -418,6 +435,7 @@ export class TracesService {
           return new Set(
             (data.nodes ?? [])
               .filter((n: any) => n.groupId === set.groupId)
+              .filter((n: any) => n.kind !== 'txJunction')
               .filter((n: any) => !n.chain || n.chain === chain)
               .map((n: any) => normalizeAddressForChain(n.address as string, chain)),
           );
@@ -443,19 +461,27 @@ export class TracesService {
     const existingEdges: any[] = data.edges || [];
 
     const existingAddresses = new Set(
-      existingNodes.map((n: any) => n.address?.toLowerCase()),
+      existingNodes.map((n: any) => (n.address ? addressKey(n.address) : undefined)),
     );
+
+    // Resolve each edge's from/to nodeId to an address via a single-pass map
+    // instead of .find()-ing existingNodes per edge — O(nodes+edges) instead
+    // of O(nodes×edges). Fall back to the raw value when a node isn't found.
+    const nodeAddressById = new Map<string, string>();
+    for (const n of existingNodes) {
+      if (n.id && n.address) nodeAddressById.set(n.id, n.address);
+    }
     const existingTxKeys = new Set(
       existingEdges.map((e: any) => {
-        const fromNode = existingNodes.find((n: any) => n.id === e.from);
-        const toNode = existingNodes.find((n: any) => n.id === e.to);
-        return `${e.txHash}-${fromNode?.address?.toLowerCase()}-${toNode?.address?.toLowerCase()}`;
+        const fromAddr = nodeAddressById.get(e.from) ?? e.from;
+        const toAddr = nodeAddressById.get(e.to) ?? e.to;
+        return edgeIdentityKey(e, fromAddr, toAddr);
       }),
     );
 
     const addressToId = new Map<string, string>();
     for (const n of existingNodes) {
-      if (n.address) addressToId.set(n.address.toLowerCase(), n.id);
+      if (n.address) addressToId.set(addressKey(n.address), n.id);
     }
 
     // Build cross-trace address map from sibling traces in the same investigation
@@ -465,8 +491,8 @@ export class TracesService {
       if (sibling.id === id) continue;
       const siblingNodes: any[] = (sibling.data as any)?.nodes || [];
       for (const n of siblingNodes) {
-        if (n.address && !addressToId.has(n.address.toLowerCase())) {
-          crossTraceAddressToId.set(n.address.toLowerCase(), n.id);
+        if (n.address && !addressToId.has(addressKey(n.address))) {
+          crossTraceAddressToId.set(addressKey(n.address), n.id);
         }
       }
     }
@@ -485,57 +511,252 @@ export class TracesService {
     let addedNodes = 0;
     let addedEdges = 0;
 
-    for (const tx of dto.transactions) {
-      // Auto-create wallet nodes for unknown addresses (skip if already in a sibling trace)
-      for (const addr of [tx.from, tx.to]) {
-        if (existingAddresses.has(addr.toLowerCase())) continue;
-        if (crossTraceAddressToId.has(addr.toLowerCase())) continue;
+    // Bitcoin amounts ride as satoshis while the DTO's `token` is a bare symbol,
+    // so utxo-carrying rows get the structured token a TransactionEdge expects.
+    // Built per edge — one shared literal would alias across every BTC edge in
+    // the trace, so editing one would silently edit them all.
+    const btcToken = () => ({ address: '', symbol: 'BTC', decimals: 8 });
 
-        const chain = tx.chain || 'ethereum';
-        const config = CHAIN_CONFIGS[chain];
-        let explorerUrl = '';
-        if (config) {
-          explorerUrl = chain === 'tron'
-            ? `${config.explorerUrl}/#/address/${addr}`
-            : `${config.explorerUrl}/address/${addr}`;
-        }
+    /**
+     * Create the wallet node for `addr` unless this trace (or a sibling) already
+     * has one, and return the id it resolves to.
+     *
+     * Lookup keys go through `addressKey` on every chain so a differently-cased
+     * or whitespace-padded spelling of the same address still matches. Only the
+     * PERSISTED value is chain-aware: Bitcoin base58 and bech32 are
+     * case-significant, and lowercasing one produces a different (invalid)
+     * address.
+     */
+    const ensureAddressNode = (
+      addr: string,
+      chain: string,
+      customLabel?: string,
+    ): string | undefined => {
+      const key = addressKey(addr);
+      if (!existingAddresses.has(key) && !crossTraceAddressToId.has(key)) {
+        // Bitcoin only. `normalizeAddressForChain` lowercases EVM addresses, and
+        // EVM nodes have always persisted the address exactly as imported —
+        // applying it there would rewrite every existing import's node value.
+        const address = chain === 'bitcoin' ? normalizeAddressForChain(addr, chain) : addr;
 
         const nodeId = crypto.randomUUID();
         const x = nextX + Math.floor(placed / 5) * 150;
         const y = nextY + (placed % 5) * 100;
         placed++;
 
-        const isFrom = addr.toLowerCase() === tx.from.toLowerCase();
-        const customLabel = isFrom ? tx.fromLabel : tx.toLabel;
-        const defaultLabel = `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+        const defaultLabel = `${address.slice(0, 6)}…${address.slice(-4)}`;
 
         existingNodes.push({
           id: nodeId,
           label: customLabel || defaultLabel,
-          address: addr,
+          address,
           chain,
           notes: '',
           tags: [],
           position: { x, y },
           parentTrace: id,
           addressType: 'unknown',
-          explorerUrl,
+          explorerUrl: explorerAddressUrl(chain, address),
         });
 
-        addressToId.set(addr.toLowerCase(), nodeId);
-        existingAddresses.add(addr.toLowerCase());
+        addressToId.set(key, nodeId);
+        existingAddresses.add(key);
         addedNodes++;
       }
+      return addressToId.get(key) ?? crossTraceAddressToId.get(key);
+    };
 
-      // Deduplicate by txHash-fromAddr-toAddr
-      const key = `${tx.txHash}-${tx.from.toLowerCase()}-${tx.to.toLowerCase()}`;
+    for (const tx of dto.transactions) {
+      const chain = tx.chain || 'ethereum';
+
+      // ── Bitcoin junction rows ───────────────────────────────────────────
+      // A junction-flagged row stands for a transaction whose shape (many
+      // inputs, CoinJoin, consolidation, coinbase) has no honest
+      // address→address rendering — drawing one would require synthesizing a
+      // sender. Instead the transaction itself becomes a node, with one leg
+      // edge per real participant.
+      //
+      // Every row derived from such a transaction carries the SAME full
+      // context, so planning from any one of them converges on the same node
+      // and the same legs; the rows that follow dedup to nothing.
+      if (chain === 'bitcoin' && tx.utxo?.junction) {
+        const plan = planJunction(tx.txHash, tx.utxo);
+
+        // The junction node dedups through the same address maps as wallets:
+        // its "address" is the txid — globally unique lowercase hex, so the
+        // lowercase map key is lossless.
+        const junctionKey = addressKey(plan.node.address);
+        if (!existingAddresses.has(junctionKey) && !crossTraceAddressToId.has(junctionKey)) {
+          const nodeId = crypto.randomUUID();
+          const x = nextX + Math.floor(placed / 5) * 150;
+          const y = nextY + (placed % 5) * 100;
+          placed++;
+
+          // vout/legType/legIndex/junction describe the ROW that produced this
+          // node, not the transaction — keeping them here would assert that the
+          // whole tx is "vout 0".
+          const {
+            vout: _vout,
+            legType: _legType,
+            legIndex: _legIndex,
+            junction: _junction,
+            ...ledger
+          } = tx.utxo;
+
+          existingNodes.push({
+            id: nodeId,
+            label: plan.node.label,
+            address: plan.node.address,
+            chain: 'bitcoin',
+            kind: plan.node.kind,
+            // The ledger record lives ONCE, here. Leg edges carry only their own
+            // slice, so a 50-input CoinJoin does not copy its inputs/outputs
+            // arrays onto 50 edges. The arrays are copied because a fetched
+            // row shares them by reference with every sibling row of the same
+            // transaction — persisted state must never alias the request.
+            utxoTx: { ...ledger, inputs: [...tx.utxo.inputs], outputs: [...tx.utxo.outputs] },
+            notes: '',
+            tags: [],
+            position: { x, y },
+            parentTrace: id,
+            addressType: 'unknown',
+            explorerUrl: explorerTxUrl('bitcoin', tx.txHash),
+          });
+
+          addressToId.set(junctionKey, nodeId);
+          existingAddresses.add(junctionKey);
+          addedNodes++;
+        }
+
+        const junctionId =
+          addressToId.get(junctionKey) ?? crossTraceAddressToId.get(junctionKey);
+        if (!junctionId) continue;
+
+        // Junction rows still name the fetched address in from/to, so an
+        // investigator-supplied label for it should land on its leg's node.
+        const labelFor = (addr: string): string | undefined => {
+          const k = addressKey(addr);
+          if (tx.from && k === addressKey(tx.from)) return tx.fromLabel;
+          if (tx.to && k === addressKey(tx.to)) return tx.toLabel;
+          return undefined;
+        };
+
+        const pushLeg = (
+          counterpartyAddress: string,
+          direction: 'input' | 'output',
+          amountSats: string,
+          legUtxo: {
+            inputs: unknown[];
+            outputs: unknown[];
+            fee: string;
+            legType: 'input' | 'output';
+            legIndex?: number;
+            vout?: number;
+          },
+        ) => {
+          const counterpartyKey = addressKey(counterpartyAddress);
+          const counterpartyId = ensureAddressNode(
+            counterpartyAddress,
+            'bitcoin',
+            labelFor(counterpartyAddress),
+          );
+          if (!counterpartyId) return;
+
+          // Identity is derived from the txid and the leg's position in the
+          // transaction, never from the endpoints — relabeling or re-fetching
+          // the same leg is the same fact.
+          const key = edgeIdentityKey(
+            { chain: 'bitcoin', txHash: tx.txHash, utxo: legUtxo },
+            counterpartyAddress,
+            plan.node.address,
+          );
+          if (existingTxKeys.has(key)) return;
+
+          existingEdges.push({
+            id: crypto.randomUUID(),
+            from: direction === 'input' ? counterpartyId : junctionId,
+            to: direction === 'input' ? junctionId : counterpartyId,
+            txHash: tx.txHash,
+            chain: 'bitcoin',
+            timestamp: tx.timestamp,
+            amount: amountSats,
+            token: btcToken(),
+            blockNumber: tx.blockNumber || 0,
+            notes: '',
+            tags: [],
+            crossTrace: !addressToId.has(counterpartyKey) || !addressToId.has(junctionKey),
+            utxo: legUtxo,
+          });
+
+          existingTxKeys.add(key);
+          addedEdges++;
+        };
+
+        for (const leg of plan.inputLegs) {
+          // Input legs carry no output record of their own, and UtxoInputDto
+          // requires prevTxid/prevVout that the plan does not surface — so the
+          // arrays stay empty and the junction node holds the detail.
+          pushLeg(leg.fromAddress, 'input', leg.amountSats, {
+            inputs: [],
+            outputs: [],
+            fee: '',
+            legType: 'input',
+            legIndex: leg.legIndex,
+          });
+        }
+
+        for (const leg of plan.outputLegs) {
+          pushLeg(leg.toAddress, 'output', leg.amountSats, {
+            inputs: [],
+            // A single-entry `outputs` array describing THIS leg's output —
+            // not the whole transaction's. It keeps the change verdict on the
+            // edge (badges, and the agent summarizer, both read the output whose
+            // `index` equals the edge's `vout`) while staying valid against
+            // UtxoContextDto, which has no root-level `change` field.
+            outputs: [
+              {
+                address: leg.toAddress,
+                value: leg.amountSats,
+                index: leg.vout,
+                ...(leg.change !== undefined ? { change: leg.change } : {}),
+              },
+            ],
+            fee: '',
+            legType: 'output',
+            vout: leg.vout,
+          });
+        }
+
+        continue;
+      }
+
+      // Auto-create wallet nodes for unknown addresses (skip if already in a sibling trace)
+      for (const addr of [tx.from, tx.to]) {
+        // A BTC row can legitimately have an empty endpoint (the normalizer
+        // emits `from: ''` on incoming multi-input rows, which are junctions and
+        // handled above) — never mint a node for it.
+        if (chain === 'bitcoin' && !addr) continue;
+        const isFrom = addressKey(addr) === addressKey(tx.from);
+        ensureAddressNode(addr, chain, isFrom ? tx.fromLabel : tx.toLabel);
+      }
+
+      // Deduplicate by the same identity key used to build existingTxKeys above.
+      const key = edgeIdentityKey(tx, tx.from, tx.to);
       if (existingTxKeys.has(key)) continue;
 
-      const fromId = addressToId.get(tx.from.toLowerCase()) ?? crossTraceAddressToId.get(tx.from.toLowerCase());
-      const toId = addressToId.get(tx.to.toLowerCase()) ?? crossTraceAddressToId.get(tx.to.toLowerCase());
+      const fromKey = addressKey(tx.from);
+      const toKey = addressKey(tx.to);
+      const fromId = addressToId.get(fromKey) ?? crossTraceAddressToId.get(fromKey);
+      const toId = addressToId.get(toKey) ?? crossTraceAddressToId.get(toKey);
       if (!fromId || !toId) continue;
 
-      const isCrossTrace = !addressToId.has(tx.from.toLowerCase()) || !addressToId.has(tx.to.toLowerCase());
+      const isCrossTrace = !addressToId.has(fromKey) || !addressToId.has(toKey);
+
+      // A non-junction BTC row keeps the full ledger record on the edge itself —
+      // there is no junction node to hold it — and switches to the structured
+      // BTC token because its `amount` is satoshis. Bare BTC rows with no utxo
+      // block keep the legacy string token and human-readable amounts.
+      const isBtcLedgerRow = chain === 'bitcoin' && !!tx.utxo;
 
       existingEdges.push({
         id: crypto.randomUUID(),
@@ -545,11 +766,22 @@ export class TracesService {
         chain: tx.chain,
         timestamp: tx.timestamp,
         amount: tx.amount,
-        token: tx.token,
+        token: isBtcLedgerRow ? btcToken() : tx.token,
         blockNumber: tx.blockNumber || 0,
         notes: '',
         tags: [],
         crossTrace: isCrossTrace,
+        // Copied for the same reason as the junction node's: the request's
+        // arrays are shared across sibling rows of one transaction.
+        ...(isBtcLedgerRow
+          ? {
+              utxo: {
+                ...tx.utxo,
+                inputs: [...tx.utxo!.inputs],
+                outputs: [...tx.utxo!.outputs],
+              },
+            }
+          : {}),
       });
 
       existingTxKeys.add(key);
@@ -566,7 +798,7 @@ export class TracesService {
    * Searches for all direct transactions between two wallet sets within an optional time window.
    * Accepts an array of traces (the full investigation) so that wallet sets can reference any trace
    * or group across the investigation. Fetches only the smaller side.
-   * Deduplicates using the same key as importTransactions: `${txHash}-${from}-${to}`.
+   * Deduplicates using the same key as importTransactions: edgeIdentityKey.
    * When the same (txHash, from, to) appears with different tokens (e.g. native + ERC-20 in one tx),
    * the token symbols are joined into a comma-separated string on the kept row.
    */
@@ -607,13 +839,18 @@ export class TracesService {
       endTimestamp: dto.timeRange?.endTimestamp,
       // Per-page: Etherscan accepts up to 10 000 (cap at 1 000 for safety);
       // Tron's API caps at ~50 per page in this codebase.
+      // Offset is irrelevant to the Bitcoin provider path (it paginates on its
+      // own cursor and ignores this field) — leave it falling through to the
+      // EVM default rather than special-casing it.
       offset: dto.chain === 'tron' ? 50 : 1000,
       // maxTotal worst-case = ceil(maxTotal / pageSize) provider calls per wallet
       // for *each* of native + token. Keep Tron conservative — 50/page × 40 pages
       // × 2 sources = 80 sequential Tronscan calls/wallet; any more and active
       // wallets hit the rate limiter mid-pagination. EVM is faster per page,
-      // so 10× the headroom is fine.
-      maxTotal: dto.chain === 'tron' ? 2000 : 10000,
+      // so 10× the headroom is fine. Bitcoin is capped much tighter — a single
+      // active address's history can run into the tens of thousands of rows,
+      // and searchBetween only needs enough to find cross-set matches.
+      maxTotal: dto.chain === 'bitcoin' ? 300 : dto.chain === 'tron' ? 2000 : 10000,
     };
 
     const addrs = [...toFetch];
@@ -638,7 +875,9 @@ export class TracesService {
       }
     }
 
-    // Collect cross-set txs. Key matches importTransactions dedup: `${txHash}-${from}-${to}`.
+    // Collect cross-set txs. Key matches importTransactions dedup — edgeIdentityKey,
+    // the same function used there, so BTC rows collapse on txid:vout (or
+    // txid:in:<legIndex>) instead of on endpoint addresses.
     // Collapse duplicates; merge token symbols if multiple tokens move in the same tx.
     const collapsed = new Map<string, ImportTransactionItem>();
 
@@ -651,10 +890,15 @@ export class TracesService {
         const to = normalizeAddressForChain(tx.to, dto.chain);
         const crosses =
           (toFetch.has(from) && otherSet.has(to)) ||
-          (toFetch.has(to) && otherSet.has(from));
+          (toFetch.has(to) && otherSet.has(from)) ||
+          // Unattributed BTC incoming row: the ledger names no single payer, but it
+          // does name every input. A junction import draws the real legs, so a match
+          // on any input address is a real link — not a synthesized one.
+          (dto.chain === 'bitcoin' && !from && toFetch.has(to) &&
+            (tx.utxo?.inputs ?? []).some((i) => i.address && otherSet.has(normalizeAddressForChain(i.address, dto.chain))));
         if (!crosses) continue;
 
-        const key = `${tx.txHash}-${from}-${to}`;
+        const key = edgeIdentityKey(tx, from, to);
         const existing = collapsed.get(key);
         if (!existing) {
           collapsed.set(key, this.toImportItem(tx, dto.chain));
@@ -681,6 +925,8 @@ export class TracesService {
    * token is a string (symbol) in ImportTransactionItem; TransactionResult.token is an object.
    * For native transfers the symbol is the chain's native currency (e.g. "ETH").
    * For ERC-20/TRC-20 transfers the symbol is the token symbol (e.g. "USDC").
+   * amount is passed through unchanged (satoshis for BTC utxo rows) — reformatting
+   * is the import path's job (importTransactions), not this mapping.
    */
   private toImportItem(tx: TransactionResult, chain: string): ImportTransactionItem {
     const item = new ImportTransactionItem();
@@ -692,6 +938,10 @@ export class TracesService {
     item.token = tx.token.symbol;   // string symbol, not the object
     item.timestamp = tx.timestamp;  // already ISO string from BlockchainService
     item.blockNumber = tx.blockNumber;
+    // UTXO provenance (Bitcoin only) — carried through so an imported search
+    // result retains the payload importTransactions needs to build the
+    // structured BTC token/ledger record (see Task 14).
+    if (tx.utxo) item.utxo = tx.utxo;
     return item;
   }
 }

@@ -1,5 +1,149 @@
 import { Type } from 'class-transformer';
-import { IsString, IsOptional, IsNumber, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  ArrayMaxSize,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
+
+import type {
+  UtxoContext,
+  UtxoInput,
+  UtxoOutput,
+} from '../../blockchain/types';
+
+// ---------------------------------------------------------------------------
+// UTXO provenance.
+//
+// These classes exist for ONE reason: the global pipe in main.ts runs with
+// `whitelist: true`, which silently DELETES any property no class-validator
+// decorator declares. An undeclared `utxo` therefore never reaches
+// TracesService — the import succeeds, and the Bitcoin evidence is gone with
+// no error anywhere. `import-transactions.dto.spec.ts` is the canary for that.
+//
+// The `implements` clauses bind these to the canonical interfaces in
+// `blockchain/types.ts`; if that shape changes and these do not, the backend
+// stops compiling instead of quietly dropping fields at runtime.
+//
+// Nullable addresses (bare scripts, unknown script types, coinbase inputs,
+// OP_RETURN outputs) use `@ValidateIf(... !== null)` rather than
+// `@IsOptional()`: null is a MEANINGFUL value here ("no decodable address"),
+// and it must pass validation without `@IsString()` firing, while still
+// registering validation metadata so `whitelist` keeps the property.
+// ---------------------------------------------------------------------------
+
+export class UtxoInputDto implements UtxoInput {
+  @ValidateIf((o: UtxoInputDto) => o.address !== null)
+  @IsString()
+  address: string | null;
+
+  /** Satoshis, as a decimal string. */
+  @IsString()
+  value: string;
+
+  @IsString()
+  prevTxid: string;
+
+  @IsNumber()
+  prevVout: number;
+
+  @IsOptional()
+  @IsString()
+  scriptType?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  coinbase?: boolean;
+}
+
+export class UtxoOutputDto implements UtxoOutput {
+  @ValidateIf((o: UtxoOutputDto) => o.address !== null)
+  @IsString()
+  address: string | null;
+
+  /** Satoshis, as a decimal string. */
+  @IsString()
+  value: string;
+
+  @IsNumber()
+  index: number;
+
+  @IsOptional()
+  @IsString()
+  scriptType?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  change?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  changeEvidence?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  opReturn?: boolean;
+}
+
+export class UtxoContextDto implements UtxoContext {
+  // 500 is deliberately generous — a 400-input consolidation is a real
+  // Bitcoin transaction. The cap exists to bound the validation cost of a
+  // hostile payload, not to second-guess the chain.
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => UtxoInputDto)
+  inputs: UtxoInputDto[];
+
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => UtxoOutputDto)
+  outputs: UtxoOutputDto[];
+
+  /** Satoshis, as a decimal string. */
+  @IsString()
+  fee: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  warnings?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  confirmed?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  blockHeight?: number | null;
+
+  /** Which output this edge represents (payment edges). */
+  @IsOptional()
+  @IsNumber()
+  vout?: number;
+
+  @IsOptional()
+  @IsIn(['input', 'output'])
+  legType?: 'input' | 'output';
+
+  @IsOptional()
+  @IsNumber()
+  legIndex?: number;
+
+  /** Row should materialize as a tx-junction node. */
+  @IsOptional()
+  @IsBoolean()
+  junction?: boolean;
+}
 
 export class ImportTransactionItem {
   @IsString()
@@ -34,10 +178,22 @@ export class ImportTransactionItem {
   @IsOptional()
   @IsString()
   toLabel?: string;
+
+  /** Present only on rows from UTXO chains (Bitcoin). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UtxoContextDto)
+  utxo?: UtxoContextDto;
 }
 
 export class ImportTransactionsDto {
+  // Each item can itself carry up to 500+500 nested UTXO input/output rows
+  // (see UtxoContextDto above), so an unbounded top-level array multiplies
+  // into a very expensive nested-validation pass. 5000 is well above any
+  // legitimate single import (callers batch large imports client-side) and
+  // bounds the validation cost of a hostile payload.
   @IsArray()
+  @ArrayMaxSize(5000)
   @ValidateNested({ each: true })
   @Type(() => ImportTransactionItem)
   transactions: ImportTransactionItem[];

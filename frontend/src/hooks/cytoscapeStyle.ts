@@ -68,6 +68,16 @@ export const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
       'border-width': 2,
     },
   },
+  // ── Tx junction (Bitcoin transaction rendered as its own node) ──────────
+  {
+    selector: 'node[kind = "txJunction"]',
+    style: {
+      'font-size': '9px',
+      'background-color': '#64748b',
+      'border-color': '#64748b',
+      'color': '#ffffff',
+    },
+  },
 
   // ── Node states ────────────────────────────────────────────────────────
   // Yellow ring = selected (single click / shift+click multi-select)

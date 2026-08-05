@@ -1718,6 +1718,7 @@ export interface components {
             blockNumber?: number;
             fromLabel?: string;
             toLabel?: string;
+            utxo?: components["schemas"]["UtxoContext"];
         };
         /** @description One side of an advanced search. Exactly one of traceId, groupId, or wallets must be provided. */
         WalletSet: {
@@ -1750,7 +1751,7 @@ export interface components {
         FetchHistoryRequest: {
             /** @description Wallet address to fetch history for */
             address: string;
-            /** @description Blockchain network (ethereum, polygon, arbitrum, base) */
+            /** @description Blockchain network (ethereum, polygon, arbitrum, base, tron, bitcoin) */
             chain: string;
             options?: {
                 startBlock?: number;
@@ -1769,6 +1770,8 @@ export interface components {
                 offset?: number;
                 /** @enum {string} */
                 sort?: "asc" | "desc";
+                /** @description Max total transactions to fetch (paginated internally). Used by the bitcoin provider. */
+                maxTotal?: number;
             };
         };
         FetchHistoryResponse: {
@@ -2649,6 +2652,43 @@ export interface components {
             id: string;
             name: string;
         };
+        /** @description UTXO provenance. Present only on rows from UTXO chains (Bitcoin). */
+        UtxoContext: {
+            inputs: {
+                address: string | null;
+                /** @description Satoshis, as a decimal string. */
+                value: string;
+                prevTxid: string;
+                prevVout: number;
+                scriptType?: string;
+                coinbase?: boolean;
+            }[];
+            outputs: {
+                address: string | null;
+                /** @description Satoshis, as a decimal string. */
+                value: string;
+                index: number;
+                scriptType?: string;
+                change?: boolean;
+                changeEvidence?: string[];
+                opReturn?: boolean;
+            }[];
+            /** @description Satoshis, as a decimal string. */
+            fee: string;
+            warnings?: string[];
+            confirmed?: boolean;
+            blockHeight?: number | null;
+            /** @description Which output this edge represents (payment edges). */
+            vout?: number;
+            /**
+             * @description Junction leg edges.
+             * @enum {string}
+             */
+            legType?: "input" | "output";
+            legIndex?: number;
+            /** @description Row should materialize as a tx-junction node. */
+            junction?: boolean;
+        };
         TransactionResult: {
             /** Format: uuid */
             id?: string;
@@ -2668,6 +2708,7 @@ export interface components {
             notes?: string;
             tags?: string[];
             crossTrace?: boolean;
+            utxo?: components["schemas"]["UtxoContext"];
         };
         /** @enum {string} */
         DeclarationFormatDeclarantField: "dateOfBirth" | "address";

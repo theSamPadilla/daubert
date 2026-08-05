@@ -1,16 +1,8 @@
 import { useState, useMemo } from 'react';
 import { FaXmark, FaChevronDown, FaChevronRight } from 'react-icons/fa6';
 import { Group, Trace } from '@/types/investigation';
-import { normalizeToken } from '@/utils/formatAmount';
+import { formatHumanAmount, normalizeToken } from '@/utils/formatAmount';
 import { GroupColorPicker } from '@/components/Common/GroupColorPicker';
-
-function fmtFlow(amount: number): string {
-  if (amount >= 1e12) return `${(amount / 1e12).toFixed(2).replace(/\.?0+$/, '')}T`;
-  if (amount >= 1e9) return `${(amount / 1e9).toFixed(2).replace(/\.?0+$/, '')}B`;
-  if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}M`;
-  if (amount >= 1_000) return `${(amount / 1_000).toFixed(2).replace(/\.?0+$/, '')}K`;
-  return amount.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
 
 export function GroupDetails({
   group,
@@ -146,7 +138,7 @@ export function GroupDetails({
                 {inflows.map((f, i) => (
                   <div key={i} className="flex items-center justify-between gap-2">
                     <span className="text-xs text-canvas-muted truncate">{f.label}</span>
-                    <span className="text-xs text-emerald-300 shrink-0 font-mono">+{fmtFlow(f.amount)} {f.symbol}</span>
+                    <span className="text-xs text-emerald-300 shrink-0 font-mono">+{formatHumanAmount(f.amount)} {f.symbol}</span>
                   </div>
                 ))}
               </div>
@@ -159,7 +151,7 @@ export function GroupDetails({
                 {outflows.map((f, i) => (
                   <div key={i} className="flex items-center justify-between gap-2">
                     <span className="text-xs text-canvas-muted truncate">{f.label}</span>
-                    <span className="text-xs text-red-300 shrink-0 font-mono">-{fmtFlow(f.amount)} {f.symbol}</span>
+                    <span className="text-xs text-red-300 shrink-0 font-mono">-{formatHumanAmount(f.amount)} {f.symbol}</span>
                   </div>
                 ))}
               </div>

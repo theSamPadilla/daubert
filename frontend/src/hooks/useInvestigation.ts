@@ -111,6 +111,12 @@ function aggregateCrossEdges(
         ? `Aggregated from ${group.length} transactions:\n${group.map((e) => e.txHash).join('\n')}`
         : first.notes,
       crossTrace: true,
+      // A synthetic edge built from MULTIPLE underlying transactions displays their
+      // SUM — it must never carry one transaction's utxo (inputs/outputs/fee), or the
+      // details panel would show ledger facts that don't correspond to the displayed
+      // amount (a false evidentiary claim). A single-edge pass-through (isMultiple
+      // false) is a 1:1 stand-in for that one transaction, so its utxo is accurate.
+      utxo: isMultiple ? undefined : first.utxo,
     });
   }
   return result;

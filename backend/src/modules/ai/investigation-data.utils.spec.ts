@@ -271,6 +271,160 @@ describe('stripTraceForAgent', () => {
   });
 });
 
+// ── Bitcoin: junction node + utxo-bearing edges ──────────────────────────────
+// The agent gets COUNTS, never the raw inputs/outputs arrays — a 400-input
+// consolidation would otherwise dominate the context window.
+
+const BTC_UTXO = {
+  inputs: [
+    { address: 'bc1qsender', value: '250000', prevTxid: 'a'.repeat(64), prevVout: 0 },
+    { address: null, value: '100000', prevTxid: 'b'.repeat(64), prevVout: 3 },
+  ],
+  outputs: [
+    { address: 'bc1qpayee', value: '300000', index: 0 },
+    {
+      address: 'bc1qsender',
+      value: '48000',
+      index: 1,
+      change: true,
+      changeEvidence: ['self-send back to an input address'],
+    },
+  ],
+  fee: '2000',
+  warnings: ['coinjoin-like structure'],
+  confirmed: true,
+  blockHeight: 830000,
+};
+
+const BTC_DATA: Record<string, unknown> = {
+  nodes: [
+    { id: 'n-src', address: 'bc1qsender', chain: 'bitcoin', label: 'Source', tags: [] },
+    { id: 'n-pay', address: 'bc1qpayee', chain: 'bitcoin', label: 'Payee', tags: [] },
+    {
+      id: 'n-jx',
+      address: 'f'.repeat(64),
+      chain: 'bitcoin',
+      label: '2 in / 2 out',
+      tags: [],
+      kind: 'txJunction',
+      // The full ledger record lives on the junction node and must NOT be
+      // forwarded to the agent verbatim.
+      utxoTx: BTC_UTXO,
+    },
+  ],
+  edges: [
+    {
+      // Payment edge: vout 0 is the payee output (not change).
+      id: 'e-pay',
+      from: 'n-src',
+      to: 'n-pay',
+      txHash: 'f'.repeat(64),
+      chain: 'bitcoin',
+      timestamp: '1709500000',
+      amount: '300000',
+      token: 'BTC',
+      tags: [],
+      utxo: { ...BTC_UTXO, vout: 0 },
+    },
+    {
+      // Change edge: vout 1 IS flagged as change.
+      id: 'e-chg',
+      from: 'n-src',
+      to: 'n-src',
+      txHash: 'f'.repeat(64),
+      chain: 'bitcoin',
+      timestamp: '1709500000',
+      amount: '48000',
+      token: 'BTC',
+      tags: [],
+      utxo: { ...BTC_UTXO, vout: 1 },
+    },
+    {
+      // Junction leg: slim context, no inputs/outputs/fee of its own.
+      id: 'e-leg',
+      from: 'n-src',
+      to: 'n-jx',
+      txHash: 'f'.repeat(64),
+      chain: 'bitcoin',
+      timestamp: '1709500000',
+      amount: '250000',
+      token: 'BTC',
+      tags: [],
+      utxo: { legType: 'input', legIndex: 0 },
+    },
+  ],
+};
+
+describe('stripTraceForAgent — UTXO summarization', () => {
+  it('emits counts, fee and vout instead of the raw arrays', () => {
+    const result = stripTraceForAgent(BTC_DATA);
+    const pay = result.edges.find((e) => e.id === 'e-pay')!;
+
+    expect(pay.utxoSummary).toEqual({
+      inputs: 2,
+      outputs: 2,
+      fee: '2000',
+      vout: 0,
+      legType: undefined,
+      warnings: ['coinjoin-like structure'],
+      change: undefined,
+    });
+  });
+
+  it('NEVER emits the full inputs/outputs arrays to the agent', () => {
+    const result = stripTraceForAgent(BTC_DATA);
+
+    for (const e of result.edges) {
+      expect(e).not.toHaveProperty('utxo');
+      expect(e.utxoSummary).not.toHaveProperty('inputsList');
+      expect(Array.isArray((e.utxoSummary as any)?.inputs)).toBe(false);
+      expect(Array.isArray((e.utxoSummary as any)?.outputs)).toBe(false);
+    }
+    // And nothing anywhere in the serialized payload leaks a prevTxid.
+    expect(JSON.stringify(result)).not.toContain('prevTxid');
+    expect(JSON.stringify(result)).not.toContain('changeEvidence');
+  });
+
+  it('flags change only for the edge whose own vout is the change output', () => {
+    const result = stripTraceForAgent(BTC_DATA);
+
+    expect(result.edges.find((e) => e.id === 'e-chg')!.utxoSummary!.change).toBe(true);
+    // The payment edge shares the same transaction (which HAS a change output)
+    // but its own vout is not change — it must not inherit the flag.
+    expect(result.edges.find((e) => e.id === 'e-pay')!.utxoSummary!.change).toBeUndefined();
+  });
+
+  it('summarizes a slim junction leg without inventing a fee or counts', () => {
+    const result = stripTraceForAgent(BTC_DATA);
+    const leg = result.edges.find((e) => e.id === 'e-leg')!;
+
+    expect(leg.utxoSummary).toEqual({
+      inputs: 0,
+      outputs: 0,
+      fee: '',
+      vout: undefined,
+      legType: 'input',
+      warnings: undefined,
+      change: undefined,
+    });
+  });
+
+  it('passes junction node kind through and drops the node-level utxoTx record', () => {
+    const result = stripTraceForAgent(BTC_DATA);
+    const jx = result.nodes.find((n) => n.id === 'n-jx')!;
+
+    expect(jx.kind).toBe('txJunction');
+    expect(jx).not.toHaveProperty('utxoTx');
+  });
+
+  it('EVM regression: edges/nodes without utxo gain no new fields', () => {
+    const result = stripTraceForAgent(SAMPLE_DATA);
+
+    for (const e of result.edges) expect(e.utxoSummary).toBeUndefined();
+    for (const n of result.nodes) expect(n.kind).toBeUndefined();
+  });
+});
+
 describe('filterTraceData', () => {
   let stripped: AgentTraceData;
 

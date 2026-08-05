@@ -258,4 +258,84 @@ describe('syncCytoscape', () => {
     expect(cy.__elements.get('e12')!.__removed).toBe(true);
     expect(cy.__elements.get('e23')!.__removed).toBe(true);
   });
+
+  it('9. tx junction node: maps kind/shape/size/label/color from node.kind', () => {
+    const junction = wallet('j1', {
+      kind: 'txJunction',
+      label: '3 in / 2 out',
+      address: 'deadbeef',
+    });
+    const t = trace('trace-a', { nodes: [junction] });
+    const cy = makeFakeCy();
+
+    syncCytoscape(cy, inv([t]));
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'j1')!;
+    expect(call.data.kind).toBe('txJunction');
+    expect(call.data.nodeShape).toBe('rectangle');
+    expect(call.data.size).toBe(28);
+    expect(call.data.label).toBe('3 in / 2 out');
+    expect(call.data.displayLabel).toBe('3 in / 2 out');
+    expect(call.data.color).toBe('#64748b');
+  });
+
+  it('10. tx junction node respects explicit size/color overrides', () => {
+    const junction = wallet('j1', { kind: 'txJunction', label: '1 in / 1 out', size: 40, color: '#ff0000' });
+    const t = trace('trace-a', { nodes: [junction] });
+    const cy = makeFakeCy();
+
+    syncCytoscape(cy, inv([t]));
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'j1')!;
+    expect(call.data.size).toBe(40);
+    expect(call.data.color).toBe('#ff0000');
+  });
+
+  it('11. ordinary wallet node is unaffected by the junction branch (regression)', () => {
+    const w = wallet('w1', { label: 'Hot Wallet', address: '0xabcdef1234567890' });
+    const t = trace('trace-a', { nodes: [w] });
+    const cy = makeFakeCy();
+
+    syncCytoscape(cy, inv([t]));
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    expect(call.data.kind).toBeUndefined();
+    expect(call.data.nodeShape).toBe('ellipse');
+    expect(call.data.size).toBe(60);
+    expect(call.data.displayLabel).toBe('Hot Wallet');
+  });
+
+  it('12. aggregated BTC edge keeps sub-1 precision in its label (regression: "0 BTC")', () => {
+    const g: Group = { id: 'g1', name: 'Group 1', traceId: 'trace-a', collapsed: true };
+    const w1 = wallet('w1', { chain: 'bitcoin' });
+    const w2 = wallet('w2', { chain: 'bitcoin', groupId: 'g1' });
+    const w3 = wallet('w3', { chain: 'bitcoin', groupId: 'g1' });
+    const btc = { address: '', symbol: 'BTC', decimals: 8 };
+    // 514,179 + 624,660 sats = 0.01138839 BTC — must not render as "0 BTC (2)"
+    const e1 = edge('e1', 'w1', 'w2', { chain: 'bitcoin', token: btc, amount: '514179' });
+    const e2 = edge('e2', 'w1', 'w3', { chain: 'bitcoin', token: btc, amount: '624660' });
+    const t = trace('trace-a', { nodes: [w1, w2, w3], edges: [e1, e2], groups: [g] });
+    const cy = makeFakeCy();
+
+    syncCytoscape(cy, inv([t]));
+
+    const agg = cy.__addCalls.find((c) => c.data.isAggregatedEdge)!;
+    expect(agg).toBeDefined();
+    expect(agg.data.label).toBe('0.0113 BTC (2)');
+  });
+
+  it('13. aggregated BTC edge below 0.0001 keeps extended precision', () => {
+    const g: Group = { id: 'g1', name: 'Group 1', traceId: 'trace-a', collapsed: true };
+    const w1 = wallet('w1', { chain: 'bitcoin' });
+    const w2 = wallet('w2', { chain: 'bitcoin', groupId: 'g1' });
+    const btc = { address: '', symbol: 'BTC', decimals: 8 };
+    const e1 = edge('e1', 'w1', 'w2', { chain: 'bitcoin', token: btc, amount: '7900' });
+    const t = trace('trace-a', { nodes: [w1, w2], edges: [e1], groups: [g] });
+    const cy = makeFakeCy();
+
+    syncCytoscape(cy, inv([t]));
+
+    const agg = cy.__addCalls.find((c) => c.data.isAggregatedEdge)!;
+    expect(agg.data.label).toBe('0.000079 BTC');
+  });
 });

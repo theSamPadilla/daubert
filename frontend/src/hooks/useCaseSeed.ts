@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { parseTimestamp } from '@/utils/formatAmount';
 import type { components } from '@/generated/api-types';
+import { edgeIdentityKey } from '../generated/shared/edge-identity';
 
 type ImportItem = components['schemas']['ImportTransactionItem'];
 
@@ -45,6 +46,8 @@ interface FetchedTx {
   blockNumber?: number;
   fromLabel?: string;
   toLabel?: string;
+  /** UTXO provenance (Bitcoin only) — carried through verbatim to the import item. */
+  utxo?: ImportItem['utxo'];
 }
 
 /**
@@ -61,7 +64,9 @@ export function shortAddress(addr: string): string {
  * `token` object to its `symbol` string (the backend DTO requires a string —
  * passing the object 400s), and normalizes the timestamp to an ISO string so it
  * satisfies the `date-time` format regardless of whether the provider returned
- * ISO or unix-seconds.
+ * ISO or unix-seconds. `utxo` (Bitcoin only) is carried through verbatim — it
+ * is what lets a junction-flagged row be recognized and replanned client-side
+ * (see `planJunction` / `useWalletTransactionAuthoring`).
  */
 export function mapFetchedTx(tx: FetchedTx, chain: string): ImportItem {
   const token = typeof tx.token === 'string' ? tx.token : tx.token?.symbol ?? '';
@@ -77,14 +82,22 @@ export function mapFetchedTx(tx: FetchedTx, chain: string): ImportItem {
   if (tx.blockNumber !== undefined) item.blockNumber = tx.blockNumber;
   if (tx.fromLabel !== undefined) item.fromLabel = tx.fromLabel;
   if (tx.toLabel !== undefined) item.toLabel = tx.toLabel;
+  if (tx.utxo !== undefined) item.utxo = tx.utxo;
   return item;
 }
 
-/** Drop duplicate `txHash-from-to` triples, preserving first-seen order. */
+/**
+ * Drop duplicate rows, preserving first-seen order. Keyed by the same
+ * `edgeIdentityKey` the import/authoring paths use, so a BTC leg row keys on
+ * `txid:in:i` / `txid:vout` instead of the generic `txHash-from-to` triple —
+ * without this, two legs of the same junction transaction that happen to
+ * share a `from`/`to` (e.g. two outputs paying the same address) would
+ * collapse into one.
+ */
 export function dedupeTxs(items: ImportItem[]): ImportItem[] {
   const seen = new Set<string>();
   return items.filter((t) => {
-    const key = `${t.txHash}-${t.from}-${t.to}`;
+    const key = edgeIdentityKey(t, t.from, t.to);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -108,7 +121,12 @@ export async function runSeed(
   onPhase?.('fetching');
   const errors: SeedAddressError[] = [];
   const settled = await Promise.allSettled(
-    addresses.map((a) => apiClient.fetchHistory(a, chain, { sort: 'desc', offset: SEED_TX_LIMIT })),
+    addresses.map((a) =>
+      apiClient.fetchHistory(a, chain, {
+        sort: 'desc',
+        ...(chain === 'bitcoin' ? { maxTotal: SEED_TX_LIMIT } : { offset: SEED_TX_LIMIT }),
+      }),
+    ),
   );
 
   const items: ImportItem[] = [];

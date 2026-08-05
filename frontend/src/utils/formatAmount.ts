@@ -78,7 +78,14 @@ export function formatTokenAmount(rawAmount: string, decimals: number): string {
     if (remainder > BigInt(0) && decimals > 0) {
       const fracStr = remainder.toString().padStart(decimals, '0');
       const trimmed = fracStr.replace(/0+$/, '');
-      const display = trimmed.slice(0, 4);
+      let display = trimmed.slice(0, 4);
+      // Sub-0.0001 values: the first 4 fractional digits are all zero, so the
+      // usual 4-digit window would render as e.g. "0.0000". Extend the window
+      // to the full (trailing-zero-trimmed) fraction, capped at `decimals`
+      // digits, so the first significant digit(s) are visible.
+      if (whole === BigInt(0) && /^0*$/.test(display)) {
+        display = trimmed;
+      }
       if (display) formatted += '.' + display;
     }
     return formatted;
@@ -92,4 +99,39 @@ export function formatTokenAmount(rawAmount: string, decimals: number): string {
     if (num >= 1_000)      return abbrev(num, 1_000, 'K');
     return num.toLocaleString('en-US', { maximumFractionDigits: 4 });
   }
+}
+
+/**
+ * Format an already-human token amount (a float, post-division by 10^decimals)
+ * for display. Mirrors formatTokenAmount's policy so aggregated/summed values
+ * read identically to single-edge labels:
+ *  - >= 1000: K/M/B/T abbreviation
+ *  - < 1000: up to 4 fractional digits, truncated (matching formatTokenAmount)
+ *  - below 0.0001 (but non-zero): extended window up to 8 fractional digits so
+ *    the first significant digits stay visible (e.g. "0.0000079", never "0")
+ *
+ * Use this for values that only exist as accumulated floats (aggregated edges,
+ * bundle labels, group flows, multi-tx totals). When the raw smallest-unit
+ * string is at hand, prefer formatTokenAmount — its BigInt path is exact.
+ */
+export function formatHumanAmount(h: number): string {
+  if (!isFinite(h) || h === 0) return '0';
+  const abs = Math.abs(h);
+  if (abs >= 1e12) return abbrev(h, 1e12, 'T');
+  if (abs >= 1e9) return abbrev(h, 1e9, 'B');
+  if (abs >= 1_000_000) return abbrev(h, 1_000_000, 'M');
+  if (abs >= 1_000) return abbrev(h, 1_000, 'K');
+  const whole = Math.trunc(abs);
+  // 12 digits absorbs float-accumulation noise (0.1 + 0.2 → "0.3") while still
+  // reaching 1e-12; truncate (never round up) exactly like formatTokenAmount, so
+  // the same value reads identically whether or not its group is collapsed.
+  const frac = (abs - whole).toFixed(12).slice(2).replace(/0+$/, '');
+  let display = frac.slice(0, 4);
+  // Sub-0.0001: the 4-digit window is all zeros, so widen it to the first
+  // significant digits rather than rendering "0".
+  if (whole === 0 && /^0*$/.test(display)) display = frac;
+  // Below 1e-12 the fixed window is empty — fall back to significant digits so a
+  // wei-scale total never renders as "0".
+  if (whole === 0 && !display) return h.toLocaleString('en-US', { maximumSignificantDigits: 4 });
+  return (h < 0 ? '-' : '') + whole.toLocaleString('en-US') + (display ? '.' + display : '');
 }

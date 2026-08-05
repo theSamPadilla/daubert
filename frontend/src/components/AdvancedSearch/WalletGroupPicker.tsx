@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { FaLayerGroup, FaWallet, FaPlus, FaXmark } from 'react-icons/fa6';
 import { Investigation, Trace, WalletNode, Group } from '../../types/investigation';
 import { useLabeledEntities } from '@/hooks/useLabeledEntities';
-import { ADDRESS_RE, normalizeAddressForChain } from '../../generated/shared/address';
+import { normalizeAddressForChain, validateAddressForChain } from '../../generated/shared/address';
 
 const MAX_WALLETS = 25;
 
@@ -42,7 +42,7 @@ export function WalletGroupPicker({ label, investigation, chain, value, onChange
 
   // Traces that have at least one node on the selected chain
   const filteredTraces: Trace[] = useMemo(
-    () => investigation.traces.filter((t) => t.nodes.some((n) => n.chain === chain)),
+    () => investigation.traces.filter((t) => t.nodes.some((n) => n.chain === chain && n.kind !== 'txJunction')),
     [investigation.traces, chain],
   );
 
@@ -51,19 +51,22 @@ export function WalletGroupPicker({ label, investigation, chain, value, onChange
     const result: Array<{ group: Group; trace: Trace }> = [];
     for (const trace of investigation.traces) {
       for (const group of trace.groups ?? []) {
-        const hasChain = trace.nodes.some((n) => n.chain === chain && n.groupId === group.id);
+        const hasChain = trace.nodes.some((n) => n.chain === chain && n.groupId === group.id && n.kind !== 'txJunction');
         if (hasChain) result.push({ group, trace });
       }
     }
     return result;
   }, [investigation.traces, chain]);
 
-  // All wallets across all traces filtered by chain, then by search query
+  // All wallets across all traces filtered by chain, then by search query.
+  // txJunction nodes are excluded: they stand for a transaction, not a wallet —
+  // their `address` is a txid, which is not searchable (and the backend's
+  // resolveWalletSet applies the same filter on trace/group expansion).
   const allChainNodes: Array<{ node: WalletNode; trace: Trace }> = useMemo(() => {
     const result: Array<{ node: WalletNode; trace: Trace }> = [];
     for (const trace of investigation.traces) {
       for (const node of trace.nodes) {
-        if (node.chain === chain) result.push({ node, trace });
+        if (node.chain === chain && node.kind !== 'txJunction') result.push({ node, trace });
       }
     }
     return result;
@@ -356,10 +359,8 @@ function AddressInput({ selected, chain, atCap, onToggle }: AddressInputProps) {
   const handleAdd = () => {
     const raw = input.trim();
     if (!raw) return;
-    if (!ADDRESS_RE.test(raw)) {
-      setError('Invalid address. Expecting 0x… (EVM) or T… (Tron).');
-      return;
-    }
+    const err = validateAddressForChain(raw, chain);
+    if (err) { setError(err); return; }
     const normalized = normalizeAddressForChain(raw, chain);
     if (selected.has(normalized)) {
       setError('Address already added.');

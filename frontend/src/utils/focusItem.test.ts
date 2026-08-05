@@ -172,6 +172,22 @@ describe('resolveFocusItem', () => {
     expect(result).toEqual({ type: 'wallet', data: w });
   });
 
+  it('resolves txJunction focusItem to the node', () => {
+    const j = wallet('j1', { kind: 'txJunction', label: '3 in / 2 out', address: 'deadbeef' });
+    const t = trace('trace-a', { nodes: [j] });
+    const investigation = inv([t]);
+    const focusItem: FocusItem = { type: 'txJunction', id: 'j1', traceId: 'trace-a' };
+    const result = resolveFocusItem(focusItem, investigation);
+    expect(result).toEqual({ type: 'txJunction', data: j });
+  });
+
+  it('returns null for a txJunction focusItem with no matching node', () => {
+    const t = trace('trace-a');
+    const investigation = inv([t]);
+    const focusItem: FocusItem = { type: 'txJunction', id: 'missing', traceId: 'trace-a' };
+    expect(resolveFocusItem(focusItem, investigation)).toBeNull();
+  });
+
   it('resolves group focusItem', () => {
     const g = group('grp-1', 'trace-a', { name: 'MyGroup' });
     const t = trace('trace-a', { groups: [g] });

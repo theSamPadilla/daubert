@@ -67,6 +67,13 @@ export function resolveFocusItem(
     }
     return null;
   }
+  if (focusItem.type === 'txJunction') {
+    for (const trace of investigation.traces) {
+      const node = trace.nodes.find((n) => n.id === focusItem.id);
+      if (node) return { type: 'txJunction', data: node };
+    }
+    return null;
+  }
   if (focusItem.type === 'group') {
     for (const trace of investigation.traces) {
       const group = (trace.groups || []).find((g) => g.id === focusItem.id);

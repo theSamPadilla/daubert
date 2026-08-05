@@ -3,6 +3,7 @@ import { FaSpinner } from 'react-icons/fa6';
 import { ChainSelect } from './ChainSelect';
 import { inspectInput } from '@/utils/addressParser';
 import { apiClient } from '@/lib/api-client';
+import { CHAIN_IDS } from '@/generated/shared/chains';
 import type { WalletNode, TransactionEdge } from '@/types/investigation';
 
 interface QuickAddInputProps {
@@ -12,7 +13,8 @@ interface QuickAddInputProps {
   disabled?: boolean;
 }
 
-const CHAIN_OPTIONS = ['ethereum', 'arbitrum', 'base', 'polygon', 'tron'];
+// Derived from the shared chain registry (insertion order keeps ethereum first).
+const CHAIN_OPTIONS = CHAIN_IDS;
 
 function truncate(addr: string): string {
   return addr.length <= 10 ? addr : `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -98,6 +100,12 @@ export function QuickAddInput({
 
     if (result.kind === 'transaction') {
       const rc = result.chain ?? chain;
+
+      if (rc === 'bitcoin') {
+        setError("Bitcoin transactions can't be added from Quick Add — a UTXO transaction has no single sender. Use Fetch History on one of its addresses.");
+        return;
+      }
+
       setLoading(true);
 
       // Cancel any previous in-flight request

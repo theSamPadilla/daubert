@@ -72,7 +72,53 @@ import { errorResult, textResult } from './tool-utils';
 // the REST surface.
 // ---------------------------------------------------------------------------
 
-const importTxItemSchema = z.object({
+// UTXO provenance (Bitcoin). This is the SECOND of four whitelist layers the
+// payload must survive — zod silently strips unknown keys the same way the
+// REST DTO's `whitelist: true` does, so `utxo` has to be declared here or a
+// model's import loses the inputs/outputs/fee evidence with no error.
+//
+// These three objects are `strictObject`: unknown keys INSIDE utxo are
+// REJECTED rather than dropped. A model that invents `utxo.rawHex` or
+// misspells `changeEvidence` should be told, not quietly obeyed — the utxo
+// block is evidentiary, and a silently-dropped field there is a silently
+// wrong exhibit. The surrounding item keeps zod's default strip behavior so
+// the tool stays forgiving about extra top-level fields.
+//
+// Mirrors `traces/dto/import-transactions.dto.ts#UtxoContextDto` and
+// `blockchain/types.ts#UtxoContext`.
+const utxoInputSchema = z.strictObject({
+  address: z.string().nullable(),
+  value: z.string(),
+  prevTxid: z.string(),
+  prevVout: z.number(),
+  scriptType: z.string().optional(),
+  coinbase: z.boolean().optional(),
+});
+
+const utxoOutputSchema = z.strictObject({
+  address: z.string().nullable(),
+  value: z.string(),
+  index: z.number(),
+  scriptType: z.string().optional(),
+  change: z.boolean().optional(),
+  changeEvidence: z.array(z.string()).max(20).optional(),
+  opReturn: z.boolean().optional(),
+});
+
+const utxoContextSchema = z.strictObject({
+  inputs: z.array(utxoInputSchema).max(500),
+  outputs: z.array(utxoOutputSchema).max(500),
+  fee: z.string(),
+  warnings: z.array(z.string()).max(20).optional(),
+  confirmed: z.boolean().optional(),
+  blockHeight: z.number().nullable().optional(),
+  vout: z.number().optional(),
+  legType: z.enum(['input', 'output']).optional(),
+  legIndex: z.number().optional(),
+  junction: z.boolean().optional(),
+});
+
+export const importTxItemSchema = z.object({
   from: z.string(),
   to: z.string(),
   txHash: z.string(),
@@ -83,6 +129,7 @@ const importTxItemSchema = z.object({
   blockNumber: z.number().optional(),
   fromLabel: z.string().optional(),
   toLabel: z.string().optional(),
+  utxo: utxoContextSchema.optional(),
 });
 
 @Injectable()
@@ -214,6 +261,9 @@ export class WriteToolsService {
             if (t.blockNumber !== undefined) item.blockNumber = t.blockNumber;
             if (t.fromLabel !== undefined) item.fromLabel = t.fromLabel;
             if (t.toLabel !== undefined) item.toLabel = t.toLabel;
+            // UTXO provenance rides through untouched — zod already validated
+            // its shape, and the DTO class is a plain data holder.
+            if (t.utxo !== undefined) item.utxo = t.utxo;
             return item;
           });
 

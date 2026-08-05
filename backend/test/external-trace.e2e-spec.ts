@@ -20,6 +20,12 @@ const KEY = process.env.DAUBERT_WEBSITE_API_KEY!;
 describe('GET /external/trace (e2e)', () => {
   let app: INestApplication;
   let throttlerStorage: any;
+  // Typed `any`: the module only provides a partial `useValue` stub for
+  // BlockchainService (see providers below), so we reach the shared
+  // jest.fn() through this handle to queue per-test mock returns via
+  // mockResolvedValueOnce without disturbing the default mock other
+  // tests in this describe block rely on.
+  let blockchainServiceMock: any;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -56,6 +62,7 @@ describe('GET /external/trace (e2e)', () => {
     await app.init();
 
     throttlerStorage = moduleRef.get(ThrottlerStorage);
+    blockchainServiceMock = moduleRef.get(BlockchainService);
   });
 
   afterAll(async () => app.close());
@@ -113,6 +120,183 @@ describe('GET /external/trace (e2e)', () => {
       edges: expect.any(Array),
       truncated: false,
     });
+  });
+
+  it('returns 200 for bitcoin chain with a valid bech32 address', async () => {
+    const res = await request(app.getHttpServer())
+      .get(
+        '/external/trace?address=bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4&chain=bitcoin&hops=1',
+      )
+      .set('X-Daubert-Website-Key', KEY)
+      .set('X-Forwarded-For', '203.0.113.20')
+      .expect(200);
+    expect(res.body).toMatchObject({
+      root: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
+      chain: 'bitcoin',
+      hops: 1,
+      nodes: expect.any(Array),
+      edges: expect.any(Array),
+      truncated: false,
+    });
+  });
+
+  it('returns 200 for bitcoin chain with a junction node + a direct edge, and never leaks raw utxo arrays', async () => {
+    // A different address than the other bitcoin tests use -- the service
+    // caches by `${chain}:${address}:${hops}`, and reusing an address that
+    // an earlier test already traced would serve the cached (empty) result
+    // instead of invoking fetchHistory again, silently no-op-ing the mock
+    // queued below.
+    const BTC_ROOT = 'bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3';
+
+    // Distinctive markers planted inside the mocked junction row's raw
+    // utxo.inputs/outputs/warnings -- graph-builder must reduce these to
+    // counts-only (utxoSummary), never pass them through verbatim.
+    const LEAK_INPUT_1 = 'zzleakedjunctioninputaddressonezz';
+    const LEAK_INPUT_2 = 'zzleakedjunctioninputaddresstwozz';
+    const LEAK_CHANGE_OUTPUT = 'zzleakedjunctionchangeoutputzz';
+    const LEAK_WARNING = 'zzleakedwarningmarkerzz';
+    const LEAK_CHANGE_EVIDENCE = 'zzleakedchangeevidencemarkerzz';
+
+    const directRow = {
+      id: 'btc-direct-1',
+      from: 'bc1qdirectsenderaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      to: BTC_ROOT,
+      txHash: 'directtxid0000000000000000000000000000000000000000000000000000',
+      chain: 'bitcoin',
+      timestamp: '2026-08-01T00:00:00.000Z',
+      amount: '12345678',
+      token: { address: '', symbol: 'BTC', decimals: 8 },
+      blockNumber: 900000,
+      notes: '',
+      tags: [],
+      crossTrace: false,
+      utxo: {
+        inputs: [
+          {
+            address: 'bc1qdirectsenderaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            value: '12345678',
+            prevTxid: 'prevdirecttxid',
+            prevVout: 0,
+          },
+        ],
+        outputs: [{ address: BTC_ROOT, value: '12345678', index: 0 }],
+        fee: '500',
+        warnings: [],
+        confirmed: true,
+        blockHeight: 900000,
+        vout: 0,
+        junction: false,
+      },
+    };
+
+    const junctionRow = {
+      id: 'btc-junction-1',
+      from: '',
+      to: BTC_ROOT,
+      txHash: 'junctiontxid000000000000000000000000000000000000000000000000',
+      chain: 'bitcoin',
+      timestamp: '2026-08-01T00:05:00.000Z',
+      amount: '5000000',
+      token: { address: '', symbol: 'BTC', decimals: 8 },
+      blockNumber: 900001,
+      notes: '',
+      tags: [],
+      crossTrace: false,
+      utxo: {
+        inputs: [
+          { address: LEAK_INPUT_1, value: '3000000', prevTxid: 'prevjunc1', prevVout: 0 },
+          { address: LEAK_INPUT_2, value: '2500000', prevTxid: 'prevjunc2', prevVout: 1 },
+        ],
+        outputs: [
+          { address: BTC_ROOT, value: '5000000', index: 0 },
+          {
+            address: LEAK_CHANGE_OUTPUT,
+            value: '400000',
+            index: 1,
+            change: true,
+            changeEvidence: [LEAK_CHANGE_EVIDENCE],
+          },
+        ],
+        fee: '9999',
+        warnings: [LEAK_WARNING],
+        confirmed: true,
+        blockHeight: 900001,
+        vout: 0,
+        junction: true,
+      },
+    };
+
+    blockchainServiceMock.fetchHistory.mockResolvedValueOnce({
+      transactions: [directRow, junctionRow],
+      chain: 'bitcoin',
+      address: BTC_ROOT,
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/external/trace?address=${BTC_ROOT}&chain=bitcoin&hops=1`)
+      .set('X-Daubert-Website-Key', KEY)
+      .set('X-Forwarded-For', '203.0.113.23')
+      .expect(200);
+
+    const body = res.body;
+
+    const junctionNode = body.nodes.find((n: any) => n.id === junctionRow.txHash);
+    expect(junctionNode).toBeDefined();
+    expect(junctionNode.kind).toBe('txJunction');
+    expect(junctionNode.utxoSummary).toEqual({ inputs: 2, outputs: 2, fee: '9999' });
+
+    const directEdge = body.edges.find(
+      (e: any) => e.from === directRow.from && e.to === BTC_ROOT,
+    );
+    expect(directEdge).toBeDefined();
+    expect(directEdge.amount).toBe('0.1234');
+    expect(directEdge.txCount).toBe(1);
+
+    // No node -- junction or otherwise -- carries the raw ledger detail.
+    for (const node of body.nodes) {
+      expect(node).not.toHaveProperty('inputs');
+      expect(node).not.toHaveProperty('outputs');
+      expect(node).not.toHaveProperty('changeEvidence');
+      expect(node).not.toHaveProperty('warnings');
+    }
+
+    // Belt-and-braces: the raw utxo.inputs/outputs/warnings arrays must
+    // never leave the backend on this public endpoint. Scan the whole
+    // payload (not just the node we already checked) for the distinctive
+    // markers planted above.
+    const raw = JSON.stringify(body);
+    expect(raw).not.toContain(LEAK_INPUT_1);
+    expect(raw).not.toContain(LEAK_INPUT_2);
+    expect(raw).not.toContain(LEAK_CHANGE_OUTPUT);
+    expect(raw).not.toContain(LEAK_WARNING);
+    expect(raw).not.toContain(LEAK_CHANGE_EVIDENCE);
+  });
+
+  it('returns 400 for bitcoin chain with an EVM-shaped address (DTO passes, service rejects the mismatch)', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/external/trace?address=0x0000000000000000000000000000000000000000&chain=bitcoin&hops=1')
+      .set('X-Daubert-Website-Key', KEY)
+      .set('X-Forwarded-For', '203.0.113.21')
+      .expect(400);
+    // The DTO regex accepts any of the four address families regardless of `chain`,
+    // so this 400 must originate from ExternalTraceService.validateAddressChain ->
+    // validateAddressForChain, not from the DTO's @Matches validator.
+    expect(res.body.message).toBe(
+      'bitcoin requires a base58 (1…/3…) or bech32 (bc1…) address',
+    );
+  });
+
+  it('returns 400 for bitcoin chain with a mixed-case bech32 address (DTO rejects: bech32 is lowercase-only)', async () => {
+    const res = await request(app.getHttpServer())
+      .get(
+        '/external/trace?address=bc1qW508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4&chain=bitcoin&hops=1',
+      )
+      .set('X-Daubert-Website-Key', KEY)
+      .set('X-Forwarded-For', '203.0.113.22')
+      .expect(400);
+    expect(res.body.message).toContain(
+      'address must be an EVM (0x…), Tron (T…), or Bitcoin (1…/3…/bc1…) address',
+    );
   });
 
   it('returns 429 after exceeding the per-IP rate limit (10/min)', async () => {

@@ -1,7 +1,7 @@
 import { useState, useRef, ReactNode } from 'react';
 import { FaArrowUpRightFromSquare, FaTrash, FaCheck, FaXmark } from 'react-icons/fa6';
 import { TransactionEdge } from '@/types/investigation';
-import { normalizeToken, parseTimestamp } from '@/utils/formatAmount';
+import { formatHumanAmount, formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
 import { buildTxExplorerUrl } from '@/utils/addressParser';
 import { GroupColorPicker } from '@/components/Common/GroupColorPicker';
 import { THICKNESS_OPTIONS, DEFAULT_EDGE_WIDTH } from './details/TransactionDetails';
@@ -40,14 +40,6 @@ const HEADER_LABELS: Record<MultiTxDetailsProps['headerKind'], string> = {
   bundle: 'Edge Bundle',
   aggregated: 'Aggregated Transactions',
 };
-
-function abbr(h: number): string {
-  if (h >= 1e12) return `${(h / 1e12).toFixed(2).replace(/\.?0+$/, '')}T`;
-  if (h >= 1e9)  return `${(h / 1e9).toFixed(2).replace(/\.?0+$/, '')}B`;
-  if (h >= 1e6)  return `${(h / 1e6).toFixed(2).replace(/\.?0+$/, '')}M`;
-  if (h >= 1e3)  return `${(h / 1e3).toFixed(1).replace(/\.?0+$/, '')}K`;
-  return h.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
 
 export function MultiTxDetails({
   edges,
@@ -94,7 +86,7 @@ export function MultiTxDetails({
   }, new Map<string, number>());
 
   const totalSummary = Array.from(tokenTotals.entries())
-    .map(([sym, amt]) => `${abbr(amt)} ${sym}`)
+    .map(([sym, amt]) => `${formatHumanAmount(amt)} ${sym}`)
     .join(' + ');
 
   // Date span
@@ -209,10 +201,6 @@ export function MultiTxDetails({
           <div className="max-h-40 overflow-y-auto overflow-x-hidden rounded-lg bg-canvas-fill divide-y divide-canvas-line [scrollbar-width:thin]">
             {edges.map((e) => {
               const tok = normalizeToken(e.token);
-              const human =
-                tok.decimals > 0
-                  ? parseFloat(String(e.amount)) / Math.pow(10, tok.decimals)
-                  : parseFloat(String(e.amount));
               const explorerUrl = buildTxExplorerUrl(e.chain, e.txHash || '');
               const HashTag = explorerUrl ? 'a' : 'span';
               const confirming = confirmDeleteId === e.id;
@@ -234,7 +222,7 @@ export function MultiTxDetails({
                   </HashTag>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-canvas-ink">
-                      {abbr(human)} {tok.symbol}
+                      {formatTokenAmount(String(e.amount), tok.decimals)} {tok.symbol}
                     </span>
                     {onDeleteTransaction && (
                       confirming ? (

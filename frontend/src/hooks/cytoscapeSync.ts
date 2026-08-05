@@ -1,7 +1,7 @@
 import type { Core } from 'cytoscape';
 import type { Investigation } from '../types/investigation';
 import { contrastTextColor, formatShortDate } from './cytoscapeStyle';
-import { formatTokenAmount, normalizeToken, parseTimestamp, tokenKey } from '../utils/formatAmount';
+import { formatHumanAmount, formatTokenAmount, normalizeToken, parseTimestamp, tokenKey } from '../utils/formatAmount';
 
 export function syncCytoscape(cy: Core, investigation: Investigation | null): void {
   const inv = investigation;
@@ -92,12 +92,40 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
       // Wallet nodes (skip members of collapsed groups — use global map)
       trace.nodes.forEach((node) => {
         if (globalEffectiveId.get(node.id) !== node.id) return; // hidden by collapse
+        const groupExists = node.groupId && (trace.groups || []).some((g) => g.id === node.groupId && !g.collapsed);
+        const parentId = groupExists ? node.groupId! : trace.id;
+
+        // Tx junction: a Bitcoin transaction rendered as its own node (many
+        // inputs/outputs — no single honest sender/recipient to draw an
+        // address→address edge from). Its label IS the display label
+        // ("N in / M out"); address-truncation logic doesn't apply.
+        if (node.kind === 'txJunction') {
+          const nodeColor = node.color || '#64748b';
+          targetNodes.set(node.id, {
+            data: {
+              id: node.id,
+              parent: parentId,
+              traceId: trace.id,
+              label: node.label,
+              displayLabel: node.label,
+              hasCustomLabel: false,
+              truncAddr: '',
+              color: nodeColor,
+              textColor: contrastTextColor(nodeColor),
+              size: node.size || 28,
+              addressType: node.addressType || 'unknown',
+              nodeShape: 'rectangle',
+              kind: 'txJunction',
+            },
+            position: node.position,
+          });
+          return;
+        }
+
         const addr = node.address;
         const truncAddr = addr && addr.length > 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr || '';
         const hasCustomLabel = !!(node.label && node.label !== addr && node.label !== truncAddr);
         const displayLabel = hasCustomLabel ? node.label : (truncAddr || node.label);
-        const groupExists = node.groupId && (trace.groups || []).some((g) => g.id === node.groupId && !g.collapsed);
-        const parentId = groupExists ? node.groupId! : trace.id;
         const nodeColor = node.color || '#60a5fa';
         const addrTypeShape = node.addressType === 'contract' ? 'roundrectangle' : (node.addressType as string) === 'exchange' ? 'diamond' : 'ellipse';
         const nodeShape = node.shape || addrTypeShape;
@@ -108,13 +136,6 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
       });
 
       // Edges — re-route & aggregate for collapsed groups, skip bundled edges
-      const abbr = (h: number) =>
-        h >= 1e12 ? `${(h/1e12).toFixed(2).replace(/\.?0+$/, '')}T`
-        : h >= 1e9 ? `${(h/1e9).toFixed(2).replace(/\.?0+$/, '')}B`
-        : h >= 1e6 ? `${(h/1e6).toFixed(1).replace(/\.?0+$/, '')}M`
-        : h >= 1e3 ? `${(h/1e3).toFixed(1).replace(/\.?0+$/, '')}K`
-        : h.toLocaleString(undefined, { maximumFractionDigits: 1 });
-
       const aggEdges = new Map<string, { src: string; tgt: string; human: number; sym: string; color: string; width?: number; edgeIds: string[]; oldestTs: number; newestTs: number; n: number }>();
 
       trace.edges.forEach((edge) => {
@@ -153,7 +174,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
       });
 
       aggEdges.forEach((a, key) => {
-        const label = `${abbr(a.human)} ${a.sym}${a.n > 1 ? ` (${a.n})` : ''}`;
+        const label = `${formatHumanAmount(a.human)} ${a.sym}${a.n > 1 ? ` (${a.n})` : ''}`;
         let dateRangeLabel = '';
         const oldestValid = !isNaN(a.oldestTs);
         const newestValid = !isNaN(a.newestTs);
@@ -179,7 +200,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
           const raw = parseFloat(String(e.amount)) || 0;
           totalHuman += tok.decimals > 0 ? raw / Math.pow(10, tok.decimals) : raw;
         });
-        const autoLabel = `${abbr(totalHuman)} ${labelSym} (${bundleEdges.length})`;
+        const autoLabel = `${formatHumanAmount(totalHuman)} ${labelSym} (${bundleEdges.length})`;
         const label = bundle.label || autoLabel;
         const color = bundle.color || bundleEdges[0].color || '#f59e0b';
         const bundleWidth = bundle.width ?? bundleEdges[0].width;

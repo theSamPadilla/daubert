@@ -58,6 +58,22 @@ describe('mapFetchedTx', () => {
     // ISO strings contain a "T" separator
     expect(item.timestamp).toContain('T');
   });
+
+  it('carries utxo through untouched (Bitcoin junction rows)', () => {
+    const utxo = {
+      inputs: [{ address: null, value: '1', coinbase: true }],
+      outputs: [{ address: 'bc1qrecipient', value: '1', index: 0 }],
+      fee: '0',
+      junction: true,
+    };
+    const item = mapFetchedTx({ ...FETCHED_TX, chain: 'bitcoin', utxo } as never, 'bitcoin');
+    expect(item.utxo).toBe(utxo);
+  });
+
+  it('omits utxo when the fetched row carries none (non-BTC rows)', () => {
+    const item = mapFetchedTx(FETCHED_TX as never, 'ethereum');
+    expect(item.utxo).toBeUndefined();
+  });
 });
 
 describe('dedupeTxs', () => {
@@ -70,6 +86,29 @@ describe('dedupeTxs', () => {
     const a = { txHash: '0x1', from: '0xa', to: '0xb' } as never;
     const b = { txHash: '0x1', from: '0xb', to: '0xc' } as never;
     expect(dedupeTxs([a, b])).toHaveLength(2);
+  });
+
+  it('keys BTC junction legs on txid:in:<legIndex> / txid:<vout>, not from/to', () => {
+    // Two output legs of the same junction tx that happen to pay the same
+    // address (e.g. two outputs to a reused change address) are DIFFERENT
+    // facts — the generic from/to/txHash triple would wrongly collapse them.
+    const legA = {
+      txHash: '0x1', from: '', to: '0xsame', chain: 'bitcoin',
+      utxo: { inputs: [], outputs: [], fee: '0', legType: 'output', vout: 0 },
+    } as never;
+    const legB = {
+      txHash: '0x1', from: '', to: '0xsame', chain: 'bitcoin',
+      utxo: { inputs: [], outputs: [], fee: '0', legType: 'output', vout: 1 },
+    } as never;
+    expect(dedupeTxs([legA, legB])).toHaveLength(2);
+  });
+
+  it('drops a re-fetched duplicate of the same junction leg', () => {
+    const leg = {
+      txHash: '0x1', from: '', to: '0xa', chain: 'bitcoin',
+      utxo: { inputs: [], outputs: [], fee: '0', legType: 'input', legIndex: 2 },
+    } as never;
+    expect(dedupeTxs([leg, { ...(leg as object) } as never])).toHaveLength(1);
   });
 });
 
@@ -142,5 +181,29 @@ describe('runSeed', () => {
     const sentItems = api.importTransactions.mock.calls[0][1];
     expect(typeof sentItems[0].token).toBe('string');
     expect(sentItems[0].token).toBe('USDC');
+  });
+
+  it('fetches bitcoin with maxTotal (its provider ignores offset, paginating on its own cursor)', async () => {
+    api.fetchHistory.mockResolvedValue({ transactions: [], chain: 'bitcoin', address: 'bc1qa' });
+    await expect(runSeed('case-1', ['bc1qa'], 'bitcoin')).rejects.toThrow(SeedEmptyError);
+    expect(api.fetchHistory).toHaveBeenCalledWith(
+      'bc1qa',
+      'bitcoin',
+      expect.objectContaining({ maxTotal: 100 }),
+    );
+    const opts = api.fetchHistory.mock.calls[0][2];
+    expect(opts).not.toHaveProperty('offset');
+  });
+
+  it('fetches non-bitcoin chains with offset (unchanged pre-existing behavior)', async () => {
+    api.fetchHistory.mockResolvedValue({ transactions: [], chain: 'ethereum', address: '0xa' });
+    await expect(runSeed('case-1', ['0xa'], 'ethereum')).rejects.toThrow(SeedEmptyError);
+    expect(api.fetchHistory).toHaveBeenCalledWith(
+      '0xa',
+      'ethereum',
+      expect.objectContaining({ offset: 100 }),
+    );
+    const opts = api.fetchHistory.mock.calls[0][2];
+    expect(opts).not.toHaveProperty('maxTotal');
   });
 });

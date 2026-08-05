@@ -80,13 +80,14 @@ Content-Type: application/json
 | `from` | string | yes | Sender address |
 | `to` | string | yes | Receiver address |
 | `txHash` | string | yes | Transaction hash |
-| `chain` | string | yes | Chain identifier (ethereum, polygon, arbitrum, base, tron) |
-| `timestamp` | string | yes | Unix timestamp (seconds for EVM, milliseconds for Tron) |
-| `amount` | string | yes | Human-readable amount (already divided by decimals) |
-| `token` | string | yes | Token symbol (e.g. "ETH", "USDT", "TRX") |
+| `chain` | string | yes | Chain identifier (ethereum, polygon, arbitrum, base, tron, bitcoin) |
+| `timestamp` | string | yes | Unix timestamp (seconds for EVM, milliseconds for Tron) or ISO string (Bitcoin) |
+| `amount` | string | yes | Human-readable amount (already divided by decimals) — **except** Bitcoin rows that carry `utxo`, which use satoshis. See below. |
+| `token` | string | yes | Token symbol (e.g. "ETH", "USDT", "TRX", "BTC") |
 | `blockNumber` | number | no | Block number |
 | `fromLabel` | string | no | Human-readable label for the sender node (e.g. "Wintermute", "Justin Sun") |
 | `toLabel` | string | no | Human-readable label for the receiver node |
+| `utxo` | object | no | UTXO provenance for Bitcoin rows (inputs/outputs/fee/junction). See the `bitcoin-apis` skill for the full shape and script pattern. |
 
 ### Response
 
@@ -107,8 +108,32 @@ The endpoint auto-creates wallet nodes for addresses not already in the graph. D
 | Arbitrum | ETH |
 | Base | ETH |
 | Tron | TRX |
+| Bitcoin | BTC (8 decimals) |
 
 For ERC-20/TRC-20 tokens, use the token symbol from the API response (e.g. "USDT", "USDC").
+
+**Bitcoin is the one exception to the "amount is human-readable" rule above.** Rows that carry a `utxo` block (the recommended path — see `bitcoin-apis` skill) use raw **satoshis** for `amount` and every `utxo.inputs[]/outputs[]` value, matching what Esplora returns natively. Only a **bare** Bitcoin row (no `utxo` block) uses decimal BTC (÷ 10^8), like every other chain's `amount`. Don't mix the two within one import call.
+
+### Bitcoin import example
+
+```js
+const transactions = [{
+  from: 'bc1qSENDER...',
+  to: 'bc1qRECEIVER...',
+  txHash: 'abcd...',
+  chain: 'bitcoin',
+  timestamp: '2025-03-18T00:00:00Z',
+  amount: '4998640',       // satoshis, not BTC
+  token: 'BTC',
+  utxo: {
+    inputs: [{ address: 'bc1qSENDER...', value: '5000000', prevTxid: '...', prevVout: 0, scriptType: 'v0_p2wpkh' }],
+    outputs: [{ address: 'bc1qRECEIVER...', value: '4998640', index: 0, scriptType: 'v0_p2wpkh' }],
+    fee: '1360',
+  },
+}];
+```
+
+See the `bitcoin-apis` skill for fetching Esplora data, the full `utxo` schema, and when to set `utxo.junction: true` (high fan-in/out transactions that can't be drawn as a plain address→address edge).
 
 ## Script Pattern
 
@@ -347,6 +372,6 @@ Returns `204 No Content`. Removes only the bundle metadata — the underlying ed
 - Use `get_investigation` first to find the `traceId` for the target trace.
 - Deduplication is built in — safe to import overlapping data.
 - For large datasets (hundreds of transactions), batch into chunks of ~100 per POST call.
-- Load the `blockchain-apis` skill for exact Etherscan/Tronscan endpoint formats.
+- Load the `etherscan-apis`, `tronscan-apis`, or `bitcoin-apis` skill for exact endpoint formats on each chain family.
 - For token transfers, use `account/tokentx` and map `tokenSymbol` to the `token` field.
 - Convert wei/sun to human-readable amounts before importing (÷ 10^decimals).

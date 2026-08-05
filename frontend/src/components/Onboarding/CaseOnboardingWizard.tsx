@@ -48,7 +48,7 @@ const STEPS: { id: WizardStep; label: string }[] = [
 interface ParsedToken {
   raw: string;
   address: string;
-  family: 'evm' | 'tron' | 'unknown';
+  family: 'evm' | 'tron' | 'bitcoin' | 'unknown';
   isTxHash: boolean;
   valid: boolean;
 }
@@ -136,14 +136,16 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
   const validTokens = useMemo(() => tokens.filter((t) => t.valid), [tokens]);
   const hasTron = validTokens.some((t) => t.family === 'tron');
   const hasEvm = validTokens.some((t) => t.family === 'evm');
-  const mixedFamilies = hasTron && hasEvm;
+  const hasBtc = validTokens.some((t) => t.family === 'bitcoin');
+  const mixedFamilies = [hasTron, hasEvm, hasBtc].filter(Boolean).length > 1;
 
   // Auto-derive chain from the parsed families until the user overrides it.
   useEffect(() => {
     if (chainTouched || validTokens.length === 0) return;
-    if (hasTron && !hasEvm) setChain('tron');
-    else if (hasEvm && !hasTron) setChain('ethereum');
-  }, [chainTouched, validTokens.length, hasTron, hasEvm]);
+    if (hasBtc && !hasTron && !hasEvm) setChain('bitcoin');
+    else if (hasTron && !hasEvm && !hasBtc) setChain('tron');
+    else if (hasEvm && !hasTron && !hasBtc) setChain('ethereum');
+  }, [chainTouched, validTokens.length, hasTron, hasEvm, hasBtc]);
 
   const seeding = phase === 'fetching' || phase === 'creating' || phase === 'importing';
   const phaseLabel =
@@ -232,7 +234,7 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
         return;
       }
       if (mixedFamilies) {
-        setSeedError('One chain per seed. Remove either the Tron or the EVM addresses.');
+        setSeedError('One chain per seed. Remove the addresses from the other chains.');
         return;
       }
       const addresses = validTokens.map((t) => t.address);
@@ -514,7 +516,7 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
               {mixedFamilies && (
                 <p className="flex items-start gap-2 text-[13px] text-redline">
                   <FaTriangleExclamation className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  One chain per seed. Remove either the Tron or the EVM addresses.
+                  One chain per seed. Remove the addresses from the other chains.
                 </p>
               )}
 

@@ -9,6 +9,11 @@ import { buildTxExplorerUrl } from '../../utils/addressParser';
 
 type ImportTransactionItem = components['schemas']['ImportTransactionItem'];
 
+// Mirrors the backend's ImportTransactionsDto.transactions cap (5000) with
+// headroom to spare — batching here keeps each POST's validation cost low
+// regardless of how many rows the user selects.
+const IMPORT_BATCH_SIZE = 500;
+
 type Props = {
   investigation: Investigation;
   defaultTargetTraceId?: string;
@@ -88,8 +93,12 @@ export function SearchResults({ investigation, defaultTargetTraceId, results, on
     const targetName = investigation.traces.find((t) => t.id === targetTraceId)?.name ?? targetTraceId;
 
     try {
-      const res = await apiClient.importTransactions(targetTraceId, items);
-      const count = res.added.edges;
+      let count = 0;
+      for (let i = 0; i < items.length; i += IMPORT_BATCH_SIZE) {
+        const batch = items.slice(i, i + IMPORT_BATCH_SIZE);
+        const res = await apiClient.importTransactions(targetTraceId, batch);
+        count += res.added.edges;
+      }
       setImportSuccess(
         `Imported ${count} transaction${count !== 1 ? 's' : ''} into "${targetName}".`,
       );

@@ -1,15 +1,16 @@
 // backend/src/modules/external-trace/dto/trace-query.dto.ts
 import { IsIn, IsInt, IsString, Max, Min, Matches } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { ADDRESS_RE } from '../../../generated/shared/address';
 
-const SUPPORTED_CHAINS = ['ethereum', 'polygon', 'arbitrum', 'base', 'tron'] as const;
+const SUPPORTED_CHAINS = ['ethereum', 'polygon', 'arbitrum', 'base', 'tron', 'bitcoin'] as const;
 export type SupportedChain = (typeof SUPPORTED_CHAINS)[number];
 
 export class TraceQueryDto {
   @IsString()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  @Matches(/^(0x[a-fA-F0-9]{40}|T[1-9A-HJ-NP-Za-km-z]{33})$/, {
-    message: 'address must be an EVM (0x + 40 hex) or Tron (base58, 34 chars starting with T) address',
+  @Matches(ADDRESS_RE, {
+    message: 'address must be an EVM (0x…), Tron (T…), or Bitcoin (1…/3…/bc1…) address',
   })
   address!: string;
 

@@ -36,6 +36,7 @@ export function composeExport(
 
 export type FocusItem =
   | { type: 'wallet'; id: string; traceId: string }
+  | { type: 'txJunction'; id: string; traceId: string }
   | { type: 'group'; id: string; traceId: string }
   | { type: 'trace'; id: string }
   | { type: 'transaction'; id: string; traceId: string }

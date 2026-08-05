@@ -396,7 +396,7 @@ export const apiClient = {
     }),
 
   // Blockchain
-  fetchHistory: (address: string, chain: string, options?: { startBlock?: number; endBlock?: number; startDate?: string; endDate?: string; page?: number; offset?: number; sort?: 'asc' | 'desc' }) =>
+  fetchHistory: (address: string, chain: string, options?: { startBlock?: number; endBlock?: number; startDate?: string; endDate?: string; page?: number; offset?: number; sort?: 'asc' | 'desc'; maxTotal?: number }) =>
     request<{ transactions: any[]; chain: string; address: string }>('/blockchain/fetch-history', {
       method: 'POST',
       body: JSON.stringify({ address, chain, options }),

@@ -31,6 +31,7 @@ export function bindCytoscapeEvents(cy: Core, getters: CytoscapeEventGetters): (
     const buildFocusItem = (): FocusItem => {
       if (isTraceCompound) return { type: 'trace', id: nodeId };
       if (isCollapsedGroup || isExpandedGroup) return { type: 'group', id: nodeId, traceId };
+      if (node.data('kind') === 'txJunction') return { type: 'txJunction', id: nodeId, traceId };
       return { type: 'wallet', id: nodeId, traceId };
     };
 

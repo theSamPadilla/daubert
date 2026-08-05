@@ -30,7 +30,7 @@ import { TracesService } from '../../traces/traces.service';
 import { ProductionsService } from '../../productions/productions.service';
 import { AgentAuditService } from '../agent-audit.service';
 import { AuthSuccess } from '../mcp-auth.helper';
-import { WriteToolsService } from './write-tools';
+import { WriteToolsService, importTxItemSchema } from './write-tools';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -45,6 +45,61 @@ const PROD_ID = '66666666-6666-6666-6666-666666666666';
 
 const USER = { id: USER_ID, email: 'u@example.com' } as any;
 const SESSION = { id: SESSION_ID, ownerUserId: USER_ID, organizationId: ORG_ID } as any;
+
+// A realistic Bitcoin payment row: a null-address input (bare script), a
+// change output with cited evidence, and an OP_RETURN output.
+const FULL_UTXO = {
+  inputs: [
+    {
+      address: 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+      value: '250000',
+      prevTxid: 'a'.repeat(64),
+      prevVout: 0,
+      scriptType: 'v0_p2wpkh',
+    },
+    {
+      address: null,
+      value: '100000',
+      prevTxid: 'b'.repeat(64),
+      prevVout: 3,
+      coinbase: false,
+    },
+  ],
+  outputs: [
+    {
+      address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+      value: '300000',
+      index: 0,
+      scriptType: 'p2pkh',
+    },
+    {
+      address: 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+      value: '48000',
+      index: 1,
+      change: true,
+      changeEvidence: ['self-send back to an input address'],
+    },
+    { address: null, value: '0', index: 2, opReturn: true },
+  ],
+  fee: '2000',
+  warnings: ['coinjoin-like structure'],
+  confirmed: true,
+  blockHeight: 830000,
+  vout: 0,
+  legType: 'output' as const,
+  junction: false,
+};
+
+const BTC_TX_ITEM = {
+  from: 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+  to: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+  txHash: 'c'.repeat(64),
+  chain: 'bitcoin',
+  timestamp: '2026-01-01T00:00:00Z',
+  amount: '300000',
+  token: 'BTC',
+  utxo: FULL_UTXO,
+};
 
 const AUTH: AuthSuccess = {
   kind: 'oauth',
@@ -294,6 +349,131 @@ describe('WriteToolsService', () => {
         status: 'error',
       });
       expect(JSON.stringify(params.detail)).toContain('cross_org_access');
+    });
+
+    it('forwards utxo provenance to the service untouched (BTC import)', async () => {
+      const importFn = jest
+        .fn()
+        .mockResolvedValue({ added: { nodes: 3, edges: 2 } });
+      const { server } = buildService({
+        traces: { importTransactions: importFn },
+      });
+
+      const result = await callTool(server, 'import_transactions', {
+        traceId: TRACE_ID,
+        transactions: [BTC_TX_ITEM],
+      });
+
+      expect(result.isError).toBeUndefined();
+      const [, dtoArg] = importFn.mock.calls[0];
+      expect(dtoArg.transactions[0].utxo).toEqual(FULL_UTXO);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // importTxItemSchema — the MCP-side whitelist layer.
+  //
+  // zod strips unknown keys by default, exactly like the REST DTO's
+  // `whitelist: true`. If `utxo` were not declared on this schema, a model's
+  // Bitcoin import would reach the service with the provenance deleted and no
+  // error raised anywhere. The utxo sub-objects are strict, so junk inside
+  // utxo is REJECTED rather than dropped.
+  // -------------------------------------------------------------------------
+
+  describe('importTxItemSchema (zod whitelist layer)', () => {
+    it('parses a BTC item and keeps the full utxo payload', () => {
+      const parsed = importTxItemSchema.parse(BTC_TX_ITEM);
+
+      expect(parsed.utxo).toEqual(FULL_UTXO);
+      expect(parsed.utxo!.inputs[1].address).toBeNull();
+      expect(parsed.utxo!.outputs[1].change).toBe(true);
+      expect(parsed.utxo!.outputs[1].changeEvidence).toEqual([
+        'self-send back to an input address',
+      ]);
+      expect(parsed.utxo!.outputs[2].opReturn).toBe(true);
+      expect(parsed.utxo!.legType).toBe('output');
+      expect(parsed.utxo!.junction).toBe(false);
+    });
+
+    it('REJECTS an unknown key inside utxo (strict)', () => {
+      const res = importTxItemSchema.safeParse({
+        ...BTC_TX_ITEM,
+        utxo: { ...FULL_UTXO, rawHex: '0200000001' },
+      });
+
+      expect(res.success).toBe(false);
+    });
+
+    it('REJECTS an unknown key inside a utxo output (strict)', () => {
+      const outputs = FULL_UTXO.outputs.map((o, i) =>
+        i === 0 ? { ...o, spentBy: 'deadbeef' } : o,
+      );
+      const res = importTxItemSchema.safeParse({
+        ...BTC_TX_ITEM,
+        utxo: { ...FULL_UTXO, outputs },
+      });
+
+      expect(res.success).toBe(false);
+    });
+
+    it('REJECTS a structurally invalid utxo (inputs not an array)', () => {
+      const res = importTxItemSchema.safeParse({
+        ...BTC_TX_ITEM,
+        utxo: { ...FULL_UTXO, inputs: 'nope' },
+      });
+
+      expect(res.success).toBe(false);
+    });
+
+    it('REJECTS an out-of-range legType', () => {
+      const res = importTxItemSchema.safeParse({
+        ...BTC_TX_ITEM,
+        utxo: { ...FULL_UTXO, legType: 'sideways' },
+      });
+
+      expect(res.success).toBe(false);
+    });
+
+    it('accepts blockHeight: null (unconfirmed rows)', () => {
+      const parsed = importTxItemSchema.parse({
+        ...BTC_TX_ITEM,
+        utxo: { ...FULL_UTXO, confirmed: false, blockHeight: null },
+      });
+
+      expect(parsed.utxo!.blockHeight).toBeNull();
+    });
+
+    it('reaches the model: tools/list advertises utxo on import_transactions', async () => {
+      // The schema is useless if the JSON-Schema conversion the SDK performs
+      // for tools/list drops or chokes on it — a model that never sees `utxo`
+      // will never send one.
+      const { server } = buildService();
+      const handler = (server.server as any)._requestHandlers.get('tools/list');
+      const res = await handler({ method: 'tools/list', params: {} }, {} as any);
+
+      const tool = res.tools.find((t: any) => t.name === 'import_transactions');
+      const schema = JSON.stringify(tool.inputSchema);
+
+      expect(schema).toContain('utxo');
+      expect(schema).toContain('prevTxid');
+      expect(schema).toContain('changeEvidence');
+      // strict → the three utxo objects forbid extra properties.
+      expect(schema.match(/"additionalProperties":false/g)).toHaveLength(3);
+    });
+
+    it('EVM regression: an item with no utxo parses and gains no utxo field', () => {
+      const parsed = importTxItemSchema.parse({
+        from: '0xabc',
+        to: '0xdef',
+        txHash: '0xhash1',
+        chain: 'ethereum',
+        timestamp: '2026-01-01T00:00:00Z',
+        amount: '1.5',
+        token: 'USDT',
+      });
+
+      expect(parsed.utxo).toBeUndefined();
+      expect(parsed.token).toBe('USDT');
     });
   });
 

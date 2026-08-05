@@ -49,6 +49,9 @@ const BASE_ALLOWED_DOMAINS = [
   'apilist.tronscanapi.com',
   'api.trongrid.io',
   'api.shasta.trongrid.io',
+  // Bitcoin (Esplora) — both keyless, no entry needed in injectApiKey().
+  'mempool.space',
+  'blockstream.info',
 ];
 
 /**

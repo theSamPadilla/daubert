@@ -55,6 +55,7 @@ export function SelectionDetailsPanel(props: SelectionDetailsPanelProps) {
   const title = selectedItem.type === 'wallet' ? 'Address'
     : selectedItem.type === 'scriptRun' ? 'Script'
     : selectedItem.type === 'aggregatedEdge' ? 'Aggregated Transactions'
+    : selectedItem.type === 'txJunction' ? 'Transaction Junction'
     : selectedItem.type;
 
   return (

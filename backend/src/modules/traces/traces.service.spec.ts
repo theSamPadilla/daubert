@@ -7,6 +7,7 @@ import { InvestigationEntity } from '../../database/entities/investigation.entit
 import { CaseAccessService } from '../auth/case-access.service';
 import { BlockchainService, TransactionResult } from '../blockchain/blockchain.service';
 import { WalletSetDto } from './dto/search-between.dto';
+import { edgeIdentityKey } from '../../generated/shared/edge-identity';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -474,6 +475,512 @@ describe('TracesService', () => {
     });
   });
 
+  // ── importTransactions ───────────────────────────────────────────────────
+
+  describe('importTransactions', () => {
+    const importTraceFixture = () =>
+      ({
+        id: 'trace-1',
+        name: 'Main Trace',
+        investigationId: INV_ID,
+        data: {
+          nodes: [
+            { id: 'n1', address: '0xaaa', chain: 'ethereum', label: 'A' },
+            { id: 'n2', address: '0xbbb', chain: 'ethereum', label: 'B' },
+          ],
+          edges: [
+            { id: 'e1', from: 'n1', to: 'n2', txHash: '0xtx1', chain: 'ethereum' },
+          ],
+        },
+      }) as unknown as TraceEntity;
+
+    it('a second import of an already-imported transaction adds 0 nodes and 0 edges', async () => {
+      const trace = structuredClone(importTraceFixture());
+      mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
+      // Sibling-trace lookup for cross-trace address resolution — self is excluded inside the service.
+      mockTraceRepo.find.mockResolvedValue([trace]);
+      mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      const result = await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            {
+              from: '0xAAA',
+              to: '0xBBB',
+              txHash: '0xtx1',
+              chain: 'ethereum',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              amount: '1',
+              token: 'ETH',
+            },
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      expect(result.added).toEqual({ nodes: 0, edges: 0 });
+    });
+
+    it('imports a genuinely new transaction — adds the missing node and the edge', async () => {
+      const trace = structuredClone(importTraceFixture());
+      mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
+      mockTraceRepo.find.mockResolvedValue([trace]);
+      mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      const result = await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            {
+              from: '0xbbb',
+              to: '0xccc',
+              txHash: '0xtx2',
+              chain: 'ethereum',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              amount: '2',
+              token: 'ETH',
+            },
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      expect(result.added).toEqual({ nodes: 1, edges: 1 });
+      const savedData = mockTraceRepo.save.mock.calls[0][0].data;
+      expect(savedData.nodes).toHaveLength(3);
+      expect(savedData.edges).toHaveLength(2);
+    });
+  });
+
+  // ── importTransactions: Bitcoin ──────────────────────────────────────────
+  //
+  // BTC rows carry a `utxo` block. Junction-flagged rows materialize a node
+  // standing for the transaction itself plus one leg edge per real participant;
+  // plain rows keep the full ledger record on the edge. Both dedup on the
+  // txid-derived identity rather than on endpoint addresses.
+
+  describe('importTransactions (bitcoin)', () => {
+    const TXID = 'e3f1c0a9b8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1';
+    const IN_1 = 'bc1qspenderoneaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const IN_2 = 'bc1qspendertwobbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const OUT_1 = 'bc1qrecipientccccccccccccccccccccccccccccc';
+    const CHANGE = 'bc1qchangedddddddddddddddddddddddddddddddd';
+
+    const emptyTrace = () =>
+      ({
+        id: 'trace-1',
+        name: 'BTC Trace',
+        investigationId: INV_ID,
+        data: { nodes: [], edges: [] },
+      }) as unknown as TraceEntity;
+
+    /** 3 inputs (index 0 coinbase) / 3 outputs (vout 1 OP_RETURN) → 2 + 2 legs. */
+    const junctionUtxo = () => ({
+      inputs: [
+        { address: null, value: '625000000', prevTxid: '0'.repeat(64), prevVout: 4294967295, coinbase: true },
+        { address: IN_1, value: '100000', prevTxid: 'aa'.repeat(32), prevVout: 0 },
+        { address: IN_2, value: '200000', prevTxid: 'bb'.repeat(32), prevVout: 1 },
+      ],
+      outputs: [
+        { address: OUT_1, value: '150000', index: 0 },
+        { address: null, value: '0', index: 1, opReturn: true },
+        { address: CHANGE, value: '140000', index: 2, change: true, changeEvidence: ['reused input address'] },
+      ],
+      fee: '10000',
+      warnings: ['consolidation'],
+      confirmed: true,
+      blockHeight: 800000,
+      // Per-ROW fields: this row happens to describe vout 0 of the transaction.
+      vout: 0,
+      junction: true,
+    });
+
+    const junctionTx = (overrides: Record<string, any> = {}) => ({
+      from: IN_1,
+      to: OUT_1,
+      txHash: TXID,
+      chain: 'bitcoin',
+      timestamp: '2024-06-01T00:00:00.000Z',
+      amount: '150000',
+      token: 'BTC',
+      blockNumber: 800000,
+      utxo: junctionUtxo(),
+      ...overrides,
+    });
+
+    /** Wire the repo mocks against a single mutable trace so re-imports see prior state. */
+    const wire = (trace: TraceEntity) => {
+      mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
+      mockTraceRepo.find.mockResolvedValue([trace]);
+      mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
+    };
+
+    const lastSaved = () =>
+      mockTraceRepo.save.mock.calls[mockTraceRepo.save.mock.calls.length - 1][0].data as {
+        nodes: any[];
+        edges: any[];
+      };
+
+    /** Recompute each stored edge's identity the way importTransactions does. */
+    const storedEdgeKeys = (data: { nodes: any[]; edges: any[] }) => {
+      const byId = new Map<string, string>(data.nodes.map((n) => [n.id, n.address]));
+      return data.edges.map((e) =>
+        edgeIdentityKey(e, byId.get(e.from) ?? e.from, byId.get(e.to) ?? e.to),
+      );
+    };
+
+    it('materializes a junction node and one leg per real participant', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      const result = await service.importTransactions(
+        'trace-1',
+        { transactions: [junctionTx()] } as any,
+        PRINCIPAL,
+      );
+
+      // 1 junction + 2 input addresses + 2 output addresses (coinbase input and
+      // OP_RETURN output produce no node).
+      expect(result.added).toEqual({ nodes: 5, edges: 4 });
+
+      const data = lastSaved();
+      const junctions = data.nodes.filter((n) => n.kind === 'txJunction');
+      expect(junctions).toHaveLength(1);
+      const junction = junctions[0];
+      expect(junction.address).toBe(TXID);
+      expect(junction.label).toBe('3 in / 3 out');
+      expect(junction.chain).toBe('bitcoin');
+      expect(junction.explorerUrl).toBe(`https://mempool.space/tx/${TXID}`);
+      expect(junction.addressType).toBe('unknown');
+      expect(junction.parentTrace).toBe('trace-1');
+    });
+
+    it('stores the full ledger record once on the junction node, stripped of per-row fields', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+      const payload = junctionTx();
+
+      await service.importTransactions('trace-1', { transactions: [payload] } as any, PRINCIPAL);
+
+      const junction = lastSaved().nodes.find((n) => n.kind === 'txJunction')!;
+      expect(junction.utxoTx.inputs).toHaveLength(3);
+      expect(junction.utxoTx.outputs).toHaveLength(3);
+      expect(junction.utxoTx.fee).toBe('10000');
+      expect(junction.utxoTx.warnings).toEqual(['consolidation']);
+      expect(junction.utxoTx.confirmed).toBe(true);
+      expect(junction.utxoTx.blockHeight).toBe(800000);
+
+      // vout/legType/legIndex/junction describe the ROW, not the transaction.
+      expect(junction.utxoTx).not.toHaveProperty('vout');
+      expect(junction.utxoTx).not.toHaveProperty('junction');
+      expect(junction.utxoTx).not.toHaveProperty('legType');
+      expect(junction.utxoTx).not.toHaveProperty('legIndex');
+
+      // The request's arrays are shared by reference with sibling rows — the
+      // persisted graph must not alias them.
+      expect(junction.utxoTx.inputs).not.toBe(payload.utxo.inputs);
+      expect(junction.utxoTx.outputs).not.toBe(payload.utxo.outputs);
+    });
+
+    it('keys input legs by txid:in:<original index> and output legs by txid:<vout>', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      await service.importTransactions('trace-1', { transactions: [junctionTx()] } as any, PRINCIPAL);
+
+      const data = lastSaved();
+      // Input legs keep the ORIGINAL input index — the coinbase at 0 is skipped,
+      // so the legs are 1 and 2, never 0 and 1.
+      expect(storedEdgeKeys(data).sort()).toEqual(
+        [`${TXID}:in:1`, `${TXID}:in:2`, `${TXID}:0`, `${TXID}:2`].sort(),
+      );
+
+      const junctionId = data.nodes.find((n) => n.kind === 'txJunction')!.id;
+      const addrOf = new Map<string, string>(data.nodes.map((n) => [n.id, n.address]));
+
+      const inputLegs = data.edges.filter((e) => e.utxo.legType === 'input');
+      expect(inputLegs.every((e) => e.to === junctionId)).toBe(true);
+      expect(inputLegs.map((e) => addrOf.get(e.from)).sort()).toEqual([IN_1, IN_2].sort());
+      expect(inputLegs.map((e) => e.amount).sort()).toEqual(['100000', '200000'].sort());
+
+      const outputLegs = data.edges.filter((e) => e.utxo.legType === 'output');
+      expect(outputLegs.every((e) => e.from === junctionId)).toBe(true);
+      expect(outputLegs.map((e) => addrOf.get(e.to)).sort()).toEqual([OUT_1, CHANGE].sort());
+    });
+
+    it('gives leg edges a slim utxo block — the ledger record is not duplicated per leg', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      await service.importTransactions('trace-1', { transactions: [junctionTx()] } as any, PRINCIPAL);
+
+      const data = lastSaved();
+      const inputLeg = data.edges.find((e) => e.utxo.legType === 'input')!;
+      expect(inputLeg.utxo).toEqual({ inputs: [], outputs: [], fee: '', legType: 'input', legIndex: expect.any(Number) });
+
+      // The change output's leg describes ITS OWN output — a single-entry
+      // outputs array — so the change verdict survives on the edge.
+      const changeLeg = data.edges.find((e) => e.utxo.vout === 2)!;
+      expect(changeLeg.utxo).toEqual({
+        inputs: [],
+        outputs: [{ address: CHANGE, value: '140000', index: 2, change: true }],
+        fee: '',
+        legType: 'output',
+        vout: 2,
+      });
+
+      const paymentLeg = data.edges.find((e) => e.utxo.vout === 0)!;
+      expect(paymentLeg.utxo.outputs).toEqual([{ address: OUT_1, value: '150000', index: 0 }]);
+    });
+
+    it('writes the structured BTC token on every leg (amounts are satoshis)', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      await service.importTransactions('trace-1', { transactions: [junctionTx()] } as any, PRINCIPAL);
+
+      for (const edge of lastSaved().edges) {
+        expect(edge.token).toEqual({ address: '', symbol: 'BTC', decimals: 8 });
+      }
+    });
+
+    it('re-importing the same junction payload adds 0 nodes and 0 edges', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      await service.importTransactions('trace-1', { transactions: [junctionTx()] } as any, PRINCIPAL);
+      const second = await service.importTransactions(
+        'trace-1',
+        { transactions: [junctionTx()] } as any,
+        PRINCIPAL,
+      );
+
+      expect(second.added).toEqual({ nodes: 0, edges: 0 });
+      const data = lastSaved();
+      expect(data.nodes).toHaveLength(5);
+      expect(data.edges).toHaveLength(4);
+    });
+
+    it('collapses every row of one junction transaction onto a single node and leg set', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      // The normalizer emits one row per payable output, each carrying the SAME
+      // full context — planning from any of them must converge.
+      const result = await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            junctionTx(),
+            junctionTx({ to: CHANGE, amount: '140000', utxo: { ...junctionUtxo(), vout: 2 } }),
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      expect(result.added).toEqual({ nodes: 5, edges: 4 });
+    });
+
+    it('keeps the full utxo payload on a direct (non-junction) BTC edge and dedups on txid:vout', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      const directTx = (labels: Record<string, string> = {}) => ({
+        from: IN_1,
+        to: OUT_1,
+        txHash: TXID,
+        chain: 'bitcoin',
+        timestamp: '2024-06-01T00:00:00.000Z',
+        amount: '150000',
+        token: 'BTC',
+        blockNumber: 800000,
+        utxo: {
+          inputs: [{ address: IN_1, value: '160000', prevTxid: 'aa'.repeat(32), prevVout: 0 }],
+          outputs: [{ address: OUT_1, value: '150000', index: 0 }],
+          fee: '10000',
+          confirmed: true,
+          vout: 0,
+        },
+        ...labels,
+      });
+
+      const first = await service.importTransactions(
+        'trace-1',
+        { transactions: [directTx()] } as any,
+        PRINCIPAL,
+      );
+      expect(first.added).toEqual({ nodes: 2, edges: 1 });
+
+      const edge = lastSaved().edges[0];
+      expect(edge.utxo.inputs).toHaveLength(1);
+      expect(edge.utxo.outputs).toHaveLength(1);
+      expect(edge.utxo.fee).toBe('10000');
+      expect(edge.utxo.vout).toBe(0);
+      expect(edge.token).toEqual({ address: '', symbol: 'BTC', decimals: 8 });
+
+      // Identity is txid:vout, so relabeled endpoints are still the same fact.
+      const second = await service.importTransactions(
+        'trace-1',
+        { transactions: [directTx({ fromLabel: 'Exchange hot wallet', toLabel: 'Suspect' })] } as any,
+        PRINCIPAL,
+      );
+      expect(second.added).toEqual({ nodes: 0, edges: 0 });
+    });
+
+    it('leaves the token a bare string on a BTC row that carries no utxo provenance', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            {
+              from: IN_1,
+              to: OUT_1,
+              txHash: TXID,
+              chain: 'bitcoin',
+              timestamp: '2024-06-01T00:00:00.000Z',
+              // Human-readable BTC, not satoshis — the legacy import shape.
+              amount: '0.0015',
+              token: 'BTC',
+            },
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      const edge = lastSaved().edges[0];
+      expect(edge.token).toBe('BTC');
+      expect(edge).not.toHaveProperty('utxo');
+    });
+
+    it('persists base58 addresses with case intact while still matching a differently-cased re-import', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+      const BASE58 = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2';
+
+      const row = (to: string) => ({
+        from: IN_1,
+        to,
+        txHash: TXID,
+        chain: 'bitcoin',
+        timestamp: '2024-06-01T00:00:00.000Z',
+        amount: '150000',
+        token: 'BTC',
+        utxo: {
+          inputs: [{ address: IN_1, value: '160000', prevTxid: 'aa'.repeat(32), prevVout: 0 }],
+          outputs: [{ address: to, value: '150000', index: 0 }],
+          fee: '10000',
+          vout: 0,
+        },
+      });
+
+      await service.importTransactions('trace-1', { transactions: [row(BASE58)] } as any, PRINCIPAL);
+      const stored = lastSaved().nodes.find((n) => n.address !== IN_1)!;
+      // Lowercasing a base58 address destroys it — the persisted value is verbatim.
+      expect(stored.address).toBe(BASE58);
+      expect(stored.explorerUrl).toBe(`https://mempool.space/address/${BASE58}`);
+
+      // ...but the lookup maps are case-insensitive, so a sloppy re-spelling
+      // resolves to the same node instead of minting a duplicate.
+      const second = await service.importTransactions(
+        'trace-1',
+        { transactions: [row(BASE58.toLowerCase())] } as any,
+        PRINCIPAL,
+      );
+      expect(second.added).toEqual({ nodes: 0, edges: 0 });
+    });
+
+    it('regression: a whitespace-padded address resolves to the SAME node as its bare spelling', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+      const BASE58 = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2';
+
+      // The persisted value is trimmed (normalizeAddressForChain), so a lookup
+      // key that did not also trim put these two spellings under different keys
+      // and minted two nodes with byte-identical stored addresses.
+      const row = (to: string, vout: number) => ({
+        from: IN_1,
+        to,
+        txHash: TXID,
+        chain: 'bitcoin',
+        timestamp: '2024-06-01T00:00:00.000Z',
+        amount: '150000',
+        token: 'BTC',
+        utxo: {
+          inputs: [{ address: IN_1, value: '310000', prevTxid: 'aa'.repeat(32), prevVout: 0 }],
+          outputs: [{ address: to, value: '150000', index: vout }],
+          fee: '10000',
+          vout,
+        },
+      });
+
+      const result = await service.importTransactions(
+        'trace-1',
+        { transactions: [row(`  ${BASE58}  `, 0), row(BASE58, 1)] } as any,
+        PRINCIPAL,
+      );
+
+      // IN_1 + the recipient, counted ONCE across both spellings.
+      expect(result.added).toEqual({ nodes: 2, edges: 2 });
+
+      const data = lastSaved();
+      const recipients = data.nodes.filter((n) => n.address === BASE58);
+      expect(recipients).toHaveLength(1);
+      // ...and it is stored trimmed, not with the padding it arrived with.
+      expect(data.nodes.map((n) => n.address).sort()).toEqual([BASE58, IN_1].sort());
+
+      // Both edges must land on that one node — a partially-trimmed key would
+      // have failed the endpoint lookup and dropped an edge instead.
+      expect(data.edges).toHaveLength(2);
+      expect(data.edges.map((e) => e.to)).toEqual([recipients[0].id, recipients[0].id]);
+    });
+
+    it('imports a mixed EVM + BTC payload without cross-contamination', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      const result = await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            {
+              from: '0xAAA',
+              to: '0xBBB',
+              txHash: '0xtx1',
+              chain: 'ethereum',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              amount: '1',
+              token: 'ETH',
+            },
+            junctionTx(),
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      // 2 EVM wallets + 1 junction + 4 BTC addresses; 1 EVM edge + 4 legs.
+      expect(result.added).toEqual({ nodes: 7, edges: 5 });
+
+      const data = lastSaved();
+      const evmEdge = data.edges.find((e) => e.chain === 'ethereum')!;
+      // EVM rows are untouched by the BTC path: string token, no utxo block.
+      expect(evmEdge.token).toBe('ETH');
+      expect(evmEdge).not.toHaveProperty('utxo');
+
+      const evmNode = data.nodes.find((n) => n.address === '0xAAA')!;
+      // EVM addresses persist exactly as imported (unchanged legacy behavior).
+      expect(evmNode.address).toBe('0xAAA');
+      expect(evmNode.explorerUrl).toBe('https://etherscan.io/address/0xAAA');
+      expect(evmNode).not.toHaveProperty('kind');
+    });
+  });
+
   // ── resolveWalletSet ─────────────────────────────────────────────────────
 
   describe('resolveWalletSet', () => {
@@ -485,7 +992,7 @@ describe('TracesService', () => {
       id?: string;
       name?: string;
       groups?: Array<{ id: string; name: string; color: string; traceId: string; collapsed?: boolean }>;
-      nodes?: Array<{ id: string; address: string; chain: string; groupId?: string }>;
+      nodes?: Array<{ id: string; address: string; chain: string; groupId?: string; kind?: string }>;
     }): TraceEntity {
       return {
         id: overrides.id ?? 'fake-trace',
@@ -533,6 +1040,19 @@ describe('TracesService', () => {
       expect([...set].sort()).toEqual(['0xbbb', '0xccc']);
     });
 
+    it('excludes txJunction nodes from a group (their address is a txid, not a wallet)', () => {
+      const walletAddr = 'bc1qwalletaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+      const trace = makeFakeTrace({
+        groups: [{ id: 'g1', name: 'A', color: '#000', traceId: 'fake-trace' }],
+        nodes: [
+          { id: 'n1', address: walletAddr, chain: 'bitcoin', groupId: 'g1' },
+          { id: 'n2', address: 'deadbeef'.repeat(8), chain: 'bitcoin', groupId: 'g1', kind: 'txJunction' },
+        ],
+      });
+      const set = service.resolveWalletSet([trace], { groupId: 'g1' } as WalletSetDto, 'bitcoin');
+      expect([...set]).toEqual([walletAddr]);
+    });
+
     it('returns all node addresses when resolving by traceId', () => {
       const trace = makeFakeTrace({
         id: 'trace-abc',
@@ -543,6 +1063,19 @@ describe('TracesService', () => {
       });
       const set = service.resolveWalletSet([trace], { traceId: 'trace-abc' } as WalletSetDto, 'ethereum');
       expect([...set].sort()).toEqual(['0xaaa', '0xbbb']);
+    });
+
+    it('excludes txJunction nodes from a traceId set (their address is a txid, not a wallet)', () => {
+      const walletAddr = 'bc1qwalletaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+      const trace = makeFakeTrace({
+        id: 'trace-abc',
+        nodes: [
+          { id: 'n1', address: walletAddr, chain: 'bitcoin' },
+          { id: 'n2', address: 'deadbeef'.repeat(8), chain: 'bitcoin', kind: 'txJunction' },
+        ],
+      });
+      const set = service.resolveWalletSet([trace], { traceId: 'trace-abc' } as WalletSetDto, 'bitcoin');
+      expect([...set]).toEqual([walletAddr]);
     });
 
     it('lowercases EVM addresses from an explicit wallet list', () => {
@@ -899,6 +1432,181 @@ describe('TracesService', () => {
       expect(result.analyzedCount).toBe(150);
       // Cross-set filter: none of the txs flow between A and B sets, so 0 results
       expect(result.results).toHaveLength(0);
+    });
+
+    // ── Bitcoin guards (Task 15) ─────────────────────────────────────────
+
+    it('uses maxTotal 300 for bitcoin (a wallet history can run into the tens of thousands of rows)', async () => {
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [],
+        chain: 'bitcoin',
+        address: 'bc1qa1',
+      });
+      await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['bc1qa1'] },
+        sideB: { wallets: ['bc1qb1'] },
+        chain: 'bitcoin',
+      });
+      expect(mockBlockchainService.fetchHistory).toHaveBeenCalledWith(
+        'bc1qa1',
+        'bitcoin',
+        expect.objectContaining({ maxTotal: 300 }),
+      );
+    });
+
+    it('keeps maxTotal 10000 for EVM chains — unchanged from before the bitcoin guard', async () => {
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [],
+        chain: 'ethereum',
+        address: '0xa1',
+      });
+      await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1'] },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+      });
+      expect(mockBlockchainService.fetchHistory).toHaveBeenCalledWith(
+        '0xa1',
+        'ethereum',
+        expect.objectContaining({ maxTotal: 10000 }),
+      );
+    });
+
+    it('keeps Tron maxTotal/offset byte-identical (2000 / 50) — unaffected by the bitcoin guard', async () => {
+      const tronA = 'TEsCiXabcdefghijklmnopqrstuvwxyz12';
+      const tronB = 'TKr41tABCDEFGHJKLMNPQRSTUVWXYZabcd';
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [],
+        chain: 'tron',
+        address: tronA,
+      });
+      await service.searchBetween(baseTraces(), {
+        sideA: { wallets: [tronA] },
+        sideB: { wallets: [tronB] },
+        chain: 'tron',
+      });
+      expect(mockBlockchainService.fetchHistory).toHaveBeenCalledWith(
+        tronA,
+        'tron',
+        expect.objectContaining({ maxTotal: 2000, offset: 50 }),
+      );
+    });
+
+    it('retains the utxo block on bitcoin search results — toImportItem does not strip it', async () => {
+      const utxo = {
+        inputs: [{ address: 'bc1qa1', value: '160000', prevTxid: 'aa'.repeat(32), prevVout: 0 }],
+        outputs: [{ address: 'bc1qb1', value: '150000', index: 0 }],
+        fee: '10000',
+        vout: 0,
+      };
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [
+          mockTxResult({
+            txHash: 'txid1',
+            from: 'bc1qa1',
+            to: 'bc1qb1',
+            chain: 'bitcoin',
+            amount: '150000',
+            token: { address: '', symbol: 'BTC', decimals: 8 },
+            utxo,
+          }),
+        ],
+        chain: 'bitcoin',
+        address: 'bc1qa1',
+      });
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['bc1qa1'] },
+        sideB: { wallets: ['bc1qb1'] },
+        chain: 'bitcoin',
+      });
+      expect(result.results).toHaveLength(1);
+      // Amount stays satoshis, token stays the bare 'BTC' string — reformatting
+      // is importTransactions' job, not the search mapping's.
+      expect(result.results[0].amount).toBe('150000');
+      expect(result.results[0].token).toBe('BTC');
+      expect(result.results[0].utxo).toEqual(utxo);
+    });
+
+    it('dedups BTC cross-set rows on edgeIdentityKey (txid:vout), not on endpoint addresses', async () => {
+      const utxoFor = (vout: number) => ({
+        inputs: [{ address: 'bc1qa1', value: '999999', prevTxid: 'aa'.repeat(32), prevVout: 0 }],
+        outputs: [{ address: 'bc1qb1', value: '150000', index: vout }],
+        fee: '10000',
+        vout,
+      });
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [
+          mockTxResult({
+            txHash: 'txid1',
+            from: 'bc1qa1',
+            to: 'bc1qb1',
+            chain: 'bitcoin',
+            amount: '150000',
+            token: { address: '', symbol: 'BTC', decimals: 8 },
+            utxo: utxoFor(0),
+          }),
+          mockTxResult({
+            txHash: 'txid1',
+            from: 'bc1qa1',
+            to: 'bc1qb1',
+            chain: 'bitcoin',
+            amount: '150000',
+            token: { address: '', symbol: 'BTC', decimals: 8 },
+            utxo: utxoFor(1),
+          }),
+        ],
+        chain: 'bitcoin',
+        address: 'bc1qa1',
+      });
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['bc1qa1'] },
+        sideB: { wallets: ['bc1qb1'] },
+        chain: 'bitcoin',
+      });
+      // Same (txHash, from, to) but two distinct outputs (vout 0 and vout 1) —
+      // the old `${txHash}-${from}-${to}` key would have collapsed these into
+      // one row and silently dropped a real payment.
+      expect(result.results).toHaveLength(2);
+    });
+
+    it('matches an unattributed BTC incoming row (from "") when one of its inputs is in the other set', async () => {
+      // The ledger names no single payer for this row (from: ''), but the
+      // utxo carries every real input. A match on any input address against
+      // the other side is a real cross-set link — the junction import draws
+      // the real legs, so this must not be filtered out as a non-crossing tx.
+      const utxo = {
+        inputs: [
+          { address: 'bc1qin1', value: '100000', prevTxid: 'aa'.repeat(32), prevVout: 0 },
+          { address: 'bc1qin2', value: '200000', prevTxid: 'bb'.repeat(32), prevVout: 1 },
+          { address: 'bc1qin3', value: '300000', prevTxid: 'cc'.repeat(32), prevVout: 2 },
+        ],
+        outputs: [{ address: 'bc1qb1', value: '580000', index: 0 }],
+        fee: '20000',
+        vout: 0,
+      };
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [
+          mockTxResult({
+            txHash: 'txid-unattributed',
+            from: '',
+            to: 'bc1qb1',
+            chain: 'bitcoin',
+            amount: '580000',
+            token: { address: '', symbol: 'BTC', decimals: 8 },
+            utxo,
+          }),
+        ],
+        chain: 'bitcoin',
+        address: 'bc1qb1',
+      });
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['bc1qb1'] },
+        sideB: { wallets: ['bc1qin2'] },
+        chain: 'bitcoin',
+      });
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0].txHash).toBe('txid-unattributed');
+      expect(result.results[0].utxo).toEqual(utxo);
     });
   });
 });

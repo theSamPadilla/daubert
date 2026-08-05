@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { FaXmark, FaMagnifyingGlass, FaChevronDown, FaChevronRight } from 'react-icons/fa6';
 import { IconButton } from '@/components/ui';
 import { apiClient } from '@/lib/api-client';
+import { useCaseContext } from '@/contexts/CaseContext';
 import type { components } from '../../generated/api-types';
 import { Investigation } from '../../types/investigation';
 import { WalletGroupPicker } from './WalletGroupPicker';
@@ -67,6 +68,11 @@ const inputClass =
   'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
 
 export function SearchPanel({ investigation, selectedTraceId, open, onClose }: Props) {
+  // Same reload hook the AI chat path uses (CaseContext -> useInvestigationLoader):
+  // a server-side import writes nodes/edges directly, and without a reload the
+  // 1s debounced whole-blob trace auto-save can clobber them with stale local state.
+  const { onGraphUpdated } = useCaseContext();
+
   const initialChain = useMemo(() => defaultChainFor(investigation), [investigation]);
   const chains = useMemo(() => chainsInInvestigation(investigation), [investigation]);
 
@@ -354,6 +360,9 @@ export function SearchPanel({ investigation, selectedTraceId, open, onClose }: P
                   results={results}
                   onImportDone={() => {
                     setResults(null);
+                    // Reload from the server so the freshly-imported nodes/edges
+                    // aren't overwritten by the pending debounced auto-save.
+                    onGraphUpdated?.();
                   }}
                 />
               )}

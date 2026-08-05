@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ProviderRegistry } from './provider-registry';
 import { TokenResolver } from './token-resolver';
-import { CHAIN_CONFIGS, FetchOptions } from './types';
+import { CHAIN_CONFIGS, FetchOptions, UtxoContext, UtxoOutput } from './types';
+import { buildUtxoContext, mapBtcHistory } from './btc/map-btc-history';
 import { randomUUID } from 'crypto';
+
+const BTC_TOKEN = { address: '', symbol: 'BTC', decimals: 8 };
 
 export interface TransactionResult {
   id: string;
@@ -21,6 +24,8 @@ export interface TransactionResult {
   notes: string;
   tags: string[];
   crossTrace: boolean;
+  /** UTXO provenance. Present only on rows from UTXO chains (Bitcoin). */
+  utxo?: UtxoContext;
 }
 
 export interface FetchHistoryResult {
@@ -52,6 +57,8 @@ export interface TransactionDetailResult {
     token: { address: string; symbol: string; decimals: number };
   }>;
   isError: boolean;
+  /** UTXO provenance. Present only for detail results from UTXO chains (Bitcoin). */
+  utxo?: UtxoContext;
 }
 
 @Injectable()
@@ -66,10 +73,22 @@ export class BlockchainService {
     chain: string,
     options?: FetchOptions & { startDate?: string; endDate?: string },
   ): Promise<FetchHistoryResult> {
+    const normalized = this.normalizeOptions(options);
+
+    if (chain === 'bitcoin') {
+      const txs = await this.providerRegistry.getUtxo('bitcoin').getAddressHistory(address, {
+        maxTotal: normalized?.maxTotal,
+        startTimestamp: normalized?.startTimestamp,
+        endTimestamp: normalized?.endTimestamp,
+      });
+      const transactions = mapBtcHistory(address, txs).sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      );
+      return { transactions, chain, address };
+    }
+
     const provider = this.providerRegistry.get(chain);
     const chainConfig = CHAIN_CONFIGS[chain];
-
-    const normalized = this.normalizeOptions(options);
 
     let rawTxs: import('./types').RawTransaction[];
     let rawTokenTxs: import('./types').RawTokenTransfer[];
@@ -210,6 +229,42 @@ export class BlockchainService {
     txHash: string,
     chain: string,
   ): Promise<TransactionDetailResult> {
+    if (chain === 'bitcoin') {
+      const tx = await this.providerRegistry.getUtxo('bitcoin').getTx(txHash);
+      const utxo = buildUtxoContext(tx);
+
+      // Representative from/to for a UTXO tx with N inputs and M outputs:
+      // the ledger names no single "sender"/"recipient", so these are a
+      // best-effort summary for list views, not evidentiary facts (the
+      // full utxo payload below carries every input/output verbatim).
+      const from = utxo.inputs[0]?.address ?? 'coinbase';
+      const largestPayment = utxo.outputs
+        .filter((o) => !o.change && !o.opReturn)
+        .reduce<UtxoOutput | undefined>(
+          (max, o) => (max == null || Number(o.value) > Number(max.value) ? o : max),
+          undefined,
+        );
+
+      const timestamp =
+        tx.status.confirmed && tx.status.block_time != null
+          ? new Date(tx.status.block_time * 1000).toISOString()
+          : new Date().toISOString();
+
+      return {
+        txHash: tx.txid,
+        from,
+        to: largestPayment?.address ?? '',
+        chain,
+        amount: largestPayment?.value ?? '0',
+        timestamp,
+        blockNumber: tx.status.block_height ?? 0,
+        token: { ...BTC_TOKEN },
+        tokenTransfers: [],
+        isError: false,
+        utxo,
+      };
+    }
+
     const provider = this.providerRegistry.get(chain);
     const chainConfig = CHAIN_CONFIGS[chain];
     const detail = await provider.getTransaction(txHash);
@@ -280,6 +335,16 @@ export class BlockchainService {
     address: string,
     chain: string,
   ): Promise<AddressInfoResult> {
+    if (chain === 'bitcoin') {
+      const raw = await this.providerRegistry.getUtxo('bitcoin').getAddressInfo(address);
+      return {
+        address: raw.address,
+        addressType: raw.addressType,
+        balance: raw.balance,
+        label: raw.label,
+      };
+    }
+
     const provider = this.providerRegistry.get(chain);
     const raw = await provider.getAddressInfo(address);
     return {

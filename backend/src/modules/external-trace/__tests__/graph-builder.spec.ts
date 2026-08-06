@@ -166,6 +166,38 @@ describe('buildGraph', () => {
       expect(node.utxoSummary).toBeUndefined();
     }
   });
+
+  it('keeps a native SOL and an SPL transfer between the same pair as separate edges (mint-keyed)', () => {
+    // Documents mint-keyed edge separation for Solana: buildGraph already
+    // keys edges by `${from}->${to}->${token.address}`, so native SOL
+    // (empty token address) and an SPL transfer (mint address) between the
+    // same from/to never merge, even though from/to are identical.
+    const { edges } = buildGraph(
+      [
+        tx({
+          chain: 'solana',
+          from: 'SoLCp1Addr111111111111111111111111',
+          to: 'SoLRootAddr1111111111111111111111',
+          txHash: 'sig1',
+          amount: '1000000000',
+          token: { address: '', symbol: 'SOL', decimals: 9 },
+          solana: { transferIndex: 0, feePayer: 'SoLCp1Addr111111111111111111111111', kind: 'native' },
+        }),
+        tx({
+          chain: 'solana',
+          from: 'SoLCp1Addr111111111111111111111111',
+          to: 'SoLRootAddr1111111111111111111111',
+          txHash: 'sig1',
+          amount: '500000',
+          token: { address: 'SPLMintAddr11111111111111111111111', symbol: 'USDC', decimals: 6 },
+          solana: { transferIndex: 1, feePayer: 'SoLCp1Addr111111111111111111111111', kind: 'spl' },
+        }),
+      ],
+      'SoLRootAddr1111111111111111111111',
+    );
+    expect(edges).toHaveLength(2);
+    expect(edges.map((e) => e.token.symbol).sort()).toEqual(['SOL', 'USDC']);
+  });
 });
 
 describe('buildGraph — BTC junction rows', () => {

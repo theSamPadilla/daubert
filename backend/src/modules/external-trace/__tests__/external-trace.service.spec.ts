@@ -55,6 +55,40 @@ const btcTx = (
   },
 });
 
+// Deterministic, regex-valid Solana base58 addresses (32-44 chars, no
+// 0/O/I/l) that don't collide with the Tron shape (T + 33 base58 chars).
+const SOL_ROOT = 'SoLRootAddr1111111111111111111111';
+const SOL_CP1 = 'SoLCp1Addr111111111111111111111111';
+const SPL_MINT = 'SPLMintAddr11111111111111111111111';
+
+const solTx = (
+  from: string,
+  to: string,
+  transferIndex: number,
+  opts: { hash?: string; spam?: boolean; kind?: 'native' | 'spl'; mint?: string } = {},
+) => ({
+  id: 'i',
+  from,
+  to,
+  txHash: opts.hash ?? 'soltx',
+  chain: 'solana',
+  timestamp: '2026-05-01T00:00:00.000Z',
+  amount: '1000000000',
+  token: opts.mint
+    ? { address: opts.mint, symbol: 'USDC', decimals: 6 }
+    : { address: '', symbol: 'SOL', decimals: 9 },
+  blockNumber: 1,
+  notes: '',
+  tags: [],
+  crossTrace: false,
+  solana: {
+    transferIndex,
+    feePayer: from,
+    kind: opts.kind ?? (opts.mint ? 'spl' : 'native'),
+    ...(opts.spam !== undefined ? { spam: opts.spam } : {}),
+  },
+});
+
 describe('ExternalTraceService', () => {
   let service: ExternalTraceService;
   let blockchain: { fetchHistory: jest.Mock };
@@ -314,6 +348,75 @@ describe('ExternalTraceService', () => {
         'ethereum',
         { offset: 40 },
       );
+    });
+  });
+
+  describe('solana', () => {
+    it('forwards maxTotal alongside offset on the solana fetch window (cursor-paginated)', async () => {
+      blockchain.fetchHistory.mockResolvedValue({
+        transactions: [],
+        chain: 'solana',
+        address: SOL_ROOT,
+      });
+
+      await service.trace(SOL_ROOT, 'solana', 1);
+
+      expect(blockchain.fetchHistory).toHaveBeenCalledWith(SOL_ROOT, 'solana', {
+        offset: 40,
+        maxTotal: 40,
+      });
+    });
+
+    it('drops a row flagged solana.spam === true from the trimmed window', async () => {
+      blockchain.fetchHistory.mockResolvedValueOnce({
+        transactions: [solTx(SOL_CP1, SOL_ROOT, 0, { spam: true })],
+        chain: 'solana',
+        address: SOL_ROOT,
+      });
+
+      const result = await service.trace(SOL_ROOT, 'solana', 1);
+      expect(result.nodes).toHaveLength(0);
+      expect(result.edges).toHaveLength(0);
+    });
+
+    it('keeps a row with solana.spam === false', async () => {
+      blockchain.fetchHistory.mockResolvedValueOnce({
+        transactions: [solTx(SOL_CP1, SOL_ROOT, 0, { spam: false })],
+        chain: 'solana',
+        address: SOL_ROOT,
+      });
+
+      const result = await service.trace(SOL_ROOT, 'solana', 1);
+      expect(result.edges).toHaveLength(1);
+    });
+
+    it('retains two rows sharing one signature with different transferIndex as two edges (edgeIdentityKey dedup)', async () => {
+      blockchain.fetchHistory.mockResolvedValueOnce({
+        transactions: [
+          solTx(SOL_CP1, SOL_ROOT, 0, { hash: 'sig1' }),
+          solTx(SOL_CP1, SOL_ROOT, 1, { hash: 'sig1', mint: SPL_MINT }),
+        ],
+        chain: 'solana',
+        address: SOL_ROOT,
+      });
+
+      const result = await service.trace(SOL_ROOT, 'solana', 1);
+      expect(result.edges).toHaveLength(2);
+    });
+
+    it('collapses two rows with identical txHash and transferIndex to one edge', async () => {
+      blockchain.fetchHistory.mockResolvedValueOnce({
+        transactions: [
+          solTx(SOL_CP1, SOL_ROOT, 0, { hash: 'sig1' }),
+          solTx(SOL_CP1, SOL_ROOT, 0, { hash: 'sig1' }),
+        ],
+        chain: 'solana',
+        address: SOL_ROOT,
+      });
+
+      const result = await service.trace(SOL_ROOT, 'solana', 1);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].txCount).toBe(1);
     });
   });
 });

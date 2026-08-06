@@ -12,13 +12,13 @@ Headers:
 - `X-Daubert-Website-Key: <key>` — required. Compared in constant time against `DAUBERT_WEBSITE_API_KEY`.
 
 Query:
-- `address` (required) — EVM address (`0x` + 40 hex) or Tron address (base58, 34 chars starting with T)
-- `chain` (required) — one of `ethereum | polygon | arbitrum | base | tron`
+- `address` (required) — EVM address (`0x` + 40 hex), Tron address (base58, 34 chars starting with T), Bitcoin address (base58 starting with `1…`/`3…`, or bech32 starting with `bc1…`), or Solana address (base58, 32-44 chars)
+- `chain` (required) — one of `ethereum | polygon | arbitrum | base | tron | bitcoin | solana`
 - `hops` (optional, default 1) — 1 or 2
 
 Limits:
 - 10 requests / minute per visitor IP (counted from `X-Forwarded-For`)
-- 10 txs at the root, 10 txs per hop-2 node, fanout 5, node cap 100, edge cap 200
+- 5 incoming + 5 outgoing per address (root and hop-2 alike), fanout 5, node cap 100, edge cap 200
 
 Example:
 ```

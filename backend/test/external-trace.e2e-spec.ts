@@ -99,7 +99,7 @@ describe('GET /external/trace (e2e)', () => {
 
   it('returns 400 for unsupported chain (with valid key)', async () => {
     const res = await request(app.getHttpServer())
-      .get('/external/trace?address=0x0000000000000000000000000000000000000000&chain=solana&hops=1')
+      .get('/external/trace?address=0x0000000000000000000000000000000000000000&chain=optimism&hops=1')
       .set('X-Daubert-Website-Key', KEY)
       .set('X-Forwarded-For', '203.0.113.4')
       .expect(400);
@@ -295,8 +295,94 @@ describe('GET /external/trace (e2e)', () => {
       .set('X-Forwarded-For', '203.0.113.22')
       .expect(400);
     expect(res.body.message).toContain(
-      'address must be an EVM (0x…), Tron (T…), or Bitcoin (1…/3…/bc1…) address',
+      'address must be an EVM (0x…), Tron (T…), Bitcoin (1…/3…/bc1…), or Solana (base58) address',
     );
+  });
+
+  it('returns 200 for solana chain with a valid base58 address', async () => {
+    const res = await request(app.getHttpServer())
+      .get(
+        '/external/trace?address=So11111111111111111111111111111111111111112&chain=solana&hops=1',
+      )
+      .set('X-Daubert-Website-Key', KEY)
+      .set('X-Forwarded-For', '203.0.113.24')
+      .expect(200);
+    expect(res.body).toMatchObject({
+      root: 'So11111111111111111111111111111111111111112',
+      chain: 'solana',
+      hops: 1,
+      nodes: expect.any(Array),
+      edges: expect.any(Array),
+      truncated: false,
+    });
+  });
+
+  it('returns 200 for solana chain, and never leaks internal solana context (spamEvidence, token accounts, feePayer)', async () => {
+    // A different address than the other solana test uses -- the service
+    // caches by `${chain}:${address}:${hops}`, and reusing an address that
+    // an earlier test already traced would serve the cached result instead
+    // of invoking fetchHistory again, silently no-op-ing the mock queued below.
+    const SOL_ROOT = 'SoLLeakRootAddr111111111111111111';
+    const SOL_CP = 'SoLLeakCpAddr1111111111111111111111';
+    const SPL_MINT = 'SPLLeakMintAddr111111111111111111';
+
+    // Distinctive markers planted inside the mocked row's `solana` context --
+    // graph-builder must never copy these into the public output.
+    const LEAK_SPAM_EVIDENCE = 'LEAK_SPAM_EVIDENCE';
+    const LEAK_FROM_TOKEN_ACCOUNT = 'LEAK_FROM_TOKEN_ACCOUNT';
+    const LEAK_TO_TOKEN_ACCOUNT = 'LEAK_TO_TOKEN_ACCOUNT';
+    const LEAK_FEE_PAYER = 'LEAK_FEE_PAYER';
+
+    const solRow = {
+      id: 'sol-leak-1',
+      from: SOL_CP,
+      to: SOL_ROOT,
+      txHash: 'solleaktxsig00000000000000000000000000000000',
+      chain: 'solana',
+      timestamp: '2026-08-01T00:00:00.000Z',
+      amount: '500000',
+      token: { address: SPL_MINT, symbol: 'USDC', decimals: 6 },
+      blockNumber: 1,
+      notes: '',
+      tags: [],
+      crossTrace: false,
+      solana: {
+        transferIndex: 0,
+        feePayer: LEAK_FEE_PAYER,
+        kind: 'spl',
+        spam: false,
+        spamEvidence: [LEAK_SPAM_EVIDENCE],
+        fromTokenAccount: LEAK_FROM_TOKEN_ACCOUNT,
+        toTokenAccount: LEAK_TO_TOKEN_ACCOUNT,
+      },
+    };
+
+    blockchainServiceMock.fetchHistory.mockResolvedValueOnce({
+      transactions: [solRow],
+      chain: 'solana',
+      address: SOL_ROOT,
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/external/trace?address=${SOL_ROOT}&chain=solana&hops=1`)
+      .set('X-Daubert-Website-Key', KEY)
+      .set('X-Forwarded-For', '203.0.113.25')
+      .expect(200);
+
+    const body = res.body;
+
+    const edge = body.edges.find((e: any) => e.from === SOL_CP && e.to === SOL_ROOT);
+    expect(edge).toBeDefined();
+
+    // The raw solana context -- spamEvidence, token accounts, feePayer --
+    // must never leave the backend on this public endpoint. Scan the whole
+    // payload (not just the edge we already checked) for the markers planted
+    // above.
+    const raw = JSON.stringify(body);
+    expect(raw).not.toContain(LEAK_SPAM_EVIDENCE);
+    expect(raw).not.toContain(LEAK_FROM_TOKEN_ACCOUNT);
+    expect(raw).not.toContain(LEAK_TO_TOKEN_ACCOUNT);
+    expect(raw).not.toContain(LEAK_FEE_PAYER);
   });
 
   it('returns 429 after exceeding the per-IP rate limit (10/min)', async () => {

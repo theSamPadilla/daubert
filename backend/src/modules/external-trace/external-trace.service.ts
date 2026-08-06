@@ -4,6 +4,7 @@ import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.ser
 import { buildGraph, GraphResult } from './graph-builder';
 import { normalizeAddressForChain, validateAddressForChain } from '../../generated/shared/address';
 import { edgeIdentityKey } from '../../generated/shared/edge-identity';
+import { usesCursorPagination } from '../../generated/shared/chains';
 
 // Per-direction cap: 5 incoming + 5 outgoing per address (root and hop-2 alike).
 // The previous flat 10-tx cap let one direction dominate when an address skewed
@@ -160,13 +161,14 @@ export class ExternalTraceService {
     this.cache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS });
   }
 
-  // EVM/Tron read `offset` as the page size. The BTC path ignores `offset`
-  // entirely and bounds its paging with `maxTotal`. Setting `maxTotal` on the
-  // account-model path would flip fetchHistory into its paginated branch,
-  // which caps the MERGED native+token list at FETCH_WINDOW rows instead of
-  // FETCH_WINDOW per source -- a narrower window than the widget has today.
+  // EVM/Tron read `offset` as the page size. Cursor-paginated chains
+  // (bitcoin, solana) ignore `offset` entirely and bound their paging with
+  // `maxTotal`. Setting `maxTotal` on the account-model path would flip
+  // fetchHistory into its paginated branch, which caps the MERGED
+  // native+token list at FETCH_WINDOW rows instead of FETCH_WINDOW per
+  // source -- a narrower window than the widget has today.
   private fetchWindowOptions(chain: string) {
-    return chain === 'bitcoin'
+    return usesCursorPagination(chain)
       ? { offset: FETCH_WINDOW, maxTotal: FETCH_WINDOW }
       : { offset: FETCH_WINDOW };
   }
@@ -194,6 +196,13 @@ export class ExternalTraceService {
     const outgoing: TransactionResult[] = [];
     const seen = new Set<string>();
     for (const tx of txs) {
+      // Solana spam rows (suspected unsolicited/airdrop transfers) stay on
+      // the product canvas -- default-unchecked in staging, since they're a
+      // real ledger fact an investigator may want to see -- but this public
+      // widget only shows counterparty flows, so suspected spam is excluded
+      // outright.
+      if (tx.chain === 'solana' && tx.solana?.spam === true) continue;
+
       // BTC self/change rows (from === to) are noise at a 5-per-direction
       // cap: the product canvas keeps them (they're a real ledger fact),
       // but this widget only shows counterparty flows, so they're dropped
@@ -203,8 +212,14 @@ export class ExternalTraceService {
       // BTC rows carry `utxo.vout`, so one txid's several outputs to
       // different counterparties each get their own dedup slot instead of
       // collapsing onto a single bare `txHash` key like account-model chains.
+      // Solana rows carry `solana.transferIndex`, so several transfers inside
+      // one signature (e.g. a native SOL leg + an SPL leg) each get their own
+      // dedup slot (`${txHash}:sol:${transferIndex}`) instead of collapsing
+      // onto the bare signature.
       const key =
-        tx.chain === 'bitcoin' ? edgeIdentityKey(tx, tx.from, tx.to) : tx.txHash;
+        tx.chain === 'bitcoin' || tx.chain === 'solana'
+          ? edgeIdentityKey(tx, tx.from, tx.to)
+          : tx.txHash;
       if (seen.has(key)) continue;
       if (tx.to === address && incoming.length < PER_DIRECTION_LIMIT) {
         incoming.push(tx);

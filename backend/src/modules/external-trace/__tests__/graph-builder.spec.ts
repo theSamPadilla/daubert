@@ -217,6 +217,11 @@ describe('buildGraph — BTC junction rows', () => {
     expect(edges[0].amount).toBe('0.5');
   });
 
+  it('formats sub-0.0001 satoshi amounts by significant digits, not decimal places (2607 sats -> "0.00002607")', () => {
+    const { edges } = buildGraph([incomingJunctionTx({ amount: '2607' })], 'bc1qtraced');
+    expect(edges[0].amount).toBe('0.00002607');
+  });
+
   it('aggregates two rows sharing one txid onto a single junction node and edge', () => {
     const sharedUtxo = junctionUtxo({
       inputs: [{ address: 'bc1qtraced', value: '110000000', prevTxid: 'prevtx3', prevVout: 0 }],

@@ -59,8 +59,14 @@ function formatAmount(raw: bigint, decimals: number): string {
   const whole = raw / divisor;
   const fraction = raw % divisor;
   if (fraction === 0n) return whole.toString();
-  const fracStr = fraction.toString().padStart(decimals, '0').slice(0, 4);
-  const trimmed = fracStr.replace(/0+$/, '');
+  // Slice to 4 SIGNIFICANT digits (not 4 decimal places): harmless at 18
+  // decimals (EVM), but at 8 decimals (BTC) a flat 4-decimal-place cutoff
+  // truncates sub-0.0001 transfers (e.g. a few thousand sats) to "0". Counting
+  // leading zeros first preserves small values while keeping today's output
+  // identical when there are no leading zeros (lead === 0).
+  const full = fraction.toString().padStart(decimals, '0');
+  const lead = full.length - full.replace(/^0+/, '').length;
+  const trimmed = full.slice(0, Math.min(decimals, lead + 4)).replace(/0+$/, '');
   return trimmed ? `${whole}.${trimmed}` : whole.toString();
 }
 

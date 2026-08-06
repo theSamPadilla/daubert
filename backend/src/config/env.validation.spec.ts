@@ -6,6 +6,7 @@ const BASE_ENV: Record<string, string> = {
   ANTHROPIC_API_KEY: 'sk-ant-dummy',
   ETHERSCAN_API_KEY: 'dummy-etherscan',
   TRONSCAN_API_KEY: 'dummy-tron',
+  HELIUS_API_KEY: 'dummy-helius',
   FRONTEND_URL: 'http://localhost:3001',
   // Firebase — all three must be set together to avoid "partially set" error
   FIREBASE_PROJECT_ID: 'proj',

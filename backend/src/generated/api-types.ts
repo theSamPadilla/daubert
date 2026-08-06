@@ -1719,6 +1719,7 @@ export interface components {
             fromLabel?: string;
             toLabel?: string;
             utxo?: components["schemas"]["UtxoContext"];
+            solana?: components["schemas"]["SolanaContext"];
         };
         /** @description One side of an advanced search. Exactly one of traceId, groupId, or wallets must be provided. */
         WalletSet: {
@@ -1770,7 +1771,7 @@ export interface components {
                 offset?: number;
                 /** @enum {string} */
                 sort?: "asc" | "desc";
-                /** @description Max total transactions to fetch (paginated internally). Used by the bitcoin provider. */
+                /** @description Max total transactions to fetch (paginated internally). Used by the bitcoin and solana providers (cursor-paginated chains). */
                 maxTotal?: number;
             };
         };
@@ -2689,6 +2690,29 @@ export interface components {
             /** @description Row should materialize as a tx-junction node. */
             junction?: boolean;
         };
+        /** @description Per-transfer provenance. Present only on rows from Solana. */
+        SolanaContext: {
+            /** @description Position in [...nativeTransfers, ...tokenTransfers] for the source transaction. */
+            transferIndex: number;
+            feePayer: string;
+            /** @enum {string} */
+            kind: "native" | "spl";
+            /** @description SPL only. */
+            mint?: string;
+            /** @description SPL only (native SOL is 9, implied by the token object). */
+            decimals?: number;
+            /** @description SPL only — raw token account, evidentiary. */
+            fromTokenAccount?: string;
+            /** @description SPL only — raw token account, evidentiary. */
+            toTokenAccount?: string;
+            /** @description Helius tx type (TRANSFER, SWAP, ...). */
+            type?: string;
+            /** @description Helius source program (JUPITER, ...). */
+            source?: string;
+            slot?: number;
+            spam?: boolean;
+            spamEvidence?: string[];
+        };
         TransactionResult: {
             /** Format: uuid */
             id?: string;
@@ -2709,6 +2733,7 @@ export interface components {
             tags?: string[];
             crossTrace?: boolean;
             utxo?: components["schemas"]["UtxoContext"];
+            solana?: components["schemas"]["SolanaContext"];
         };
         /** @enum {string} */
         DeclarationFormatDeclarantField: "dateOfBirth" | "address";

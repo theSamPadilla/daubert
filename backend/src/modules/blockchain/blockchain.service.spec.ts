@@ -2,7 +2,14 @@ import { BlockchainService } from './blockchain.service';
 import { ProviderRegistry } from './provider-registry';
 import { BlockchainProvider } from './blockchain-provider';
 import { UtxoProvider } from './utxo-provider';
+import { SolanaProvider } from './solana-provider';
 import { EsploraTx, EsploraVin, EsploraVout } from './esplora-client';
+import {
+  HeliusNativeTransfer,
+  HeliusParsedTx,
+  HeliusTokenTransfer,
+  MintMetadata,
+} from './helius-client';
 import { RawAddressInfo, RawTransaction } from './types';
 
 function stubUtxoProvider(overrides: Partial<UtxoProvider> = {}): jest.Mocked<UtxoProvider> {
@@ -12,6 +19,15 @@ function stubUtxoProvider(overrides: Partial<UtxoProvider> = {}): jest.Mocked<Ut
     getAddressInfo: jest.fn(),
     ...overrides,
   } as unknown as jest.Mocked<UtxoProvider>;
+}
+
+function stubSolanaProvider(overrides: Partial<SolanaProvider> = {}): jest.Mocked<SolanaProvider> {
+  return {
+    getAddressHistory: jest.fn(),
+    getTx: jest.fn(),
+    getAddressInfo: jest.fn(),
+    ...overrides,
+  } as unknown as jest.Mocked<SolanaProvider>;
 }
 
 function stubBlockchainProvider(
@@ -62,10 +78,51 @@ function esploraTx(overrides: Partial<EsploraTx> = {}): EsploraTx {
   };
 }
 
+const SOL_A = 'SubjectWa11et11111111111111111111111111111';
+const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+
+function solNativeTransfer(overrides: Partial<HeliusNativeTransfer> = {}): HeliusNativeTransfer {
+  return {
+    fromUserAccount: 'SenderWa11et',
+    toUserAccount: SOL_A,
+    amount: 1_500_000_000,
+    ...overrides,
+  };
+}
+
+function solTokenTransfer(overrides: Partial<HeliusTokenTransfer> = {}): HeliusTokenTransfer {
+  return {
+    fromUserAccount: 'SenderWa11et',
+    toUserAccount: SOL_A,
+    fromTokenAccount: 'FromAcct',
+    toTokenAccount: 'ToAcct',
+    mint: USDC_MINT,
+    tokenAmount: 1.5,
+    ...overrides,
+  };
+}
+
+function heliusTx(overrides: Partial<HeliusParsedTx> = {}): HeliusParsedTx {
+  return {
+    signature: 'sol-sig-1',
+    timestamp: 1_700_000_000,
+    slot: 250_000_000,
+    fee: 5_000,
+    feePayer: 'SenderWa11et',
+    type: 'TRANSFER',
+    source: 'SYSTEM_PROGRAM',
+    nativeTransfers: [],
+    tokenTransfers: [],
+    transactionError: null,
+    ...overrides,
+  };
+}
+
 describe('BlockchainService', () => {
   describe('bitcoin path', () => {
     let get: jest.Mock;
     let getUtxo: jest.Mock;
+    let getSolana: jest.Mock;
     let utxo: jest.Mocked<UtxoProvider>;
     let service: BlockchainService;
 
@@ -75,7 +132,10 @@ describe('BlockchainService', () => {
         throw new Error('bitcoin uses the UTXO provider path (getUtxo)');
       });
       getUtxo = jest.fn().mockReturnValue(utxo);
-      const registry = { get, getUtxo } as unknown as ProviderRegistry;
+      getSolana = jest.fn(() => {
+        throw new Error('should not be called for bitcoin');
+      });
+      const registry = { get, getUtxo, getSolana } as unknown as ProviderRegistry;
       service = new BlockchainService(registry);
     });
 
@@ -86,6 +146,7 @@ describe('BlockchainService', () => {
         const result = await service.fetchHistory(A, 'bitcoin');
 
         expect(get).not.toHaveBeenCalled();
+        expect(getSolana).not.toHaveBeenCalled();
         expect(result.chain).toBe('bitcoin');
         expect(result.address).toBe(A);
         expect(result.transactions).toHaveLength(1);
@@ -230,6 +291,7 @@ describe('BlockchainService', () => {
   describe('ethereum regression', () => {
     let get: jest.Mock;
     let getUtxo: jest.Mock;
+    let getSolana: jest.Mock;
     let provider: jest.Mocked<BlockchainProvider>;
     let service: BlockchainService;
 
@@ -239,7 +301,10 @@ describe('BlockchainService', () => {
       getUtxo = jest.fn(() => {
         throw new Error('should not be called for ethereum');
       });
-      const registry = { get, getUtxo } as unknown as ProviderRegistry;
+      getSolana = jest.fn(() => {
+        throw new Error('should not be called for ethereum');
+      });
+      const registry = { get, getUtxo, getSolana } as unknown as ProviderRegistry;
       service = new BlockchainService(registry);
     });
 
@@ -273,6 +338,7 @@ describe('BlockchainService', () => {
       const result = await service.fetchHistory('0xADDRESS', 'ethereum');
 
       expect(getUtxo).not.toHaveBeenCalled();
+      expect(getSolana).not.toHaveBeenCalled();
       expect(result.transactions).toHaveLength(1);
       expect(result.transactions[0].from).toBe('0xfrom');
       expect(result.transactions[0].to).toBe('0xto');
@@ -290,6 +356,260 @@ describe('BlockchainService', () => {
       const result = await service.fetchHistory('0xADDRESS', 'ethereum');
 
       expect(result.transactions).toHaveLength(1);
+    });
+  });
+
+  describe('solana path', () => {
+    let get: jest.Mock;
+    let getUtxo: jest.Mock;
+    let getSolana: jest.Mock;
+    let solana: jest.Mocked<SolanaProvider>;
+    let service: BlockchainService;
+
+    beforeEach(() => {
+      solana = stubSolanaProvider();
+      get = jest.fn(() => {
+        throw new Error('solana uses the Solana provider path (getSolana)');
+      });
+      getUtxo = jest.fn(() => {
+        throw new Error('should not be called for solana');
+      });
+      getSolana = jest.fn().mockReturnValue(solana);
+      const registry = { get, getUtxo, getSolana } as unknown as ProviderRegistry;
+      service = new BlockchainService(registry);
+    });
+
+    describe('fetchHistory', () => {
+      it('never calls get()/getUtxo() and maps rows via mapSolanaHistory with solana context intact', async () => {
+        solana.getAddressHistory.mockResolvedValue({
+          txs: [heliusTx({ nativeTransfers: [solNativeTransfer()] })],
+          mintMeta: new Map(),
+        });
+
+        const result = await service.fetchHistory(SOL_A, 'solana');
+
+        expect(get).not.toHaveBeenCalled();
+        expect(getUtxo).not.toHaveBeenCalled();
+        expect(result.chain).toBe('solana');
+        expect(result.address).toBe(SOL_A);
+        expect(result.transactions).toHaveLength(1);
+        const row = result.transactions[0];
+        expect(row.from).toBe('SenderWa11et');
+        expect(row.to).toBe(SOL_A);
+        expect(row.amount).toBe('1500000000');
+        expect(row.token).toEqual({ address: '', symbol: 'SOL', decimals: 9 });
+        expect(row.solana).toEqual({
+          transferIndex: 0,
+          feePayer: 'SenderWa11et',
+          kind: 'native',
+          type: 'TRANSFER',
+          source: 'SYSTEM_PROGRAM',
+          slot: 250_000_000,
+        });
+      });
+
+      it('forwards maxTotal and normalized start/end timestamps to getAddressHistory', async () => {
+        solana.getAddressHistory.mockResolvedValue({ txs: [], mintMeta: new Map() });
+
+        await service.fetchHistory(SOL_A, 'solana', {
+          maxTotal: 50,
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        } as never);
+
+        expect(solana.getAddressHistory).toHaveBeenCalledWith(SOL_A, {
+          maxTotal: 50,
+          startTimestamp: Math.floor(Date.UTC(2024, 0, 1, 0, 0, 0) / 1000),
+          endTimestamp: Math.floor(Date.UTC(2024, 0, 31, 23, 59, 59) / 1000),
+        });
+      });
+
+      it('passes undefined maxTotal/timestamps through when no options given', async () => {
+        solana.getAddressHistory.mockResolvedValue({ txs: [], mintMeta: new Map() });
+
+        await service.fetchHistory(SOL_A, 'solana');
+
+        expect(solana.getAddressHistory).toHaveBeenCalledWith(SOL_A, {
+          maxTotal: undefined,
+          startTimestamp: undefined,
+          endTimestamp: undefined,
+        });
+      });
+
+      it('sorts returned rows by timestamp desc', async () => {
+        const older = heliusTx({
+          signature: 'sol-old',
+          timestamp: 1_000,
+          nativeTransfers: [solNativeTransfer()],
+        });
+        const newer = heliusTx({
+          signature: 'sol-new',
+          timestamp: 5_000,
+          nativeTransfers: [solNativeTransfer()],
+        });
+        solana.getAddressHistory.mockResolvedValue({ txs: [older, newer], mintMeta: new Map() });
+
+        const result = await service.fetchHistory(SOL_A, 'solana');
+
+        expect(result.transactions.map((t) => t.txHash)).toEqual(['sol-new', 'sol-old']);
+      });
+    });
+
+    describe('getTransaction', () => {
+      it('builds the representative detail: from=feePayer, to/amount from the largest transfer, tokenTransfers populated', async () => {
+        const mintMeta: Map<string, MintMetadata> = new Map([
+          [USDC_MINT, { mint: USDC_MINT, symbol: 'USDC', decimals: 6, resolved: true }],
+        ]);
+        const tx = heliusTx({
+          signature: 'sol-sig-detail',
+          feePayer: 'FeePayerWa11et',
+          type: 'SWAP',
+          source: 'JUPITER',
+          nativeTransfers: [
+            solNativeTransfer({ fromUserAccount: 'FeePayerWa11et', toUserAccount: 'Poo1Wa11et', amount: 500_000_000 }),
+          ],
+          tokenTransfers: [
+            solTokenTransfer({
+              fromUserAccount: 'Poo1Wa11et',
+              toUserAccount: 'FeePayerWa11et',
+              tokenAmount: 100,
+              mint: USDC_MINT,
+              fromTokenAccount: 'PoolUsdcAcct',
+              toTokenAccount: 'FeePayerUsdcAcct',
+            }),
+          ],
+        });
+        solana.getTx.mockResolvedValue({ tx, mintMeta });
+
+        const result = await service.getTransaction('sol-sig-detail', 'solana');
+
+        expect(get).not.toHaveBeenCalled();
+        expect(getUtxo).not.toHaveBeenCalled();
+        expect(result.txHash).toBe('sol-sig-detail');
+        expect(result.chain).toBe('solana');
+        expect(result.from).toBe('FeePayerWa11et');
+        // The SPL leg (100 USDC) is the largest transfer by decimal-adjusted
+        // quantity, beating the 0.5 SOL native leg.
+        expect(result.to).toBe('FeePayerWa11et');
+        expect(result.amount).toBe('100000000');
+        expect(result.token).toEqual({ address: USDC_MINT, symbol: 'USDC', decimals: 6 });
+        expect(result.isError).toBe(false);
+        expect(result.tokenTransfers).toEqual([
+          {
+            from: 'Poo1Wa11et',
+            to: 'FeePayerWa11et',
+            amount: '100000000',
+            token: { address: USDC_MINT, symbol: 'USDC', decimals: 6 },
+          },
+        ]);
+        expect(result.solana).toEqual({
+          transferIndex: 1,
+          feePayer: 'FeePayerWa11et',
+          kind: 'spl',
+          mint: USDC_MINT,
+          decimals: 6,
+          fromTokenAccount: 'PoolUsdcAcct',
+          toTokenAccount: 'FeePayerUsdcAcct',
+          type: 'SWAP',
+          source: 'JUPITER',
+          slot: 250_000_000,
+        });
+      });
+
+      it('picks the native leg as representative when it is the larger decimal-adjusted transfer', async () => {
+        const tx = heliusTx({
+          signature: 'sol-sig-native-wins',
+          feePayer: 'FeePayerWa11et',
+          nativeTransfers: [
+            solNativeTransfer({ fromUserAccount: 'FeePayerWa11et', toUserAccount: 'RecipientWa11et', amount: 2_000_000_000 }),
+          ],
+          tokenTransfers: [
+            solTokenTransfer({
+              fromUserAccount: 'FeePayerWa11et',
+              toUserAccount: 'OtherWa11et',
+              tokenAmount: 0.01,
+              mint: USDC_MINT,
+            }),
+          ],
+        });
+        solana.getTx.mockResolvedValue({
+          tx,
+          mintMeta: new Map([[USDC_MINT, { mint: USDC_MINT, symbol: 'USDC', decimals: 6, resolved: true }]]),
+        });
+
+        const result = await service.getTransaction('sol-sig-native-wins', 'solana');
+
+        expect(result.to).toBe('RecipientWa11et');
+        expect(result.amount).toBe('2000000000');
+        expect(result.token).toEqual({ address: '', symbol: 'SOL', decimals: 9 });
+        expect(result.solana?.kind).toBe('native');
+      });
+
+      it('reports isError true for a transaction that carries a transactionError (F4)', async () => {
+        const tx = heliusTx({
+          signature: 'sol-sig-failed',
+          feePayer: 'FeePayerWa11et',
+          nativeTransfers: [
+            solNativeTransfer({ fromUserAccount: 'FeePayerWa11et', toUserAccount: 'RecipientWa11et' }),
+          ],
+          transactionError: { InstructionError: [0, { Custom: 1 }] },
+        });
+        solana.getTx.mockResolvedValue({ tx, mintMeta: new Map() });
+
+        const result = await service.getTransaction('sol-sig-failed', 'solana');
+
+        expect(result.isError).toBe(true);
+      });
+
+      it('filters tokenTransfers entries with a null fromUserAccount or toUserAccount instead of coalescing to "" (F5)', async () => {
+        const tx = heliusTx({
+          signature: 'sol-sig-null-owner',
+          feePayer: 'FeePayerWa11et',
+          nativeTransfers: [],
+          tokenTransfers: [
+            solTokenTransfer({
+              fromUserAccount: null,
+              toUserAccount: 'FeePayerWa11et',
+              tokenAmount: 5,
+              mint: USDC_MINT,
+            }),
+            solTokenTransfer({
+              fromUserAccount: 'Poo1Wa11et',
+              toUserAccount: 'FeePayerWa11et',
+              tokenAmount: 1,
+              mint: USDC_MINT,
+            }),
+          ],
+        });
+        solana.getTx.mockResolvedValue({
+          tx,
+          mintMeta: new Map([[USDC_MINT, { mint: USDC_MINT, symbol: 'USDC', decimals: 6, resolved: true }]]),
+        });
+
+        const result = await service.getTransaction('sol-sig-null-owner', 'solana');
+
+        expect(result.tokenTransfers).toHaveLength(1);
+        expect(result.tokenTransfers.every((t) => t.from !== '' && t.to !== '')).toBe(true);
+        expect(result.tokenTransfers[0]).toEqual({
+          from: 'Poo1Wa11et',
+          to: 'FeePayerWa11et',
+          amount: '1000000',
+          token: { address: USDC_MINT, symbol: 'USDC', decimals: 6 },
+        });
+      });
+    });
+
+    describe('getAddressInfo', () => {
+      it('never calls get()/getUtxo() and wraps the Solana provider result', async () => {
+        const raw: RawAddressInfo = { address: SOL_A, addressType: 'wallet', balance: '999999' };
+        solana.getAddressInfo.mockResolvedValue(raw);
+
+        const result = await service.getAddressInfo(SOL_A, 'solana');
+
+        expect(get).not.toHaveBeenCalled();
+        expect(getUtxo).not.toHaveBeenCalled();
+        expect(result).toEqual({ address: SOL_A, addressType: 'wallet', balance: '999999', label: undefined });
+      });
     });
   });
 });

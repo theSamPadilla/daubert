@@ -80,14 +80,15 @@ Content-Type: application/json
 | `from` | string | yes | Sender address |
 | `to` | string | yes | Receiver address |
 | `txHash` | string | yes | Transaction hash |
-| `chain` | string | yes | Chain identifier (ethereum, polygon, arbitrum, base, tron, bitcoin) |
-| `timestamp` | string | yes | Unix timestamp (seconds for EVM, milliseconds for Tron) or ISO string (Bitcoin) |
-| `amount` | string | yes | Human-readable amount (already divided by decimals) — **except** Bitcoin rows that carry `utxo`, which use satoshis. See below. |
-| `token` | string | yes | Token symbol (e.g. "ETH", "USDT", "TRX", "BTC") |
+| `chain` | string | yes | Chain identifier (ethereum, polygon, arbitrum, base, tron, bitcoin, solana) |
+| `timestamp` | string | yes | Unix timestamp (seconds for EVM, milliseconds for Tron) or ISO string (Bitcoin, Solana) |
+| `amount` | string | yes | Human-readable amount (already divided by decimals) — **except** Bitcoin rows that carry `utxo` (satoshis) and Solana rows that carry `solana` (raw base units). See below. |
+| `token` | string | yes | Token symbol (e.g. "ETH", "USDT", "TRX", "BTC", "SOL") |
 | `blockNumber` | number | no | Block number |
 | `fromLabel` | string | no | Human-readable label for the sender node (e.g. "Wintermute", "Justin Sun") |
 | `toLabel` | string | no | Human-readable label for the receiver node |
 | `utxo` | object | no | UTXO provenance for Bitcoin rows (inputs/outputs/fee/junction). See the `bitcoin-apis` skill for the full shape and script pattern. |
+| `solana` | object | no | Per-transfer Solana provenance (transferIndex, feePayer, kind, mint, decimals, token accounts, spam evidence). See the `solana-apis` skill for the full shape and script pattern. |
 
 ### Response
 
@@ -109,10 +110,11 @@ The endpoint auto-creates wallet nodes for addresses not already in the graph. D
 | Base | ETH |
 | Tron | TRX |
 | Bitcoin | BTC (8 decimals) |
+| Solana | SOL (9 decimals) |
 
-For ERC-20/TRC-20 tokens, use the token symbol from the API response (e.g. "USDT", "USDC").
+For ERC-20/TRC-20/SPL tokens, use the token symbol from the API response (e.g. "USDT", "USDC").
 
-**Bitcoin is the one exception to the "amount is human-readable" rule above.** Rows that carry a `utxo` block (the recommended path — see `bitcoin-apis` skill) use raw **satoshis** for `amount` and every `utxo.inputs[]/outputs[]` value, matching what Esplora returns natively. Only a **bare** Bitcoin row (no `utxo` block) uses decimal BTC (÷ 10^8), like every other chain's `amount`. Don't mix the two within one import call.
+**Bitcoin and Solana are the exceptions to the "amount is human-readable" rule above.** Rows that carry a `utxo` block (Bitcoin — see `bitcoin-apis` skill) or a `solana` block (Solana — see `solana-apis` skill) use raw base units for `amount`: **satoshis** for Bitcoin (matching what Esplora returns natively), **lamports** for native SOL or **raw token units** (× 10^decimals) for SPL tokens. Only a **bare** Bitcoin or Solana row (no `utxo`/`solana` block) uses decimal BTC (÷ 10^8) or decimal SOL/SPL amounts, like every other chain's `amount`. Don't mix conventions within one import call.
 
 ### Bitcoin import example
 
@@ -134,6 +136,34 @@ const transactions = [{
 ```
 
 See the `bitcoin-apis` skill for fetching Esplora data, the full `utxo` schema, and when to set `utxo.junction: true` (high fan-in/out transactions that can't be drawn as a plain address→address edge).
+
+### Solana import example
+
+```js
+const transactions = [{
+  from: 'SoLSENDERaddress11111111111111111111111111',
+  to: 'SoLRECEIVERaddress111111111111111111111111',
+  txHash: '5abc...signature',
+  chain: 'solana',
+  timestamp: '2025-03-18T00:00:00Z',
+  amount: '1500000',       // raw token units, not decimal (USDC has 6 decimals)
+  token: 'USDC',
+  solana: {
+    transferIndex: 1,
+    feePayer: 'SoLSENDERaddress11111111111111111111111111',
+    kind: 'spl',
+    mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    decimals: 6,
+    fromTokenAccount: 'ATASENDER11111111111111111111111111111111',
+    toTokenAccount: 'ATARECEIVER1111111111111111111111111111111',
+    type: 'TRANSFER',
+    source: 'SYSTEM_PROGRAM',
+    slot: 250000000,
+  },
+}];
+```
+
+See the `solana-apis` skill for fetching Helius data, the full `solana` schema, `transferIndex` as edge identity, and the spam-evidence semantics (flagged, never hidden).
 
 ## Script Pattern
 
@@ -209,7 +239,7 @@ Content-Type: application/json
 | Field | Required | Description |
 |-------|----------|-------------|
 | `address` | yes | Wallet address |
-| `chain` | yes | Chain (ethereum, polygon, arbitrum, base, tron) |
+| `chain` | yes | Chain (ethereum, polygon, arbitrum, base, tron, bitcoin, solana) |
 | `label` | no | Human-readable name (e.g. "Justin Sun") |
 | `color` | no | Hex color |
 | `shape` | no | `"ellipse"` (default), `"rectangle"`, `"roundrectangle"`, `"diamond"`, `"hexagon"`, `"triangle"` |
@@ -372,6 +402,6 @@ Returns `204 No Content`. Removes only the bundle metadata — the underlying ed
 - Use `get_investigation` first to find the `traceId` for the target trace.
 - Deduplication is built in — safe to import overlapping data.
 - For large datasets (hundreds of transactions), batch into chunks of ~100 per POST call.
-- Load the `etherscan-apis`, `tronscan-apis`, or `bitcoin-apis` skill for exact endpoint formats on each chain family.
+- Load the `etherscan-apis`, `tronscan-apis`, `bitcoin-apis`, or `solana-apis` skill for exact endpoint formats on each chain family.
 - For token transfers, use `account/tokentx` and map `tokenSymbol` to the `token` field.
 - Convert wei/sun to human-readable amounts before importing (÷ 10^decimals).

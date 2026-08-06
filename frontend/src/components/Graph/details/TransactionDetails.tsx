@@ -3,7 +3,7 @@ import { FaArrowUpRightFromSquare } from 'react-icons/fa6';
 import { TransactionEdge, WalletNode } from '@/types/investigation';
 import { CopyButton } from '@/components/Common/CopyButton';
 import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
-import { buildTxExplorerUrl } from '@/utils/addressParser';
+import { buildExplorerUrl, buildTxExplorerUrl } from '@/utils/addressParser';
 import { truncateMiddle } from '@/utils/utxoDisplay';
 import { UtxoBreakdown, ChangeBadge } from './UtxoBreakdown';
 
@@ -260,6 +260,98 @@ export function TransactionDetails({
           </p>
         </div>
       )}
+      {transaction.solana && (() => {
+        const sol = transaction.solana;
+        const feePayerUrl = buildExplorerUrl('solana', sol.feePayer);
+        return (
+          <div>
+            <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Solana</h4>
+            <div className="space-y-2 rounded-lg bg-canvas-fill px-2 py-2">
+              <div>
+                <h5 className="text-[10px] font-semibold text-canvas-muted uppercase mb-0.5">Fee payer</h5>
+                <div className="flex items-center gap-1.5">
+                  {feePayerUrl ? (
+                    <a
+                      href={feePayerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-mono text-accent hover:text-canvas-ink truncate underline decoration-accent/40 hover:decoration-accent/70 transition-colors"
+                    >
+                      {truncateMiddle(sol.feePayer)}
+                    </a>
+                  ) : (
+                    <span className="text-[11px] font-mono text-canvas-muted truncate">{truncateMiddle(sol.feePayer)}</span>
+                  )}
+                  <CopyButton text={sol.feePayer} title="Copy fee payer" className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
+                </div>
+              </div>
+
+              {(sol.source || sol.type) && (
+                <div className="flex items-center gap-3 text-[11px] text-canvas-muted">
+                  {sol.source && <span>Program: <span className="text-canvas-ink">{sol.source}</span></span>}
+                  {sol.type && <span>Type: <span className="text-canvas-ink">{sol.type}</span></span>}
+                </div>
+              )}
+
+              {sol.kind === 'spl' && sol.mint && (
+                <div>
+                  <h5 className="text-[10px] font-semibold text-canvas-muted uppercase mb-0.5">Mint</h5>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-mono text-canvas-muted truncate">{truncateMiddle(sol.mint)}</span>
+                    <CopyButton text={sol.mint} title="Copy mint" className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
+                  </div>
+                </div>
+              )}
+
+              {sol.kind === 'spl' && (sol.fromTokenAccount || sol.toTokenAccount) && (
+                <div>
+                  <h5 className="text-[10px] font-semibold text-canvas-muted uppercase mb-0.5">Token accounts</h5>
+                  <div className="space-y-1">
+                    {sol.fromTokenAccount && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-canvas-muted w-8 shrink-0">From</span>
+                        <span className="text-[11px] font-mono text-canvas-muted truncate">{truncateMiddle(sol.fromTokenAccount)}</span>
+                        <CopyButton text={sol.fromTokenAccount} title="Copy from token account" className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
+                      </div>
+                    )}
+                    {sol.toTokenAccount && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-canvas-muted w-8 shrink-0">To</span>
+                        <span className="text-[11px] font-mono text-canvas-muted truncate">{truncateMiddle(sol.toTokenAccount)}</span>
+                        <CopyButton text={sol.toTokenAccount} title="Copy to token account" className="shrink-0 text-canvas-muted hover:text-canvas-ink transition-colors" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {sol.spamEvidence && sol.spamEvidence.length > 0 && (
+                <div>
+                  <h5 className="text-[10px] font-semibold text-canvas-muted uppercase mb-0.5">Spam heuristics</h5>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        sol.spam
+                          ? 'bg-amber-500/20 text-amber-300'
+                          : 'bg-canvas-fill text-canvas-muted'
+                      }`}
+                    >
+                      {sol.spam ? 'Flagged' : 'Not flagged'}
+                    </span>
+                    {sol.spamEvidence.map((ev, i) => (
+                      <span key={i} className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-canvas-fill text-canvas-muted">
+                        {ev}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-canvas-muted">Transfer #{sol.transferIndex}</p>
+            </div>
+          </div>
+        );
+      })()}
       <div>
         <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Timestamp</h4>
         <p className="text-sm text-canvas-muted">

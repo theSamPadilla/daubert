@@ -7,6 +7,7 @@ import {
   NetworkBase,
   NetworkTron,
   NetworkBitcoin,
+  NetworkSolana,
 } from '@web3icons/react';
 import { SUPPORTED_CHAINS } from '@/services/types';
 import type { IconComponent } from '@web3icons/react';
@@ -27,6 +28,7 @@ const CHAIN_ICON_MAP: Record<string, IconComponent> = {
   base: NetworkBase,
   tron: NetworkTron,
   bitcoin: NetworkBitcoin,
+  solana: NetworkSolana,
 };
 
 function ChainIcon({ chainId }: { chainId: string }) {

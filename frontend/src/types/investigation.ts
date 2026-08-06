@@ -8,6 +8,12 @@ import type { components } from '../generated/api-types';
  */
 export type UtxoContext = components['schemas']['UtxoContext'];
 
+/**
+ * Per-transfer provenance carried by Solana edges. Aliased from the generated
+ * OpenAPI schema the same way as UtxoContext, so frontend and backend never drift.
+ */
+export type SolanaContext = components['schemas']['SolanaContext'];
+
 export interface Group {
   id: string;
   name: string;
@@ -138,4 +144,6 @@ export interface TransactionEdge {
   arcOffset?: number;
   /** UTXO provenance (Bitcoin only). Present on payment edges and junction leg edges. */
   utxo?: UtxoContext;
+  /** Per-transfer provenance (Solana only). */
+  solana?: SolanaContext;
 }

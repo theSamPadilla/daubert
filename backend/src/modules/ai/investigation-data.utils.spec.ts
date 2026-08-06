@@ -423,6 +423,113 @@ describe('stripTraceForAgent — UTXO summarization', () => {
     for (const e of result.edges) expect(e.utxoSummary).toBeUndefined();
     for (const n of result.nodes) expect(n.kind).toBeUndefined();
   });
+
+  it('BTC edges gain no solana context', () => {
+    const result = stripTraceForAgent(BTC_DATA);
+
+    for (const e of result.edges) expect(e.solana).toBeUndefined();
+  });
+});
+
+// ── Solana: per-transfer context passes through verbatim ─────────────────────
+// Unlike `utxo`, SolanaContext is NOT summarized: it is a bounded ~12-scalar
+// record with no nested arrays of objects, so forwarding it costs the agent
+// almost nothing and the transferIndex / spam verdict are exactly what a model
+// needs to tell two legs of one signature apart.
+
+const FULL_SOLANA = {
+  transferIndex: 2,
+  feePayer: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+  kind: 'spl' as const,
+  mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  decimals: 6,
+  fromTokenAccount: 'H7bTHGb5Cvo5fGe5jBDNDPUwBHcQ3sBrCXbBrjSyPk5S',
+  toTokenAccount: '3emsAVdmGKERbHjmGfQ6oZ1e35dkf5iYcS6U4CPKFVaa',
+  type: 'TRANSFER',
+  source: 'JUPITER',
+  slot: 250_000_000,
+  spam: true,
+  spamEvidence: ['unsolicited', 'unknown-mint'],
+};
+
+const SOL_DATA: Record<string, unknown> = {
+  nodes: [
+    { id: 'n-a', address: 'SoLsender', chain: 'solana', label: 'Sender', tags: [] },
+    { id: 'n-b', address: 'SoLpayee', chain: 'solana', label: 'Payee', tags: [] },
+  ],
+  edges: [
+    {
+      // SPL leg of a multi-transfer signature.
+      id: 'e-spl',
+      from: 'n-a',
+      to: 'n-b',
+      txHash: '5'.repeat(87),
+      chain: 'solana',
+      timestamp: '1709500000',
+      amount: '125.5',
+      token: 'USDC',
+      tags: [],
+      solana: FULL_SOLANA,
+    },
+    {
+      // Native SOL leg of the same signature — only the required fields.
+      id: 'e-native',
+      from: 'n-a',
+      to: 'n-b',
+      txHash: '5'.repeat(87),
+      chain: 'solana',
+      timestamp: '1709500000',
+      amount: '0.5',
+      token: 'SOL',
+      tags: [],
+      solana: {
+        transferIndex: 0,
+        feePayer: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+        kind: 'native',
+      },
+    },
+  ],
+};
+
+describe('stripTraceForAgent — Solana context passthrough', () => {
+  it('carries the full solana context verbatim (no summarization)', () => {
+    const result = stripTraceForAgent(SOL_DATA);
+    const spl = result.edges.find((e) => e.id === 'e-spl')!;
+
+    expect(spl.solana).toEqual(FULL_SOLANA);
+  });
+
+  it('keeps transferIndex so two legs of one signature stay distinguishable', () => {
+    const result = stripTraceForAgent(SOL_DATA);
+
+    expect(result.edges.find((e) => e.id === 'e-spl')!.solana!.transferIndex).toBe(2);
+    expect(result.edges.find((e) => e.id === 'e-native')!.solana!.transferIndex).toBe(
+      0,
+    );
+    expect(result.edges.find((e) => e.id === 'e-native')!.solana!.kind).toBe('native');
+  });
+
+  it('surfaces the spam verdict and its evidence to the agent', () => {
+    const result = stripTraceForAgent(SOL_DATA);
+    const spl = result.edges.find((e) => e.id === 'e-spl')!;
+
+    expect(spl.solana!.spam).toBe(true);
+    expect(spl.solana!.spamEvidence).toEqual(['unsolicited', 'unknown-mint']);
+  });
+
+  it('omits solana entirely for edges that have none', () => {
+    const result = stripTraceForAgent(SAMPLE_DATA);
+
+    for (const e of result.edges) expect(e.solana).toBeUndefined();
+    // Nothing reaches the agent's serialized payload either.
+    expect(JSON.stringify(result)).not.toContain('solana');
+  });
+
+  it('SOL edges gain no utxoSummary', () => {
+    const result = stripTraceForAgent(SOL_DATA);
+
+    for (const e of result.edges) expect(e.utxoSummary).toBeUndefined();
+  });
 });
 
 describe('filterTraceData', () => {

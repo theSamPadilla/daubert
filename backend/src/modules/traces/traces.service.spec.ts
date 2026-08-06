@@ -981,6 +981,290 @@ describe('TracesService', () => {
     });
   });
 
+  // ── importTransactions: Solana ───────────────────────────────────────────
+  //
+  // Solana rows are ordinary account-model transfers — there is no junction
+  // concept (that's Bitcoin-only). One signature can carry several transfers
+  // (native SOL + SPL legs); `solana.transferIndex` is what edgeIdentityKey()
+  // uses to give each its own identity. Context-carrying rows rebuild a
+  // structured token object from `item.solana`; bare rows (no context) keep
+  // the legacy string-token behavior.
+
+  describe('importTransactions (solana)', () => {
+    const SIG = '5VfYmGVKNTJ8mYPo9pmbQiPmqSXcCUw7ZTKz9NKM1qXJj9v5o9j1KDb8QwzuvGqvvbPd9Mo7sSYtMzQKzYVFtqvL';
+    const FROM = 'DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK';
+    const TO = 'FEUSSJ8LhqQiFgWkFbT8b7hswXCJhZfoq3HzTYcMANZG';
+    const TO2 = 'HN7cABqLq46Es1jh92dQQisAq662SmxELLLsHHe4YWrH';
+    const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+
+    const emptyTrace = () =>
+      ({
+        id: 'trace-1',
+        name: 'Solana Trace',
+        investigationId: INV_ID,
+        data: { nodes: [], edges: [] },
+      }) as unknown as TraceEntity;
+
+    /** Wire the repo mocks against a single mutable trace so re-imports see prior state. */
+    const wire = (trace: TraceEntity) => {
+      mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
+      mockTraceRepo.find.mockResolvedValue([trace]);
+      mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
+    };
+
+    const lastSaved = () =>
+      mockTraceRepo.save.mock.calls[mockTraceRepo.save.mock.calls.length - 1][0].data as {
+        nodes: any[];
+        edges: any[];
+      };
+
+    const nativeTransfer = (overrides: Record<string, any> = {}) => ({
+      from: FROM,
+      to: TO,
+      txHash: SIG,
+      chain: 'solana',
+      timestamp: '2024-06-01T00:00:00.000Z',
+      amount: '1000000000',
+      token: 'SOL',
+      blockNumber: 12345,
+      solana: {
+        transferIndex: 0,
+        feePayer: FROM,
+        kind: 'native' as const,
+        slot: 12345,
+      },
+      ...overrides,
+    });
+
+    const splTransfer = (overrides: Record<string, any> = {}) => ({
+      from: FROM,
+      to: TO,
+      txHash: SIG,
+      chain: 'solana',
+      timestamp: '2024-06-01T00:00:00.000Z',
+      amount: '500000',
+      token: 'USDC',
+      blockNumber: 12345,
+      solana: {
+        transferIndex: 1,
+        feePayer: FROM,
+        kind: 'spl' as const,
+        mint: USDC_MINT,
+        decimals: 6,
+        fromTokenAccount: 'tokenAcctFrom111111111111111111111111111',
+        toTokenAccount: 'tokenAcctTo1111111111111111111111111111111',
+      },
+      ...overrides,
+    });
+
+    it('imports two transfers from one signature — transferIndex 0/1, distinct counterparties — as 2 edges with distinct identities', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      const result = await service.importTransactions(
+        'trace-1',
+        { transactions: [nativeTransfer(), splTransfer({ to: TO2 })] } as any,
+        PRINCIPAL,
+      );
+
+      expect(result.added.edges).toBe(2);
+      const data = lastSaved();
+      expect(data.edges).toHaveLength(2);
+      const byId = new Map<string, string>(data.nodes.map((n) => [n.id, n.address]));
+      const keys = data.edges.map((e) =>
+        edgeIdentityKey(e, byId.get(e.from) ?? e.from, byId.get(e.to) ?? e.to),
+      );
+      expect(keys.sort()).toEqual([`${SIG}:sol:0`, `${SIG}:sol:1`].sort());
+    });
+
+    it('re-importing the same payload adds 0 nodes and 0 edges', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+      const payload = { transactions: [nativeTransfer(), splTransfer({ to: TO2 })] } as any;
+
+      await service.importTransactions('trace-1', payload, PRINCIPAL);
+      const second = await service.importTransactions('trace-1', payload, PRINCIPAL);
+
+      expect(second.added).toEqual({ nodes: 0, edges: 0 });
+    });
+
+    it('rebuilds the structured token object from solana context — SPL and native', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      await service.importTransactions(
+        'trace-1',
+        { transactions: [nativeTransfer(), splTransfer({ to: TO2 })] } as any,
+        PRINCIPAL,
+      );
+
+      const data = lastSaved();
+      const nativeEdge = data.edges.find((e) => e.solana.kind === 'native')!;
+      expect(nativeEdge.token).toEqual({ address: '', symbol: 'SOL', decimals: 9 });
+
+      const splEdge = data.edges.find((e) => e.solana.kind === 'spl')!;
+      expect(splEdge.token).toEqual({ address: USDC_MINT, symbol: 'USDC', decimals: 6 });
+    });
+
+    it('persists the full solana context, including spam/spamEvidence, on the written edge', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+      const item = splTransfer({
+        to: TO2,
+        solana: {
+          ...splTransfer().solana,
+          spam: true,
+          spamEvidence: ['unsolicited', 'unknown-mint'],
+        },
+      });
+
+      await service.importTransactions('trace-1', { transactions: [item] } as any, PRINCIPAL);
+
+      const edge = lastSaved().edges[0];
+      expect(edge.solana).toEqual(item.solana);
+    });
+
+    it('persists a case-sensitive solana address with case intact but dedups it case-insensitively via addressKey', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+      const MIXED = TO;
+
+      await service.importTransactions(
+        'trace-1',
+        { transactions: [nativeTransfer({ to: MIXED })] } as any,
+        PRINCIPAL,
+      );
+      const second = await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            splTransfer({
+              to: MIXED.toLowerCase(),
+              txHash: `${SIG}b`,
+              solana: { ...splTransfer().solana, transferIndex: 0 },
+            }),
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      const data = lastSaved();
+      const stored = data.nodes.filter((n) => n.address.toLowerCase() === MIXED.toLowerCase());
+      expect(stored).toHaveLength(1);
+      expect(stored[0].address).toBe(MIXED);
+      // Second import's `to` resolves to the SAME node — 0 new nodes.
+      expect(second.added.nodes).toBe(0);
+    });
+
+    it('imports a mixed EVM + Solana payload without cross-contamination', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      const result = await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            {
+              from: '0xAAA',
+              to: '0xBBB',
+              txHash: '0xtx1',
+              chain: 'ethereum',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              amount: '1',
+              token: 'ETH',
+            },
+            nativeTransfer(),
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      expect(result.added).toEqual({ nodes: 4, edges: 2 });
+      const data = lastSaved();
+      const evmEdge = data.edges.find((e) => e.chain === 'ethereum')!;
+      expect(evmEdge.token).toBe('ETH');
+      expect(evmEdge).not.toHaveProperty('solana');
+
+      const solEdge = data.edges.find((e) => e.chain === 'solana')!;
+      expect(solEdge.token).toEqual({ address: '', symbol: 'SOL', decimals: 9 });
+      expect(solEdge.solana.kind).toBe('native');
+    });
+
+    it('leaves the token a bare string on a solana row with no context (legacy behavior unchanged)', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            {
+              from: FROM,
+              to: TO,
+              txHash: SIG,
+              chain: 'solana',
+              timestamp: '2024-06-01T00:00:00.000Z',
+              // Human-readable SOL, not lamports — the legacy import shape.
+              amount: '1.5',
+              token: 'SOL',
+            },
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      const edge = lastSaved().edges[0];
+      expect(edge.token).toBe('SOL');
+      expect(edge).not.toHaveProperty('solana');
+    });
+
+    it('regression: a whitespace-padded solana address resolves to the SAME node as its bare spelling', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+      const ADDR = TO;
+
+      const row = (to: string, txHash: string) => ({
+        from: FROM,
+        to,
+        txHash,
+        chain: 'solana',
+        timestamp: '2024-06-01T00:00:00.000Z',
+        amount: '1000000000',
+        token: 'SOL',
+        solana: { transferIndex: 0, feePayer: FROM, kind: 'native' as const },
+      });
+
+      const result = await service.importTransactions(
+        'trace-1',
+        { transactions: [row(`  ${ADDR}  `, SIG), row(ADDR, `${SIG}b`)] } as any,
+        PRINCIPAL,
+      );
+
+      // FROM + ADDR, counted once across both spellings.
+      expect(result.added.nodes).toBe(2);
+      const data = lastSaved();
+      const recipients = data.nodes.filter((n) => n.address === ADDR);
+      expect(recipients).toHaveLength(1);
+    });
+
+    it('F3: skips the entire row (no nodes, no edge) for a solana item with an empty endpoint, unlike bitcoin', async () => {
+      const trace = emptyTrace();
+      wire(trace);
+
+      const result = await service.importTransactions(
+        'trace-1',
+        { transactions: [nativeTransfer({ from: '' })] } as any,
+        PRINCIPAL,
+      );
+
+      expect(result.added).toEqual({ nodes: 0, edges: 0 });
+      const data = lastSaved();
+      expect(data.nodes).toHaveLength(0);
+      expect(data.edges).toHaveLength(0);
+    });
+  });
+
   // ── resolveWalletSet ─────────────────────────────────────────────────────
 
   describe('resolveWalletSet', () => {
@@ -1450,6 +1734,26 @@ describe('TracesService', () => {
       expect(mockBlockchainService.fetchHistory).toHaveBeenCalledWith(
         'bc1qa1',
         'bitcoin',
+        expect.objectContaining({ maxTotal: 300 }),
+      );
+    });
+
+    it("uses maxTotal 300 for solana (shares bitcoin's conservative cap)", async () => {
+      const SOL_A = 'DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK';
+      const SOL_B = 'FEUSSJ8LhqQiFgWkFbT8b7hswXCJhZfoq3HzTYcMANZG';
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [],
+        chain: 'solana',
+        address: SOL_A,
+      });
+      await service.searchBetween(baseTraces(), {
+        sideA: { wallets: [SOL_A] },
+        sideB: { wallets: [SOL_B] },
+        chain: 'solana',
+      });
+      expect(mockBlockchainService.fetchHistory).toHaveBeenCalledWith(
+        SOL_A,
+        'solana',
         expect.objectContaining({ maxTotal: 300 }),
       );
     });

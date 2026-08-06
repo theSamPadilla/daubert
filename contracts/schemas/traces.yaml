@@ -87,6 +87,10 @@ ImportTransactionItem:
       # Source of truth lives in blockchain.yaml — a fetch result is forwarded
       # verbatim to /import-transactions, so the two shapes must be one shape.
       $ref: './blockchain.yaml#/UtxoContext'
+    solana:
+      # Per-transfer Solana provenance for solana rows. Same source-of-truth
+      # rule as utxo above — one shape for fetch results and import payloads.
+      $ref: './blockchain.yaml#/SolanaContext'
 
 WalletSet:
   type: object

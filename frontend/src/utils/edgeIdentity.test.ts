@@ -66,4 +66,39 @@ describe('edgeIdentityKey', () => {
     const key = edgeIdentityKey(edge, resolvedFrom, resolvedTo);
     expect(key).toBe('0xh2-0xraw1-0xraw2');
   });
+
+  it('keys two solana transfers in the same signature by transferIndex, producing distinct keys', () => {
+    const key0 = edgeIdentityKey(
+      { chain: 'solana', txHash: 'sig', solana: { transferIndex: 0 } },
+      'solFrom',
+      'solTo'
+    );
+    const key1 = edgeIdentityKey(
+      { chain: 'solana', txHash: 'sig', solana: { transferIndex: 1 } },
+      'solFrom',
+      'solTo'
+    );
+    expect(key0).toBe('sig:sol:0');
+    expect(key1).toBe('sig:sol:1');
+    expect(key0).not.toBe(key1);
+  });
+
+  it('dedups the same solana transfer seen twice to a single key', () => {
+    const keyA = edgeIdentityKey(
+      { chain: 'solana', txHash: 'sig', solana: { transferIndex: 0 } },
+      'solFrom',
+      'solTo'
+    );
+    const keyB = edgeIdentityKey(
+      { chain: 'solana', txHash: 'sig', solana: { transferIndex: 0 } },
+      'solFrom',
+      'solTo'
+    );
+    expect(keyA).toBe(keyB);
+  });
+
+  it('falls back to the generic composite key for a solana row with no solana context', () => {
+    const key = edgeIdentityKey({ chain: 'solana', txHash: 'sig' }, 'solFROM', 'solTO');
+    expect(key).toBe('sig-solfrom-solto');
+  });
 });

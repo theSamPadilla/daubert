@@ -1,6 +1,6 @@
 # Blockchain System
 
-Multi-chain transaction data fetching via a provider pattern. Supports EVM chains (Etherscan V2) and TRON (Tronscan). Used by the frontend for fetching transaction history and by the AI agent for investigation context.
+Multi-chain transaction data fetching via a provider pattern. Supports EVM chains (Etherscan V2), TRON (Tronscan), Bitcoin (Esplora), and Solana (Helius). Used by the frontend for fetching transaction history and by the AI agent for investigation context.
 
 ## Directory Structure
 
@@ -9,7 +9,7 @@ backend/src/modules/blockchain/
 ├── blockchain.module.ts        NestJS module
 ├── blockchain.service.ts       Orchestration (fetch history, get transaction)
 ├── blockchain.controller.ts    REST endpoints
-├── blockchain-provider.ts      Provider interface (account-model chains)
+├── blockchain-provider.ts      Provider interface (page/offset account-model chains)
 ├── etherscan.provider.ts       EVM chains implementation
 ├── tronscan.provider.ts        TRON implementation
 ├── utxo-provider.ts            Provider interface (UTXO chains)
@@ -19,6 +19,12 @@ backend/src/modules/blockchain/
 │   ├── map-btc-history.ts      Esplora txs -> canvas rows (direction + junction rules)
 │   ├── detect-change.ts        Change-output heuristics (pure, evidence-labelled)
 │   └── detect-patterns.ts      CoinJoin/consolidation/coinbase pattern detection (pure)
+├── solana-provider.ts          Provider interface (cursor-paginated account-model chains)
+├── helius.provider.ts          Solana implementation (SolanaProvider)
+├── helius-client.ts            Helius REST/JSON-RPC client: own rate limiter + cache
+├── sol/
+│   ├── map-solana-history.ts   Helius parsed txs -> canvas rows (per-transfer rows, never-synthesize rule)
+│   └── detect-spam.ts          Unsolicited/unknown-mint/mass-distribution heuristics (pure, evidence-labelled)
 ├── provider-registry.ts        Lazy provider instantiation + shared infra
 ├── token-resolver.ts           Token metadata resolution (well-known DB + cache)
 ├── rate-limiter.ts             Token bucket rate limiter
@@ -42,6 +48,7 @@ backend/src/modules/blockchain/
 | Base | 8453 | ETH (18 decimals) | basescan.org |
 | Tron | 728126428 | TRX (6 decimals) | tronscan.org |
 | Bitcoin | — (no numeric chain ID; UTXO chain) | BTC (8 decimals) | mempool.space |
+| Solana | — (no numeric chain ID; cursor-paginated account-model chain) | SOL (9 decimals) | solscan.io |
 
 ## Provider Interface
 
@@ -53,17 +60,18 @@ interface BlockchainProvider {
 }
 ```
 
-All account-model providers (EVM chains + Tron) implement these three methods, and are created via `ProviderRegistry.get(chainId)`. Bitcoin does **not** implement this interface — see [Bitcoin](#bitcoin) below.
+All account-model providers (EVM chains + Tron) implement these three methods, and are created via `ProviderRegistry.get(chainId)`. Bitcoin and Solana do **not** implement this interface — see [Bitcoin](#bitcoin) and [Solana](#solana) below.
 
 ## Provider Registry
 
 Singleton service that lazy-loads providers on first use.
 
 - `get(chainId)` → returns cached provider or creates new one
-- Routes `tron` → `TronscanProvider`, everything else → `EtherscanProvider`. `get('bitcoin')` throws — Bitcoin has no account-model provider, use `getUtxo()` instead.
+- Routes `tron` → `TronscanProvider`, everything else → `EtherscanProvider`. `get('bitcoin')` and `get('solana')` throw — neither has a page/offset account-model provider, use `getUtxo()` / `getSolana()` instead.
 - `getUtxo(chainId)` → returns cached `UtxoProvider` or creates one. Only `'bitcoin'` is registered (→ `BitcoinProvider`); any other chain throws.
-- All account-model providers share one `RateLimiter` and one `ResponseCache` instance. `BitcoinProvider` does **not** — see [Bitcoin](#bitcoin).
-- Reads API keys from env: `ETHERSCAN_API_KEY`, `TRONSCAN_API_KEY`. Bitcoin needs no key.
+- `getSolana()` → returns cached `SolanaProvider` or creates one (→ `HeliusProvider`).
+- All account-model providers share one `RateLimiter` and one `ResponseCache` instance. `BitcoinProvider` and `HeliusProvider` do **not** — see [Bitcoin](#bitcoin) and [Solana](#solana).
+- Reads API keys from env: `ETHERSCAN_API_KEY`, `TRONSCAN_API_KEY`, `HELIUS_API_KEY`. Bitcoin needs no key.
 
 ## Etherscan Provider
 
@@ -155,6 +163,63 @@ Bitcoin's advanced-search fetch cap (`TracesService.searchBetween`) is **`maxTot
 ### MCP summarization
 
 `blockchain_fetch_history` (MCP tool) runs every row's `utxo` block through `summarizeUtxo()` before applying its 8KB result cap — collapsing `inputs[]`/`outputs[]` to counts plus the change verdict for that row's own output, since a raw 50-input CoinJoin row would otherwise consume the whole budget by itself. `blockchain_get_transaction` (single bounded object) does not summarize — it returns the full `utxo`.
+
+## Solana
+
+Solana is an **account-model** chain like the EVM chains and Tron — every transfer names both a sender and a receiver outright, unlike Bitcoin's UTXO ledger — but its history endpoint is **cursor-paginated** (by transaction signature), not page/offset. That single difference is why it can't implement `BlockchainProvider`: the page-number contract has no honest translation onto a signature cursor. Solana is served through a parallel `SolanaProvider` interface (`getAddressHistory`, `getTx`, `getAddressInfo`) and `ProviderRegistry.getSolana()`, the third provider seam alongside `BlockchainProvider` (page/offset) and `UtxoProvider` (UTXO).
+
+### HeliusClient
+
+Talks to Helius's Enhanced Transactions API and JSON-RPC DAS methods at `https://mainnet.helius-rpc.com`. Three calls: `addressTransactions()` (`GET /v0/addresses/:address/transactions`, cursor via `before-signature`), `parseTransaction()` (`POST /v0/transactions`, single signature), and `getMintMetadata()` (JSON-RPC `getAssetBatch`, batched and cached per-mint). Auth is a `?api-key=` query param built fresh per request — the cache key is derived from the caller-supplied params *before* the key is appended, so cache keys never carry it, and error messages omit the URL for the same reason.
+
+`HeliusClient` owns its **own** `RateLimiter(2, 2)` and its **own** `ResponseCache` instance — deliberately not the `ProviderRegistry`'s shared ones, same rationale as Bitcoin. Cache TTLs differ by data volatility: address-history pages 1 minute (recent history can still grow), parsed single transactions 1 hour, mint metadata 24 hours (immutable once resolved).
+
+### HeliusProvider (`SolanaProvider`)
+
+`getAddressHistory(address, options)`:
+- Paginates parsed transactions 100/page via the `before-signature` cursor, stopping on a partial page, on `maxTotal` being reached, or (when `startTimestamp` is set) once an entire page is older than it.
+- `maxTotal` defaults to **100**, hard-capped at **1000** regardless of what's requested.
+- Batch-resolves SPL mint metadata once per fetch, across only the kept transactions, so the normalizer receives it pre-attached and stays pure.
+
+`getTx(signature)` / `getAddressInfo(address)` are thin wraps over the client — address info balance comes straight from the JSON-RPC `getBalance` result.
+
+### `mapSolanaHistory` — the never-synthesize rule
+
+Maps raw Helius parsed transactions into canvas-ready rows for one subject address. Solana's account model names both endpoints of every transfer outright, so unlike the Bitcoin mapper there's no attribution to reason about — which makes the prime directive simpler, not weaker: **a counterparty is never synthesized.** A transfer whose `fromUserAccount` or `toUserAccount` came back `null` from Helius (an owner the ledger itself couldn't resolve — commonly an unresolved associated token account, the "ATA problem") produces no row at all. That's not an error condition, it's the mapper declining to invent a party — no path in this module ever emits a row with an empty `from` or `to`.
+
+One signature can carry many transfers — a swap, a multi-leg transfer, a batch payout. Each is emitted as its own row, identified by `transferIndex`: its position in `[...nativeTransfers, ...tokenTransfers]`, natives first. Helius's parse is deterministic, so that index is stable across refetches, which is what makes it usable as an identity rather than just a sequence number.
+
+Failed transactions (`transactionError != null`) moved nothing and produce no rows, and neither do zero-amount transfers or transfers that don't touch the subject address.
+
+### Per-transfer edge identity
+
+A single signature producing several rows means the signature alone can't identify an edge — two USDC transfers in the same swap would collide. The edge identity is **`${signature}:sol:${transferIndex}`** (`edgeIdentityKey` in `generated/shared/edge-identity.ts`), mirroring Bitcoin's `${txid}:in:${legIndex}` / `${txid}:${vout}` pattern: a composite key derived from the ledger position, not from the endpoints, so relabeling or re-fetching the same transfer is recognized as the same fact. `mapSolanaHistory` uses this same key to de-duplicate overlapping cursor pages into one row per transfer.
+
+### `SolanaContext`
+
+`TransactionResult.solana` and `ImportTransactionItem.solana` share one schema, `SolanaContext`, defined once in `contracts/schemas/blockchain.yaml` (`additionalProperties: false` — stricter than `UtxoContext`, which predates that convention) and referenced from `traces.yaml`. Mirrors `backend/src/modules/blockchain/types.ts#SolanaContext`. Twelve fields: `transferIndex`, `feePayer`, `kind` (`'native' | 'spl'`) are required; `mint`, `decimals`, `fromTokenAccount`, `toTokenAccount` apply to SPL transfers only; `type` and `source` are Helius's own classification (e.g. `TRANSFER`/`JUPITER`); `slot`; and `spam`/`spamEvidence`, set only when at least one spam heuristic fired. The same interface is also mirrored in `import-transactions.dto.ts` (class-validator) and `write-tools.ts` (zod, for MCP write validation) — all four sites must move together, the same discipline the Bitcoin ship established for `UtxoContext`.
+
+### Spam heuristics
+
+Evaluated **only for incoming SPL token transfers** (`backend/src/modules/blockchain/sol/detect-spam.ts`) — native SOL transfers and outgoing rows never carry `spam`/`spamEvidence`. Three pure, evidence-labelled heuristics, shown to investigators with their basis, never silently asserted as fact:
+
+- **`unsolicited`** — the subject received the transfer, sent nothing elsewhere in the same transaction (native or token), and didn't pay the transaction fee.
+- **`unknown-mint`** — the mint isn't one of three hand-verified majors (`KNOWN_MINTS`: USDC, USDT, wSOL) and upstream mint-metadata resolution failed.
+- **`mass-distribution`** — the transaction fans out to 10+ distinct token recipients (bulk-airdrop shape).
+
+`spam` is `true` only when `unsolicited` **and** (`unknown-mint` **or** `mass-distribution`). The product decision, same as Bitcoin's evidence-labelled heuristics: **flag, never hide.** Flagged rows are fetched and imported like any other transfer; the frontend staging panel defaults them unchecked so an investigator reviews before committing them to a trace, but nothing in the backend drops or filters them.
+
+### Units
+
+Helius returns lamports (already raw) for native transfers and decimal-adjusted amounts for SPL transfers (`tokenTransfers[].tokenAmount`). Rows carrying a `solana` block invert the SPL side: `amount` is the raw base unit (lamports for native, decimal amount × 10^decimals for SPL), converted with string math — never floating point, since these values end up in court exhibits. Only a bare Solana import (no `solana` block) uses decimal SOL/token amounts — see the `solana-apis` skill and `graph-mutations.md` for the import-side detail.
+
+### `searchBetween` cap
+
+Solana's advanced-search fetch cap (`TracesService.searchBetween`) is **`maxTotal: 300`** per side, matching Bitcoin's — both reflect the same cursor-pagination cost, distinct from Tron's 2000 and the EVM default of 10000.
+
+### MCP passthrough (no summarization)
+
+Unlike `utxo`, `blockchain_fetch_history` forwards every row's `solana` block **whole** — `SolanaContext` is bounded (twelve scalar fields, no arrays of objects), so it can't blow the 8KB result cap the way a 50-input CoinJoin's `utxo` can, and there's no `summarizeSolana()` analogous to `summarizeUtxo()`.
 
 ## Rate Limiter
 
@@ -254,8 +319,8 @@ These are **separate paths**:
 | **How** | `BlockchainService` → `ProviderRegistry` → provider | isolated-vm V8 sandbox with domain-whitelisted `fetch()` bridge |
 | **Rate limiting** | Shared token bucket | None (agent manages in script) |
 | **Caching** | `ResponseCache` (1h / 24h TTL) | None |
-| **Chains** | 6 configured chains (incl. Bitcoin via `getUtxo`) | Any (agent writes the URL) |
+| **Chains** | 7 configured chains (incl. Bitcoin via `getUtxo`, Solana via `getSolana`) | Any (agent writes the URL) |
 | **Isolation** | In-process (NestJS service) | V8 isolate — no fs, child_process, net, os access |
 | **Graph mutations** | Frontend auto-saves via `PATCH /traces/:id` | Scripts POST to `/traces/:id/import-transactions` |
 
-The backend is the single authority for all data mutations. AI scripts fetch blockchain data via external APIs, then POST to the import endpoint to add nodes/edges to the graph. The skill documents (`etherscan-apis.md`, `tronscan-apis.md`, `bitcoin-apis.md`, `graph-mutations.md`) provide endpoint formats and script patterns.
+The backend is the single authority for all data mutations. AI scripts fetch blockchain data via external APIs, then POST to the import endpoint to add nodes/edges to the graph. The skill documents (`etherscan-apis.md`, `tronscan-apis.md`, `bitcoin-apis.md`, `solana-apis.md`, `graph-mutations.md`) provide endpoint formats and script patterns.

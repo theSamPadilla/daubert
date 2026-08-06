@@ -454,6 +454,82 @@ describe('BlockchainToolsService', () => {
       expect(result.isError).toBeUndefined();
       expect(blockchain.fetchHistory).toHaveBeenCalledWith('bc1qxyz', 'bitcoin', expect.anything());
     });
+
+    it('accepts chain "solana" at the schema level (derived from CHAIN_IDS)', async () => {
+      // Same derivation as the bitcoin case above — CHAIN_IDS now includes
+      // solana, so schema parsing must accept it and let the call reach the
+      // (mocked) service.
+      const { server, blockchain } = buildService();
+
+      const result = await callTool(server, 'blockchain_fetch_history', {
+        address: 'SoLxyz111111111111111111111111111111111111',
+        chain: 'solana',
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(blockchain.fetchHistory).toHaveBeenCalledWith(
+        'SoLxyz111111111111111111111111111111111111',
+        'solana',
+        expect.anything(),
+      );
+    });
+
+    it('passes solana context through untouched (bounded, no utxo-style summarization)', async () => {
+      // SolanaContext is ~12 scalar fields, no arrays of objects — unlike
+      // utxo, it never needs count-collapsing to fit the 8 KB cap. A 20-row
+      // payload with a full solana block on every row (purpose-built minimal
+      // row, short fixture addresses — same convention as SAMPLE_TX's
+      // '0xabc'/'0xdef') fits comfortably under the cap, with the context
+      // forwarded whole and unsummarized.
+      const solanaContext = {
+        transferIndex: 0,
+        feePayer: 'FeePayer1',
+        kind: 'spl',
+        mint: 'Mint1',
+        decimals: 6,
+        fromTokenAccount: 'FromATA1',
+        toTokenAccount: 'ToATA1',
+        type: 'TRANSFER',
+        source: 'JUPITER',
+        slot: 250000000,
+      };
+      const rows = Array.from({ length: 20 }, (_, i) => ({
+        id: `tx-sol-${i}`,
+        from: 'SoLFrom1',
+        to: 'SoLTo1',
+        txHash: `sig${i}`,
+        chain: 'solana',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        amount: '1500000',
+        token: 'USDC',
+        blockNumber: 250000000,
+        solana: { ...solanaContext, transferIndex: i },
+      }));
+
+      const { server } = buildService({
+        blockchain: {
+          fetchHistory: jest.fn().mockResolvedValue({
+            transactions: rows,
+            chain: 'solana',
+            address: 'SoLxyz1',
+          }),
+        },
+      });
+
+      const result = await callTool(server, 'blockchain_fetch_history', {
+        address: 'SoLxyz1',
+        chain: 'solana',
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text.length).toBeLessThanOrEqual(RESULT_CAP_BYTES);
+
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.truncated).toBeFalsy();
+      expect(parsed.transactions).toHaveLength(20);
+      expect(parsed.transactions[0].solana).toEqual({ ...solanaContext, transferIndex: 0 });
+      expect(parsed.transactions[19].solana).toEqual({ ...solanaContext, transferIndex: 19 });
+    });
   });
 
   // -------------------------------------------------------------------------

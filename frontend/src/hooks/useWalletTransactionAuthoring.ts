@@ -382,9 +382,19 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
         continue;
       }
 
-      // Non-junction row (EVM, Tron, or a direct BTC payment edge).
+      // Non-junction row (EVM, Tron, a direct BTC payment edge, or a Solana
+      // transfer). Solana has no junction concept — every row is a direct
+      // edge, deduped per-transfer via `edgeIdentityKey`'s solana branch.
       const key = edgeIdentityKey(tx, tx.from, tx.to);
       if (existingTxHashes.has(key)) continue;
+
+      // Unlike BTC (where an empty endpoint is a legitimate unattributed-incoming
+      // row that still gets a dangling-but-tolerated edge — see the loop below),
+      // Solana rows always carry a well-defined from/to: native and SPL transfers
+      // both name a real sender/receiver, so a missing one means malformed data.
+      // Skip the WHOLE row — never author a half-edge, never synthesize an
+      // endpoint — rather than just skipping node creation for it.
+      if (tx.chain === 'solana' && (!tx.from || !tx.to)) continue;
 
       for (const addr of [tx.from, tx.to]) {
         // A BTC row can legitimately have an empty endpoint (the fetch path
@@ -397,6 +407,9 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
 
       const fromId = existingWalletAddresses.get(addressKey(tx.from)) || tx.from;
       const toId = existingWalletAddresses.get(addressKey(tx.to)) || tx.to;
+      // Solana's `solana` context (like BTC's `utxo`) rides along via this
+      // spread — no per-transfer array to defensively copy, so unlike `utxo`
+      // below it needs no extra handling.
       const authored: TransactionEdge = { ...tx, id: crypto.randomUUID(), from: fromId, to: toId };
       // Defensive copy: a direct BTC row's `utxo.inputs`/`outputs` arrays are
       // shared by reference with the staged item (and any sibling rows of the

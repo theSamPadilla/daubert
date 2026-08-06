@@ -141,6 +141,11 @@ export function QuickAddInput({
           token,
           timestamp: detail.timestamp,
           blockNumber: detail.blockNumber,
+          // Carried through so the authored edge's identity key is
+          // `${txHash}:sol:${transferIndex}` (edgeIdentityKey's solana branch),
+          // matching what the fetch path produces — without it, a QuickAdd-authored
+          // Solana edge never dedups against the same transfer added via Fetch History.
+          ...(detail.solana ? { solana: detail.solana } : {}),
         };
 
         // Clear synchronously before callback to prevent double-submit

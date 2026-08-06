@@ -117,6 +117,9 @@ function aggregateCrossEdges(
       // amount (a false evidentiary claim). A single-edge pass-through (isMultiple
       // false) is a 1:1 stand-in for that one transaction, so its utxo is accurate.
       utxo: isMultiple ? undefined : first.utxo,
+      // Same reasoning for Solana per-transfer context (spam evidence, mint, fee payer):
+      // it describes ONE transfer and must not survive on a multi-tx sum.
+      solana: isMultiple ? undefined : first.solana,
     });
   }
   return result;

@@ -66,6 +66,7 @@ process.env.ANTHROPIC_API_KEY =
   process.env.ANTHROPIC_API_KEY ?? 'sk-ant-test-key-not-used-in-this-e2e';
 process.env.ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY ?? 'test';
 process.env.TRONSCAN_API_KEY = process.env.TRONSCAN_API_KEY ?? 'test';
+process.env.HELIUS_API_KEY = process.env.HELIUS_API_KEY ?? 'test';
 process.env.DAUBERT_WEBSITE_API_KEY =
   process.env.DAUBERT_WEBSITE_API_KEY ?? 'test-key-test-key-test';
 // Firebase vars are required by validateEnv as an all-or-nothing group. We

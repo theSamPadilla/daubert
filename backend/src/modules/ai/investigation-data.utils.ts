@@ -1,5 +1,7 @@
 // backend/src/modules/ai/investigation-data.utils.ts
 
+import type { SolanaContext } from '../blockchain/types';
+
 export interface AgentNode {
   id: string;
   address: string;
@@ -55,6 +57,13 @@ export interface AgentEdge {
   notes?: string;
   crossTrace?: boolean;
   utxoSummary?: AgentUtxoSummary;
+  /**
+   * Solana per-transfer context, forwarded WHOLE — unlike `utxo`, which is
+   * summarized. SolanaContext is bounded (~12 scalars, no arrays of objects),
+   * so there is nothing to collapse and the transferIndex / spam verdict are
+   * exactly what the model needs to tell two legs of one signature apart.
+   */
+  solana?: SolanaContext;
 }
 
 export interface AgentGroup {
@@ -164,6 +173,9 @@ export function stripTraceForAgent(data: Record<string, unknown>): AgentTraceDat
     crossTrace: e.crossTrace || undefined,
     // Counts only — the raw inputs/outputs arrays never reach the agent.
     utxoSummary: summarizeUtxo(e.utxo),
+    // Passed through AS-IS: SolanaContext is a bounded scalar record, so there
+    // is no oversized payload to summarize away (contrast `utxo` above).
+    solana: e.solana ?? undefined,
   }));
 
   const groupNodeIds = new Map<string, string[]>();

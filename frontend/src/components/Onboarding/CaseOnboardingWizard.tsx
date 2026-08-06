@@ -48,7 +48,7 @@ const STEPS: { id: WizardStep; label: string }[] = [
 interface ParsedToken {
   raw: string;
   address: string;
-  family: 'evm' | 'tron' | 'bitcoin' | 'unknown';
+  family: 'evm' | 'tron' | 'bitcoin' | 'solana' | 'unknown';
   isTxHash: boolean;
   valid: boolean;
 }
@@ -137,15 +137,17 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
   const hasTron = validTokens.some((t) => t.family === 'tron');
   const hasEvm = validTokens.some((t) => t.family === 'evm');
   const hasBtc = validTokens.some((t) => t.family === 'bitcoin');
-  const mixedFamilies = [hasTron, hasEvm, hasBtc].filter(Boolean).length > 1;
+  const hasSol = validTokens.some((t) => t.family === 'solana');
+  const mixedFamilies = [hasTron, hasEvm, hasBtc, hasSol].filter(Boolean).length > 1;
 
   // Auto-derive chain from the parsed families until the user overrides it.
   useEffect(() => {
     if (chainTouched || validTokens.length === 0) return;
-    if (hasBtc && !hasTron && !hasEvm) setChain('bitcoin');
-    else if (hasTron && !hasEvm && !hasBtc) setChain('tron');
-    else if (hasEvm && !hasTron && !hasBtc) setChain('ethereum');
-  }, [chainTouched, validTokens.length, hasTron, hasEvm, hasBtc]);
+    if (hasBtc && !hasTron && !hasEvm && !hasSol) setChain('bitcoin');
+    else if (hasTron && !hasEvm && !hasBtc && !hasSol) setChain('tron');
+    else if (hasEvm && !hasTron && !hasBtc && !hasSol) setChain('ethereum');
+    else if (hasSol && !hasTron && !hasEvm && !hasBtc) setChain('solana');
+  }, [chainTouched, validTokens.length, hasTron, hasEvm, hasBtc, hasSol]);
 
   const seeding = phase === 'fetching' || phase === 'creating' || phase === 'importing';
   const phaseLabel =

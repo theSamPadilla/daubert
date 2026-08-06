@@ -127,6 +127,27 @@ export interface UtxoContext {
   junction?: boolean;
 }
 
+/**
+ * Per-row context carried by every Solana transfer edge. One signature can
+ * contain several transfers (native SOL + SPL token legs); `transferIndex`
+ * is the position in [...nativeTransfers, ...tokenTransfers] and is what
+ * edgeIdentityKey() uses to distinguish them.
+ */
+export interface SolanaContext {
+  transferIndex: number;
+  feePayer: string;
+  kind: 'native' | 'spl';
+  mint?: string; // spl only
+  decimals?: number; // spl only (native SOL is 9, implied by token object)
+  fromTokenAccount?: string; // spl only — raw token accounts, evidentiary
+  toTokenAccount?: string;
+  type?: string; // Helius tx type (TRANSFER, SWAP, ...)
+  source?: string; // Helius source program (JUPITER, ...)
+  slot?: number;
+  spam?: boolean;
+  spamEvidence?: string[]; // e.g. ['unsolicited','unknown-mint']
+}
+
 export interface FetchOptions {
   startBlock?: number;
   endBlock?: number;

@@ -1,5 +1,5 @@
 /**
- * ImportTransactionsDto — the `utxo` whitelist-survival canary.
+ * ImportTransactionsDto — the `utxo` / `solana` whitelist-survival canary.
  *
  * The global pipe in `main.ts` is
  *   `new ValidationPipe({ whitelist: true, transform: true,
@@ -8,11 +8,13 @@
  * decorator declares — silently, with no error. A Bitcoin import whose
  * `utxo` provenance is not declared on the DTO therefore reaches
  * TracesService stripped of its inputs/outputs/fee, and the graph loses the
- * evidence without anyone noticing.
+ * evidence without anyone noticing. A Solana import whose `solana` context is
+ * not declared loses its transferIndex, and every transfer of a multi-leg
+ * signature then collapses onto one edge identity.
  *
  * These tests instantiate a REAL ValidationPipe with main.ts's exact config
  * and assert the payload that comes out the other side still carries the
- * complete UTXO context.
+ * complete provenance block.
  */
 
 import 'reflect-metadata';
@@ -96,6 +98,34 @@ const btcItem = (utxo: unknown) => ({
   amount: '300000',
   token: 'BTC',
   utxo,
+});
+
+// An SPL transfer row with EVERY SolanaContext field populated — the point of
+// the canary is that no single field can go missing unnoticed.
+const FULL_SOLANA = {
+  transferIndex: 2,
+  feePayer: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+  kind: 'spl',
+  mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  decimals: 6,
+  fromTokenAccount: 'H7bTHGb5Cvo5fGe5jBDNDPUwBHcQ3sBrCXbBrjSyPk5S',
+  toTokenAccount: '3emsAVdmGKERbHjmGfQ6oZ1e35dkf5iYcS6U4CPKFVaa',
+  type: 'TRANSFER',
+  source: 'JUPITER',
+  slot: 250_000_000,
+  spam: true,
+  spamEvidence: ['unsolicited', 'unknown-mint'],
+};
+
+const solItem = (solana: unknown) => ({
+  from: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+  to: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
+  txHash: '5'.repeat(87),
+  chain: 'solana',
+  timestamp: '2026-01-01T00:00:00Z',
+  amount: '125.5',
+  token: 'USDC',
+  solana,
 });
 
 describe('ImportTransactionsDto through ValidationPipe({ whitelist, transform })', () => {
@@ -331,5 +361,194 @@ describe('ImportTransactionsDto through ValidationPipe({ whitelist, transform })
     expect(result.transactions).toHaveLength(2);
     expect(result.transactions[0].utxo).toBeUndefined();
     expect(JSON.parse(JSON.stringify(result.transactions[1].utxo))).toEqual(FULL_UTXO);
+  });
+
+  // -------------------------------------------------------------------------
+  // Solana per-transfer context. Same failure mode as `utxo`, different loss:
+  // without a declared `solana`, whitelisting deletes `transferIndex`, and
+  // every transfer of a multi-leg signature collapses onto a single edge
+  // identity — the graph silently loses legs rather than fields.
+  // -------------------------------------------------------------------------
+
+  it('THE CANARY: a full solana payload survives whitelisting intact', async () => {
+    const payload = { transactions: [solItem(FULL_SOLANA)] };
+
+    const result: ImportTransactionsDto = await pipe.transform(payload, META);
+
+    const item = result.transactions[0];
+    expect(item.solana).toBeDefined();
+    // Deep-equal against the original: nothing added, nothing dropped.
+    expect(JSON.parse(JSON.stringify(item.solana))).toEqual(FULL_SOLANA);
+  });
+
+  it('keeps every solana field individually (field-by-field readout)', async () => {
+    const payload = { transactions: [solItem(FULL_SOLANA)] };
+
+    const result: ImportTransactionsDto = await pipe.transform(payload, META);
+    const sol = result.transactions[0].solana!;
+
+    expect(sol.transferIndex).toBe(2);
+    expect(sol.feePayer).toBe('9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM');
+    expect(sol.kind).toBe('spl');
+    expect(sol.mint).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+    expect(sol.decimals).toBe(6);
+    expect(sol.fromTokenAccount).toBe('H7bTHGb5Cvo5fGe5jBDNDPUwBHcQ3sBrCXbBrjSyPk5S');
+    expect(sol.toTokenAccount).toBe('3emsAVdmGKERbHjmGfQ6oZ1e35dkf5iYcS6U4CPKFVaa');
+    expect(sol.type).toBe('TRANSFER');
+    expect(sol.source).toBe('JUPITER');
+    expect(sol.slot).toBe(250_000_000);
+    expect(sol.spam).toBe(true);
+    expect(sol.spamEvidence).toEqual(['unsolicited', 'unknown-mint']);
+  });
+
+  it('accepts a native SOL row carrying only the required fields', async () => {
+    const payload = {
+      transactions: [
+        solItem({
+          transferIndex: 0,
+          feePayer: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+          kind: 'native',
+        }),
+      ],
+    };
+
+    const result: ImportTransactionsDto = await pipe.transform(payload, META);
+    const sol = result.transactions[0].solana!;
+
+    expect(sol.kind).toBe('native');
+    expect(sol.transferIndex).toBe(0);
+    expect(sol.mint).toBeUndefined();
+    expect(sol.spamEvidence).toBeUndefined();
+  });
+
+  it('strips (does not reject) an undeclared junk key inside solana', async () => {
+    const payload = {
+      transactions: [
+        solItem({ ...FULL_SOLANA, rawHex: '0x00', instructions: ['nope'] }),
+      ],
+    };
+
+    const result: ImportTransactionsDto = await pipe.transform(payload, META);
+    const sol = result.transactions[0].solana!;
+
+    expect(sol).not.toHaveProperty('rawHex');
+    expect(sol).not.toHaveProperty('instructions');
+    // The declared payload is otherwise untouched.
+    expect(JSON.parse(JSON.stringify(sol))).toEqual(FULL_SOLANA);
+  });
+
+  it('rejects an out-of-range kind', async () => {
+    const payload = { transactions: [solItem({ ...FULL_SOLANA, kind: 'nft' })] };
+
+    await expect(pipe.transform(payload, META)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a solana context missing transferIndex', async () => {
+    const { transferIndex: _i, ...noIndex } = FULL_SOLANA;
+    const payload = { transactions: [solItem(noIndex)] };
+
+    await expect(pipe.transform(payload, META)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a solana context missing feePayer', async () => {
+    const { feePayer: _f, ...noPayer } = FULL_SOLANA;
+    const payload = { transactions: [solItem(noPayer)] };
+
+    await expect(pipe.transform(payload, META)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a solana context missing kind', async () => {
+    const { kind: _k, ...noKind } = FULL_SOLANA;
+    const payload = { transactions: [solItem(noKind)] };
+
+    await expect(pipe.transform(payload, META)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a non-numeric transferIndex', async () => {
+    const payload = {
+      transactions: [solItem({ ...FULL_SOLANA, transferIndex: 'first' })],
+    };
+
+    await expect(pipe.transform(payload, META)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects an oversized spamEvidence array (ArrayMaxSize guard)', async () => {
+    const spamEvidence = Array.from({ length: 11 }, (_v, i) => `reason-${i}`);
+    const payload = { transactions: [solItem({ ...FULL_SOLANA, spamEvidence })] };
+
+    await expect(pipe.transform(payload, META)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects non-string entries inside spamEvidence', async () => {
+    const payload = {
+      transactions: [solItem({ ...FULL_SOLANA, spamEvidence: [{ why: 'spam' }] })],
+    };
+
+    await expect(pipe.transform(payload, META)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('EVM regression: an item with no solana still validates and gains no solana field', async () => {
+    const payload = {
+      transactions: [
+        {
+          from: '0x1234567890123456789012345678901234567890',
+          to: '0x0987654321098765432109876543210987654321',
+          txHash: '0xabc',
+          chain: 'ethereum',
+          timestamp: '2026-01-01T00:00:00Z',
+          amount: '1.5',
+          token: 'USDT',
+        },
+      ],
+    };
+
+    const result: ImportTransactionsDto = await pipe.transform(payload, META);
+
+    expect(result.transactions[0].solana).toBeUndefined();
+    expect(result.transactions[0].utxo).toBeUndefined();
+  });
+
+  it('imports a mixed EVM + BTC + SOL batch, each keeping its own context', async () => {
+    const payload = {
+      transactions: [
+        {
+          from: '0x1234567890123456789012345678901234567890',
+          to: '0x0987654321098765432109876543210987654321',
+          txHash: '0xabc',
+          chain: 'ethereum',
+          timestamp: '2026-01-01T00:00:00Z',
+          amount: '1.5',
+          token: 'ETH',
+        },
+        btcItem(FULL_UTXO),
+        solItem(FULL_SOLANA),
+      ],
+    };
+
+    const result: ImportTransactionsDto = await pipe.transform(payload, META);
+
+    expect(result.transactions).toHaveLength(3);
+    expect(result.transactions[0].utxo).toBeUndefined();
+    expect(result.transactions[0].solana).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(result.transactions[1].utxo))).toEqual(FULL_UTXO);
+    expect(result.transactions[1].solana).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(result.transactions[2].solana))).toEqual(
+      FULL_SOLANA,
+    );
+    expect(result.transactions[2].utxo).toBeUndefined();
   });
 });

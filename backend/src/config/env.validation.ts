@@ -8,6 +8,7 @@ const requiredEnvVars = [
   'ANTHROPIC_API_KEY',
   'ETHERSCAN_API_KEY',
   'TRONSCAN_API_KEY',
+  'HELIUS_API_KEY',
   // Required by email.service.ts to build links sent to users.
   'FRONTEND_URL',
   // OAuth authorization server — public base URL of this backend.

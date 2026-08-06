@@ -101,6 +101,34 @@ const BTC_TX_ITEM = {
   utxo: FULL_UTXO,
 };
 
+// A realistic SPL transfer row: leg 2 of a Jupiter swap signature, flagged as
+// spam with its evidence. Every SolanaContext field is populated.
+const FULL_SOLANA = {
+  transferIndex: 2,
+  feePayer: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+  kind: 'spl' as const,
+  mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  decimals: 6,
+  fromTokenAccount: 'H7bTHGb5Cvo5fGe5jBDNDPUwBHcQ3sBrCXbBrjSyPk5S',
+  toTokenAccount: '3emsAVdmGKERbHjmGfQ6oZ1e35dkf5iYcS6U4CPKFVaa',
+  type: 'TRANSFER',
+  source: 'JUPITER',
+  slot: 250_000_000,
+  spam: true,
+  spamEvidence: ['unsolicited', 'unknown-mint'],
+};
+
+const SOL_TX_ITEM = {
+  from: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+  to: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
+  txHash: '5'.repeat(87),
+  chain: 'solana',
+  timestamp: '2026-01-01T00:00:00Z',
+  amount: '125.5',
+  token: 'USDC',
+  solana: FULL_SOLANA,
+};
+
 const AUTH: AuthSuccess = {
   kind: 'oauth',
   user: USER,
@@ -368,6 +396,24 @@ describe('WriteToolsService', () => {
       const [, dtoArg] = importFn.mock.calls[0];
       expect(dtoArg.transactions[0].utxo).toEqual(FULL_UTXO);
     });
+
+    it('forwards solana provenance to the service untouched (SOL import)', async () => {
+      const importFn = jest
+        .fn()
+        .mockResolvedValue({ added: { nodes: 2, edges: 1 } });
+      const { server } = buildService({
+        traces: { importTransactions: importFn },
+      });
+
+      const result = await callTool(server, 'import_transactions', {
+        traceId: TRACE_ID,
+        transactions: [SOL_TX_ITEM],
+      });
+
+      expect(result.isError).toBeUndefined();
+      const [, dtoArg] = importFn.mock.calls[0];
+      expect(dtoArg.transactions[0].solana).toEqual(FULL_SOLANA);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -457,8 +503,24 @@ describe('WriteToolsService', () => {
       expect(schema).toContain('utxo');
       expect(schema).toContain('prevTxid');
       expect(schema).toContain('changeEvidence');
-      // strict → the three utxo objects forbid extra properties.
-      expect(schema.match(/"additionalProperties":false/g)).toHaveLength(3);
+      // strict → the three utxo objects plus solana forbid extra properties.
+      expect(schema.match(/"additionalProperties":false/g)).toHaveLength(4);
+    });
+
+    it('reaches the model: tools/list advertises solana on import_transactions', async () => {
+      // Same reasoning as the utxo case — a model that never sees `solana`
+      // will never send a transferIndex, and multi-leg signatures collapse.
+      const { server } = buildService();
+      const handler = (server.server as any)._requestHandlers.get('tools/list');
+      const res = await handler({ method: 'tools/list', params: {} }, {} as any);
+
+      const tool = res.tools.find((t: any) => t.name === 'import_transactions');
+      const schema = JSON.stringify(tool.inputSchema);
+
+      expect(schema).toContain('solana');
+      expect(schema).toContain('transferIndex');
+      expect(schema).toContain('feePayer');
+      expect(schema).toContain('spamEvidence');
     });
 
     it('EVM regression: an item with no utxo parses and gains no utxo field', () => {
@@ -473,7 +535,88 @@ describe('WriteToolsService', () => {
       });
 
       expect(parsed.utxo).toBeUndefined();
+      expect(parsed.solana).toBeUndefined();
       expect(parsed.token).toBe('USDT');
+    });
+
+    // Solana per-transfer context — the same zod whitelist layer. `solana` is
+    // also a strictObject: a model that invents a field inside it is told, not
+    // quietly obeyed.
+
+    it('parses a SOL item and keeps the full solana payload', () => {
+      const parsed = importTxItemSchema.parse(SOL_TX_ITEM);
+
+      expect(parsed.solana).toEqual(FULL_SOLANA);
+      expect(parsed.solana!.transferIndex).toBe(2);
+      expect(parsed.solana!.kind).toBe('spl');
+      expect(parsed.solana!.spam).toBe(true);
+      expect(parsed.solana!.spamEvidence).toEqual(['unsolicited', 'unknown-mint']);
+    });
+
+    it('parses a native SOL item carrying only the required fields', () => {
+      const parsed = importTxItemSchema.parse({
+        ...SOL_TX_ITEM,
+        token: 'SOL',
+        solana: {
+          transferIndex: 0,
+          feePayer: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+          kind: 'native',
+        },
+      });
+
+      expect(parsed.solana!.kind).toBe('native');
+      expect(parsed.solana!.mint).toBeUndefined();
+    });
+
+    it('REJECTS an unknown key inside solana (strict)', () => {
+      const res = importTxItemSchema.safeParse({
+        ...SOL_TX_ITEM,
+        solana: { ...FULL_SOLANA, rawHex: '0x00' },
+      });
+
+      expect(res.success).toBe(false);
+    });
+
+    it('REJECTS a solana context missing transferIndex', () => {
+      const { transferIndex: _i, ...noIndex } = FULL_SOLANA;
+      const res = importTxItemSchema.safeParse({ ...SOL_TX_ITEM, solana: noIndex });
+
+      expect(res.success).toBe(false);
+    });
+
+    it('REJECTS a solana context missing feePayer', () => {
+      const { feePayer: _f, ...noPayer } = FULL_SOLANA;
+      const res = importTxItemSchema.safeParse({ ...SOL_TX_ITEM, solana: noPayer });
+
+      expect(res.success).toBe(false);
+    });
+
+    it('REJECTS a solana context missing kind', () => {
+      const { kind: _k, ...noKind } = FULL_SOLANA;
+      const res = importTxItemSchema.safeParse({ ...SOL_TX_ITEM, solana: noKind });
+
+      expect(res.success).toBe(false);
+    });
+
+    it('REJECTS an out-of-range kind', () => {
+      const res = importTxItemSchema.safeParse({
+        ...SOL_TX_ITEM,
+        solana: { ...FULL_SOLANA, kind: 'nft' },
+      });
+
+      expect(res.success).toBe(false);
+    });
+
+    it('REJECTS an oversized spamEvidence array', () => {
+      const res = importTxItemSchema.safeParse({
+        ...SOL_TX_ITEM,
+        solana: {
+          ...FULL_SOLANA,
+          spamEvidence: Array.from({ length: 11 }, (_v, i) => `reason-${i}`),
+        },
+      });
+
+      expect(res.success).toBe(false);
     });
   });
 

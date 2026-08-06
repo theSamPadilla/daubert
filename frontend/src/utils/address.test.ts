@@ -2,7 +2,9 @@ import {
   ADDRESS_RE,
   BTC_BASE58_ADDRESS_RE,
   BTC_BECH32_ADDRESS_RE,
+  SOLANA_ADDRESS_RE,
   isBtcAddress,
+  isSolanaAddress,
   isValidAddress,
   validateAddressForChain,
   normalizeAddressForChain,
@@ -18,6 +20,11 @@ const BTC_BECH32_TAPROOT =
 
 const EVM_ADDR = '0x1234567890123456789012345678901234567890';
 const TRON_ADDR = 'T123456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // 33 base58 chars after T
+
+// Solana System Program id — 32 chars, well-known canonical address.
+const SOLANA_WALLET = '11111111111111111111111111111111';
+// USDC mint on Solana mainnet — 44 chars.
+const SOLANA_USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
 // ── BTC_BASE58_ADDRESS_RE / BTC_BECH32_ADDRESS_RE / isBtcAddress ──────────
 
@@ -53,10 +60,35 @@ describe('BTC address regexes', () => {
   });
 });
 
+// ── SOLANA_ADDRESS_RE / isSolanaAddress ────────────────────────────────────
+
+describe('SOLANA_ADDRESS_RE / isSolanaAddress', () => {
+  it('accepts a 32-char wallet address and a 44-char mint address', () => {
+    expect(SOLANA_ADDRESS_RE.test(SOLANA_WALLET)).toBe(true);
+    expect(SOLANA_ADDRESS_RE.test(SOLANA_USDC_MINT)).toBe(true);
+    expect(isSolanaAddress(SOLANA_WALLET)).toBe(true);
+    expect(isSolanaAddress(SOLANA_USDC_MINT)).toBe(true);
+  });
+
+  it('rejects an EVM address', () => {
+    expect(isSolanaAddress(EVM_ADDR)).toBe(false);
+  });
+
+  it('overlaps with the BTC legacy shape for short leading-"1" addresses (expected)', () => {
+    // A 34-char base58 string starting with "1" or "3" matches both the BTC
+    // legacy shape and the Solana shape. Auto-detection resolves BTC-first:
+    // a genuine Solana pubkey this short needs ~5 leading zero bytes, which
+    // is astronomically unlikely to occur by chance. Chain-explicit
+    // validation (validateAddressForChain) is unaffected by the overlap.
+    expect(BTC_BASE58_ADDRESS_RE.test(BTC_LEGACY)).toBe(true);
+    expect(SOLANA_ADDRESS_RE.test(BTC_LEGACY)).toBe(true);
+  });
+});
+
 // ── ADDRESS_RE ──────────────────────────────────────────────────────────
 
 describe('ADDRESS_RE', () => {
-  it('matches all four BTC samples plus EVM and Tron samples', () => {
+  it('matches all four BTC samples plus EVM, Tron, and Solana samples', () => {
     const samples = [
       BTC_LEGACY,
       BTC_P2SH,
@@ -64,6 +96,8 @@ describe('ADDRESS_RE', () => {
       BTC_BECH32_TAPROOT,
       EVM_ADDR,
       TRON_ADDR,
+      SOLANA_WALLET,
+      SOLANA_USDC_MINT,
     ];
     for (const sample of samples) {
       expect(ADDRESS_RE.test(sample)).toBe(true);
@@ -88,6 +122,11 @@ describe('isValidAddress', () => {
   it('still accepts EVM and Tron addresses (regression)', () => {
     expect(isValidAddress(EVM_ADDR)).toBe(true);
     expect(isValidAddress(TRON_ADDR)).toBe(true);
+  });
+
+  it('accepts Solana addresses', () => {
+    expect(isValidAddress(SOLANA_WALLET)).toBe(true);
+    expect(isValidAddress(SOLANA_USDC_MINT)).toBe(true);
   });
 
   it('rejects garbage', () => {
@@ -131,6 +170,35 @@ describe('validateAddressForChain — bitcoin', () => {
       'bitcoin requires a base58 (1…/3…) or bech32 (bc1…) address',
     );
   });
+
+  it('rejects a 44-char Solana-shaped base58 address on chain bitcoin', () => {
+    // Too long for the BTC base58 shape (max 34 chars) even though it's a
+    // valid Solana address.
+    const result = validateAddressForChain(SOLANA_USDC_MINT, 'bitcoin');
+    expect(result).toBe(
+      'bitcoin requires a base58 (1…/3…) or bech32 (bc1…) address',
+    );
+  });
+});
+
+describe('validateAddressForChain — solana', () => {
+  it('accepts a 32-char wallet address and a 44-char mint address', () => {
+    expect(validateAddressForChain(SOLANA_WALLET, 'solana')).toBeNull();
+    expect(validateAddressForChain(SOLANA_USDC_MINT, 'solana')).toBeNull();
+  });
+
+  it('rejects an EVM address on chain solana', () => {
+    const result = validateAddressForChain(EVM_ADDR, 'solana');
+    expect(result).toBe('solana requires a base58 address (32-44 chars)');
+  });
+
+  it('F9: rejects a Tron-shaped address (T + 33 base58 chars) even though it falls inside the 32-44 char window', () => {
+    // TRON_ADDR is 34 chars total (T + 33), inside SOLANA_ADDRESS_RE's 32-44
+    // window, and every character is valid base58 — shape overlap with a
+    // genuine Solana pubkey. A Tron address must never validate as Solana.
+    const result = validateAddressForChain(TRON_ADDR, 'solana');
+    expect(result).toBe('solana requires a base58 address (32-44 chars)');
+  });
 });
 
 describe('validateAddressForChain — regressions', () => {
@@ -148,8 +216,8 @@ describe('validateAddressForChain — regressions', () => {
   });
 
   it('still rejects an unsupported chain', () => {
-    expect(validateAddressForChain(EVM_ADDR, 'solana')).toBe(
-      'unsupported chain: solana',
+    expect(validateAddressForChain(EVM_ADDR, 'dogecoin')).toBe(
+      'unsupported chain: dogecoin',
     );
   });
 });
@@ -171,6 +239,12 @@ describe('normalizeAddressForChain', () => {
     expect(normalizeAddressForChain(` ${BTC_LEGACY} `, 'bitcoin')).toBe(BTC_LEGACY);
     expect(normalizeAddressForChain(` ${BTC_BECH32_V0} `, 'bitcoin')).toBe(
       BTC_BECH32_V0,
+    );
+  });
+
+  it('preserves Solana case', () => {
+    expect(normalizeAddressForChain(` ${SOLANA_USDC_MINT} `, 'solana')).toBe(
+      SOLANA_USDC_MINT,
     );
   });
 });

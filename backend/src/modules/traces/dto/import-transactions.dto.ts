@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 
 import type {
+  SolanaContext,
   UtxoContext,
   UtxoInput,
   UtxoOutput,
@@ -145,6 +146,76 @@ export class UtxoContextDto implements UtxoContext {
   junction?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Solana per-transfer provenance.
+//
+// Same whitelist hazard as the UTXO classes above, with a different loss: one
+// Solana signature can carry several transfers, and `transferIndex` is what
+// edgeIdentityKey() uses to tell them apart. If `solana` is not declared here,
+// `whitelist: true` deletes it and every leg of a multi-transfer signature
+// collapses onto one edge identity — a quietly incomplete graph, no error.
+//
+// No field of SolanaContext is nullable (absent means "not applicable to this
+// leg"), so plain `@IsOptional()` is correct throughout — the `@ValidateIf`
+// treatment the UTXO addresses need does not apply.
+// ---------------------------------------------------------------------------
+
+export class SolanaContextDto implements SolanaContext {
+  /** Position in [...nativeTransfers, ...tokenTransfers] for the source tx. */
+  @IsNumber()
+  transferIndex: number;
+
+  @IsString()
+  feePayer: string;
+
+  @IsIn(['native', 'spl'])
+  kind: 'native' | 'spl';
+
+  @IsOptional()
+  @IsString()
+  mint?: string;
+
+  @IsOptional()
+  @IsNumber()
+  decimals?: number;
+
+  /** Raw token accounts — evidentiary, kept verbatim. */
+  @IsOptional()
+  @IsString()
+  fromTokenAccount?: string;
+
+  @IsOptional()
+  @IsString()
+  toTokenAccount?: string;
+
+  /** Helius tx type (TRANSFER, SWAP, ...). */
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  /** Helius source program (JUPITER, ...). */
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  @IsNumber()
+  slot?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  spam?: boolean;
+
+  // The spam verdict is an INFERENCE, so its evidence strings travel with it.
+  // 10 is well above the handful of heuristics detectSpam can cite and bounds
+  // a hostile payload.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  spamEvidence?: string[];
+}
+
 export class ImportTransactionItem {
   @IsString()
   from: string;
@@ -184,6 +255,12 @@ export class ImportTransactionItem {
   @ValidateNested()
   @Type(() => UtxoContextDto)
   utxo?: UtxoContextDto;
+
+  /** Present only on rows from Solana. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SolanaContextDto)
+  solana?: SolanaContextDto;
 }
 
 export class ImportTransactionsDto {

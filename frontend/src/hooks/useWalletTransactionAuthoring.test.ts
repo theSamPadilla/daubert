@@ -394,6 +394,78 @@ describe('handleAddStagedToTrace — empty-address guard', () => {
   });
 });
 
+describe('handleAddStagedToTrace — Solana rows (no junction concept)', () => {
+  const FEE_PAYER = 'FeePayerSoLanaAddressXXXXXXXXXXXXXXXXXXXXX';
+  const FROM = 'FromSolanaAddressXXXXXXXXXXXXXXXXXXXXXXXXX';
+  const TO = 'ToSolanaAddressXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+  const SIG = 'SolSignatureXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+
+  function solanaRow(
+    id: string,
+    transferIndex: number,
+    overrides: Partial<TransactionEdge> = {},
+  ): TransactionEdge {
+    return {
+      id,
+      from: FROM,
+      to: TO,
+      txHash: SIG,
+      chain: 'solana',
+      timestamp: '2024-06-01T00:00:00.000Z',
+      amount: '1000000000',
+      token: { address: '', symbol: 'SOL', decimals: 9 },
+      notes: '',
+      tags: [],
+      blockNumber: 0,
+      crossTrace: false,
+      solana: { transferIndex, feePayer: FEE_PAYER, kind: 'native' },
+      ...overrides,
+    };
+  }
+
+  it('authors a direct edge (never a junction node) carrying the full solana context', () => {
+    const row = solanaRow('row-1', 0);
+    const { result } = renderHook(() => useHarness(inv([trace('trace-1')])));
+    act(() => {
+      result.current.handleAddStagedToTrace('trace-1', [row]);
+    });
+
+    const t1 = result.current.investigation!.traces.find((t) => t.id === 'trace-1')!;
+    expect(t1.nodes).toHaveLength(2);
+    expect(t1.nodes.some((n) => n.kind === 'txJunction')).toBe(false);
+    expect(t1.edges).toHaveLength(1);
+    expect(t1.edges[0].solana).toEqual(row.solana);
+  });
+
+  it('two rows of the same signature with distinct transferIndex produce distinct edges', () => {
+    const row1 = solanaRow('row-1', 0);
+    const row2 = solanaRow('row-2', 1, {
+      solana: { transferIndex: 1, feePayer: FEE_PAYER, kind: 'native' },
+    });
+
+    const { result } = renderHook(() => useHarness(inv([trace('trace-1')])));
+    act(() => {
+      result.current.handleAddStagedToTrace('trace-1', [row1, row2]);
+    });
+
+    const t1 = result.current.investigation!.traces.find((t) => t.id === 'trace-1')!;
+    expect(t1.edges).toHaveLength(2);
+    expect(t1.edges.map((e) => e.solana?.transferIndex).sort()).toEqual([0, 1]);
+  });
+
+  it('skips a row with an empty `to` — never authors a half-edge or a node for it', () => {
+    const row = solanaRow('row-1', 0, { to: '' });
+    const { result } = renderHook(() => useHarness(inv([trace('trace-1')])));
+    act(() => {
+      result.current.handleAddStagedToTrace('trace-1', [row]);
+    });
+
+    const t1 = result.current.investigation!.traces.find((t) => t.id === 'trace-1')!;
+    expect(t1.nodes).toHaveLength(0);
+    expect(t1.edges).toHaveLength(0);
+  });
+});
+
 describe('handleSaveNewWallet — manual Tron entry', () => {
   it('persists a manually-entered Tron address case-intact (not lowercased)', () => {
     const RAW = ' TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t ';

@@ -40,6 +40,16 @@ describe('WalletSetDto — wallets @Matches(ADDRESS_RE)', () => {
     expect(errors).toEqual([]);
   });
 
+  it('passes validation with a Solana base58 address', async () => {
+    const dto = plainToInstance(WalletSetDto, {
+      wallets: ['EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'],
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toEqual([]);
+  });
+
   it('fails validation with a mixed-case bech32 address', async () => {
     const dto = plainToInstance(WalletSetDto, {
       wallets: ['bc1QAR0SRRR7xfkvy5l643lydnw9re59gtzzwf5mdq'],

@@ -1,8 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ProviderRegistry } from './provider-registry';
 import { TokenResolver } from './token-resolver';
-import { CHAIN_CONFIGS, FetchOptions, UtxoContext, UtxoOutput } from './types';
+import {
+  CHAIN_CONFIGS,
+  FetchOptions,
+  SolanaContext,
+  UtxoContext,
+  UtxoOutput,
+} from './types';
 import { buildUtxoContext, mapBtcHistory } from './btc/map-btc-history';
+import { decimalToRaw, mapSolanaHistory } from './sol/map-solana-history';
+import { HeliusParsedTx, MintMetadata } from './helius-client';
 import { randomUUID } from 'crypto';
 
 const BTC_TOKEN = { address: '', symbol: 'BTC', decimals: 8 };
@@ -26,6 +34,8 @@ export interface TransactionResult {
   crossTrace: boolean;
   /** UTXO provenance. Present only on rows from UTXO chains (Bitcoin). */
   utxo?: UtxoContext;
+  /** Per-transfer provenance. Present only on rows from Solana. */
+  solana?: SolanaContext;
 }
 
 export interface FetchHistoryResult {
@@ -59,6 +69,8 @@ export interface TransactionDetailResult {
   isError: boolean;
   /** UTXO provenance. Present only for detail results from UTXO chains (Bitcoin). */
   utxo?: UtxoContext;
+  /** Provenance of the representative transfer. Present only for detail results from Solana. */
+  solana?: SolanaContext;
 }
 
 @Injectable()
@@ -82,6 +94,18 @@ export class BlockchainService {
         endTimestamp: normalized?.endTimestamp,
       });
       const transactions = mapBtcHistory(address, txs).sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      );
+      return { transactions, chain, address };
+    }
+
+    if (chain === 'solana') {
+      const { txs, mintMeta } = await this.providerRegistry.getSolana('solana').getAddressHistory(address, {
+        maxTotal: normalized?.maxTotal,
+        startTimestamp: normalized?.startTimestamp,
+        endTimestamp: normalized?.endTimestamp,
+      });
+      const transactions = mapSolanaHistory(address, txs, mintMeta).sort(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
       );
       return { transactions, chain, address };
@@ -265,6 +289,11 @@ export class BlockchainService {
       };
     }
 
+    if (chain === 'solana') {
+      const { tx, mintMeta } = await this.providerRegistry.getSolana('solana').getTx(txHash);
+      return this.buildSolanaTransactionDetail(tx, mintMeta);
+    }
+
     const provider = this.providerRegistry.get(chain);
     const chainConfig = CHAIN_CONFIGS[chain];
     const detail = await provider.getTransaction(txHash);
@@ -345,6 +374,16 @@ export class BlockchainService {
       };
     }
 
+    if (chain === 'solana') {
+      const raw = await this.providerRegistry.getSolana('solana').getAddressInfo(address);
+      return {
+        address: raw.address,
+        addressType: raw.addressType,
+        balance: raw.balance,
+        label: raw.label,
+      };
+    }
+
     const provider = this.providerRegistry.get(chain);
     const raw = await provider.getAddressInfo(address);
     return {
@@ -352,6 +391,123 @@ export class BlockchainService {
       addressType: raw.addressType,
       balance: raw.balance,
       label: raw.label,
+    };
+  }
+
+  /**
+   * Builds a single detail result for a Solana transaction, which — unlike
+   * Bitcoin/EVM — has no single ledger-named sender. `from` is the fee
+   * payer (the account that actually authorized/paid for the transaction);
+   * `to`/`amount`/`token`/`solana` describe the "representative" transfer:
+   * the one with the largest decimal-adjusted quantity among the tx's
+   * native + SPL legs (comparing raw base units directly would be
+   * dominated by whichever asset happens to have the fewest decimals, so
+   * quantities are compared in each asset's own human-readable units — an
+   * imperfect proxy for economic size absent a price oracle, but the best
+   * available without one). `tokenTransfers` carries every SPL leg
+   * verbatim, same as the EVM path.
+   */
+  private buildSolanaTransactionDetail(
+    tx: HeliusParsedTx,
+    mintMeta: Map<string, MintMetadata>,
+  ): TransactionDetailResult {
+    const resolveMint = (mint: string) => {
+      const meta = mintMeta.get(mint);
+      return {
+        decimals: meta?.decimals ?? 0,
+        symbol: meta?.symbol ?? `${mint.slice(0, 4)}…`,
+      };
+    };
+
+    interface Candidate {
+      to: string;
+      decimalAmount: number;
+      rawAmount: string;
+      token: { address: string; symbol: string; decimals: number };
+      solana: SolanaContext;
+    }
+
+    const candidates: Candidate[] = [];
+
+    tx.nativeTransfers.forEach((transfer, i) => {
+      if (!transfer.fromUserAccount || !transfer.toUserAccount) return;
+      if (transfer.amount === 0) return;
+      candidates.push({
+        to: transfer.toUserAccount,
+        decimalAmount: transfer.amount / 1e9,
+        rawAmount: decimalToRaw(transfer.amount, 0),
+        token: { address: '', symbol: 'SOL', decimals: 9 },
+        solana: {
+          transferIndex: i,
+          feePayer: tx.feePayer,
+          kind: 'native',
+          type: tx.type,
+          source: tx.source,
+          slot: tx.slot,
+        },
+      });
+    });
+
+    const offset = tx.nativeTransfers.length;
+    tx.tokenTransfers.forEach((transfer, i) => {
+      if (!transfer.fromUserAccount || !transfer.toUserAccount) return;
+      if (transfer.tokenAmount === 0) return;
+      const { symbol, decimals } = resolveMint(transfer.mint);
+      candidates.push({
+        to: transfer.toUserAccount,
+        decimalAmount: transfer.tokenAmount,
+        rawAmount: decimalToRaw(transfer.tokenAmount, decimals),
+        token: { address: transfer.mint, symbol, decimals },
+        solana: {
+          transferIndex: offset + i,
+          feePayer: tx.feePayer,
+          kind: 'spl',
+          mint: transfer.mint,
+          decimals,
+          fromTokenAccount: transfer.fromTokenAccount ?? undefined,
+          toTokenAccount: transfer.toTokenAccount ?? undefined,
+          type: tx.type,
+          source: tx.source,
+          slot: tx.slot,
+        },
+      });
+    });
+
+    const representative = candidates.reduce<Candidate | undefined>(
+      (max, c) => (max == null || c.decimalAmount > max.decimalAmount ? c : max),
+      undefined,
+    );
+
+    // A transfer with a null owner never earns a row elsewhere in the Solana
+    // path (see resolveEndpoints in map-solana-history.ts) — the ledger did
+    // not resolve who it belongs to. Coalescing that null to '' here would
+    // emit a phantom endpoint that downstream consumers (e.g. QuickAdd) can
+    // mistake for a real, empty-but-present sender. Drop the transfer
+    // entirely instead of naming a party that was never named.
+    const tokenTransfers = tx.tokenTransfers
+      .filter((t) => t.fromUserAccount != null && t.toUserAccount != null)
+      .map((t) => {
+        const { symbol, decimals } = resolveMint(t.mint);
+        return {
+          from: t.fromUserAccount as string,
+          to: t.toUserAccount as string,
+          amount: decimalToRaw(t.tokenAmount, decimals),
+          token: { address: t.mint, symbol, decimals },
+        };
+      });
+
+    return {
+      txHash: tx.signature,
+      from: tx.feePayer,
+      to: representative?.to ?? '',
+      chain: 'solana',
+      amount: representative?.rawAmount ?? '0',
+      timestamp: new Date(tx.timestamp * 1000).toISOString(),
+      blockNumber: tx.slot,
+      token: representative?.token ?? { address: '', symbol: 'SOL', decimals: 9 },
+      tokenTransfers,
+      isError: tx.transactionError != null,
+      solana: representative?.solana,
     };
   }
 }

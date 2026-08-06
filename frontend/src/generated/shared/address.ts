@@ -20,15 +20,27 @@ export function isBtcAddress(addr: string): boolean {
   return BTC_BASE58_ADDRESS_RE.test(addr) || BTC_BECH32_ADDRESS_RE.test(addr);
 }
 
+/** Solana base58-encoded 32-byte pubkey. No prefix — see the ambiguity note on ADDRESS_RE. Case-sensitive. */
+export const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+export function isSolanaAddress(addr: string): boolean {
+  return SOLANA_ADDRESS_RE.test(addr);
+}
+
 /**
- * Any valid blockchain address (EVM, Tron, or Bitcoin).
+ * Any valid blockchain address (EVM, Tron, Bitcoin, or Solana).
  *
- * No ambiguity between families: every alternative has a mutually exclusive
- * prefix — `0x` (EVM), `T` (Tron), `1`/`3` (BTC base58), `bc1` (BTC bech32) —
- * so no string can match more than one alternative.
+ * The prefixes are no longer mutually exclusive: a 32-34 char base58 string
+ * starting with `1` or `3` matches both the BTC base58 shape and the Solana
+ * shape (Solana has no prefix convention — see SOLANA_ADDRESS_RE). This is
+ * intentional and harmless. Auto-detection (isValidAddress, address parsing)
+ * resolves such overlaps BTC-first, because a genuine Solana pubkey that
+ * short would need roughly 5 leading zero bytes to base58-encode into so few
+ * characters — astronomically rare in practice. Chain-explicit validation
+ * (validateAddressForChain) is unaffected by the overlap since it checks
+ * against a single chain's shape, not the combined union.
  */
 export const ADDRESS_RE =
-  /^(?:0x[0-9a-fA-F]{40}|T[1-9A-HJ-NP-Za-km-z]{33}|[13][1-9A-HJ-NP-Za-km-z]{24,33}|bc1[02-9ac-hj-np-z]{11,87})$/;
+  /^(?:0x[0-9a-fA-F]{40}|T[1-9A-HJ-NP-Za-km-z]{33}|[13][1-9A-HJ-NP-Za-km-z]{24,33}|bc1[02-9ac-hj-np-z]{11,87}|[1-9A-HJ-NP-Za-km-z]{32,44})$/;
 
 /** EVM chain keys supported by the platform. */
 export const EVM_CHAINS = ['ethereum', 'polygon', 'arbitrum', 'base'] as const;
@@ -47,7 +59,12 @@ export function isTronAddress(addr: string): boolean {
 }
 
 export function isValidAddress(addr: string): boolean {
-  return EVM_ADDRESS_RE.test(addr) || TRON_ADDRESS_RE.test(addr) || isBtcAddress(addr);
+  return (
+    EVM_ADDRESS_RE.test(addr) ||
+    TRON_ADDRESS_RE.test(addr) ||
+    isBtcAddress(addr) ||
+    isSolanaAddress(addr)
+  );
 }
 
 /**
@@ -70,6 +87,16 @@ export function validateAddressForChain(addr: string, chain: string): string | n
   if (chain === 'bitcoin') {
     if (!isBtcAddress(addr)) {
       return 'bitcoin requires a base58 (1…/3…) or bech32 (bc1…) address';
+    }
+    return null;
+  }
+  if (chain === 'solana') {
+    // A Tron address (T + 33 base58 chars = 34 total) falls inside Solana's
+    // 32-44 char base58 window and every character is valid base58 — the
+    // shapes overlap. Reject the Tron shape explicitly rather than let it
+    // pass as a "valid" Solana address.
+    if (!isSolanaAddress(addr) || isTronAddress(addr)) {
+      return 'solana requires a base58 address (32-44 chars)';
     }
     return null;
   }

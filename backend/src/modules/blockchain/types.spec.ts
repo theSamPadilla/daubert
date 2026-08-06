@@ -7,9 +7,9 @@
 import { CHAIN_CONFIGS } from './types';
 
 describe('CHAIN_CONFIGS', () => {
-  it('contains exactly the 6 registry chains', () => {
+  it('contains exactly the 7 registry chains', () => {
     expect(Object.keys(CHAIN_CONFIGS).sort()).toEqual(
-      ['arbitrum', 'base', 'bitcoin', 'ethereum', 'polygon', 'tron'].sort(),
+      ['arbitrum', 'base', 'bitcoin', 'ethereum', 'polygon', 'solana', 'tron'].sort(),
     );
   });
 

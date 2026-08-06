@@ -26,13 +26,13 @@ const MAX_CONCURRENT_ISOLATES = 2;
  * CIDR blocklist before connecting. Out of scope for v1; revisit before
  * multi-tenant use.
  *
- * Accepted risk — API key exfiltration: ETHERSCAN_API_KEY and
- * TRONSCAN_API_KEY are intentionally exposed to agent scripts (they need
- * them to call those APIs). A malicious script could exfiltrate them via
- * a query string to a whitelisted domain that logs requests. These are
- * project-level keys with low blast radius (rate-limited, no billing
- * access). Acceptable for a single-user tool; revisit if opening to
- * external users.
+ * Accepted risk — API key exfiltration: ETHERSCAN_API_KEY,
+ * TRONSCAN_API_KEY, and HELIUS_API_KEY are intentionally exposed to agent
+ * scripts (they need them to call those APIs). A malicious script could
+ * exfiltrate them via a query string to a whitelisted domain that logs
+ * requests. These are project-level keys with low blast radius
+ * (rate-limited, no billing access). Acceptable for a single-user tool;
+ * revisit if opening to external users.
  */
 const BASE_ALLOWED_DOMAINS = [
   'api.etherscan.io',
@@ -52,6 +52,8 @@ const BASE_ALLOWED_DOMAINS = [
   // Bitcoin (Esplora) — both keyless, no entry needed in injectApiKey().
   'mempool.space',
   'blockstream.info',
+  // Solana (Helius) — key injected via ?api-key= in injectApiKey().
+  'mainnet.helius-rpc.com',
 ];
 
 /**
@@ -206,14 +208,24 @@ export class ScriptExecutionService {
       }
     }
 
+    // Helius (Solana) — ?api-key= query param
+    if (host.endsWith('.helius-rpc.com')) {
+      const key = this.configService.get<string>('HELIUS_API_KEY');
+      if (key && !parsed.searchParams.has('api-key')) {
+        parsed.searchParams.set('api-key', key);
+        return parsed.toString();
+      }
+    }
+
     return url;
   }
 
   /**
    * Redact API key values from any string returned to the script sandbox.
    *
-   * Why: Etherscan V2 only accepts the key as `?apikey=` in the URL (header
-   * auth 401s). That URL can leak back to scripts via:
+   * Why: Etherscan V2 and Helius only accept their key as a URL query param
+   * (`?apikey=` / `?api-key=`) — header auth either 401s or isn't supported.
+   * That URL can leak back to scripts via:
    *  - Response bodies that echo the request (some Etherscan errors do this)
    *  - Fetch exception messages that include the URL (DNS errors, redirects)
    *
@@ -224,9 +236,11 @@ export class ScriptExecutionService {
     if (!s) return s;
     const eth = this.configService.get<string>('ETHERSCAN_API_KEY');
     const tron = this.configService.get<string>('TRONSCAN_API_KEY');
+    const helius = this.configService.get<string>('HELIUS_API_KEY');
     let out = s;
     if (eth) out = out.split(eth).join('<REDACTED>');
     if (tron) out = out.split(tron).join('<REDACTED>');
+    if (helius) out = out.split(helius).join('<REDACTED>');
     return out;
   }
 

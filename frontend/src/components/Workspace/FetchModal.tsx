@@ -8,8 +8,10 @@ import { SUPPORTED_CHAINS } from '@/services/types';
 import { Trace, TransactionEdge } from '@/types/investigation';
 import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
 import { classifyBtcRow } from '@/utils/btcRowDisplay';
+import { classifySolanaRow } from '@/utils/classifySolanaRow';
 import { evidenceTitle } from '@/utils/utxoDisplay';
 import { edgeIdentityKey } from '../../generated/shared/edge-identity';
+import { usesCursorPagination } from '../../generated/shared/chains';
 
 interface FetchModalProps {
   initialAddress?: string;
@@ -68,6 +70,38 @@ function BtcBadges({ tx, fetchedAddress }: { tx: TransactionEdge; fetchedAddress
   );
 }
 
+/** Solana-only row badges (direction, token symbol, spam?). Renders nothing for non-Solana rows. */
+function SolBadges({ tx, fetchedAddress }: { tx: TransactionEdge; fetchedAddress: string }) {
+  const info = classifySolanaRow(tx, fetchedAddress);
+  if (!info) return null;
+
+  const dirClass =
+    info.direction === 'in'
+      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      : info.direction === 'out'
+      ? 'bg-red-50 text-red-700 border-red-200'
+      : 'bg-surface-raised text-ink-muted border-line';
+  const dirLabel = info.direction === 'in' ? 'In' : info.direction === 'out' ? 'Out' : 'Self';
+  const tok = normalizeToken(tx.token);
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      <span className={`${BADGE_CLASS} ${dirClass}`}>{dirLabel}</span>
+      <span className={`${BADGE_CLASS} bg-surface-raised text-ink-muted border-line`}>
+        {tok.symbol}
+      </span>
+      {info.isSpam && (
+        <span
+          className={`${BADGE_CLASS} bg-amber-50 text-amber-700 border-amber-200`}
+          title={evidenceTitle(info.evidence)}
+        >
+          spam?
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function FetchModal({
   initialAddress = '',
   initialChain = 'ethereum',
@@ -109,14 +143,20 @@ export function FetchModal({
   const newResults = useMemo(() => results?.filter((tx) => !isDuplicate.get(tx.id)) ?? [], [results, isDuplicate]);
 
   const hasBtcRows = useMemo(() => !!results?.some((tx) => !!tx.utxo), [results]);
+  const hasSolanaRows = useMemo(() => !!results?.some((tx) => !!tx.solana), [results]);
 
   // Rows eligible for the "select all" bulk-toggle. Change-flagged BTC rows
-  // are excluded — they default to unchecked and require a deliberate manual
-  // click, since an investigator should confirm a change output before it's
-  // treated as a real counterparty transfer. Non-BTC rows are always eligible
-  // (classifyBtcRow returns null -> isChange is never true for them).
+  // and spam-flagged Solana rows are excluded — they default to unchecked
+  // and require a deliberate manual click, since an investigator should
+  // confirm a change output (or a spam airdrop) before it's treated as a
+  // real counterparty transfer. Rows outside these chains are always
+  // eligible (classifyBtcRow/classifySolanaRow return null for them, so
+  // isChange/isSpam are never true).
   const selectableResults = useMemo(
-    () => newResults.filter((tx) => !classifyBtcRow(tx, fetchedAddress)?.isChange),
+    () =>
+      newResults.filter(
+        (tx) => !classifyBtcRow(tx, fetchedAddress)?.isChange && !classifySolanaRow(tx, fetchedAddress)?.isSpam,
+      ),
     [newResults, fetchedAddress],
   );
 
@@ -129,21 +169,22 @@ export function FetchModal({
     setSelected(new Set());
     try {
       const res = await apiClient.fetchHistory(addr, chain, {
-        ...(chain !== 'bitcoin' && startBlock ? { startBlock: parseInt(startBlock) } : {}),
-        ...(chain !== 'bitcoin' && endBlock ? { endBlock: parseInt(endBlock) } : {}),
+        ...(!usesCursorPagination(chain) && startBlock ? { startBlock: parseInt(startBlock) } : {}),
+        ...(!usesCursorPagination(chain) && endBlock ? { endBlock: parseInt(endBlock) } : {}),
         ...(startDate ? { startDate } : {}),
         ...(endDate ? { endDate } : {}),
-        ...(chain === 'bitcoin' ? { maxTotal: limit } : { offset: limit }),
+        ...(usesCursorPagination(chain) ? { maxTotal: limit } : { offset: limit }),
         sort,
       });
       const rows = res.transactions as TransactionEdge[];
       setFetchedAddress(addr);
       setResults(rows);
-      // Auto-select all non-duplicates, excluding change-flagged BTC rows.
+      // Auto-select all non-duplicates, excluding change-flagged BTC rows and
+      // spam-flagged Solana rows.
       setSelected(new Set(
         rows
           .filter((tx) => !existingTxKeys.has(edgeIdentityKey(tx, tx.from, tx.to)))
-          .filter((tx) => !classifyBtcRow(tx, addr)?.isChange)
+          .filter((tx) => !classifyBtcRow(tx, addr)?.isChange && !classifySolanaRow(tx, addr)?.isSpam)
           .map((tx) => tx.id)
       ));
     } catch (err: any) {
@@ -256,7 +297,7 @@ export function FetchModal({
                 className={fieldClass}
               />
             </div>
-            {chain !== 'bitcoin' && (
+            {!usesCursorPagination(chain) && (
               <div>
                 <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
                   Start Block <span className="text-ink-faint normal-case font-normal">(optional)</span>
@@ -271,7 +312,7 @@ export function FetchModal({
                 />
               </div>
             )}
-            {chain !== 'bitcoin' && (
+            {!usesCursorPagination(chain) && (
               <div>
                 <label className="text-xs font-semibold text-ink-muted uppercase block mb-1">
                   End Block <span className="text-ink-faint normal-case font-normal">(optional)</span>
@@ -344,7 +385,7 @@ export function FetchModal({
                       <th className="px-3 py-2">Token</th>
                       <th className="px-3 py-2">From</th>
                       <th className="px-3 py-2">To</th>
-                      {hasBtcRows && <th className="px-3 py-2">Info</th>}
+                      {(hasBtcRows || hasSolanaRows) && <th className="px-3 py-2">Info</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -384,9 +425,10 @@ export function FetchModal({
                           <td className="px-3 py-1.5 text-ink-muted">{tok.symbol}</td>
                           <td className="px-3 py-1.5 font-mono text-ink-muted">{truncate(tx.from)}</td>
                           <td className="px-3 py-1.5 font-mono text-ink-muted">{truncate(tx.to)}</td>
-                          {hasBtcRows && (
+                          {(hasBtcRows || hasSolanaRows) && (
                             <td className="px-3 py-1.5">
                               <BtcBadges tx={tx} fetchedAddress={fetchedAddress} />
+                              <SolBadges tx={tx} fetchedAddress={fetchedAddress} />
                             </td>
                           )}
                         </tr>

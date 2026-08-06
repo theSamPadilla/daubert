@@ -517,6 +517,17 @@ export class TracesService {
     // the trace, so editing one would silently edit them all.
     const btcToken = () => ({ address: '', symbol: 'BTC', decimals: 8 });
 
+    // Mirrors btcToken(): Solana rows carry the human token symbol as a bare
+    // string (item.token) plus mint/decimals context separately on
+    // item.solana; rebuild the structured token object a TransactionEdge
+    // expects. Native SOL has no mint (address: '') and always 9 decimals —
+    // implied by `kind`, not carried on the context.
+    const solanaToken = (item: ImportTransactionItem) => ({
+      address: item.solana!.mint ?? '',
+      symbol: item.token,
+      decimals: item.solana!.kind === 'native' ? 9 : (item.solana!.decimals ?? 0),
+    });
+
     /**
      * Create the wallet node for `addr` unless this trace (or a sibling) already
      * has one, and return the id it resolves to.
@@ -534,10 +545,15 @@ export class TracesService {
     ): string | undefined => {
       const key = addressKey(addr);
       if (!existingAddresses.has(key) && !crossTraceAddressToId.has(key)) {
-        // Bitcoin only. `normalizeAddressForChain` lowercases EVM addresses, and
-        // EVM nodes have always persisted the address exactly as imported —
-        // applying it there would rewrite every existing import's node value.
-        const address = chain === 'bitcoin' ? normalizeAddressForChain(addr, chain) : addr;
+        // Bitcoin and Solana only. `normalizeAddressForChain` lowercases EVM
+        // addresses, and EVM nodes have always persisted the address exactly
+        // as imported — applying it there would rewrite every existing
+        // import's node value. Solana has no such legacy contract to
+        // preserve; routing it through the same trim-only normalization
+        // (case survives — Solana base58 is case-significant) keeps a
+        // whitespace-padded spelling from persisting unnormalized.
+        const address =
+          chain === 'bitcoin' || chain === 'solana' ? normalizeAddressForChain(addr, chain) : addr;
 
         const nodeId = crypto.randomUUID();
         const x = nextX + Math.floor(placed / 5) * 150;
@@ -730,6 +746,15 @@ export class TracesService {
         continue;
       }
 
+      // Unlike BTC (where an empty endpoint is a legitimate unattributed-incoming
+      // row that still gets a dangling-but-tolerated edge — see the per-endpoint
+      // guard below), Solana rows always carry a well-defined from/to: native and
+      // SPL transfers both name a real sender/receiver, so a missing one means
+      // malformed data. Skip the WHOLE row — never author a half-edge, never
+      // synthesize an endpoint — rather than just skipping node creation for it.
+      // Mirrors the client hook's same-named guard in useWalletTransactionAuthoring.ts.
+      if (chain === 'solana' && (!tx.from || !tx.to)) continue;
+
       // Auto-create wallet nodes for unknown addresses (skip if already in a sibling trace)
       for (const addr of [tx.from, tx.to]) {
         // A BTC row can legitimately have an empty endpoint (the normalizer
@@ -757,6 +782,11 @@ export class TracesService {
       // BTC token because its `amount` is satoshis. Bare BTC rows with no utxo
       // block keep the legacy string token and human-readable amounts.
       const isBtcLedgerRow = chain === 'bitcoin' && !!tx.utxo;
+      // Same idea for Solana: a row that carries per-transfer context gets the
+      // structured token rebuilt from it (see solanaToken() above) and keeps
+      // that context on the edge. Bare Solana rows (no context) keep the
+      // legacy string token — unchanged behavior.
+      const isSolanaContextRow = chain === 'solana' && !!tx.solana;
 
       existingEdges.push({
         id: crypto.randomUUID(),
@@ -766,7 +796,7 @@ export class TracesService {
         chain: tx.chain,
         timestamp: tx.timestamp,
         amount: tx.amount,
-        token: isBtcLedgerRow ? btcToken() : tx.token,
+        token: isBtcLedgerRow ? btcToken() : isSolanaContextRow ? solanaToken(tx) : tx.token,
         blockNumber: tx.blockNumber || 0,
         notes: '',
         tags: [],
@@ -782,6 +812,7 @@ export class TracesService {
               },
             }
           : {}),
+        ...(isSolanaContextRow ? { solana: tx.solana } : {}),
       });
 
       existingTxKeys.add(key);
@@ -847,10 +878,11 @@ export class TracesService {
       // for *each* of native + token. Keep Tron conservative — 50/page × 40 pages
       // × 2 sources = 80 sequential Tronscan calls/wallet; any more and active
       // wallets hit the rate limiter mid-pagination. EVM is faster per page,
-      // so 10× the headroom is fine. Bitcoin is capped much tighter — a single
-      // active address's history can run into the tens of thousands of rows,
-      // and searchBetween only needs enough to find cross-set matches.
-      maxTotal: dto.chain === 'bitcoin' ? 300 : dto.chain === 'tron' ? 2000 : 10000,
+      // so 10× the headroom is fine. Bitcoin and Solana are capped much
+      // tighter — a single active address's history can run into the tens of
+      // thousands of rows, and searchBetween only needs enough to find
+      // cross-set matches.
+      maxTotal: dto.chain === 'bitcoin' ? 300 : dto.chain === 'solana' ? 300 : dto.chain === 'tron' ? 2000 : 10000,
     };
 
     const addrs = [...toFetch];
@@ -942,6 +974,10 @@ export class TracesService {
     // result retains the payload importTransactions needs to build the
     // structured BTC token/ledger record (see Task 14).
     if (tx.utxo) item.utxo = tx.utxo;
+    // Solana provenance — carried through so an imported search result
+    // retains the per-transfer context importTransactions needs to rebuild
+    // the structured token object and dedup identity (see solanaToken()).
+    if (tx.solana) item.solana = tx.solana;
     return item;
   }
 }

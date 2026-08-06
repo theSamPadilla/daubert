@@ -74,6 +74,21 @@ describe('mapFetchedTx', () => {
     const item = mapFetchedTx(FETCHED_TX as never, 'ethereum');
     expect(item.utxo).toBeUndefined();
   });
+
+  it('carries solana through untouched (per-transfer provenance)', () => {
+    const solana = {
+      transferIndex: 0,
+      feePayer: 'FeePayerSoLanaAddressXXXXXXXXXXXXXXXXXXXXX',
+      kind: 'native' as const,
+    };
+    const item = mapFetchedTx({ ...FETCHED_TX, chain: 'solana', solana } as never, 'solana');
+    expect(item.solana).toBe(solana);
+  });
+
+  it('omits solana when the fetched row carries none (non-Solana rows)', () => {
+    const item = mapFetchedTx(FETCHED_TX as never, 'ethereum');
+    expect(item.solana).toBeUndefined();
+  });
 });
 
 describe('dedupeTxs', () => {
@@ -205,5 +220,17 @@ describe('runSeed', () => {
     );
     const opts = api.fetchHistory.mock.calls[0][2];
     expect(opts).not.toHaveProperty('maxTotal');
+  });
+
+  it('fetches solana with maxTotal (cursor-paginated, like bitcoin)', async () => {
+    api.fetchHistory.mockResolvedValue({ transactions: [], chain: 'solana', address: 'SoLwallet' });
+    await expect(runSeed('case-1', ['SoLwallet'], 'solana')).rejects.toThrow(SeedEmptyError);
+    expect(api.fetchHistory).toHaveBeenCalledWith(
+      'SoLwallet',
+      'solana',
+      expect.objectContaining({ maxTotal: 100 }),
+    );
+    const opts = api.fetchHistory.mock.calls[0][2];
+    expect(opts).not.toHaveProperty('offset');
   });
 });

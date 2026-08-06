@@ -3,6 +3,7 @@ import { apiClient } from '@/lib/api-client';
 import { parseTimestamp } from '@/utils/formatAmount';
 import type { components } from '@/generated/api-types';
 import { edgeIdentityKey } from '../generated/shared/edge-identity';
+import { usesCursorPagination } from '../generated/shared/chains';
 
 type ImportItem = components['schemas']['ImportTransactionItem'];
 
@@ -48,6 +49,8 @@ interface FetchedTx {
   toLabel?: string;
   /** UTXO provenance (Bitcoin only) — carried through verbatim to the import item. */
   utxo?: ImportItem['utxo'];
+  /** Per-transfer provenance (Solana only) — carried through verbatim to the import item. */
+  solana?: ImportItem['solana'];
 }
 
 /**
@@ -66,7 +69,9 @@ export function shortAddress(addr: string): string {
  * satisfies the `date-time` format regardless of whether the provider returned
  * ISO or unix-seconds. `utxo` (Bitcoin only) is carried through verbatim — it
  * is what lets a junction-flagged row be recognized and replanned client-side
- * (see `planJunction` / `useWalletTransactionAuthoring`).
+ * (see `planJunction` / `useWalletTransactionAuthoring`). `solana` (Solana
+ * only) is likewise carried through verbatim — it is what lets a per-transfer
+ * row be deduped and authored with its full provenance client-side.
  */
 export function mapFetchedTx(tx: FetchedTx, chain: string): ImportItem {
   const token = typeof tx.token === 'string' ? tx.token : tx.token?.symbol ?? '';
@@ -83,6 +88,7 @@ export function mapFetchedTx(tx: FetchedTx, chain: string): ImportItem {
   if (tx.fromLabel !== undefined) item.fromLabel = tx.fromLabel;
   if (tx.toLabel !== undefined) item.toLabel = tx.toLabel;
   if (tx.utxo !== undefined) item.utxo = tx.utxo;
+  if (tx.solana !== undefined) item.solana = tx.solana;
   return item;
 }
 
@@ -124,7 +130,7 @@ export async function runSeed(
     addresses.map((a) =>
       apiClient.fetchHistory(a, chain, {
         sort: 'desc',
-        ...(chain === 'bitcoin' ? { maxTotal: SEED_TX_LIMIT } : { offset: SEED_TX_LIMIT }),
+        ...(usesCursorPagination(chain) ? { maxTotal: SEED_TX_LIMIT } : { offset: SEED_TX_LIMIT }),
       }),
     ),
   );

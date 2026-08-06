@@ -34,7 +34,7 @@ FetchHistoryRequest:
           enum: [asc, desc]
         maxTotal:
           type: integer
-          description: Max total transactions to fetch (paginated internally). Used by the bitcoin provider.
+          description: Max total transactions to fetch (paginated internally). Used by the bitcoin and solana providers (cursor-paginated chains).
 
 FetchHistoryResponse:
   type: object
@@ -88,6 +88,8 @@ TransactionResult:
       type: boolean
     utxo:
       $ref: '#/UtxoContext'
+    solana:
+      $ref: '#/SolanaContext'
 
 # Single source of truth for UTXO provenance across the contract surface.
 # Referenced by TransactionResult (fetch results) and by
@@ -167,3 +169,52 @@ UtxoContext:
     junction:
       type: boolean
       description: Row should materialize as a tx-junction node.
+
+# Single source of truth for Solana per-transfer provenance across the
+# contract surface. Referenced by TransactionResult (fetch/detail results).
+# Mirrors `backend/src/modules/blockchain/types.ts#SolanaContext`.
+#
+# Stricter than the sibling UtxoContext (additionalProperties: false):
+# UtxoContext predates this convention and is left as-is to avoid an
+# unrelated contract change.
+SolanaContext:
+  type: object
+  description: Per-transfer provenance. Present only on rows from Solana.
+  required: [transferIndex, feePayer, kind]
+  additionalProperties: false
+  properties:
+    transferIndex:
+      type: integer
+      description: Position in [...nativeTransfers, ...tokenTransfers] for the source transaction.
+    feePayer:
+      type: string
+    kind:
+      type: string
+      enum: [native, spl]
+    mint:
+      type: string
+      description: SPL only.
+    decimals:
+      type: integer
+      description: SPL only (native SOL is 9, implied by the token object).
+    fromTokenAccount:
+      type: string
+      description: SPL only — raw token account, evidentiary.
+    toTokenAccount:
+      type: string
+      description: SPL only — raw token account, evidentiary.
+    type:
+      type: string
+      description: Helius tx type (TRANSFER, SWAP, ...).
+    source:
+      type: string
+      description: Helius source program (JUPITER, ...).
+    slot:
+      type: integer
+    spam:
+      type: boolean
+    spamEvidence:
+      type: array
+      maxItems: 10
+      items:
+        type: string

@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { TransactionEdge, Trace } from '@/types/investigation';
 import { formatTokenAmount } from '@/utils/formatAmount';
 import { classifyBtcRow } from '@/utils/btcRowDisplay';
+import { classifySolanaRow } from '@/utils/classifySolanaRow';
 import { ChangeBadge } from '@/components/Graph/details/UtxoBreakdown';
+import { evidenceTitle } from '@/utils/utxoDisplay';
 
 interface StagingPanelProps {
   items: TransactionEdge[];
@@ -38,6 +40,29 @@ function BtcBadges({ item }: { item: TransactionEdge }) {
       {info.isChange && <ChangeBadge evidence={info.changeEvidence} />}
       {info.isJunction && (
         <span className={`${CHIP_CLASS} bg-indigo-500/20 text-indigo-300`}>junction</span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Solana-only row badges for a staged item. Same address-less context as
+ * BtcBadges above (no "fetched for address X" metadata on staged rows), so
+ * direction is omitted here too — only the address-agnostic spam? flag is
+ * shown.
+ */
+function SolBadges({ item }: { item: TransactionEdge }) {
+  const info = classifySolanaRow(item, '');
+  if (!info) return null;
+  return (
+    <span className="flex items-center gap-1">
+      {info.isSpam && (
+        <span
+          className={`${CHIP_CLASS} bg-amber-500/20 text-amber-300`}
+          title={evidenceTitle(info.evidence)}
+        >
+          spam?
+        </span>
       )}
     </span>
   );
@@ -110,6 +135,7 @@ export function StagingPanel({ items, traces, onAddToTrace, onClear }: StagingPa
             <span className="text-canvas-muted">-&gt;</span>
             <span className="font-mono text-canvas-muted">{truncateAddr(item.to)}</span>
             <BtcBadges item={item} />
+            <SolBadges item={item} />
             <span className="ml-auto text-canvas-muted">
               {formatTokenAmount(item.amount, item.token.decimals)} {item.token.symbol}
             </span>

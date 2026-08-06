@@ -19,6 +19,7 @@ const mockConfig = {
     const env: Record<string, string> = {
       ETHERSCAN_API_KEY: 'test-eth-key',
       TRONSCAN_API_KEY: 'test-tron-key',
+      HELIUS_API_KEY: 'test-helius-key',
       API_URL: 'http://localhost:8081',
       NODE_ENV: 'development',
     };
@@ -162,11 +163,13 @@ describe('ScriptExecutionService (sandbox)', () => {
       console.log("API:" + process.env.API_URL);
       console.log("ETH:" + (process.env.ETHERSCAN_API_KEY || "undefined"));
       console.log("TRON:" + (process.env.TRONSCAN_API_KEY || "undefined"));
+      console.log("HELIUS:" + (process.env.HELIUS_API_KEY || "undefined"));
     `;
     const { output } = await service.execute('case-1', 'inv-1', 'test', code, 'viewer');
     expect(output).toContain('API:http://localhost:8081');
     expect(output).toContain('ETH:undefined');
     expect(output).toContain('TRON:undefined');
+    expect(output).toContain('HELIUS:undefined');
   });
 
   it('does not expose HOME, PATH, DATABASE_URL, or any system env vars', async () => {
@@ -275,6 +278,34 @@ describe('ScriptExecutionService (sandbox)', () => {
     expect(Buffer.byteLength(output)).toBeLessThanOrEqual(MAX_OUTPUT_BYTES + 200);
   });
 
+  // --- API key injection ---
+
+  describe('injectApiKey — Helius (Solana)', () => {
+    it('injects api-key into the query string for mainnet.helius-rpc.com', () => {
+      const url = (service as any).injectApiKey(
+        'https://mainnet.helius-rpc.com/v0/addresses/SoLxyz/transactions',
+        {},
+      );
+      const parsed = new URL(url);
+      expect(parsed.searchParams.get('api-key')).toBe('test-helius-key');
+    });
+
+    it('does not overwrite an already-present api-key param', () => {
+      const url = (service as any).injectApiKey(
+        'https://mainnet.helius-rpc.com/v0/transactions?api-key=caller-supplied',
+        {},
+      );
+      const parsed = new URL(url);
+      expect(parsed.searchParams.get('api-key')).toBe('caller-supplied');
+    });
+
+    it('does not match a lookalike host (evil-helius-rpc.com)', () => {
+      const url = (service as any).injectApiKey('https://evil-helius-rpc.com/v0/transactions', {});
+      expect(url).toBe('https://evil-helius-rpc.com/v0/transactions');
+      expect(url).not.toContain('api-key');
+    });
+  });
+
   // --- Secret redaction ---
 
   it('redacts ETHERSCAN_API_KEY from arbitrary strings', () => {
@@ -290,6 +321,14 @@ describe('ScriptExecutionService (sandbox)', () => {
       'header TRON-PRO-API-KEY=test-tron-key in request',
     );
     expect(out).not.toContain('test-tron-key');
+    expect(out).toContain('<REDACTED>');
+  });
+
+  it('redacts HELIUS_API_KEY from arbitrary strings', () => {
+    const out = (service as any).redactSecrets(
+      'GET https://mainnet.helius-rpc.com/v0/transactions?api-key=test-helius-key',
+    );
+    expect(out).not.toContain('test-helius-key');
     expect(out).toContain('<REDACTED>');
   });
 

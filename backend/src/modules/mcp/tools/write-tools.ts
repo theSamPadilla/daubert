@@ -118,6 +118,29 @@ const utxoContextSchema = z.strictObject({
   junction: z.boolean().optional(),
 });
 
+// Solana per-transfer provenance. Same layer, same reasoning as utxo above,
+// and `strictObject` for the same reason: a model that invents a field inside
+// `solana` (or misspells `transferIndex`) must be REJECTED loudly, not quietly
+// obeyed — a dropped transferIndex collapses every leg of a multi-transfer
+// signature onto one edge identity.
+//
+// Mirrors `traces/dto/import-transactions.dto.ts#SolanaContextDto` and
+// `blockchain/types.ts#SolanaContext`.
+const solanaContextSchema = z.strictObject({
+  transferIndex: z.number(),
+  feePayer: z.string(),
+  kind: z.enum(['native', 'spl']),
+  mint: z.string().optional(),
+  decimals: z.number().optional(),
+  fromTokenAccount: z.string().optional(),
+  toTokenAccount: z.string().optional(),
+  type: z.string().optional(),
+  source: z.string().optional(),
+  slot: z.number().optional(),
+  spam: z.boolean().optional(),
+  spamEvidence: z.array(z.string()).max(10).optional(),
+});
+
 export const importTxItemSchema = z.object({
   from: z.string(),
   to: z.string(),
@@ -130,6 +153,7 @@ export const importTxItemSchema = z.object({
   fromLabel: z.string().optional(),
   toLabel: z.string().optional(),
   utxo: utxoContextSchema.optional(),
+  solana: solanaContextSchema.optional(),
 });
 
 @Injectable()
@@ -261,9 +285,10 @@ export class WriteToolsService {
             if (t.blockNumber !== undefined) item.blockNumber = t.blockNumber;
             if (t.fromLabel !== undefined) item.fromLabel = t.fromLabel;
             if (t.toLabel !== undefined) item.toLabel = t.toLabel;
-            // UTXO provenance rides through untouched — zod already validated
-            // its shape, and the DTO class is a plain data holder.
+            // UTXO / Solana provenance rides through untouched — zod already
+            // validated the shape, and the DTO class is a plain data holder.
             if (t.utxo !== undefined) item.utxo = t.utxo;
+            if (t.solana !== undefined) item.solana = t.solana;
             return item;
           });
 

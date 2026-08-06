@@ -419,6 +419,8 @@ export const apiClient = {
         token: { address: string; symbol: string; decimals: number };
       }>;
       isError: boolean;
+      /** Per-transfer provenance (Solana only) — carried through so QuickAdd can dedup against fetch-path edges via the same edge identity key. */
+      solana?: components['schemas']['SolanaContext'];
     }>('/blockchain/get-transaction', {
       method: 'POST',
       body: JSON.stringify({ txHash, chain }),

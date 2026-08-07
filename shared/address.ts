@@ -27,6 +27,15 @@ export function isSolanaAddress(addr: string): boolean {
 }
 
 /**
+ * Solana System Program — the zero pubkey (32 zero bytes → 32 base58 '1's).
+ * The one well-known Solana address that collides with the Bitcoin legacy
+ * base58 shape; validateAddressForChain exempts it from BTC-first overlap
+ * resolution. (Other reserved addresses like the incinerator are 42+ chars,
+ * outside Bitcoin's 25-34 char window.)
+ */
+export const SOLANA_SYSTEM_PROGRAM = '11111111111111111111111111111111';
+
+/**
  * Any valid blockchain address (EVM, Tron, Bitcoin, or Solana).
  *
  * The prefixes are no longer mutually exclusive: a 32-34 char base58 string
@@ -36,8 +45,9 @@ export function isSolanaAddress(addr: string): boolean {
  * resolves such overlaps BTC-first, because a genuine Solana pubkey that
  * short would need roughly 5 leading zero bytes to base58-encode into so few
  * characters — astronomically rare in practice. Chain-explicit validation
- * (validateAddressForChain) is unaffected by the overlap since it checks
- * against a single chain's shape, not the combined union.
+ * (validateAddressForChain) applies the same BTC-first policy: a BTC-shaped
+ * address passed with chain 'solana' is rejected with a corrective message,
+ * mirroring the existing Tron-shape rejection.
  */
 export const ADDRESS_RE =
   /^(?:0x[0-9a-fA-F]{40}|T[1-9A-HJ-NP-Za-km-z]{33}|[13][1-9A-HJ-NP-Za-km-z]{24,33}|bc1[02-9ac-hj-np-z]{11,87}|[1-9A-HJ-NP-Za-km-z]{32,44})$/;
@@ -91,11 +101,21 @@ export function validateAddressForChain(addr: string, chain: string): string | n
     return null;
   }
   if (chain === 'solana') {
-    // A Tron address (T + 33 base58 chars = 34 total) falls inside Solana's
-    // 32-44 char base58 window and every character is valid base58 — the
-    // shapes overlap. Reject the Tron shape explicitly rather than let it
-    // pass as a "valid" Solana address.
-    if (!isSolanaAddress(addr) || isTronAddress(addr)) {
+    // Tron (T + 33 base58 chars = 34 total) and legacy Bitcoin (1…/3…,
+    // 25-34 chars) addresses both fall inside Solana's 32-44 char base58
+    // window with every character valid base58 — the shapes overlap. Reject
+    // both explicitly, with a corrective message naming the likely chain: a
+    // genuine Solana pubkey short enough to collide with either shape would
+    // need several leading zero bytes, astronomically rare in practice.
+    // (Bech32 bc1… fails the base58 charset anyway, but gets the same
+    // corrective Bitcoin message rather than the generic one.)
+    if (isTronAddress(addr)) {
+      return 'this address matches the Tron shape (T + 33 base58 chars) — use chain "tron", not "solana"';
+    }
+    if (addr !== SOLANA_SYSTEM_PROGRAM && isBtcAddress(addr)) {
+      return 'this address matches a Bitcoin shape (legacy 1…/3… base58 or bech32 bc1…) — use chain "bitcoin", not "solana"';
+    }
+    if (!isSolanaAddress(addr)) {
       return 'solana requires a base58 address (32-44 chars)';
     }
     return null;

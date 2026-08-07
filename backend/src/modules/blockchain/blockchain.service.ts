@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ProviderRegistry } from './provider-registry';
+import { validateAddressForChain } from '../../generated/shared/address';
 import { TokenResolver } from './token-resolver';
 import {
   CHAIN_CONFIGS,
@@ -80,11 +81,26 @@ export class BlockchainService {
 
   constructor(private providerRegistry: ProviderRegistry) {}
 
+  /**
+   * Reject an address whose shape doesn't match the requested chain BEFORE
+   * any provider call. Guards against chain misclassification by callers —
+   * notably an LLM agent passing a legacy Bitcoin address (1…/3… base58,
+   * shape-identical to a Solana pubkey) with chain 'solana', which would
+   * otherwise silently query Helius and return nothing. The corrective
+   * error message names the likely intended chain so the caller can
+   * self-correct in one round trip.
+   */
+  private assertAddressMatchesChain(address: string, chain: string): void {
+    const err = validateAddressForChain(address, chain);
+    if (err) throw new BadRequestException(err);
+  }
+
   async fetchHistory(
     address: string,
     chain: string,
     options?: FetchOptions & { startDate?: string; endDate?: string },
   ): Promise<FetchHistoryResult> {
+    this.assertAddressMatchesChain(address, chain);
     const normalized = this.normalizeOptions(options);
 
     if (chain === 'bitcoin') {
@@ -364,6 +380,7 @@ export class BlockchainService {
     address: string,
     chain: string,
   ): Promise<AddressInfoResult> {
+    this.assertAddressMatchesChain(address, chain);
     if (chain === 'bitcoin') {
       const raw = await this.providerRegistry.getUtxo('bitcoin').getAddressInfo(address);
       return {

@@ -9,6 +9,8 @@ description: Helius parsed-transaction API reference (mainnet.helius-rpc.com) fo
 
 > **API keys are injected automatically.** Do not include `api-key` in your query parameters — the sandbox adds it for you.
 
+> **Address sanity check before querying:** an address starting with `1`, `3`, or `bc1` is **Bitcoin, not Solana** — legacy Bitcoin addresses are shape-valid base58 and look exactly like Solana pubkeys. Use the `bitcoin-apis` skill (Esplora) for those. Only bare base58 strings (32-44 chars) matching no other chain's shape are Solana.
+
 ## Endpoints
 
 ### `GET /v0/addresses/:address/transactions`

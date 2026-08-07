@@ -42,7 +42,10 @@ function stubBlockchainProvider(
   } as unknown as jest.Mocked<BlockchainProvider>;
 }
 
-const A = 'bc1qsubjectaddress0000000000000000000000';
+// Shape-valid bech32 (BIP-173 test vector) — fetchHistory/getAddressInfo now
+// reject addresses whose shape doesn't match the chain, so fixtures must pass
+// validateAddressForChain.
+const A = 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq';
 
 function vin(overrides: Partial<EsploraVin> = {}): EsploraVin {
   return {
@@ -335,7 +338,7 @@ describe('BlockchainService', () => {
       provider.getTransactions.mockResolvedValue(txs);
       provider.getTokenTransfers.mockResolvedValue([]);
 
-      const result = await service.fetchHistory('0xADDRESS', 'ethereum');
+      const result = await service.fetchHistory('0xabababababababababababababababababababab', 'ethereum');
 
       expect(getUtxo).not.toHaveBeenCalled();
       expect(getSolana).not.toHaveBeenCalled();
@@ -353,7 +356,7 @@ describe('BlockchainService', () => {
       provider.getTransactions.mockResolvedValue(txs);
       provider.getTokenTransfers.mockResolvedValue([]);
 
-      const result = await service.fetchHistory('0xADDRESS', 'ethereum');
+      const result = await service.fetchHistory('0xabababababababababababababababababababab', 'ethereum');
 
       expect(result.transactions).toHaveLength(1);
     });
@@ -610,6 +613,52 @@ describe('BlockchainService', () => {
         expect(getUtxo).not.toHaveBeenCalled();
         expect(result).toEqual({ address: SOL_A, addressType: 'wallet', balance: '999999', label: undefined });
       });
+    });
+  });
+
+  describe('address/chain shape guard', () => {
+    // Every provider getter throws — proving validation rejects BEFORE any
+    // provider is touched. This is the backstop for the Bitcoin/Solana base58
+    // ambiguity: a legacy 1…/3… address passed with chain 'solana' must bounce
+    // with a corrective error instead of silently querying Helius.
+    let service: BlockchainService;
+
+    beforeEach(() => {
+      const registry = {
+        get: jest.fn(() => { throw new Error('provider must not be reached'); }),
+        getUtxo: jest.fn(() => { throw new Error('provider must not be reached'); }),
+        getSolana: jest.fn(() => { throw new Error('provider must not be reached'); }),
+      } as unknown as ProviderRegistry;
+      service = new BlockchainService(registry);
+    });
+
+    const BTC_LEGACY = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa';
+    const SOLANA_SYSTEM_PROGRAM = '11111111111111111111111111111111';
+
+    it('fetchHistory rejects a legacy BTC address on chain solana with a corrective message', async () => {
+      await expect(service.fetchHistory(BTC_LEGACY, 'solana')).rejects.toThrow(
+        'use chain "bitcoin", not "solana"',
+      );
+    });
+
+    it('getAddressInfo rejects a legacy BTC address on chain solana', async () => {
+      await expect(service.getAddressInfo(BTC_LEGACY, 'solana')).rejects.toThrow(
+        'use chain "bitcoin", not "solana"',
+      );
+    });
+
+    it('fetchHistory rejects a BTC address on chain ethereum', async () => {
+      await expect(service.fetchHistory(BTC_LEGACY, 'ethereum')).rejects.toThrow(
+        'ethereum requires an EVM address',
+      );
+    });
+
+    it('the Solana System Program is exempt from BTC-first overlap resolution', async () => {
+      // Shape-collides with BTC legacy (32 base58 '1's) but is a genuine,
+      // well-known Solana address — must reach the provider, not bounce.
+      await expect(
+        service.getAddressInfo(SOLANA_SYSTEM_PROGRAM, 'solana'),
+      ).rejects.toThrow('provider must not be reached');
     });
   });
 });

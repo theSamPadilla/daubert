@@ -153,7 +153,7 @@ export class BlockchainToolsService {
       'blockchain_fetch_history',
       {
         description:
-          'Fetch the transaction history for a wallet or contract address on a supported chain. Returns native transactions and token transfers merged and sorted by timestamp (newest first). Use startDate/endDate (YYYY-MM-DD) to narrow the range; use maxTotal to cap the fetch.',
+          'Fetch the transaction history for a wallet or contract address on a supported chain. Returns native transactions and token transfers merged and sorted by timestamp (newest first). Use startDate/endDate (YYYY-MM-DD) to narrow the range; use maxTotal to cap the fetch. Chain from address shape: 0x+40hex → EVM chain; T+33 base58 → tron; bc1…, 1…, or 3… → bitcoin (a legacy 1…/3… address is also shape-valid base58 — it is bitcoin, not solana); other bare base58 (32-44 chars) → solana.',
         inputSchema: {
           address: z.string(),
           chain: chainSchema,
@@ -238,7 +238,7 @@ export class BlockchainToolsService {
       'blockchain_get_address_info',
       {
         description:
-          'Get basic information about a wallet or contract address: native balance, address type (wallet or contract), and an optional human-readable label.',
+          'Get basic information about a wallet or contract address: native balance, address type (wallet or contract), and an optional human-readable label. Chain from address shape: 0x+40hex → EVM chain; T+33 base58 → tron; bc1…, 1…, or 3… → bitcoin (a legacy 1…/3… address is also shape-valid base58 — it is bitcoin, not solana); other bare base58 (32-44 chars) → solana.',
         inputSchema: {
           address: z.string(),
           chain: chainSchema,

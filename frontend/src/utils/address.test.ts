@@ -79,7 +79,8 @@ describe('SOLANA_ADDRESS_RE / isSolanaAddress', () => {
     // legacy shape and the Solana shape. Auto-detection resolves BTC-first:
     // a genuine Solana pubkey this short needs ~5 leading zero bytes, which
     // is astronomically unlikely to occur by chance. Chain-explicit
-    // validation (validateAddressForChain) is unaffected by the overlap.
+    // validation (validateAddressForChain) applies the same BTC-first policy
+    // — see the solana rejection tests below.
     expect(BTC_BASE58_ADDRESS_RE.test(BTC_LEGACY)).toBe(true);
     expect(SOLANA_ADDRESS_RE.test(BTC_LEGACY)).toBe(true);
   });
@@ -197,7 +198,22 @@ describe('validateAddressForChain — solana', () => {
     // window, and every character is valid base58 — shape overlap with a
     // genuine Solana pubkey. A Tron address must never validate as Solana.
     const result = validateAddressForChain(TRON_ADDR, 'solana');
-    expect(result).toBe('solana requires a base58 address (32-44 chars)');
+    expect(result).toBe(
+      'this address matches the Tron shape (T + 33 base58 chars) — use chain "tron", not "solana"',
+    );
+  });
+
+  it('rejects Bitcoin-shaped addresses on chain solana with a corrective message', () => {
+    // BTC_LEGACY (34 chars, leading "1") is a shape-valid Solana string —
+    // this is the exact ambiguity that sent an agent to Helius for a Bitcoin
+    // address. Chain-explicit validation resolves the overlap BTC-first and
+    // points the caller at the right chain. All Bitcoin forms (legacy base58
+    // and bech32) get the same corrective message.
+    const expected =
+      'this address matches a Bitcoin shape (legacy 1…/3… base58 or bech32 bc1…) — use chain "bitcoin", not "solana"';
+    expect(validateAddressForChain(BTC_LEGACY, 'solana')).toBe(expected);
+    expect(validateAddressForChain(BTC_P2SH, 'solana')).toBe(expected);
+    expect(validateAddressForChain(BTC_BECH32_V0, 'solana')).toBe(expected);
   });
 });
 

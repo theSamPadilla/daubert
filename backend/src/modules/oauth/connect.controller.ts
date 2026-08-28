@@ -149,7 +149,7 @@ export class OAuthConnectController {
             'Select Daubert in each new thread: Perplexity does not keep custom connectors switched on between chats the way Claude and ChatGPT do.',
           ],
           note:
-            'Custom connectors need Perplexity Pro, Max, or Enterprise, and in the desktop app they are macOS-only. Daubert ships its house rules as MCP prompts, which Perplexity does not surface, so ask the agent to call get_skill with "daubert-overview" at the start of a session and it will pick up the conventions.',
+            'Custom connectors need Perplexity Pro, Max, or Enterprise.',
         },
       },
     };

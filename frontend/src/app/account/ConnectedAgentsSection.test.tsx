@@ -262,6 +262,42 @@ describe('<ConnectedAgentsSection />', () => {
     }
   });
 
+  it('opens on the surface named by ?agent= and focuses the instructions', async () => {
+    mockListOauthSessions.mockResolvedValue([]);
+    mockStartConnect.mockResolvedValue(START_CONNECT_RESPONSE);
+    window.history.pushState({}, '', '/account?connect=1&agent=perplexity#agents');
+
+    try {
+      render(<ConnectedAgentsSection />);
+
+      // Perplexity's steps are showing without anyone touching the dropdown.
+      expect(await screen.findByText(/Click Custom connector/i)).not.toBeNull();
+      expect(screen.queryByText(/Open Claude Desktop settings/i)).toBeNull();
+
+      // Focus landed on the panel rather than the top of the page.
+      await waitFor(() => {
+        expect(document.activeElement?.id).toBe('agent-instructions');
+      });
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
+
+  it('falls back to the default tab when ?agent= is unrecognised', async () => {
+    mockListOauthSessions.mockResolvedValue([]);
+    mockStartConnect.mockResolvedValue(START_CONNECT_RESPONSE);
+    window.history.pushState({}, '', '/account?connect=1&agent=bogus#agents');
+
+    try {
+      render(<ConnectedAgentsSection />);
+
+      // A stale link must not render an empty panel.
+      expect(await screen.findByText(/Open Claude Desktop settings/i)).not.toBeNull();
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
+
   it('does not auto-open connect instructions without ?connect=1', async () => {
     mockListOauthSessions.mockResolvedValue([]);
 

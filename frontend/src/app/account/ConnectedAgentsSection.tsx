@@ -44,7 +44,12 @@ function Banner({ message, onClose }: { message: string; onClose: () => void }) 
   );
 }
 
-function CopyButton({ text }: { text: string }) {
+/**
+ * Copy-to-clipboard control. Icon-only by default; pass `label` for the
+ * labelled variant used by the share-link row, which needs to say what it
+ * copies rather than relying on a tooltip.
+ */
+function CopyButton({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -57,13 +62,27 @@ function CopyButton({ text }: { text: string }) {
     }
   };
 
+  const Icon = copied ? FaCheck : FaCopy;
+
+  if (label) {
+    return (
+      <button
+        onClick={handleCopy}
+        className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-brand/40 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+      >
+        <Icon size={11} aria-hidden />
+        {copied ? 'Copied' : label}
+      </button>
+    );
+  }
+
   return (
     <button
       onClick={handleCopy}
       className="p-1.5 text-ink-faint hover:text-brand transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded"
       title="Copy"
     >
-      {copied ? <FaCheck size={12} /> : <FaCopy size={12} />}
+      <Icon size={12} />
     </button>
   );
 }
@@ -82,6 +101,8 @@ function CopyableField({ label, value }: { label: string; value: string }) {
 
 interface ConnectPanelProps {
   response: StartConnectResponse;
+  /** Surface to open on, resolved from an ?agent=… deep link. */
+  initialTab?: ConnectTab;
 }
 
 type ConnectTab = 'claudeApps' | 'chatgpt' | 'perplexity';
@@ -104,8 +125,29 @@ const PRIMARY_TABS: TabDef[] = [
  */
 const OTHER_TABS: TabDef[] = [{ key: 'perplexity', label: 'Perplexity' }];
 
+const ALL_TABS: TabDef[] = [...PRIMARY_TABS, ...OTHER_TABS];
+
 /** Every surface asks for the same connector name. */
 const CONNECTOR_NAME = 'Daubert';
+
+/**
+ * Resolves an `?agent=` value to a surface. Returns null for anything
+ * unrecognised so a stale or hand-edited link falls back to the default tab
+ * instead of rendering an empty panel.
+ */
+function tabFromParam(value: string | null): ConnectTab | null {
+  return ALL_TABS.find((t) => t.key === value)?.key ?? null;
+}
+
+/**
+ * Shareable link that opens the account page with the instructions already
+ * expanded on `tab` and the agents section scrolled into view. This is what
+ * gets handed to someone who needs to connect a specific assistant.
+ */
+function instructionsLink(tab: ConnectTab): string {
+  if (typeof window === 'undefined') return '';
+  return `${window.location.origin}/account?connect=1&agent=${tab}#agents`;
+}
 
 /** Shared tab styling — the dropdown trigger has to match the real tabs. */
 function tabClasses(active: boolean): string {
@@ -185,9 +227,10 @@ function OtherAgentsTab({
   );
 }
 
-function ConnectPanel({ response }: ConnectPanelProps) {
-  const [tab, setTab] = useState<ConnectTab>('claudeApps');
+function ConnectPanel({ response, initialTab }: ConnectPanelProps) {
+  const [tab, setTab] = useState<ConnectTab>(initialTab ?? 'claudeApps');
   const instructions = response.perSurfaceInstructions[tab];
+  const activeLabel = ALL_TABS.find((t) => t.key === tab)?.label ?? '';
 
   return (
     <div className="mt-5 rounded-xl border border-line bg-surface-panel overflow-hidden">
@@ -217,8 +260,15 @@ function ConnectPanel({ response }: ConnectPanelProps) {
         <OtherAgentsTab tab={tab} onSelect={setTab} />
       </div>
 
-      {/* Tab content */}
-      <div role="tabpanel" className="px-5 py-5 space-y-4">
+      {/* Tab content. tabIndex -1 so an ?agent=… deep link can move focus
+          here on arrival, which lands screen readers on the steps rather than
+          at the top of the account page. */}
+      <div
+        role="tabpanel"
+        id="agent-instructions"
+        tabIndex={-1}
+        className="px-5 py-5 space-y-4 focus:outline-none"
+      >
         {/* Numbered steps with colored badges */}
         <ol className="space-y-3">
           {instructions.steps.map((step, i) => (
@@ -247,6 +297,14 @@ function ConnectPanel({ response }: ConnectPanelProps) {
             <p className="text-xs text-ink-muted leading-relaxed">{instructions.note}</p>
           </div>
         )}
+
+        {/* Share row — hands someone a link that lands on exactly these steps. */}
+        <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
+          <p className="text-xs text-ink-faint leading-relaxed">
+            Opens the account page with the {activeLabel} steps already showing.
+          </p>
+          <CopyButton text={instructionsLink(tab)} label="Copy link" />
+        </div>
       </div>
     </div>
   );
@@ -265,6 +323,7 @@ export function ConnectedAgentsSection() {
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectResponse, setConnectResponse] = useState<StartConnectResponse | null>(null);
+  const [deepLinkTab, setDeepLinkTab] = useState<ConnectTab | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -282,15 +341,36 @@ export function ConnectedAgentsSection() {
     load();
   }, [load]);
 
-  // Deep link from the cases-page agent button: /account?connect=1#agents
-  // auto-opens the connect instructions. Read via window.location (client-only)
-  // to avoid the useSearchParams Suspense requirement.
+  // Deep link: /account?connect=1#agents auto-opens the connect instructions
+  // (the cases-page agent button), and an added &agent=<surface> opens them on
+  // that surface's tab (the "Copy link" button below). Read via
+  // window.location (client-only) to avoid the useSearchParams Suspense
+  // requirement.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('connect') === '1') {
+    const params = new URLSearchParams(window.location.search);
+    const requested = tabFromParam(params.get('agent'));
+    if (requested) setDeepLinkTab(requested);
+    if (params.get('connect') === '1' || requested) {
       handleConnect();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Once a deep-linked panel has rendered, pull it into view and move focus to
+  // it. The #agents hash alone is not enough: the section mounts after the
+  // sessions request resolves, so the browser has usually given up on the
+  // fragment by the time the element exists.
+  useEffect(() => {
+    if (!connectResponse || !deepLinkTab) return;
+    const el = document.getElementById('agent-instructions');
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    // Guarded: scrollIntoView is missing in jsdom and some embedded webviews,
+    // and a throw here would unmount the instructions the link exists to show.
+    if (typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [connectResponse, deepLinkTab]);
 
   const handleRevoke = async (session: OAuthSession) => {
     const ok = await confirm({
@@ -400,7 +480,15 @@ export function ConnectedAgentsSection() {
         )}
       </div>
 
-      {connectResponse && <ConnectPanel response={connectResponse} />}
+      {connectResponse && (
+        // key: if the deep-linked tab resolves after the panel first mounts,
+        // remount so the initial tab is honoured rather than ignored.
+        <ConnectPanel
+          key={deepLinkTab ?? 'default'}
+          response={connectResponse}
+          initialTab={deepLinkTab ?? undefined}
+        />
+      )}
     </Panel>
   );
 }

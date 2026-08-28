@@ -1,12 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { FaTrash, FaCopy, FaCheck, FaCircleInfo, FaTriangleExclamation } from 'react-icons/fa6';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  FaTrash,
+  FaCopy,
+  FaCheck,
+  FaCircleInfo,
+  FaTriangleExclamation,
+  FaChevronDown,
+} from 'react-icons/fa6';
 import { apiClient } from '@/lib/api-client';
 import type { components } from '@/generated/api-types';
 import { Loader } from '@/components/Common/Loader';
 import { useConfirm } from '@/components/Common/ConfirmProvider';
 import { useAuth } from '@/components/Auth/AuthProvider';
+import { SURFACE_ICONS, iconForAgentLabel } from '@/components/Agents/agentBrand';
 import { Button, Panel, Kicker } from '@/components/ui';
 
 type OAuthSession = components['schemas']['OAuthSessionSummary'];
@@ -76,15 +84,106 @@ interface ConnectPanelProps {
   response: StartConnectResponse;
 }
 
-type ConnectTab = 'claudeApps' | 'chatgpt';
+type ConnectTab = 'claudeApps' | 'chatgpt' | 'perplexity';
 
-const CONNECT_TABS: { key: ConnectTab; label: string }[] = [
+interface TabDef {
+  key: ConnectTab;
+  label: string;
+}
+
+/** Surfaces we have verified end-to-end — each gets its own tab. */
+const PRIMARY_TABS: TabDef[] = [
   { key: 'claudeApps', label: 'Claude' },
   { key: 'chatgpt', label: 'ChatGPT' },
 ];
 
-/** Both surfaces ask for the same connector name. */
+/**
+ * Surfaces behind the "Other agents" dropdown: supported on paper, but not
+ * verified by us. Keeping them off the main tab row stops an unverified path
+ * from reading as being on equal footing with Claude and ChatGPT.
+ */
+const OTHER_TABS: TabDef[] = [{ key: 'perplexity', label: 'Perplexity' }];
+
+/** Every surface asks for the same connector name. */
 const CONNECTOR_NAME = 'Daubert';
+
+/** Shared tab styling — the dropdown trigger has to match the real tabs. */
+function tabClasses(active: boolean): string {
+  return (
+    'flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ' +
+    (active
+      ? 'border-brand text-ink bg-surface-panel'
+      : 'border-transparent text-ink-muted hover:text-ink hover:bg-surface-raised')
+  );
+}
+
+/**
+ * The "Other agents" tab. Collapses to the selected agent's name once one is
+ * picked, so the active tab always says which instructions are on screen.
+ */
+function OtherAgentsTab({
+  tab,
+  onSelect,
+}: {
+  tab: ConnectTab;
+  onSelect: (key: ConnectTab) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selected = OTHER_TABS.find((t) => t.key === tab);
+  const Icon = selected ? SURFACE_ICONS[selected.key] : null;
+
+  return (
+    <div className="relative flex-1 flex" ref={ref}>
+      <button
+        role="tab"
+        aria-selected={selected !== undefined}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={tabClasses(selected !== undefined)}
+      >
+        {Icon && <Icon size={14} aria-hidden />}
+        {selected ? selected.label : 'Other agents'}
+        <FaChevronDown size={10} aria-hidden className="text-ink-faint" />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-20 mt-1 w-52 rounded-xl border border-line bg-surface py-1 shadow-[0_24px_60px_-30px_rgba(11,18,32,0.18)]"
+        >
+          {OTHER_TABS.map((t) => {
+            const ItemIcon = SURFACE_ICONS[t.key];
+            return (
+              <button
+                key={t.key}
+                role="menuitem"
+                onClick={() => {
+                  onSelect(t.key);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-ink-soft transition-colors hover:bg-surface-raised"
+              >
+                <ItemIcon size={14} aria-hidden className="text-ink-faint" />
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ConnectPanel({ response }: ConnectPanelProps) {
   const [tab, setTab] = useState<ConnectTab>('claudeApps');
@@ -100,22 +199,22 @@ function ConnectPanel({ response }: ConnectPanelProps) {
 
       {/* Tabs */}
       <div role="tablist" className="flex border-b border-line bg-surface">
-        {CONNECT_TABS.map((t) => (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
-            className={
-              'flex-1 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ' +
-              (tab === t.key
-                ? 'border-brand text-ink bg-surface-panel'
-                : 'border-transparent text-ink-muted hover:text-ink hover:bg-surface-raised')
-            }
-          >
-            {t.label}
-          </button>
-        ))}
+        {PRIMARY_TABS.map((t) => {
+          const Icon = SURFACE_ICONS[t.key];
+          return (
+            <button
+              key={t.key}
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              className={tabClasses(tab === t.key)}
+            >
+              <Icon size={14} aria-hidden />
+              {t.label}
+            </button>
+          );
+        })}
+        <OtherAgentsTab tab={tab} onSelect={setTab} />
       </div>
 
       {/* Tab content */}
@@ -251,9 +350,16 @@ export function ConnectedAgentsSection() {
               </tr>
             </thead>
             <tbody>
-              {sessions.map((s) => (
+              {sessions.map((s) => {
+                const AgentIcon = iconForAgentLabel(s.surfaceLabel);
+                return (
                 <tr key={s.id} className="border-b border-line hover:bg-surface-panel transition-colors">
-                  <td className="px-4 py-3 text-sm text-ink">{s.surfaceLabel}</td>
+                  <td className="px-4 py-3 text-sm text-ink">
+                    <span className="flex items-center gap-2">
+                      <AgentIcon size={14} aria-hidden className="flex-shrink-0 text-ink-muted" />
+                      {s.surfaceLabel}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-sm text-ink-muted">{orgName(s.organizationId)}</td>
                   <td className="px-4 py-3 text-sm text-ink-muted">
                     {s.lastUsedAt ? formatDate(s.lastUsedAt) : 'Never'}
@@ -269,7 +375,8 @@ export function ConnectedAgentsSection() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

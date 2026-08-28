@@ -79,6 +79,11 @@ const START_CONNECT_RESPONSE = {
     chatgpt: {
       steps: ['Turn on developer mode under Settings, Plugins, Advanced.'],
     },
+    perplexity: {
+      steps: ['Click Custom connector, then choose Remote.'],
+      warning: 'This path is untested and may not connect.',
+      note: 'Custom connectors need Perplexity Pro, Max, or Enterprise.',
+    },
   },
 };
 
@@ -212,6 +217,34 @@ describe('<ConnectedAgentsSection />', () => {
     expect(screen.queryByText(/Open Claude Desktop settings/i)).toBeNull();
     expect(screen.queryByText(/Always allow beats Allow once/i)).toBeNull();
     expect(screen.queryByText(/Team plans need an admin/i)).toBeNull();
+  });
+
+  it('reaches the Perplexity instructions through the Other agents dropdown', async () => {
+    mockListOauthSessions.mockResolvedValue([]);
+    mockStartConnect.mockResolvedValue(START_CONNECT_RESPONSE);
+
+    render(<ConnectedAgentsSection />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /connect an agent/i }));
+    });
+    await waitFor(() => {
+      expect(mockStartConnect).toHaveBeenCalledTimes(1);
+    });
+
+    // Perplexity is NOT a top-level tab — it lives behind the dropdown.
+    expect(screen.queryByRole('tab', { name: /perplexity/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole('tab', { name: /other agents/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /perplexity/i }));
+
+    expect(screen.getByText(/Click Custom connector/i)).not.toBeNull();
+    expect(screen.getByText(/untested and may not connect/i)).not.toBeNull();
+    expect(screen.getByText(/Pro, Max, or Enterprise/i)).not.toBeNull();
+    // The dropdown trigger now names the selected agent.
+    expect(screen.getByRole('tab', { name: /perplexity/i })).not.toBeNull();
+    // Claude's steps are gone.
+    expect(screen.queryByText(/Open Claude Desktop settings/i)).toBeNull();
   });
 
   it('auto-opens connect instructions when ?connect=1 is in the URL', async () => {

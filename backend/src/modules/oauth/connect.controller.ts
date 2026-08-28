@@ -51,6 +51,16 @@ export interface PerSurfaceInstructions {
   claudeApps: SurfaceInstructions;
   /** Setup instructions for ChatGPT. */
   chatgpt: SurfaceInstructions;
+  /**
+   * Setup instructions for Perplexity's custom remote connectors.
+   *
+   * Grouped under "Other agents" in the FE — unlike Claude and ChatGPT this
+   * path is UNVERIFIED: Perplexity's Dynamic Client Registration rejects
+   * responses without a `client_secret`, and Daubert is a PKCE-only public
+   * client that (correctly, per RFC 7591 §3.2.1) issues none. The `warning`
+   * says so rather than letting a test user assume they misconfigured it.
+   */
+  perplexity: SurfaceInstructions;
 }
 
 export interface StartConnectResponse {
@@ -131,6 +141,19 @@ export class OAuthConnectController {
             'Sign in and pick your organization: ChatGPT opens a browser tab where you sign in and choose which organization the agent may act on behalf of.',
             'Approve the tools as they come up: ChatGPT asks before each write, and its "remember" option only holds for the current conversation.',
           ],
+        },
+        perplexity: {
+          steps: [
+            'Open your connectors: Account settings → Connectors. On an Enterprise plan an admin must first turn on "Allow members to add custom connectors" under Enterprise settings → Connectors — it is off by default.',
+            'Add a custom connector: click "+ Custom connector" in the top-right, choose "Remote" in the pop-up, and fill in the two fields above.',
+            'Set Transport to "Streamable HTTP" and Authentication to "OAuth 2.0". Leave Client ID and Client Secret blank — Daubert publishes OAuth discovery at /.well-known/oauth-authorization-server, so Perplexity detects the endpoints itself. Leave Network access unset; Daubert is not behind Cloudflare Access.',
+            'Tick the acknowledgement box and click Add, then click the connector card to start the sign-in flow and choose which organization the agent may act on behalf of.',
+            'Select Daubert in each new thread: Perplexity does not keep custom connectors switched on between chats the way Claude and ChatGPT do.',
+          ],
+          warning:
+            'This path is untested and may not connect. Perplexity\'s Dynamic Client Registration asks for a public client and then rejects the answer for having no client secret — which is exactly what Daubert returns. If you see "Dynamic client registration did not return a client_secret", that is a bug on Perplexity\'s side, not a setting you got wrong; nothing in this form will fix it. Let us know either way, since we cannot test it ourselves.',
+          note:
+            'Custom connectors need Perplexity Pro, Max, or Enterprise, and in the desktop app they are macOS-only. Daubert ships its house rules as MCP prompts, which Perplexity does not surface — ask the agent to call get_skill with "daubert-overview" at the start of a session so it picks up the conventions.',
         },
       },
     };

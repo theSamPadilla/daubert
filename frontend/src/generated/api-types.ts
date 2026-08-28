@@ -2614,6 +2614,7 @@ export interface components {
             perSurfaceInstructions: {
                 claudeApps: components["schemas"]["SurfaceInstructions"];
                 chatgpt: components["schemas"]["SurfaceInstructions"];
+                perplexity: components["schemas"]["SurfaceInstructions"];
             };
         };
         SurfaceInstructions: {

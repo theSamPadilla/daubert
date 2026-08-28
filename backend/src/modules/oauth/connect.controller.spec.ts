@@ -265,12 +265,36 @@ describe('OAuthConnectController (unit)', () => {
       expect(joined).toContain('Plugins');
     });
 
-    it('exposes exactly two surface keys (claudeApps + chatgpt)', () => {
+    it('perplexity has ordered steps referencing the Custom connector form fields', () => {
+      const result = controller.startConnect();
+      const perplexity = result.perSurfaceInstructions.perplexity;
+
+      expect(Array.isArray(perplexity.steps)).toBe(true);
+      expect(perplexity.steps.length).toBeGreaterThanOrEqual(3);
+      const joined = perplexity.steps.join(' ');
+      expect(joined).toContain('Custom connector');
+      expect(joined).toContain('Streamable HTTP');
+      expect(joined).toContain('OAuth 2.0');
+    });
+
+    it('perplexity warns that the connection is untested and may fail on their side', () => {
+      const result = controller.startConnect();
+      const perplexity = result.perSurfaceInstructions.perplexity;
+
+      // The DCR bug is Perplexity's, not a user misconfiguration — the copy
+      // must say so, or test users will hunt for a setting that isn't there.
+      expect(perplexity.warning).toContain('untested');
+      expect(perplexity.warning).toContain('client_secret');
+      expect(perplexity.note).toContain('Pro, Max, or Enterprise');
+    });
+
+    it('exposes exactly three surface keys (claudeApps + chatgpt + perplexity)', () => {
       const result = controller.startConnect();
 
       expect(Object.keys(result.perSurfaceInstructions).sort()).toEqual([
         'chatgpt',
         'claudeApps',
+        'perplexity',
       ]);
     });
   });

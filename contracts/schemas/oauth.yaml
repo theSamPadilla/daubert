@@ -86,12 +86,14 @@ StartConnectResponse:
       description: The MCP server URL to paste into the OAuth client (e.g. Claude Desktop settings).
     perSurfaceInstructions:
       type: object
-      required: [claudeApps, chatgpt]
+      required: [claudeApps, chatgpt, perplexity]
       description: Structured setup instructions per surface.
       properties:
         claudeApps:
           $ref: '#/SurfaceInstructions'
         chatgpt:
+          $ref: '#/SurfaceInstructions'
+        perplexity:
           $ref: '#/SurfaceInstructions'
 
 AgentActionSummary:

@@ -40,17 +40,17 @@ import { OAuthService } from './oauth.service';
 export interface SurfaceInstructions {
   /** Ordered setup steps, rendered as a numbered list. */
   steps: string[];
+  /** Optional prominent warning shown above the note (e.g. a costly default). */
+  warning?: string;
   /** Optional caveat shown below the steps (e.g. Team/Enterprise plans). */
   note?: string;
-  /** Optional copyable terminal command. */
-  command?: string;
 }
 
 export interface PerSurfaceInstructions {
   /** Setup instructions for Claude Desktop, claude.ai, and Cowork. */
   claudeApps: SurfaceInstructions;
-  /** Setup instructions for Claude Code (terminal). */
-  claudeCode: SurfaceInstructions;
+  /** Setup instructions for ChatGPT. */
+  chatgpt: SurfaceInstructions;
 }
 
 export interface StartConnectResponse {
@@ -114,21 +114,23 @@ export class OAuthConnectController {
       perSurfaceInstructions: {
         claudeApps: {
           steps: [
-            'In Claude Desktop, claude.ai, or Cowork, open Settings → Customize → Connectors.',
-            'Scroll past the partner Directory and click the "+" (Add custom connector) button.',
-            'Name it "Daubert" and paste the MCP server URL above.',
-            'Leave Advanced settings empty. Daubert supports Dynamic Client Registration, so no client ID is needed.',
-            'Click Add. Claude opens a browser tab where you sign in and approve access.',
+            'Open your connectors: in Claude Desktop, claude.ai, or Cowork, go to Settings → Customize → Connectors. The old claude.ai/settings/connectors address is retired.',
+            'Add a custom connector: scroll past the partner Directory, click the "+", then "Add custom connector", and fill in the two fields above. Leave Advanced settings empty — Daubert supports Dynamic Client Registration, so there is no client ID.',
+            'Sign in and pick your organization: Claude opens a browser tab where you sign in and choose which organization the agent may act on behalf of.',
+            'Allow the tools once, not every time: reopen the connector, find Tool permissions, and set them to "Always allow".',
           ],
+          warning:
+            'Do not skip step 4. Claude\'s approval dialog puts "Allow once" in the primary white button and "Always allow" in the quieter button above it, so taking the default makes Claude ask you again on every single call — forever. Set Tool permissions from the connector instead.',
           note:
-            'On a Team or Enterprise plan? Your workspace admin must first register Daubert under Organization settings → Connectors; you\'ll then see a "Connect" button on the org-registered entry.',
+            'Claude only — on a Team or Enterprise plan? Your workspace admin must first register Daubert under Organization settings → Connectors; you\'ll then see a "Connect" button on the org-registered entry.',
         },
-        claudeCode: {
+        chatgpt: {
           steps: [
-            'Run the command below in your terminal.',
-            'Then run /mcp inside Claude Code and pick "daubert" to sign in via your browser.',
+            'Turn on developer mode: Settings → Plugins → Advanced, then enable developer mode. Custom MCP connectors do not appear until it is on, and the panel is called Plugins, not Connectors.',
+            'Create a connector: click Create and fill in the two fields above.',
+            'Sign in and pick your organization: ChatGPT opens a browser tab where you sign in and choose which organization the agent may act on behalf of.',
+            'Approve the tools as they come up: ChatGPT asks before each write, and its "remember" option only holds for the current conversation.',
           ],
-          command: `claude mcp add --transport http daubert ${mcpUrl}`,
         },
       },
     };

@@ -2613,16 +2613,16 @@ export interface components {
             /** @description Structured setup instructions per surface. */
             perSurfaceInstructions: {
                 claudeApps: components["schemas"]["SurfaceInstructions"];
-                claudeCode: components["schemas"]["SurfaceInstructions"];
+                chatgpt: components["schemas"]["SurfaceInstructions"];
             };
         };
         SurfaceInstructions: {
             /** @description Ordered setup steps, rendered as a numbered list. */
             steps: string[];
+            /** @description Optional prominent warning shown above the note (e.g. a costly default). */
+            warning?: string;
             /** @description Optional caveat shown below the steps (e.g. Team/Enterprise plans). */
             note?: string;
-            /** @description Optional copyable terminal command. */
-            command?: string;
         };
         AgentActionSummary: {
             /** Format: uuid */

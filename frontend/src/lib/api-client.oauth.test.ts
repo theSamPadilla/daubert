@@ -107,7 +107,7 @@ describe('revokeOauthSession', () => {
 // ---------------------------------------------------------------------------
 describe('startConnect', () => {
   it('issues POST /me/oauth/start-connect', async () => {
-    const body = { mcpUrl: 'https://mcp', perSurfaceInstructions: { claudeApps: 'a', claudeCode: 'b' } };
+    const body = { mcpUrl: 'https://mcp', perSurfaceInstructions: { claudeApps: 'a', chatgpt: 'b' } };
     const spy = mockFetch(200, body);
     const result = await apiClient.startConnect();
     const [url, opts] = spy.mock.calls[0] as [string, RequestInit];

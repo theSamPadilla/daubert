@@ -69,12 +69,12 @@ SurfaceInstructions:
       description: Ordered setup steps, rendered as a numbered list.
       items:
         type: string
+    warning:
+      type: string
+      description: Optional prominent warning shown above the note (e.g. a costly default).
     note:
       type: string
       description: Optional caveat shown below the steps (e.g. Team/Enterprise plans).
-    command:
-      type: string
-      description: Optional copyable terminal command.
 
 StartConnectResponse:
   type: object
@@ -86,12 +86,12 @@ StartConnectResponse:
       description: The MCP server URL to paste into the OAuth client (e.g. Claude Desktop settings).
     perSurfaceInstructions:
       type: object
-      required: [claudeApps, claudeCode]
+      required: [claudeApps, chatgpt]
       description: Structured setup instructions per surface.
       properties:
         claudeApps:
           $ref: '#/SurfaceInstructions'
-        claudeCode:
+        chatgpt:
           $ref: '#/SurfaceInstructions'
 
 AgentActionSummary:

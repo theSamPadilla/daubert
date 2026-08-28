@@ -73,11 +73,11 @@ const START_CONNECT_RESPONSE = {
   perSurfaceInstructions: {
     claudeApps: {
       steps: ['Open Claude Desktop settings.', 'Add a custom connector with the URL above.'],
-      note: 'Team plans need an admin to register the connector first.',
+      warning: 'Always allow beats Allow once — otherwise Claude asks every time.',
+      note: 'Claude only — Team plans need an admin to register the connector first.',
     },
-    claudeCode: {
-      steps: ['Run the command below in your terminal.'],
-      command: 'claude mcp add --transport http daubert https://mcp.example.com/sse',
+    chatgpt: {
+      steps: ['Turn on developer mode under Settings, Plugins, Advanced.'],
     },
   },
 };
@@ -197,17 +197,21 @@ describe('<ConnectedAgentsSection />', () => {
       expect(mockStartConnect).toHaveBeenCalledTimes(1);
     });
 
-    // mcpUrl should be visible in the UI
+    // Both copyable values should be visible in the UI
     expect(screen.getByText('https://mcp.example.com/sse')).not.toBeNull();
-    // Claude Apps tab is active by default: numbered steps + note visible
+    expect(screen.getByText('Daubert')).not.toBeNull();
+    // Claude tab is active by default: numbered steps + warning + note visible
     expect(screen.getByText(/Open Claude Desktop settings/i)).not.toBeNull();
+    expect(screen.getByText(/Always allow beats Allow once/i)).not.toBeNull();
     expect(screen.getByText(/Team plans need an admin/i)).not.toBeNull();
 
-    // Switch to the Claude Code tab: command becomes visible
-    fireEvent.click(screen.getByRole('tab', { name: /claude code/i }));
-    expect(screen.getByText(/claude mcp add --transport http/i)).not.toBeNull();
-    // Claude Apps steps are no longer shown
+    // Switch to the ChatGPT tab: its steps become visible
+    fireEvent.click(screen.getByRole('tab', { name: /chatgpt/i }));
+    expect(screen.getByText(/Turn on developer mode/i)).not.toBeNull();
+    // Claude steps, warning and note are no longer shown
     expect(screen.queryByText(/Open Claude Desktop settings/i)).toBeNull();
+    expect(screen.queryByText(/Always allow beats Allow once/i)).toBeNull();
+    expect(screen.queryByText(/Team plans need an admin/i)).toBeNull();
   });
 
   it('auto-opens connect instructions when ?connect=1 is in the URL', async () => {

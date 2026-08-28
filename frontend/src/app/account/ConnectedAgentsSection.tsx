@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { FaTrash, FaCopy, FaCheck, FaCircleInfo } from 'react-icons/fa6';
+import { FaTrash, FaCopy, FaCheck, FaCircleInfo, FaTriangleExclamation } from 'react-icons/fa6';
 import { apiClient } from '@/lib/api-client';
 import type { components } from '@/generated/api-types';
 import { Loader } from '@/components/Common/Loader';
@@ -60,16 +60,31 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+function CopyableField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <Kicker className="mb-1.5">{label}</Kicker>
+      <div className="flex items-center gap-2 rounded-lg border border-line bg-surface-raised px-3 py-2">
+        <code className="flex-1 text-sm text-brand font-mono break-all">{value}</code>
+        <CopyButton text={value} />
+      </div>
+    </div>
+  );
+}
+
 interface ConnectPanelProps {
   response: StartConnectResponse;
 }
 
-type ConnectTab = 'claudeApps' | 'claudeCode';
+type ConnectTab = 'claudeApps' | 'chatgpt';
 
 const CONNECT_TABS: { key: ConnectTab; label: string }[] = [
-  { key: 'claudeApps', label: 'Claude Desktop / claude.ai' },
-  { key: 'claudeCode', label: 'Claude Code (terminal)' },
+  { key: 'claudeApps', label: 'Claude' },
+  { key: 'chatgpt', label: 'ChatGPT' },
 ];
+
+/** Both surfaces ask for the same connector name. */
+const CONNECTOR_NAME = 'Daubert';
 
 function ConnectPanel({ response }: ConnectPanelProps) {
   const [tab, setTab] = useState<ConnectTab>('claudeApps');
@@ -77,13 +92,10 @@ function ConnectPanel({ response }: ConnectPanelProps) {
 
   return (
     <div className="mt-5 rounded-xl border border-line bg-surface-panel overflow-hidden">
-      {/* MCP server URL — pinned at top */}
-      <div className="px-5 py-4 border-b border-line bg-surface">
-        <Kicker className="mb-1.5">MCP Server URL</Kicker>
-        <div className="flex items-center gap-2 rounded-lg border border-line bg-surface-raised px-3 py-2">
-          <code className="flex-1 text-sm text-brand font-mono break-all">{response.mcpUrl}</code>
-          <CopyButton text={response.mcpUrl} />
-        </div>
+      {/* The two values every surface asks for — pinned at top */}
+      <div className="grid gap-3 px-5 py-4 border-b border-line bg-surface sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
+        <CopyableField label="Name" value={CONNECTOR_NAME} />
+        <CopyableField label="MCP Server URL" value={response.mcpUrl} />
       </div>
 
       {/* Tabs */}
@@ -123,12 +135,10 @@ function ConnectPanel({ response }: ConnectPanelProps) {
           ))}
         </ol>
 
-        {instructions.command && (
-          <div className="flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2.5">
-            <code className="flex-1 text-sm text-accent font-mono break-all">
-              {instructions.command}
-            </code>
-            <CopyButton text={instructions.command} />
+        {instructions.warning && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-redline/30 bg-redline/8 px-3 py-2.5">
+            <FaTriangleExclamation size={14} className="text-redline flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-ink leading-relaxed">{instructions.warning}</p>
           </div>
         )}
 

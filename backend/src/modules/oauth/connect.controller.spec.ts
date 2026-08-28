@@ -240,26 +240,37 @@ describe('OAuthConnectController (unit)', () => {
       const joined = apps.steps.join(' ');
       expect(joined).toContain('Connectors');
       expect(joined).toContain('Add custom connector');
+      expect(joined).toContain('Tool permissions');
       expect(apps.note).toContain('Organization settings');
-      expect(apps.command).toBeUndefined();
+      // The Team/Enterprise caveat is Claude-only and must say so.
+      expect(apps.note).toContain('Claude only');
     });
 
-    it('claudeCode carries the CLI command with --transport http and the mcpUrl', () => {
+    it('claudeApps warns that the default tool-permission button asks every time', () => {
       const result = controller.startConnect();
-      const code = result.perSurfaceInstructions.claudeCode;
+      const apps = result.perSurfaceInstructions.claudeApps;
 
-      expect(Array.isArray(code.steps)).toBe(true);
-      expect(code.command).toContain('claude mcp add');
-      expect(code.command).toContain('--transport http');
-      expect(code.command).toContain(MCP_URL);
+      expect(apps.warning).toContain('Allow once');
+      expect(apps.warning).toContain('Always allow');
     });
 
-    it('exposes exactly two surface keys (claudeApps + claudeCode)', () => {
+    it('chatgpt has ordered steps referencing developer mode and the Plugins panel', () => {
+      const result = controller.startConnect();
+      const chatgpt = result.perSurfaceInstructions.chatgpt;
+
+      expect(Array.isArray(chatgpt.steps)).toBe(true);
+      expect(chatgpt.steps.length).toBeGreaterThanOrEqual(3);
+      const joined = chatgpt.steps.join(' ');
+      expect(joined).toContain('developer mode');
+      expect(joined).toContain('Plugins');
+    });
+
+    it('exposes exactly two surface keys (claudeApps + chatgpt)', () => {
       const result = controller.startConnect();
 
       expect(Object.keys(result.perSurfaceInstructions).sort()).toEqual([
+        'chatgpt',
         'claudeApps',
-        'claudeCode',
       ]);
     });
   });
@@ -516,7 +527,7 @@ describe('OAuthConnectController (HTTP — authenticated caller)', () => {
 
     expect(res.body.mcpUrl).toBe(MCP_URL);
     expect(res.body.perSurfaceInstructions).toHaveProperty('claudeApps');
-    expect(res.body.perSurfaceInstructions).toHaveProperty('claudeCode');
+    expect(res.body.perSurfaceInstructions).toHaveProperty('chatgpt');
   });
 
   it('GET /me/oauth-sessions → 200 with session array (no token hashes)', async () => {

@@ -388,7 +388,7 @@ export function ConnectedAgentsSection() {
           disabled={connecting}
           size="sm"
         >
-          {connecting ? 'Generating…' : 'Connect an agent'}
+          {connecting ? 'Generating…' : 'Connect your AI'}
         </Button>
         {connectResponse && (
           <button

@@ -5,7 +5,7 @@
  *
  * What we care about:
  * - Shows "Agent connected" (green state) when the user has active sessions.
- * - Shows "Connect agent" (call-to-action state) when there are none.
+ * - Shows "Connect your AI" (call-to-action state) when there are none.
  * - Click navigates to the account agents section; the disconnected state
  *   adds ?connect=1 so the instructions auto-open.
  * - Renders nothing while loading or when the session fetch fails.
@@ -55,7 +55,7 @@ it('pluralizes for multiple sessions', async () => {
 it('shows connect call-to-action when no sessions', async () => {
   mockListOauthSessions.mockResolvedValue([]);
   render(<AgentStatusButton />);
-  expect(await screen.findByText('Connect agent')).toBeTruthy();
+  expect(await screen.findByText('Connect your AI')).toBeTruthy();
 });
 
 it('navigates to the agents section on click when connected', async () => {
@@ -68,7 +68,7 @@ it('navigates to the agents section on click when connected', async () => {
 it('navigates with connect=1 on click when disconnected', async () => {
   mockListOauthSessions.mockResolvedValue([]);
   render(<AgentStatusButton />);
-  fireEvent.click(await screen.findByText('Connect agent'));
+  fireEvent.click(await screen.findByText('Connect your AI'));
   expect(mockPush).toHaveBeenCalledWith('/account?connect=1#agents');
 });
 

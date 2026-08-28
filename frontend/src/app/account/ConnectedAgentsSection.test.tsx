@@ -81,7 +81,6 @@ const START_CONNECT_RESPONSE = {
     },
     perplexity: {
       steps: ['Click Custom connector, then choose Remote.'],
-      warning: 'This path is untested and may not connect.',
       note: 'Custom connectors need Perplexity Pro, Max, or Enterprise.',
     },
   },
@@ -193,7 +192,7 @@ describe('<ConnectedAgentsSection />', () => {
       expect(screen.getByText(/no agents connected/i)).not.toBeNull();
     });
 
-    const connectButton = screen.getByRole('button', { name: /connect an agent/i });
+    const connectButton = screen.getByRole('button', { name: /connect your AI/i });
     await act(async () => {
       fireEvent.click(connectButton);
     });
@@ -226,7 +225,7 @@ describe('<ConnectedAgentsSection />', () => {
     render(<ConnectedAgentsSection />);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /connect an agent/i }));
+      fireEvent.click(screen.getByRole('button', { name: /connect your AI/i }));
     });
     await waitFor(() => {
       expect(mockStartConnect).toHaveBeenCalledTimes(1);
@@ -239,7 +238,6 @@ describe('<ConnectedAgentsSection />', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /perplexity/i }));
 
     expect(screen.getByText(/Click Custom connector/i)).not.toBeNull();
-    expect(screen.getByText(/untested and may not connect/i)).not.toBeNull();
     expect(screen.getByText(/Pro, Max, or Enterprise/i)).not.toBeNull();
     // The dropdown trigger now names the selected agent.
     expect(screen.getByRole('tab', { name: /perplexity/i })).not.toBeNull();

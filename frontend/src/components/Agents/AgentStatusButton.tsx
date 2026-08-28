@@ -45,7 +45,7 @@ export function AgentStatusButton() {
       title={
         connected
           ? 'Manage your connected agents'
-          : 'Connect your own AI agent to Daubert'
+          : 'Connect your own AI to Daubert'
       }
       className={
         'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ' +
@@ -68,7 +68,7 @@ export function AgentStatusButton() {
         ? count === 1
           ? 'Agent connected'
           : `${count} agents connected`
-        : 'Connect agent'}
+        : 'Connect your AI'}
     </button>
   );
 }

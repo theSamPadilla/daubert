@@ -69,13 +69,13 @@ The provider strips server-side and thinking blocks at the stream layer, so pers
 
 | Method | Default model | Purpose |
 |--------|---------------|---------|
-| `streamChat()` | `claude-opus-4-8` | Agent reasoning with tools (streaming) |
+| `streamChat()` | `claude-opus-5` | Agent reasoning with tools (streaming) |
 | `generateText()` | `claude-haiku-4-5` | Title generation (non-streaming) |
 | `extractJson()` | `claude-sonnet-4-6` | Forced-tool structured extraction (declarants) |
 
 Config: max_tokens 32000 (covers thinking + tool_use + text), thinking adaptive, betas `compact-2026-01-12` (message compaction) + `files-api-2025-04-14`, prompt caching on system + tools + message breakpoints.
 
-The frontend model picker (`frontend/src/components/Workspace/AIChat.tsx`) offers `claude-opus-4-8` (Opus 4.8, default), `claude-sonnet-5` (Sonnet 5), and `claude-haiku-4-5` (Haiku 4.5); the selected id is passed per request and overrides the provider default.
+The frontend model picker (`frontend/src/components/Workspace/AIChat.tsx`) offers `claude-opus-5` (Opus 5, default), `claude-sonnet-5` (Sonnet 5), and `claude-haiku-4-5` (Haiku 4.5); the selected id is passed per request and overrides the provider default. Retired ids stay in `PRICING` (`backend/src/modules/superadmin/token-usage/pricing.ts`) so historical token-usage rows keep costing correctly.
 
 ## Tools
 

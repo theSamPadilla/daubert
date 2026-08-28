@@ -3,15 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import Anthropic, { toFile } from '@anthropic-ai/sdk';
 import { GeneratedText, LlmProvider, StreamEvent } from './llm-provider.interface';
 
-const DEFAULT_MODEL = 'claude-opus-4-8';
+const DEFAULT_MODEL = 'claude-opus-5';
 // Output budget for one streaming turn. Includes thinking, tool_use inputs,
 // and visible text — all share the same cap. With `thinking: adaptive`, the
 // model routinely burns 2-4k tokens on reasoning before emitting anything,
 // so a 4k cap left almost no room for tool_use blocks and caused silent
-// `stop_reason: max_tokens` terminations mid-task. Opus 4.x supports up to
-// 32k output by default; we run at the ceiling so large tool_use payloads
-// (e.g. multi-row chronology appends) have room without the agent having to
-// micro-batch. Large-chronology *creation* should still use the seed-empty +
+// `stop_reason: max_tokens` terminations mid-task. The Opus tier allows far
+// larger outputs; 32k is the per-turn budget we hold it to, so large tool_use
+// payloads (e.g. multi-row chronology appends) have room without the agent
+// having to micro-batch. Large-chronology *creation* should still use the seed-empty +
 // chronology_append loop — this cap raises the per-turn ceiling, it does not
 // remove it.
 const MAX_TOKENS = 32000;

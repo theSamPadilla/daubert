@@ -56,6 +56,9 @@ describe('calculateCost', () => {
     expect(PRICING['claude-opus-4-6'].input).toBe(5);
     expect(PRICING['claude-opus-4-6'].output).toBe(25);
     expect(PRICING['claude-opus-4-6'].cacheRead).toBe(0.50);
+    expect(PRICING['claude-opus-5'].input).toBe(5);
+    expect(PRICING['claude-opus-5'].output).toBe(25);
+    expect(PRICING['claude-opus-5'].cacheRead).toBe(0.50);
     expect(PRICING['claude-opus-4-8'].input).toBe(5);
     expect(PRICING['claude-opus-4-8'].output).toBe(25);
     expect(PRICING['claude-sonnet-5'].input).toBe(3);
@@ -69,7 +72,7 @@ describe('calculateCost', () => {
   // If you add a model to the dropdown, add it here too — this test catches
   // the silent-null-cost bug that the haiku-4-5-20251001 mismatch caused.
   const SUPPORTED_MODELS = [
-    'claude-opus-4-8',
+    'claude-opus-5',
     'claude-sonnet-5',
     'claude-haiku-4-5',
   ];

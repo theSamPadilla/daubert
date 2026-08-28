@@ -9,9 +9,10 @@ type ModelPricing = {
 };
 
 export const PRICING: Record<string, ModelPricing> = {
-  // claude-opus-4-7 / claude-opus-4-6 / claude-sonnet-4-6 are no longer
-  // offered in the chat model picker, but stay here so historical
-  // token-usage rows still price correctly.
+  // claude-opus-4-8 / claude-opus-4-7 / claude-opus-4-6 / claude-sonnet-4-6
+  // are no longer offered in the chat model picker, but stay here so
+  // historical token-usage rows still price correctly.
+  'claude-opus-5':     { input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.50 },
   'claude-opus-4-8':   { input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.50 },
   'claude-opus-4-7':   { input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.50 },
   'claude-opus-4-6':   { input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.50 },

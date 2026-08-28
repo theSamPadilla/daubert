@@ -21,7 +21,7 @@ const ACCEPTED_TYPES = [
 const ACCEPT_ATTR = [...ACCEPTED_TYPES, '.csv', '.docx', '.xlsx', '.txt', '.md'].join(',');
 
 const MODELS = [
-  { id: 'claude-opus-4-8', label: 'Opus 4.8' },
+  { id: 'claude-opus-5', label: 'Opus 5' },
   { id: 'claude-sonnet-5', label: 'Sonnet 5' },
   { id: 'claude-haiku-4-5', label: 'Haiku 4.5' },
 ] as const;
@@ -329,7 +329,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelId>('claude-opus-4-8');
+  const [selectedModel, setSelectedModel] = useState<ModelId>('claude-opus-5');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);

@@ -10,6 +10,7 @@ import {
   type CaseInvite,
   type CaseRole,
 } from '@/lib/api-client';
+import type { components } from '@/generated/api-types';
 import { InviteCreatedModal } from '@/components/Common/InviteCreatedModal';
 import { useConfirm } from '@/components/Common/ConfirmProvider';
 import { Panel } from '@/components/ui/Panel';
@@ -22,6 +23,8 @@ import { Select } from '@/components/ui/Select';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+type OrganizationMember = components['schemas']['OrganizationMember'];
 
 function Banner({ message, onClose }: { message: string; onClose: () => void }) {
   return (
@@ -117,16 +120,73 @@ function roleBadgeTone(role: CaseRole): 'brand' | 'neutral' {
   return role === 'owner' ? 'brand' : 'neutral';
 }
 
-function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: CaseRole }) {
+function MembersSection({
+  caseId,
+  viewerRole,
+  orgSlug,
+}: {
+  caseId: string;
+  viewerRole: CaseRole;
+  orgSlug: string | null;
+}) {
   const [members, setMembers] = useState<CaseMember[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // userId being acted on
+
+  // Org roster for the "add existing member" picker (owner-only).
+  const [orgMembers, setOrgMembers] = useState<OrganizationMember[] | null>(null);
+  const [pickedUserId, setPickedUserId] = useState('');
+  const [pickedRole, setPickedRole] = useState<CaseRole>('viewer');
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(() => {
     apiClient.listCaseMembers(caseId).then(setMembers).catch((e) => setError(e.message));
   }, [caseId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Only owners can add, and only when the viewer's own org membership resolved
+  // the case's org slug (a case-only guest has no org roster to draw from).
+  const canAddFromOrg = viewerRole === 'owner' && !!orgSlug;
+
+  useEffect(() => {
+    if (!canAddFromOrg || !orgSlug) return;
+    let cancelled = false;
+    apiClient
+      .listOrgMembers(orgSlug)
+      .then((data) => { if (!cancelled) setOrgMembers(data); })
+      .catch(() => { if (!cancelled) setOrgMembers([]); });
+    return () => { cancelled = true; };
+  }, [canAddFromOrg, orgSlug]);
+
+  // Org admins already hold implicit owner access on every case in the org, and
+  // an explicit case_members row takes precedence over that implicit role — so
+  // adding one here as "viewer" would silently DOWNGRADE them. Keep them out of
+  // the picker entirely and say why.
+  const existingUserIds = new Set(members.map((m) => m.userId));
+  const orgAdmins = (orgMembers ?? []).filter(
+    (m) => m.role === 'admin' && !existingUserIds.has(m.userId),
+  );
+  const candidates = (orgMembers ?? []).filter(
+    (m) => m.role !== 'admin' && !!m.user?.email && !existingUserIds.has(m.userId),
+  );
+
+  const handleAddFromOrg = async () => {
+    const picked = candidates.find((m) => m.userId === pickedUserId);
+    if (!picked?.user?.email) return;
+    setAdding(true);
+    setError(null);
+    try {
+      await apiClient.addCaseMember(caseId, { email: picked.user.email, role: pickedRole });
+      setPickedUserId('');
+      setPickedRole('viewer');
+      load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to add member');
+    } finally {
+      setAdding(false);
+    }
+  };
 
   const ownerCount = members.filter((m) => m.role === 'owner').length;
 
@@ -228,12 +288,81 @@ function MembersSection({ caseId, viewerRole }: { caseId: string; viewerRole: Ca
           })}
         </div>
       )}
+
+      {/* Add an existing org member — the primary way to staff a case. No
+          invite, no email: these people already have accounts. */}
+      {canAddFromOrg && (
+        <div className="mt-5 pt-5 border-t border-line space-y-3">
+          <div>
+            <p className="text-sm font-medium text-ink">Add from your organization</p>
+            <p className="text-[13px] text-ink-muted mt-0.5">
+              Give someone who already has an account access to this case. They get it
+              immediately — no invite to send or accept.
+            </p>
+          </div>
+
+          {orgMembers === null ? (
+            <p className="text-sm text-ink-muted">Loading organization members…</p>
+          ) : candidates.length === 0 && orgAdmins.length === 0 ? (
+            <p className="text-sm text-ink-muted">
+              Everyone in your organization already has access to this case.
+              {' '}Use <span className="text-ink font-medium">External invites</span> below to
+              bring in someone outside it.
+            </p>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <div className="flex-1 min-w-0">
+                  <Select
+                    value={pickedUserId}
+                    disabled={adding}
+                    onChange={(e) => setPickedUserId(e.target.value)}
+                  >
+                    <option value="">Select a person…</option>
+                    {candidates.map((m) => (
+                      <option key={m.userId} value={m.userId}>
+                        {m.user?.name ? `${m.user.name} (${m.user!.email})` : m.user!.email}
+                      </option>
+                    ))}
+                    {/* Shown but unselectable: org admins already hold owner
+                        access, and an explicit row here would override it. */}
+                    {orgAdmins.map((m) => (
+                      <option key={m.userId} value="" disabled>
+                        {m.user?.name || m.user?.email || m.userId} — org admin, already has access
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="w-32 shrink-0">
+                  <Select
+                    value={pickedRole}
+                    disabled={adding}
+                    onChange={(e) => setPickedRole(e.target.value as CaseRole)}
+                  >
+                    <option value="viewer">Viewer</option>
+                    <option value="editor">Editor</option>
+                    <option value="owner">Owner</option>
+                  </Select>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleAddFromOrg}
+                disabled={!pickedUserId || adding}
+              >
+                <FaPlus size={11} />
+                {adding ? 'Adding…' : 'Add to case'}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </Panel>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Invites section (owner-only)
+// External invites section (owner-only)
 // ---------------------------------------------------------------------------
 
 function InvitesSection({ caseId }: { caseId: string }) {
@@ -307,12 +436,24 @@ function InvitesSection({ caseId }: { caseId: string }) {
 
   return (
     <Panel padded className="mb-6">
-      <Kicker index={3} className="block mb-3">Invites</Kicker>
+      <Kicker index={3} className="block mb-3">External invites</Kicker>
       {error && <Banner message={error} onClose={() => setError(null)} />}
+
+      <div className="mb-4 rounded-lg border-l-2 border-line-strong bg-surface-raised px-4 py-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-wider text-ink-muted font-semibold">
+          For people outside your organization
+        </p>
+        <p className="text-sm text-ink-muted leading-relaxed">
+          Use this only for someone with no account — outside counsel, a retained expert,
+          a co-defendant&apos;s team. They get a link, create an account, and land on this
+          case only. To add a colleague who is already in your organization, use{' '}
+          <span className="text-ink font-medium">Add from your organization</span> above.
+        </p>
+      </div>
 
       {/* New invite form */}
       <form onSubmit={handleGenerate} className="space-y-3 mb-5 pb-5 border-b border-line">
-        <p className="text-sm font-medium text-ink">Generate invite</p>
+        <p className="text-sm font-medium text-ink">Generate external invite</p>
         <div className="flex gap-2">
           <Input
             type="email"
@@ -349,7 +490,7 @@ function InvitesSection({ caseId }: { caseId: string }) {
         />
         <Button type="submit" disabled={creating} size="sm">
           <FaPlus size={11} />
-          {creating ? 'Generating…' : 'Generate invite'}
+          {creating ? 'Generating…' : 'Generate external invite'}
         </Button>
       </form>
 
@@ -490,7 +631,7 @@ function LeaveCaseSection({
 // ---------------------------------------------------------------------------
 
 export default function CaseSettingsPage() {
-  const { caseId, viewerRole } = useCaseContext();
+  const { caseId, viewerRole, orgSlug } = useCaseContext();
   const router = useRouter();
 
   // Redirect viewers — they have no settings to view
@@ -534,7 +675,7 @@ export default function CaseSettingsPage() {
         {viewerRole === 'owner' && <CaseInfoSection caseId={caseId} />}
 
         {(viewerRole === 'owner' || viewerRole === 'editor') && (
-          <MembersSection caseId={caseId} viewerRole={viewerRole} />
+          <MembersSection caseId={caseId} viewerRole={viewerRole} orgSlug={orgSlug} />
         )}
 
         {viewerRole === 'owner' && <InvitesSection caseId={caseId} />}

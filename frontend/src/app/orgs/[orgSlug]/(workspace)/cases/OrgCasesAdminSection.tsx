@@ -106,7 +106,14 @@ function DeleteCaseConfirmModal({
               htmlFor="confirm-case-name"
               className="block text-xs uppercase tracking-wider text-ink-faint mb-1.5 font-semibold"
             >
-              Type <span className="text-ink">{caseToDelete.name}</span> to confirm
+              {/* normal-case: the label is uppercased for style, but the case
+                  name is the literal string to type — uppercasing it reads as
+                  an instruction to type it in capitals. */}
+              Type{' '}
+              <span className="normal-case tracking-normal font-mono text-ink">
+                {caseToDelete.name}
+              </span>{' '}
+              to confirm
             </label>
             <Input
               id="confirm-case-name"

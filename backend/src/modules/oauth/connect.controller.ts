@@ -55,10 +55,10 @@ export interface PerSurfaceInstructions {
    * Setup instructions for Perplexity's custom remote connectors.
    *
    * Grouped under "Other agents" in the FE — unlike Claude and ChatGPT this
-   * path is UNVERIFIED: Perplexity's Dynamic Client Registration rejects
+   * path is unverified. Perplexity's Dynamic Client Registration rejects
    * responses without a `client_secret`, and Daubert is a PKCE-only public
-   * client that (correctly, per RFC 7591 §3.2.1) issues none. The `warning`
-   * says so rather than letting a test user assume they misconfigured it.
+   * client that (correctly, per RFC 7591 §3.2.1) issues none, so connecting
+   * may fail on their side until that is fixed.
    */
   perplexity: SurfaceInstructions;
 }
@@ -125,14 +125,12 @@ export class OAuthConnectController {
         claudeApps: {
           steps: [
             'Open your connectors: in Claude Desktop, claude.ai, or Cowork, go to Settings → Customize → Connectors. The old claude.ai/settings/connectors address is retired.',
-            'Add a custom connector: scroll past the partner Directory, click the "+", then "Add custom connector", and fill in the two fields above. Leave Advanced settings empty — Daubert supports Dynamic Client Registration, so there is no client ID.',
+            'Add a custom connector: scroll past the partner Directory, click the "+", then "Add custom connector", and fill in the two fields above. Leave Advanced settings empty, since Daubert supports Dynamic Client Registration and there is no client ID to enter.',
             'Sign in and pick your organization: Claude opens a browser tab where you sign in and choose which organization the agent may act on behalf of.',
             'Allow the tools once, not every time: reopen the connector, find Tool permissions, and set them to "Always allow".',
           ],
-          warning:
-            'Do not skip step 4. Claude\'s approval dialog puts "Allow once" in the primary white button and "Always allow" in the quieter button above it, so taking the default makes Claude ask you again on every single call — forever. Set Tool permissions from the connector instead.',
           note:
-            'Claude only — on a Team or Enterprise plan? Your workspace admin must first register Daubert under Organization settings → Connectors; you\'ll then see a "Connect" button on the org-registered entry.',
+            'Claude only. On a Team or Enterprise plan, your workspace admin must first register Daubert under Organization settings → Connectors; you will then see a "Connect" button on the org-registered entry.',
         },
         chatgpt: {
           steps: [
@@ -144,16 +142,14 @@ export class OAuthConnectController {
         },
         perplexity: {
           steps: [
-            'Open your connectors: Account settings → Connectors. On an Enterprise plan an admin must first turn on "Allow members to add custom connectors" under Enterprise settings → Connectors — it is off by default.',
-            'Add a custom connector: click "+ Custom connector" in the top-right, choose "Remote" in the pop-up, and fill in the two fields above.',
-            'Set Transport to "Streamable HTTP" and Authentication to "OAuth 2.0". Leave Client ID and Client Secret blank — Daubert publishes OAuth discovery at /.well-known/oauth-authorization-server, so Perplexity detects the endpoints itself. Leave Network access unset; Daubert is not behind Cloudflare Access.',
-            'Tick the acknowledgement box and click Add, then click the connector card to start the sign-in flow and choose which organization the agent may act on behalf of.',
+            'Open your connectors: click "Customize" in the left sidebar, then the "Connectors" tab, at perplexity.ai/computer/connectors. On an Enterprise plan an admin must first turn on "Allow members to add custom connectors" under Enterprise settings → Connectors; it is off by default.',
+            'Add a custom connector: click "+ Custom connector" in the top-right, choose "Remote" in the pop-up, and fill in the two fields above. On a Free plan that button is not there: the page lists first-party connectors only, and the "+" on each card adds that service rather than a custom one.',
+            'Set Transport to "Streamable HTTP" and Authentication to "OAuth 2.0". Leave Client ID and Client Secret blank, since Daubert publishes OAuth discovery at /.well-known/oauth-authorization-server and Perplexity detects the endpoints itself. Leave Network access unset; Daubert is not behind Cloudflare Access.',
+            'Tick the acknowledgement box and click Add, then click the connector card to start the sign-in flow and choose which organization the agent may act on behalf of. Let the sign-in tab finish on its own; closing it early can leave the connector unauthorized.',
             'Select Daubert in each new thread: Perplexity does not keep custom connectors switched on between chats the way Claude and ChatGPT do.',
           ],
-          warning:
-            'This path is untested and may not connect. Perplexity\'s Dynamic Client Registration asks for a public client and then rejects the answer for having no client secret — which is exactly what Daubert returns. If you see "Dynamic client registration did not return a client_secret", that is a bug on Perplexity\'s side, not a setting you got wrong; nothing in this form will fix it. Let us know either way, since we cannot test it ourselves.',
           note:
-            'Custom connectors need Perplexity Pro, Max, or Enterprise, and in the desktop app they are macOS-only. Daubert ships its house rules as MCP prompts, which Perplexity does not surface — ask the agent to call get_skill with "daubert-overview" at the start of a session so it picks up the conventions.',
+            'Custom connectors need Perplexity Pro, Max, or Enterprise, and in the desktop app they are macOS-only. Daubert ships its house rules as MCP prompts, which Perplexity does not surface, so ask the agent to call get_skill with "daubert-overview" at the start of a session and it will pick up the conventions.',
         },
       },
     };

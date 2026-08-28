@@ -246,14 +246,6 @@ describe('OAuthConnectController (unit)', () => {
       expect(apps.note).toContain('Claude only');
     });
 
-    it('claudeApps warns that the default tool-permission button asks every time', () => {
-      const result = controller.startConnect();
-      const apps = result.perSurfaceInstructions.claudeApps;
-
-      expect(apps.warning).toContain('Allow once');
-      expect(apps.warning).toContain('Always allow');
-    });
-
     it('chatgpt has ordered steps referencing developer mode and the Plugins panel', () => {
       const result = controller.startConnect();
       const chatgpt = result.perSurfaceInstructions.chatgpt;
@@ -277,15 +269,12 @@ describe('OAuthConnectController (unit)', () => {
       expect(joined).toContain('OAuth 2.0');
     });
 
-    it('perplexity warns that the connection is untested and may fail on their side', () => {
+    it('perplexity notes the plan and platform limits, and carries no warning', () => {
       const result = controller.startConnect();
       const perplexity = result.perSurfaceInstructions.perplexity;
 
-      // The DCR bug is Perplexity's, not a user misconfiguration — the copy
-      // must say so, or test users will hunt for a setting that isn't there.
-      expect(perplexity.warning).toContain('untested');
-      expect(perplexity.warning).toContain('client_secret');
       expect(perplexity.note).toContain('Pro, Max, or Enterprise');
+      expect(perplexity.warning).toBeUndefined();
     });
 
     it('exposes exactly three surface keys (claudeApps + chatgpt + perplexity)', () => {

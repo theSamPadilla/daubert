@@ -1,0 +1,4 @@
+# Single-file build output: every screenshot inlined as base64, ~4.5MB, and
+# fully derivable from index.html + assets/. Regenerate when you need one file
+# to email; ship the PDF otherwise.
+daubert-expert-guide.html

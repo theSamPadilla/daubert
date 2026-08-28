@@ -1,0 +1,1604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daubert: The Expert's Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ───────────────────────────────────────────────────────────────
+   Daubert: The Expert's Guide
+   Brand tokens mirror frontend/src/app/globals.css
+   ─────────────────────────────────────────────────────────────── */
+:root{
+  --ink:#0B1220; --ink-soft:#1F2937; --ink-muted:#5B6473; --ink-faint:#9AA3B2;
+  --surface:#FFFFFF; --panel:#F7F8FB; --raised:#F1F4FA;
+  --line:#E5E7EB; --line-strong:#CFD4DD;
+  --brand:#1F3A93; --brand-strong:#162B6D; --brand-soft:#E8EDFB;
+  --accent:#0EA5A3; --redline:#B91C1C;
+  --canvas:#0B1220;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{
+  margin:0; background:var(--panel); color:var(--ink);
+  font-family:var(--sans); font-size:10.5pt; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── Page model ─────────────────────────────────────────────── */
+.sheet{
+  background:var(--surface);
+  width:8.5in; min-height:11in;
+  margin:0 auto 18px; padding:0.62in 0.72in 0.7in;
+  position:relative;
+}
+.sheet + .sheet{margin-top:0}
+
+/* ── Cover ──────────────────────────────────────────────────── */
+.cover{
+  background:var(--canvas); color:#F5F3EE;
+  padding:0; display:flex; flex-direction:column; justify-content:space-between;
+  overflow:hidden;
+}
+.cover-inner{padding:1.05in 0.9in 0.9in; position:relative; z-index:2}
+.cover-mark{width:104px;height:104px;display:block;margin-bottom:34px}
+.cover h1{
+  font-size:47pt; line-height:1.02; font-weight:800; letter-spacing:-.028em;
+  margin:0 0 14px; color:#FFFFFF;
+}
+.cover h1 .thin{font-weight:300;color:#A9B4CE}
+.cover .lede{
+  font-size:13.5pt; line-height:1.5; color:#C3CBDC; max-width:5.1in;
+  margin:0 0 34px; font-weight:400;
+}
+.cover-rule{height:3px;width:88px;background:var(--accent);border-radius:2px;margin-bottom:26px}
+.cover-meta{
+  font-family:var(--mono); font-size:8.5pt; letter-spacing:.11em;
+  text-transform:uppercase; color:#7E8AA6; line-height:2;
+}
+.cover-foot{
+  position:relative; z-index:2;
+  padding:0.42in 0.9in 0.6in; border-top:1px solid rgba(255,255,255,.11);
+}
+.conf-stamp{
+  display:inline-block; font-family:var(--mono); font-size:7.5pt;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--accent);
+  border:1px solid rgba(14,165,163,.45); border-radius:4px;
+  padding:5px 11px; margin-bottom:12px;
+}
+.conf-text{
+  margin:0; font-size:8.6pt; line-height:1.5; color:#8C97AF; max-width:5.4in;
+}
+.cover-ghost{
+  position:absolute; right:-2.0in; bottom:-2.6in; width:9in; opacity:.045;
+  z-index:1; pointer-events:none;
+}
+
+/* ── Running header ─────────────────────────────────────────── */
+.runhead{
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid var(--line); padding-bottom:9px; margin-bottom:26px;
+}
+.runhead .rh-left{display:flex;align-items:center;gap:8px}
+.runhead img{width:15px;height:15px;opacity:.9}
+.runhead .rh-name{font-size:9pt;font-weight:700;letter-spacing:-.01em}
+.runhead .rh-conf{
+  font-family:var(--mono); font-size:6.5pt; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ink-faint);
+  border:1px solid var(--line); border-radius:3px; padding:2px 6px; margin-left:4px;
+}
+.runhead .rh-sec{
+  font-family:var(--mono); font-size:7.5pt; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--ink-faint);
+}
+
+/* ── Typography ─────────────────────────────────────────────── */
+.kicker{
+  font-family:var(--mono); font-size:7.5pt; letter-spacing:.15em;
+  text-transform:uppercase; color:var(--brand); font-weight:500; margin-bottom:8px;
+}
+h2{
+  font-size:23pt; line-height:1.12; font-weight:800; letter-spacing:-.024em;
+  margin:0 0 12px; color:var(--ink);
+}
+h2 .num{color:var(--ink-faint);font-weight:400;margin-right:.32em}
+h3{
+  font-size:12.5pt; font-weight:700; letter-spacing:-.012em;
+  margin:26px 0 8px; color:var(--ink); break-after:avoid;
+}
+h4{
+  font-size:10pt; font-weight:700; margin:18px 0 5px; color:var(--brand-strong);
+  break-after:avoid;
+}
+p{margin:0 0 10px}
+.standfirst{font-size:11.5pt;line-height:1.55;color:var(--ink-muted);margin-bottom:20px;max-width:6.2in}
+strong{font-weight:650;color:var(--ink)}
+a{color:var(--brand);text-decoration:none}
+code,.mono{font-family:var(--mono);font-size:.88em}
+code{background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--brand-strong)}
+ul,ol{margin:0 0 12px;padding-left:1.15em}
+li{margin-bottom:5px}
+li::marker{color:var(--ink-faint)}
+
+/* ── Figures ────────────────────────────────────────────────── */
+figure{
+  margin:16px 0 20px; break-inside:avoid;
+  border:1px solid var(--line); border-radius:10px; overflow:hidden;
+  background:var(--panel);
+}
+figure img{display:block;width:100%;height:auto}
+figcaption{
+  padding:8px 12px; font-size:8.5pt; line-height:1.45; color:var(--ink-muted);
+  background:var(--surface); border-top:1px solid var(--line);
+}
+figcaption b{font-weight:650;color:var(--ink-soft)}
+figcaption b:first-child{
+  font-family:var(--mono); font-size:7.5pt; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--brand); font-weight:500; margin-right:7px;
+}
+figure.narrow{max-width:3.9in}
+.fig-row{display:flex;gap:14px;break-inside:avoid}
+.fig-row figure{flex:1;margin-top:0}
+
+/* ── Tables ─────────────────────────────────────────────────── */
+table{
+  width:100%; border-collapse:collapse; margin:12px 0 18px;
+  font-size:9.2pt; break-inside:avoid;
+}
+th{
+  text-align:left; font-family:var(--mono); font-size:7.5pt; font-weight:500;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint);
+  padding:7px 10px; border-bottom:1px solid var(--line-strong); background:var(--panel);
+}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.45}
+tbody tr:last-child td{border-bottom:none}
+td:first-child{font-weight:600;white-space:nowrap}
+td.wrap:first-child{white-space:normal}
+
+/* ── Callouts ───────────────────────────────────────────────── */
+.note{
+  border-left:3px solid var(--brand); background:var(--brand-soft);
+  padding:11px 14px; border-radius:0 8px 8px 0; margin:14px 0 18px;
+  font-size:9.5pt; line-height:1.5; break-inside:avoid;
+}
+.note .lbl{
+  display:block; font-family:var(--mono); font-size:7.5pt; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--brand); margin-bottom:4px; font-weight:500;
+}
+.note.warn{border-left-color:var(--redline);background:#FDF2F2}
+.note.warn .lbl{color:var(--redline)}
+.note.tip{border-left-color:var(--accent);background:#E7F7F6}
+.note.tip .lbl{color:#0A7D7B}
+.note p:last-child{margin-bottom:0}
+
+/* ── Step lists ─────────────────────────────────────────────── */
+ol.steps{list-style:none;padding:0;margin:14px 0 18px;counter-reset:s}
+ol.steps>li{
+  counter-increment:s; position:relative; padding-left:34px;
+  margin-bottom:11px; break-inside:avoid;
+}
+ol.steps>li::before{
+  content:counter(s); position:absolute; left:0; top:0;
+  width:22px; height:22px; border-radius:50%;
+  background:var(--brand-soft); border:1px solid rgba(31,58,147,.25);
+  color:var(--brand); font-size:8.5pt; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+ol.steps>li b{display:block;margin-bottom:1px}
+
+/* ── Model diagram ──────────────────────────────────────────── */
+.model{display:flex;align-items:stretch;gap:0;margin:20px 0 8px;break-inside:avoid}
+.model .m{
+  flex:1; border:1px solid var(--line-strong); border-radius:9px;
+  padding:12px 12px 13px; background:var(--surface); text-align:left;
+}
+.model .m .mt{
+  font-family:var(--mono); font-size:7pt; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--ink-faint); margin-bottom:5px;
+}
+.model .m .mh{font-size:11pt;font-weight:700;letter-spacing:-.015em;margin-bottom:3px}
+.model .m .md{font-size:8.4pt;line-height:1.42;color:var(--ink-muted)}
+.model .arrow{
+  flex:0 0 26px; display:flex; align-items:center; justify-content:center;
+  color:var(--line-strong); font-size:15pt; font-weight:300;
+}
+.model .m.lvl1{background:var(--canvas);border-color:var(--canvas)}
+.model .m.lvl1 .mh{color:#FFFFFF}
+.model .m.lvl1 .mt{color:var(--accent)}
+.model .m.lvl1 .md{color:#A9B4CE}
+.model .m.lvl4{border-color:var(--brand);background:var(--brand-soft)}
+.model .m.lvl4 .mh{color:var(--brand-strong)}
+
+/* ── Grid cards ─────────────────────────────────────────────── */
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0 18px}
+.cards.three{grid-template-columns:1fr 1fr 1fr}
+.card{
+  border:1px solid var(--line); border-radius:9px; padding:12px 13px;
+  background:var(--surface); break-inside:avoid;
+}
+.card .ct{
+  font-family:var(--mono); font-size:7pt; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--brand); margin-bottom:5px;
+}
+.card .ch{font-size:10.5pt;font-weight:700;margin-bottom:4px;letter-spacing:-.012em}
+.card p{font-size:8.8pt;line-height:1.45;color:var(--ink-muted);margin:0}
+
+/* ── Production strip ───────────────────────────────────────── */
+.prod{
+  display:flex; gap:13px; align-items:flex-start; padding:13px 0;
+  border-bottom:1px solid var(--line); break-inside:avoid;
+}
+.prod:last-of-type{border-bottom:none}
+.prod .badge{
+  flex:0 0 auto; font-family:var(--mono); font-size:7pt; letter-spacing:.1em;
+  text-transform:uppercase; padding:4px 8px; border-radius:5px;
+  background:var(--brand-soft); color:var(--brand); font-weight:500; margin-top:2px;
+}
+.prod .badge.rl{background:#FDECEC;color:var(--redline)}
+.prod .pb{flex:1}
+.prod .pb h4{margin:0 0 3px;color:var(--ink);font-size:10.5pt}
+.prod .pb p{margin:0 0 4px;font-size:9.2pt;line-height:1.48}
+.prod .pb .fmt{font-family:var(--mono);font-size:7.8pt;color:var(--ink-faint);letter-spacing:.03em}
+
+/* ── Chain chips ────────────────────────────────────────────── */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 16px}
+.chip{
+  font-family:var(--mono); font-size:8pt; padding:4px 10px; border-radius:20px;
+  border:1px solid var(--line-strong); background:var(--surface); color:var(--ink-soft);
+}
+
+/* ── Highlighted feature panel ──────────────────────────────── */
+.feature{
+  background:var(--canvas); color:#E6EAF2; border-radius:12px;
+  padding:20px 22px 21px; margin:20px 0 22px; break-inside:avoid;
+  position:relative; overflow:hidden;
+}
+.feature .fk{
+  font-family:var(--mono); font-size:7pt; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:8px;
+}
+.feature h3{
+  margin:0 0 8px; font-size:15pt; font-weight:800; letter-spacing:-.02em;
+  color:#FFFFFF;
+}
+.feature > p{
+  margin:0 0 15px; font-size:9.6pt; line-height:1.5; color:#B7C0D4; max-width:5.6in;
+}
+.feature .fgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px}
+.feature .fgrid div{
+  border-top:1px solid rgba(255,255,255,.16); padding-top:9px;
+}
+.feature .fgrid b{
+  display:block; font-size:9.2pt; font-weight:700; color:#FFFFFF; margin-bottom:3px;
+}
+.feature .fgrid span{font-size:8.4pt;line-height:1.42;color:#98A3BA;display:block}
+
+/* ── Inline UI icons ────────────────────────────────────────── */
+svg.ic{
+  height:1em; width:auto; vertical-align:-0.13em; margin-right:.14em;
+}
+td.icocell{white-space:nowrap;font-weight:600}
+td.fmts{font-weight:400;line-height:1.9}
+td.fmts .fmt-chip{
+  display:inline-flex; align-items:baseline; white-space:nowrap; margin-right:12px;
+}
+td.fmts .fmt-chip em{
+  font-style:normal; color:var(--ink-faint); font-size:8.2pt; margin-left:.3em;
+}
+td.icocell svg.ic{margin-right:.42em}
+
+/* ── Big warning block ──────────────────────────────────────── */
+.bigwarn{
+  border:2px solid var(--redline); border-radius:10px; background:#FDF2F2;
+  padding:16px 18px 17px; margin:18px 0 20px; break-inside:avoid;
+}
+.bigwarn .bw-lbl{
+  display:inline-block; font-family:var(--mono); font-size:7.5pt;
+  letter-spacing:.15em; text-transform:uppercase; color:#FFFFFF;
+  background:var(--redline); border-radius:4px; padding:4px 10px; margin-bottom:11px;
+}
+.bigwarn h4{
+  margin:0 0 8px; font-size:15pt; line-height:1.22; font-weight:800;
+  letter-spacing:-.02em; color:var(--redline);
+}
+.bigwarn p{margin:0 0 7px;font-size:10pt;line-height:1.5;color:var(--ink-soft)}
+.bigwarn p:last-child{margin-bottom:0}
+.bigwarn strong{color:var(--redline)}
+
+/* ── Table of contents ──────────────────────────────────────── */
+ol.toc{list-style:none;padding:0;margin:14px 0 0}
+ol.toc>li{
+  display:flex; align-items:baseline; gap:11px;
+  padding:3.8px 0; border-bottom:1px solid var(--line); break-inside:avoid;
+}
+ol.toc>li:first-child{border-top:1px solid var(--line)}
+ol.toc .tn{
+  flex:0 0 22px; font-family:var(--mono); font-size:8pt;
+  color:var(--brand); letter-spacing:.05em;
+}
+ol.toc .tt{
+  flex:1 1 auto; font-size:10.2pt; font-weight:700; letter-spacing:-.015em;
+  color:var(--ink); position:relative; line-height:1.3;
+}
+ol.toc .tt em{
+  display:block; font-style:normal; font-weight:400; font-size:8pt;
+  line-height:1.34; color:var(--ink-muted); margin-top:1px;
+}
+ol.toc .tp{
+  flex:0 0 auto; font-family:var(--mono); font-size:9pt; color:var(--ink-faint);
+  min-width:22px; text-align:right;
+}
+
+/* ── Glossary ───────────────────────────────────────────────── */
+dl.gloss{
+  margin:12px 0 0;
+  column-count:2; column-gap:26px;
+}
+dl.gloss dt{
+  font-weight:700; font-size:9.6pt; margin:0 0 1px; color:var(--brand-strong);
+  break-after:avoid; break-inside:avoid;
+}
+dl.gloss dd{
+  margin:0 0 11px; font-size:8.8pt; line-height:1.45; color:var(--ink-muted);
+  break-before:avoid; break-inside:avoid;
+}
+dl.gloss dd:last-child{margin-bottom:0}
+
+/* ── Footer bar ─────────────────────────────────────────────── */
+.endbar{
+  margin-top:26px; padding-top:11px; border-top:1px solid var(--line);
+  display:flex; justify-content:space-between; align-items:center;
+  font-family:var(--mono); font-size:7.5pt; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-faint);
+}
+
+/* ── Print ──────────────────────────────────────────────────── */
+@media print{
+  @page{size:Letter;margin:0.6in 0.7in 0.62in}
+  @page:first{margin:0}
+
+  body{background:#fff;padding:0}
+
+  /* Sections start on a fresh page, then flow naturally across as many
+     pages as they need. Figures, tables and callouts never split. */
+  .sheet{
+    margin:0; padding:0; width:auto; min-height:0;
+    box-shadow:none; border-radius:0;
+    break-before:page; break-after:auto;
+  }
+  .sheet:first-child{break-before:auto}
+
+  /* Cover is full-bleed on page one. */
+  .cover{padding:0;min-height:10.98in}
+
+  h2,h3,h4{break-after:avoid}
+  .runhead{break-after:avoid}
+  figure,table,.note,.card,.model,.prod,ol.steps>li,.fig-row{break-inside:avoid}
+  .endbar{break-before:avoid}
+  a{color:var(--brand)}
+}
+@media screen{
+  .sheet{box-shadow:0 1px 3px rgba(11,18,32,.07),0 12px 34px rgba(11,18,32,.08);border-radius:3px}
+  body{padding:22px 0 40px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════ COVER ══════════════════════════ -->
+<section class="sheet cover">
+  <img class="cover-ghost" src="assets/logo-light.png" alt="">
+  <div class="cover-inner">
+    <img class="cover-mark" src="assets/logo-light.png" alt="Daubert">
+    <div class="cover-rule"></div>
+    <h1>The Expert's<br>Guide to <span class="thin">Daubert</span></h1>
+    <p class="lede">
+      Everything you need to trace funds across a blockchain, organize what you
+      find, and turn it into a document a court will accept, without writing a
+      line of code.
+    </p>
+    <div class="cover-meta">
+      For newly onboarded expert witnesses<br>
+      Incite Consulting &nbsp;·&nbsp; Daubert AI
+    </div>
+  </div>
+  <div class="cover-foot">
+    <div class="conf-stamp">Proprietary and Confidential</div>
+    <p class="conf-text">
+      This document and the software it describes are the proprietary and
+      confidential property of Daubert AI. It is provided to authorized
+      personnel, retained experts, and partners under an obligation of
+      confidentiality. Do not copy, distribute, or disclose it, in whole or in
+      part, to any other party without written authorization.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════ CONTENTS ═══════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">Contents</div>
+  </div>
+
+  <h2>Contents</h2>
+
+  <ol class="toc">
+    <li>
+      <span class="tn">01</span>
+      <span class="tt">How Daubert is put together<em>Organization, case, investigation, trace, and what you do on a matter.</em></span>
+      <span class="tp">3</span>
+    </li>
+    <li>
+      <span class="tn">02</span>
+      <span class="tt">Signing in, and who can see what<em>Sign-in, invite links, your home screen, and how firm and case roles work.</em></span>
+      <span class="tp">4</span>
+    </li>
+    <li>
+      <span class="tn">03</span>
+      <span class="tt">Setting up a case<em>The three-step wizard: declarant, seed trace, declaration shell.</em></span>
+      <span class="tp">7</span>
+    </li>
+    <li>
+      <span class="tn">04</span>
+      <span class="tt">Your declarant profile<em>Build it once from your CV or a prior declaration, then reuse it everywhere.</em></span>
+      <span class="tp">10</span>
+    </li>
+    <li>
+      <span class="tn">05</span>
+      <span class="tt">The three-panel workspace<em>Reading the layout, reading a trace, and how investigations and traces differ.</em></span>
+      <span class="tp">13</span>
+    </li>
+    <li>
+      <span class="tn">06</span>
+      <span class="tt">Tracing the money<em>The seven chains, pulling transactions, labeling wallets, and shaping the graph.</em></span>
+      <span class="tp">15</span>
+    </li>
+    <li>
+      <span class="tn">07</span>
+      <span class="tt">The built-in AI assistant<em>What it can do, how to ask well, and where your judgment stays essential.</em></span>
+      <span class="tp">19</span>
+    </li>
+    <li>
+      <span class="tn">08</span>
+      <span class="tt">The Data Room<em>Getting files in, Google Drive import, folders, and the chain-of-custody log.</em></span>
+      <span class="tp">21</span>
+    </li>
+    <li>
+      <span class="tn">09</span>
+      <span class="tt">Productions<em>Report, chart, chronology, declaration, redline, and what each is for.</em></span>
+      <span class="tp">23</span>
+    </li>
+    <li>
+      <span class="tn">10</span>
+      <span class="tt">Drafting a declaration<em>The five jurisdiction formats, the editor, the caption block, and exhibits.</em></span>
+      <span class="tp">25</span>
+    </li>
+    <li>
+      <span class="tn">11</span>
+      <span class="tt">Redlining a document<em>Reviewing someone else's draft, and exporting real tracked changes.</em></span>
+      <span class="tp">28</span>
+    </li>
+    <li>
+      <span class="tn">12</span>
+      <span class="tt">Exports and exhibit bundles<em>Formats available per production, and assembling several items into one PDF.</em></span>
+      <span class="tp">30</span>
+    </li>
+    <li>
+      <span class="tn">13</span>
+      <span class="tt">Connect your own AI (BYOA)<em>Pointing Claude or ChatGPT at your cases, plus the guardrails and the audit trail.</em></span>
+      <span class="tp">32</span>
+    </li>
+    <li>
+      <span class="tn">14</span>
+      <span class="tt">Habits that hold up under cross<em>Practice notes, a glossary, and what to try when you are stuck.</em></span>
+      <span class="tp">37</span>
+    </li>
+  </ol>
+
+  <p style="margin-top:12px;font-size:8.6pt;color:var(--ink-muted)">
+    If you read only three sections: <strong>01</strong> for the mental model,
+    <strong>04</strong> so your expert profile is built before your first matter,
+    and <strong>10</strong> before you draft anything that will be filed.
+  </p>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>Contents</span></div>
+</section>
+
+<!-- ══════════════════ 01 · HOW DAUBERT IS BUILT ══════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">01 · Orientation</div>
+  </div>
+
+  <h2><span class="num">01</span>How Daubert is put together</h2>
+  <div class="model">
+    <div class="m lvl1">
+      <div class="mt">Level 1</div>
+      <div class="mh">Organization</div>
+      <div class="md">Your firm. Holds shared things: expert profiles, reusable boilerplate, the member list.</div>
+    </div>
+    <div class="arrow">›</div>
+    <div class="m">
+      <div class="mt">Level 2</div>
+      <div class="mh">Case</div>
+      <div class="md">One matter. <em>Geffen v. Sun.</em> Has its own members, files and deliverables.</div>
+    </div>
+    <div class="arrow">›</div>
+    <div class="m">
+      <div class="mt">Level 3</div>
+      <div class="mh">Investigation</div>
+      <div class="md">One line of inquiry inside the case. A case can hold many.</div>
+    </div>
+    <div class="arrow">›</div>
+    <div class="m lvl4">
+      <div class="mt">Level 4</div>
+      <div class="mh">Trace</div>
+      <div class="md">The actual diagram: wallets as nodes, transfers as arrows.</div>
+    </div>
+  </div>
+
+  <p style="font-size:9pt;color:var(--ink-muted);margin-bottom:22px">
+    Running alongside all of it: the <strong>Data Room</strong> (the case's file
+    cabinet) and <strong>Productions</strong> (the things you hand to counsel:
+    reports, charts, chronologies, declarations and redlines).
+  </p>
+
+  <h3>What you will actually do on a matter</h3>
+  <ol class="steps">
+    <li><b>Open the case</b> Counsel or a colleague adds you. It shows up on your home screen.</li>
+    <li><b>Seed a trace</b> Paste the wallet addresses at issue. Daubert pulls their transaction history and draws the diagram.</li>
+    <li><b>Work the graph</b> Label the wallets you can identify, expand the flows that matter, hide the noise.</li>
+    <li><b>Ask the AI</b> It reads the same case data you can see, and can run the tedious parts for you.</li>
+    <li><b>Produce</b> Turn findings into a report, a chart, a chronology or a signed declaration.</li>
+    <li><b>Export</b> PDF or Word, with jurisdiction-correct formatting. Bundle several items into one exhibit.</li>
+  </ol>
+
+  <div class="note tip">
+    <span class="lbl">The one thing to remember</span>
+    <p>Daubert never invents on-chain facts. Every wallet, amount and timestamp on
+    a trace was fetched from a public blockchain and can be clicked through to the
+    block explorer. Your labels and your narrative are the only interpretive
+    layer, and exactly the part you will be cross-examined on.</p>
+  </div>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>01 · Orientation</span></div>
+</section>
+
+<!-- ══════════════════ 02 · SIGNING IN & ACCESS ═══════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">02 · Access</div>
+  </div>
+
+  <h2><span class="num">02</span>Signing in, and who can see what</h2>
+  <p class="standfirst">
+    Daubert lives at <strong>app.dauberts.ai</strong>. Sign in with Google,
+    Microsoft, or a one-time code sent to your email.
+  </p>
+
+  <div class="bigwarn">
+    <span class="bw-lbl">Read this before you sign in</span>
+    <h4>Sign in with the exact email address your invite was issued to.</h4>
+    <p>Your invite is a <strong>single-use link tied to one specific email
+    address</strong>. If you sign in with any other address, even another address
+    of your own, Daubert will refuse the invite and tell you which address it
+    belongs to.</p>
+    <p>So if the link was issued to <code>jane.doe@yourfirm.com</code>, sign in
+    with <strong>that</strong> Google, Microsoft or email-code identity. Not a
+    personal Gmail. Not an alias.</p>
+  </div>
+
+  <h3>How invites actually reach you</h3>
+  <p>
+    Daubert does not send invitation emails. Whoever adds you generates a link and
+    sends it to you themselves, usually by email or chat. The link carries your
+    role and expires.
+  </p>
+
+  <figure class="narrow">
+    <img src="assets/31-invite-landing.jpg" alt="The Daubert invite page showing the case name, who invited you, your role, and the email address the invite is locked to">
+    <figcaption><b>Fig. 1</b> The invite page. It tells you the case, who invited you, and your role. <b>The email address is fixed by the invite and cannot be changed here.</b></figcaption>
+  </figure>
+
+  <h3>Your home screen</h3>
+  <figure>
+    <img src="assets/18-case-list.jpg" alt="The Daubert case list showing case tiles with role badges">
+    <figcaption><b>Fig. 2</b> Every case you can open, with your role on each. The bar at the top is your firm: Declarations, Files and Members live there. Click a tile to enter the matter.</figcaption>
+  </figure>
+
+  <h3>Roles, in plain English</h3>
+  <p>
+    You have a role in <strong>the firm</strong> and a role on <strong>each
+    case</strong>. The firm role sets your default; a case can override it.
+  </p>
+
+  <table>
+    <thead><tr><th>Firm role</th><th>What it means</th><th>Default on a case</th></tr></thead>
+    <tbody>
+      <tr><td>Admin</td><td>Runs the organization: members, invites, settings.</td><td>Owner of every case</td></tr>
+      <tr><td>Member</td><td>The normal staff role. Can create new cases.</td><td>Editor on every case</td></tr>
+      <tr><td>Guest</td><td>Outside counsel or a contractor. Sees case names only.</td><td>Nothing. Needs an explicit invite</td></tr>
+    </tbody>
+  </table>
+
+  <table>
+    <thead><tr><th>Case role</th><th>Can do</th></tr></thead>
+    <tbody>
+      <tr><td>Owner</td><td>Everything, including adding and removing case members.</td></tr>
+      <tr><td>Editor</td><td>Trace, label, upload files, create and edit productions, export.</td></tr>
+      <tr><td class="wrap">Viewer</td><td>Read and download everything; cannot change anything. The AI assistant switches to read-only for you.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <span class="lbl">If you cannot see a case</span>
+    <p>It is almost always the guest rule: guests see a case exists but must be
+    invited to it individually. Ask the case owner to add you. It takes them
+    ten seconds under <strong>Settings → Members</strong>.</p>
+  </div>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>02 · Access</span></div>
+</section>
+
+<!-- ══════════════════ 03 · SETTING UP A CASE ═════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">03 · Case setup</div>
+  </div>
+
+  <h2><span class="num">03</span>Setting up a case</h2>
+  <p class="standfirst">
+    Open an empty case and Daubert walks you through three steps. All three are
+    skippable, but doing them in order gets you to a draft declaration fastest.
+  </p>
+
+  <h4>Step 1. Who is declaring?</h4>
+  <figure>
+    <img src="assets/01-onboarding-declarant.jpg" alt="Case onboarding step one: pick the declarant">
+    <figcaption><b>Fig. 3</b> Pick the expert whose declaration this case will produce. Profiles are shared across the whole firm, so yours only has to be built once (see §04).</figcaption>
+  </figure>
+
+  <h4>Step 2. Seed the first trace</h4>
+  <figure>
+    <img src="assets/02-onboarding-seed-trace.jpg" alt="Case onboarding step two: paste wallet addresses and choose a chain">
+    <figcaption><b>Fig. 4</b> Paste one or more wallet addresses, pick the chain, and Daubert fetches the recent history and draws the graph. <b>Engagement context</b> is optional but worth filling in: the assistant uses it to scope its drafting.</figcaption>
+  </figure>
+
+  <div class="note tip">
+    <span class="lbl">Worth 60 seconds</span>
+    <p>Fill in <strong>Side</strong>, <strong>Scope of engagement</strong> and
+    <strong>Key allegations</strong>. They are stored on the case and quietly
+    improve everything the assistant drafts for you afterwards. It stops
+    guessing what you were retained to do.</p>
+  </div>
+
+  <h4>Step 3. Create the declaration shell</h4>
+  <figure>
+    <img src="assets/04-onboarding-declaration.jpg" alt="Case onboarding step three: name the declaration and choose a jurisdiction format">
+    <figcaption><b>Fig. 5</b> Choose the jurisdiction and Daubert scaffolds a correctly formatted declaration with six standard sections. If you picked a declarant in step 1, your name and qualifications are already filled in.</figcaption>
+  </figure>
+
+  <p>
+    Once the case has at least one investigation the wizard is replaced by a
+    small dismissible checklist in the corner of the graph: seed a trace, label
+    key wallets, expand the flows, draft your declaration.
+  </p>
+
+  <figure class="narrow">
+    <img src="assets/06-getting-started-rail.png" alt="The Getting Started checklist overlay on the graph canvas">
+    <figcaption><b>Fig. 6</b> The Getting Started rail tracks the four things that turn a blank case into a filed declaration.</figcaption>
+  </figure>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>03 · Case setup</span></div>
+</section>
+
+<!-- ══════════════════ 04 · YOUR EXPERT PROFILE ═══════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">04 · Your profile</div>
+  </div>
+
+  <h2><span class="num">04</span>Your declarant profile</h2>
+  <p class="standfirst">
+    Build your expert profile once at the firm level and every declaration in
+    every case can pull your qualifications in with a click. This is the single
+    highest-leverage thing to do on day one.
+  </p>
+
+  <figure>
+    <img src="assets/19-org-declarations.jpg" alt="Organization declarations page with the declarants roster and boilerplate library">
+    <figcaption><b>Fig. 7</b> Your firm's <b>Declarations</b> tab. Top: the declarant roster. Bottom: the boilerplate library.</figcaption>
+  </figure>
+
+  <h3>Three ways to build it</h3>
+  <figure>
+    <img src="assets/20-new-declarant.jpg" alt="New declarant modal offering manual entry, CV extraction or prior declaration extraction">
+    <figcaption><b>Fig. 8</b> Type it yourself, or let Daubert read a PDF and draft it for you.</figcaption>
+  </figure>
+
+  <table>
+    <thead><tr><th>Option</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td class="wrap">Insert manually</td><td>You type the profile: name, title, firm, qualification paragraphs, rate, prior testimony.</td></tr>
+      <tr><td class="wrap">Pull from CV</td><td>Upload your CV as a PDF (up to 10&nbsp;MB). Daubert extracts your credentials into draft qualification paragraphs.</td></tr>
+      <tr><td class="wrap">Pull from previous declaration</td><td>Upload a declaration you have already filed. Daubert lifts the qualifications section, which is usually the cleanest source.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note warn">
+    <span class="lbl">Nothing is saved until you approve it</span>
+    <p>Extraction produces a <em>draft</em> shown to you in a review step. Read every
+    line before saving. It leaves fields blank rather than guessing.</p>
+  </div>
+
+  <h3>The boilerplate library</h3>
+  <p>
+    Beneath the roster sits a library of reusable paragraphs shared by the whole
+    firm: the chain primer you write for a lay judge, the exhibit-authentication
+    language you use every time. Save it once, insert it into any declaration.
+    Inserted copies are independent, so editing one does not touch the original.
+  </p>
+
+  <div class="note">
+    <span class="lbl">Who can edit what</span>
+    <p>You can always edit your own profile. Firm admins can edit anyone's.
+    Tick <strong>"This is my profile"</strong> when you create yours so it links
+    to your account.</p>
+  </div>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>04 · Your profile</span></div>
+</section>
+
+<!-- ══════════════════ 05 · THE WORKSPACE ═════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">05 · The workspace</div>
+  </div>
+
+  <h2><span class="num">05</span>The three-panel workspace</h2>
+  <p class="standfirst">
+    Every case opens into the same layout. Both side panels can be dragged wider
+    or collapsed with the small arrows at their edges.
+  </p>
+
+  <figure>
+    <img src="assets/05-workspace-graph.jpg" alt="The Daubert case workspace: sidebar, graph canvas and AI chat">
+    <figcaption><b>Fig. 9</b> Left: everything in the case. Center: the trace. Right: the assistant.</figcaption>
+  </figure>
+
+  <div class="cards three">
+    <div class="card">
+      <div class="ct">Left</div>
+      <div class="ch">The case</div>
+      <p>Investigations and their traces, all productions grouped by type, the Data Room, and your saved scripts. Click anything to open it in the center.</p>
+    </div>
+    <div class="card">
+      <div class="ct">Center</div>
+      <div class="ch">The canvas</div>
+      <p>The trace diagram, or whichever production you opened. Nodes are wallets, arrows are transfers, boxes are groups you drew.</p>
+    </div>
+    <div class="card">
+      <div class="ct">Right</div>
+      <div class="ch">The assistant</div>
+      <p>Case-scoped chat. It can read the graph, the files and the productions, and, if you are an editor, change them.</p>
+    </div>
+  </div>
+
+  <h3>Reading a trace</h3>
+  <table>
+    <thead><tr><th>On screen</th><th>Means</th></tr></thead>
+    <tbody>
+      <tr><td class="wrap">Node</td><td>A wallet address. Its default shape follows what kind of address Daubert thinks it is: an ordinary wallet, a smart contract, and a known exchange each get a different one.</td></tr>
+      <tr><td class="wrap">Arrow</td><td>A transfer, or a bundle of transfers, from one wallet to another. Labeled with amount and date range.</td></tr>
+      <tr><td class="wrap">Box around nodes</td><td>A group you drew to hold a narrative chapter, such as "Sun's Purchase, Nov 2021". You give it the title and the color.</td></tr>
+      <tr><td class="wrap">Free-floating text</td><td>A label you placed on the canvas: a caption, an annotation, or an off-chain fact that did not come from a blockchain.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note warn">
+    <span class="lbl">Appearance is your choice, not the data's</span>
+    <p>Nothing about how a node looks is derived from the money. Color, size and
+    shape are all set by hand, and any of them can be overridden on any node. A
+    large red circle is large and red because somebody made it so, not because
+    the amounts are big.</p>
+    <p>Use that deliberately. Styling is part of your narrative, so be ready to
+    explain every choice you made in it.</p>
+  </div>
+
+  <h3>Investigations vs. traces</h3>
+  <p>
+    An <strong>investigation</strong> is a line of inquiry, such as "NFT Token
+    Ownership". Inside it, <strong>traces</strong> are separate diagrams or
+    layers you can show and hide independently, so one investigation can carry
+    the deposits, the withdrawals and the sale as three toggleable views of the
+    same story. Use the eye icon beside each trace to hide it.
+  </p>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>05 · The workspace</span></div>
+</section>
+
+<!-- ══════════════════ 06 · TRACING ═══════════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">06 · Tracing</div>
+  </div>
+
+  <h2><span class="num">06</span>Tracing the money</h2>
+  <p class="standfirst">
+    Everything on a trace starts as a fetch from a public blockchain. You choose
+    what to pull, then you choose what it means.
+  </p>
+
+  <h3>Chains Daubert can trace</h3>
+  <div class="chips">
+    <span class="chip">Ethereum</span><span class="chip">Polygon</span>
+    <span class="chip">Arbitrum</span><span class="chip">Base</span>
+    <span class="chip">Tron</span><span class="chip">Bitcoin</span>
+    <span class="chip">Solana</span>
+  </div>
+  <figure class="narrow">
+    <img src="assets/03-chain-select.jpg" alt="The chain selector showing all seven supported chains">
+    <figcaption><b>Fig. 10</b> The chain selector. Daubert can usually tell which chain an address belongs to from its shape, but set it explicitly when you know.</figcaption>
+  </figure>
+
+  <h3>Pulling transactions</h3>
+  <figure>
+    <img src="assets/28-fetch-transactions.jpg" alt="The Fetch Transactions dialog with address, chain, date range, block range and limit">
+    <figcaption><b>Fig. 11</b> Click a wallet, then <b>Fetch Transactions</b>. Narrow by date or block range and cap the number returned before you pull.</figcaption>
+  </figure>
+
+  <div class="note warn">
+    <span class="lbl">Narrow before you pull</span>
+    <p>A busy exchange wallet can have hundreds of thousands of transactions.
+    Pulling all of them is slow and buries the story in noise. Set a date range
+    around the events at issue and keep the limit modest. You can always fetch
+    again.</p>
+    <p><strong>Not sure how to scope it? Ask the AI.</strong> Describe what you
+    are looking for in plain language, something like "this wallet is enormous,
+    I only care about transfers to Sotheby's around November 2021, what range
+    should I pull?", and it will work out the bounds and can run the fetch for
+    you.</p>
+  </div>
+
+  <h3>Labeling: where your expertise shows</h3>
+  <figure>
+    <img src="assets/07-address-details.jpg" alt="The Address Details panel with name, address, chain, shape and notes">
+    <figcaption><b>Fig. 12</b> Click any wallet to open Address Details: give it a human name, change its color and shape, and record notes on why you identified it that way.</figcaption>
+  </figure>
+
+  <p>
+    A hex string means nothing to a judge. <em>"Sotheby's"</em> or <em>"Justin
+    Sun Public Wallet"</em> means everything. Daubert also carries a registry of
+    known entities (exchanges, bridges, mixers, well-known public wallets) that
+    the assistant can look up for you. Anything it cannot identify stays
+    unlabeled until you can support the identification.
+  </p>
+
+  <div class="note">
+    <span class="lbl">Write down your reasoning</span>
+    <p>Use the <strong>Notes</strong> field on every wallet you label to record
+    <em>why</em>: a public attribution, a produced document, an exchange
+    subpoena response. When you are asked on the stand how you knew wallet X was
+    the defendant's, that note is your answer.</p>
+  </div>
+
+  <h3>Shaping the graph</h3>
+  <table>
+    <thead><tr><th>Look for</th><th>What it does</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="icocell"><svg class="ic" viewBox="0 0 512 512" fill="#059669" aria-hidden="true"><path d="M352 96l64 0c17.7 0 32 14.3 32 32l0 256c0 17.7-14.3 32-32 32l-64 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l64 0c53 0 96-43 96-96l0-256c0-53-43-96-96-96l-64 0c-17.7 0-32 14.3-32 32s14.3 32 32 32zm-9.4 182.6c12.5-12.5 12.5-32.8 0-45.3l-128-128c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L242.7 224 32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l210.7 0-73.4 73.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l128-128z"/></svg> Bundle IN</td>
+        <td>Collapses every incoming transfer from the selected wallets into one summarizing arrow, so dozens of small movements stop crowding the diagram.</td>
+        <td class="wrap">Address Details panel</td>
+      </tr>
+      <tr>
+        <td class="icocell"><svg class="ic" viewBox="0 0 512 512" fill="#D97706" aria-hidden="true"><path d="M502.6 278.6c12.5-12.5 12.5-32.8 0-45.3l-128-128c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L402.7 224 192 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l210.7 0-73.4 73.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l128-128zM160 96c17.7 0 32-14.3 32-32s-14.3-32-32-32L96 32C43 32 0 75 0 128L0 384c0 53 43 96 96 96l64 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-64 0c-17.7 0-32-14.3-32-32l0-256c0-17.7 14.3-32 32-32l64 0z"/></svg> Bundle OUT</td>
+        <td>The same for outgoing transfers.</td>
+        <td class="wrap">Address Details panel</td>
+      </tr>
+      <tr>
+        <td class="icocell"><svg class="ic" viewBox="0 0 576 512" fill="#7C3AED" aria-hidden="true"><path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/></svg> Group within trace</td>
+        <td>Select several nodes, name the group, and Daubert draws a titled box around them. Each group becomes a chapter of your narrative.</td>
+        <td class="wrap">Panel that appears when you select more than one node</td>
+      </tr>
+      <tr>
+        <td class="icocell"><svg class="ic" viewBox="0 0 576 512" fill="#5B6473" aria-hidden="true"><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM144 256a144 144 0 1 1 288 0 144 144 0 1 1 -288 0zm144-64c0 35.3-28.7 64-64 64c-7.1 0-13.9-1.2-20.3-3.3c-5.5-1.8-11.9 1.6-11.7 7.4c.3 6.9 1.3 13.8 3.2 20.7c13.7 51.2 66.4 81.6 117.6 67.9s81.6-66.4 67.9-117.6c-11.1-41.5-47.8-69.4-88.6-71.1c-5.8-.2-9.2 6.1-7.4 11.7c2.1 6.4 3.3 13.2 3.3 20.3z"/></svg> Hide / Show</td>
+        <td>Turns a whole trace off so you can show one flow at a time. The icon flips to a crossed-out eye once hidden.</td>
+        <td class="wrap">Beside each trace in the sidebar, and on right-click</td>
+      </tr>
+      <tr>
+        <td class="icocell"><svg class="ic" viewBox="0 0 512 512" fill="#5B6473" aria-hidden="true"><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/></svg> Search</td>
+        <td>Finds an address, a transaction hash or a pasted explorer URL anywhere in the case.</td>
+        <td class="wrap">Top of the canvas</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>06 · Tracing</span></div>
+</section>
+
+<!-- ══════════════════ 07 · THE ASSISTANT ═════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">07 · The assistant</div>
+  </div>
+
+  <h2><span class="num">07</span>The built-in AI assistant</h2>
+  <p class="standfirst">
+    The right-hand panel is a chat window with one important difference: it can
+    see your case, and it can do work in it.
+  </p>
+
+  <figure>
+    <img src="assets/15-ai-assistant.jpg" alt="The workspace with the AI assistant summarizing an analysis beside the graph">
+    <figcaption><b>Fig. 13</b> The assistant working beside the graph. It cites the wallets and investigations it drew on, and flags what it could not finish.</figcaption>
+  </figure>
+
+  <h3>What it can do</h3>
+  <div class="cards">
+    <div class="card">
+      <div class="ch">Read the case</div>
+      <p>The graph, every production, the entity registry, and the files in your Data Room.</p>
+    </div>
+    <div class="card">
+      <div class="ch">Fetch and expand</div>
+      <p>Pull transaction history for a wallet and import it onto the graph.</p>
+    </div>
+    <div class="card">
+      <div class="ch">Write productions</div>
+      <p>Draft reports, build charts, assemble chronologies, draft declaration sections, propose redline edits.</p>
+    </div>
+    <div class="card">
+      <div class="ch">Run analysis</div>
+      <p>Write and run small scripts against blockchain data for work too repetitive to do by hand.</p>
+    </div>
+  </div>
+
+  <h3>Asking well</h3>
+  <table>
+    <thead><tr><th>Instead of</th><th>Ask</th></tr></thead>
+    <tbody>
+      <tr><td class="wrap">"Analyze this case"</td><td class="wrap" style="font-weight:400">"Summarize every transfer between the Sun wallet and Sotheby's between Nov 2021 and Jan 2022, with dates and amounts."</td></tr>
+      <tr><td class="wrap">"Write my declaration"</td><td class="wrap" style="font-weight:400">"Draft the FINDINGS section from the Le Nez investigation. One numbered paragraph per transfer, citing the exhibit for each."</td></tr>
+      <tr><td class="wrap">"Make a chart"</td><td class="wrap" style="font-weight:400">"Chart the Sun wallet's APENFT balance monthly from Jun 2021 to Nov 2025, marking the 20T approval threshold."</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    Name the investigation, name the wallets, name the date range. The assistant
+    is precise when you are.
+  </p>
+
+  <h3>Choosing a model</h3>
+  <p>
+    The dropdown at the top of the chat picks the underlying model. The default
+    is the strongest and is the right choice for analysis and drafting. Lighter
+    models are faster and cheaper for simple lookups and reformatting.
+  </p>
+
+  <div class="note warn">
+    <span class="lbl">You are the expert, it is not</span>
+    <p>Read every paragraph the assistant drafts before it goes anywhere near a
+    filing. Check the numbers against the graph and the graph against the block
+    explorer. You sign the declaration; the assistant does not. Treat its output
+    as a competent associate's first draft: useful, and never final.</p>
+  </div>
+
+  <div class="note">
+    <span class="lbl">If you are a viewer</span>
+    <p>On cases where your role is <strong>Viewer</strong> the assistant runs in
+    read-only mode. It will answer questions but will not modify the case. The
+    chat box tells you so.</p>
+  </div>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>07 · The assistant</span></div>
+</section>
+
+<!-- ══════════════════ 08 · DATA ROOM ═════════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">08 · Data Room</div>
+  </div>
+
+  <h2><span class="num">08</span>The Data Room</h2>
+  <p class="standfirst">
+    Every case has one automatically. It is where the produced documents,
+    subpoena responses, exchange records and draft filings live, and it is what
+    the redlining workflow reads from.
+  </p>
+
+  <figure>
+    <img src="assets/12-data-room.jpg" alt="The case Data Room with upload, Google Drive import and folder controls">
+    <figcaption><b>Fig. 14</b> Upload directly, pull from Google Drive, or organize into folders. 50&nbsp;MB per file.</figcaption>
+  </figure>
+
+  <div class="feature">
+    <div class="fk">Built in, not bolted on</div>
+    <h3>Every file touch is on the record</h3>
+    <p>
+      The Data Room keeps its own access log. Upload, download, delete: each one
+      is written down with who did it and when, as part of the operation itself.
+      You do not have to remember to record anything.
+    </p>
+    <div class="fgrid">
+      <div>
+        <b>Nothing is public</b>
+        <span>There are no shareable file URLs. Every read goes through Daubert and is checked against your case role first.</span>
+      </div>
+      <div>
+        <b>The AI is logged too</b>
+        <span>When the assistant or a connected AI reads a file, it lands in the same log as a human download. No silent reads.</span>
+      </div>
+      <div>
+        <b>Ready for the question</b>
+        <span>When opposing counsel asks who saw the production and when, the answer already exists.</span>
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Your case role</th><th>In the Data Room</th></tr></thead>
+    <tbody>
+      <tr><td>Viewer</td><td>Browse and download.</td></tr>
+      <tr><td>Editor</td><td>Everything above, plus upload, delete, and create or move folders.</td></tr>
+      <tr><td>Owner</td><td>Everything.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note tip">
+    <span class="lbl">Why this matters for redlining</span>
+    <p>To redline a draft (a declaration, a brief, a letter) it must first be in
+    the Data Room as a <code>.docx</code> or <code>.pdf</code>. Upload it here,
+    then create the redline production from it (see §09).</p>
+  </div>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>08 · Data Room</span></div>
+</section>
+
+<!-- ══════════════════ 09 · PRODUCTIONS ═══════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">09 · Productions</div>
+  </div>
+
+  <h2><span class="num">09</span>Productions</h2>
+  <p class="standfirst">
+    A <strong>production</strong> is anything you hand to counsel or file. There
+    are five kinds. Create one from the <strong>+</strong> beside PRODUCTIONS in
+    the sidebar, or ask the assistant to build it.
+  </p>
+
+  <figure class="narrow">
+    <img src="assets/27-new-production.jpg" alt="The new production dialog with type chips for report, chart, chronology, declaration and redline">
+    <figcaption><b>Fig. 15</b> Name it, pick a type, create.</figcaption>
+  </figure>
+
+  <div class="prod">
+    <span class="badge">Report</span>
+    <div class="pb">
+      <h4>Report</h4>
+      <p>A free-form written document with headings, lists, bold and links. Use it
+      for internal memos, one-pagers for counsel, and anything that does not need
+      court formatting.</p>
+      <div class="fmt"><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#B91C1C" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"/></svg> PDF</span><span class="fmt-chip"><svg class="ic" viewBox="0 0 384 512" fill="#1F3A93" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM111 257.1l26.8 89.2 31.6-90.3c3.4-9.6 12.5-16.1 22.7-16.1s19.3 6.4 22.7 16.1l31.6 90.3L273 257.1c3.8-12.7 17.2-19.9 29.9-16.1s19.9 17.2 16.1 29.9l-48 160c-3 10-12 16.9-22.4 17.1s-19.8-6.2-23.2-16.1L192 336.6l-33.3 95.3c-3.4 9.8-12.8 16.3-23.2 16.1s-19.5-7.1-22.4-17.1l-48-160c-3.8-12.7 3.4-26.1 16.1-29.9s26.1 3.4 29.9 16.1z"/></svg> Word</span></div>
+    </div>
+  </div>
+
+  <div class="prod">
+    <span class="badge">Chart</span>
+    <div class="pb">
+      <h4>Chart</h4>
+      <p>A data visualization: a balance over time, a distribution across wallets,
+      volume by month. Annotate it with threshold lines and event markers so the
+      chart makes the argument on its own.</p>
+      <div class="fmt"><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#B91C1C" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"/></svg> PDF</span><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#5B6473" aria-hidden="true"><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM323.8 202.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4 3.9-19.8 10.5l-87 127.6L170.7 297c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l96 0 32 0 208 0c8.9 0 17.1-4.9 21.2-12.8s3.6-17.4-1.4-24.7l-120-176zM112 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"/></svg> PNG</span></div>
+    </div>
+  </div>
+
+  <div class="prod">
+    <span class="badge">Chronology</span>
+    <div class="pb">
+      <h4>Chronology</h4>
+      <p>A dated table of events, one row per transaction, with a source link
+      straight to the block explorer. Add and reorder columns, and highlight rows
+      that matter. Often the single most useful exhibit in a crypto matter.</p>
+      <div class="fmt"><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#B91C1C" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"/></svg> PDF</span><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#5B6473" aria-hidden="true"><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM323.8 202.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4 3.9-19.8 10.5l-87 127.6L170.7 297c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l96 0 32 0 208 0c8.9 0 17.1-4.9 21.2-12.8s3.6-17.4-1.4-24.7l-120-176zM112 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"/></svg> PNG</span><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#0A7D7B" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM200 352l16 0c22.1 0 40 17.9 40 40l0 8c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-8c0-4.4-3.6-8-8-8l-16 0c-4.4 0-8 3.6-8 8l0 80c0 4.4 3.6 8 8 8l16 0c4.4 0 8-3.6 8-8l0-8c0-8.8 7.2-16 16-16s16 7.2 16 16l0 8c0 22.1-17.9 40-40 40l-16 0c-22.1 0-40-17.9-40-40l0-80c0-22.1 17.9-40 40-40zm133.1 0l34.9 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-34.9 0c-7.2 0-13.1 5.9-13.1 13.1c0 5.2 3 9.9 7.8 12l37.4 16.6c16.3 7.2 26.8 23.4 26.8 41.2c0 24.9-20.2 45.1-45.1 45.1L304 512c-8.8 0-16-7.2-16-16s7.2-16 16-16l42.9 0c7.2 0 13.1-5.9 13.1-13.1c0-5.2-3-9.9-7.8-12l-37.4-16.6c-16.3-7.2-26.8-23.4-26.8-41.2c0-24.9 20.2-45.1 45.1-45.1zm98.9 0c8.8 0 16 7.2 16 16l0 31.6c0 23 5.5 45.6 16 66c10.5-20.3 16-42.9 16-66l0-31.6c0-8.8 7.2-16 16-16s16 7.2 16 16l0 31.6c0 34.7-10.3 68.7-29.6 97.6l-5.1 7.7c-3 4.5-8 7.1-13.3 7.1s-10.3-2.7-13.3-7.1l-5.1-7.7c-19.3-28.9-29.6-62.9-29.6-97.6l0-31.6c0-8.8 7.2-16 16-16z"/></svg> CSV</span></div>
+    </div>
+  </div>
+
+  <div class="prod">
+    <span class="badge">Declaration</span>
+    <div class="pb">
+      <h4>Declaration</h4>
+      <p>A court-ready expert declaration, built against a structured schema rather
+      than a blank page, and rendered in the correct format for the jurisdiction.
+      Covered in detail in §10.</p>
+      <div class="fmt"><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#B91C1C" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"/></svg> PDF</span><span class="fmt-chip"><svg class="ic" viewBox="0 0 384 512" fill="#1F3A93" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM111 257.1l26.8 89.2 31.6-90.3c3.4-9.6 12.5-16.1 22.7-16.1s19.3 6.4 22.7 16.1l31.6 90.3L273 257.1c3.8-12.7 17.2-19.9 29.9-16.1s19.9 17.2 16.1 29.9l-48 160c-3 10-12 16.9-22.4 17.1s-19.8-6.2-23.2-16.1L192 336.6l-33.3 95.3c-3.4 9.8-12.8 16.3-23.2 16.1s-19.5-7.1-22.4-17.1l-48-160c-3.8-12.7 3.4-26.1 16.1-29.9s26.1 3.4 29.9 16.1z"/></svg> Word</span></div>
+    </div>
+  </div>
+
+  <div class="prod">
+    <span class="badge rl">Redline</span>
+    <div class="pb">
+      <h4>Redline</h4>
+      <p>A true redline of a draft somebody else wrote, checked against the case's
+      on-chain record. Covered in §11.</p>
+      <div class="fmt"><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#B91C1C" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"/></svg> PDF</span><span class="fmt-chip"><svg class="ic" viewBox="0 0 384 512" fill="#1F3A93" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM111 257.1l26.8 89.2 31.6-90.3c3.4-9.6 12.5-16.1 22.7-16.1s19.3 6.4 22.7 16.1l31.6 90.3L273 257.1c3.8-12.7 17.2-19.9 29.9-16.1s19.9 17.2 16.1 29.9l-48 160c-3 10-12 16.9-22.4 17.1s-19.8-6.2-23.2-16.1L192 336.6l-33.3 95.3c-3.4 9.8-12.8 16.3-23.2 16.1s-19.5-7.1-22.4-17.1l-48-160c-3.8-12.7 3.4-26.1 16.1-29.9s26.1 3.4 29.9 16.1z"/></svg> Word<em>tracked changes</em></span></div>
+    </div>
+  </div>
+
+  <div class="fig-row" style="margin-top:20px">
+    <figure>
+      <img src="assets/08-production-report.jpg" alt="A report production open in the viewer">
+      <figcaption><b>Fig. 16</b> A report.</figcaption>
+    </figure>
+    <figure>
+      <img src="assets/09-production-chart.jpg" alt="A chart production showing balance over time with annotations">
+      <figcaption><b>Fig. 17</b> An annotated chart.</figcaption>
+    </figure>
+  </div>
+
+  <figure>
+    <img src="assets/10-production-chronology.jpg" alt="A chronology production: a dated table of transactions with source links">
+    <figcaption><b>Fig. 18</b> A chronology. Every row carries a clickable source hash; highlighted rows mark the transfers at issue.</figcaption>
+  </figure>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>09 · Productions</span></div>
+</section>
+
+<!-- ══════════════════ 10 · DECLARATIONS ══════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">10 · Declarations</div>
+  </div>
+
+  <h2><span class="num">10</span>Drafting a declaration</h2>
+  <p class="standfirst">
+    A declaration in Daubert is not a word processor document. It is a structured
+    object (caption, sections, numbered paragraphs, exhibits, execution block)
+    that gets rendered into your jurisdiction's format on the way out.
+  </p>
+
+  <h3>Pick your jurisdiction</h3>
+  <table>
+    <thead><tr><th>Format</th><th>Authority</th><th>Rendering</th></tr></thead>
+    <tbody>
+      <tr><td>California</td><td>C.C.P. § 2015.5</td><td class="wrap">28-line pleading paper with the numbered gutter and per-page footer. The default.</td></tr>
+      <tr><td>New York</td><td>C.P.L.R. 2106</td><td class="wrap">Double-spaced affirmation with a bordered caption box.</td></tr>
+      <tr><td>Federal</td><td>28 U.S.C. § 1746</td><td class="wrap">Generic federal unsworn declaration.</td></tr>
+      <tr><td>Texas</td><td>Civ. Prac. &amp; Rem. Code § 132.001</td><td class="wrap">Jurat reciting date of birth and address, as the statute requires.</td></tr>
+      <tr><td>Florida</td><td>Fla. Stat. § 92.525</td><td class="wrap">Generic Florida declaration.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note warn">
+    <span class="lbl">Confirm before you file</span>
+    <p>The California and New York formats are modelled on filed documents. The
+    Federal, Texas and Florida formats are careful best-effort renderings.
+    Whichever you use, have filing counsel confirm the caption and local rules
+    for the specific court before anything is filed.</p>
+  </div>
+
+  <h3>The editor</h3>
+  <figure>
+    <img src="assets/23-declaration-editor.jpg" alt="The declaration editor showing caption, exhibits and the EXPERT BACKGROUND section with numbered paragraphs">
+    <figcaption><b>Fig. 19</b> Six sections are scaffolded for you: Expert Background, Scope of Review, Summary of Opinions, Technical Background, Findings, Conclusions. Add, edit, reorder or remove paragraphs; add your own sections.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="assets/25-declaration-caption.jpg" alt="The declaration caption editor with court, county, parties, case number and hearing fields">
+    <figcaption><b>Fig. 20</b> The caption block: attorney block, court, county, parties, case number, document title, hearing information. Fill it from the filing counsel gives you.</figcaption>
+  </figure>
+
+  <h3>Preview shows exactly what prints</h3>
+  <figure>
+    <img src="assets/24-declaration-preview.jpg" alt="Declaration preview rendered on California pleading paper with the numbered line gutter">
+    <figcaption><b>Fig. 21</b> <b>Preview</b> renders the real thing: here, California pleading paper with the 28-line gutter. What you see is what the PDF will be.</figcaption>
+  </figure>
+
+  <h3>Exhibits</h3>
+  <p>
+    Add exhibits from the <strong>Exhibits</strong> panel and Daubert labels them
+    A, B, C… automatically. Attach an exhibit to a paragraph and the citation
+    stays correct even if you reorder. Each exhibit records where it came from:
+    a transaction, a URL, a file, or something else.
+  </p>
+
+  <div class="note tip">
+    <span class="lbl">The fastest path</span>
+    <p>Apply your declarant profile to fill Expert Background, insert boilerplate
+    from the firm library for the technical primer, then ask the assistant to
+    draft Findings from a named investigation. You are left editing rather than
+    starting from a blank page, which is where your judgment is actually worth
+    something.</p>
+  </div>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>10 · Declarations</span></div>
+</section>
+
+<!-- ══════════════════ 11 · REDLINING ═════════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">11 · Redlining</div>
+  </div>
+
+  <h2><span class="num">11</span>Redlining a document</h2>
+  <p class="standfirst">
+    Counsel sends you a brief, a letter or a draft declaration and asks whether
+    the crypto facts are right. Redline is built for exactly that.
+  </p>
+
+  <figure>
+    <img src="assets/11-production-redline.jpg" alt="The redline viewer: open items for attorney, marked-up document and the edit triage pane">
+    <figcaption><b>Fig. 22</b> Left: the document with proposed changes marked. Right: one card per proposed edit with the reason for it, and Accept / Reject / Modify. Top: risk flags and open questions that are not textual edits.</figcaption>
+  </figure>
+
+  <h3>How it works</h3>
+  <ol class="steps">
+    <li><b>Put the draft in the Data Room</b> Word or PDF. Word gives you the better result.</li>
+    <li><b>Create a redline production from it</b> Daubert takes a permanent, verbatim snapshot of the text. That snapshot never changes.</li>
+    <li><b>Let the assistant review it</b> It reads the draft, checks every factual and on-chain claim against your case record, and proposes small, precisely anchored edits, each with a stated basis.</li>
+    <li><b>Triage every proposal</b> Accept, Reject or Modify. Nothing is applied until you say so.</li>
+    <li><b>Export</b> Word writes your accepted edits onto the original file as real tracked changes, with a margin comment carrying the reason for each.</li>
+  </ol>
+
+  <h3>Why the snapshot matters</h3>
+  <p>
+    The original text is frozen at the moment the redline is created and cannot be
+    edited, replaced or converted into another kind of production. Every proposed
+    edit is anchored to a verbatim quotation from that frozen text. This is what
+    makes the redline defensible: there is no way for the underlying document to
+    have quietly shifted beneath the changes you approved.
+  </p>
+
+  <h3>Edits versus reviewer notes</h3>
+  <table>
+    <thead><tr><th>Kind</th><th>Use it for</th></tr></thead>
+    <tbody>
+      <tr><td class="wrap">Anchored edit</td><td>A specific span of text that is wrong and can be fixed by replacing, deleting, or inserting after it.</td></tr>
+      <tr><td class="wrap">Reviewer note</td><td>Risk flags and open questions that are not a text change, such as "confirm this $141M figure against Ex. 15 before filing".</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note warn">
+    <span class="lbl">Two things to know before exporting</span>
+    <p><strong>Word export needs at least one accepted edit</strong>, and needs the
+    source file still to be in the Data Room. If the source was a PDF there are no
+    original Word bytes to mark up, so the export is a reconstruction and its
+    filename says so. <strong>PDF export always works</strong> and renders only the
+    edits you accepted.</p>
+  </div>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>11 · Redlining</span></div>
+</section>
+
+<!-- ══════════════════ 12 · EXPORTS ═══════════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">12 · Exports &amp; exhibits</div>
+  </div>
+
+  <h2><span class="num">12</span>Exports and exhibit bundles</h2>
+  <p class="standfirst">
+    Two routes out of Daubert: export one production, or bundle several into a
+    single paginated exhibit.
+  </p>
+
+  <h3>Exporting one production</h3>
+  <figure class="narrow">
+    <img src="assets/26-export-declaration.jpg" alt="The Export Declaration dialog offering PDF and Word">
+    <figcaption><b>Fig. 23</b> The <b>Export</b> button in any production's header. Name the file, pick a format, download.</figcaption>
+  </figure>
+
+  <table>
+    <thead><tr><th>Production</th><th>Available formats</th></tr></thead>
+    <tbody>
+      <tr><td>Report</td><td class="fmts"><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#B91C1C" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"/></svg> PDF</span><span class="fmt-chip"><svg class="ic" viewBox="0 0 384 512" fill="#1F3A93" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM111 257.1l26.8 89.2 31.6-90.3c3.4-9.6 12.5-16.1 22.7-16.1s19.3 6.4 22.7 16.1l31.6 90.3L273 257.1c3.8-12.7 17.2-19.9 29.9-16.1s19.9 17.2 16.1 29.9l-48 160c-3 10-12 16.9-22.4 17.1s-19.8-6.2-23.2-16.1L192 336.6l-33.3 95.3c-3.4 9.8-12.8 16.3-23.2 16.1s-19.5-7.1-22.4-17.1l-48-160c-3.8-12.7 3.4-26.1 16.1-29.9s26.1 3.4 29.9 16.1z"/></svg> Word</span></td></tr>
+      <tr><td>Chart</td><td class="fmts"><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#B91C1C" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"/></svg> PDF</span><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#5B6473" aria-hidden="true"><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM323.8 202.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4 3.9-19.8 10.5l-87 127.6L170.7 297c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l96 0 32 0 208 0c8.9 0 17.1-4.9 21.2-12.8s3.6-17.4-1.4-24.7l-120-176zM112 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"/></svg> PNG</span></td></tr>
+      <tr><td>Chronology</td><td class="fmts"><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#B91C1C" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"/></svg> PDF</span><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#5B6473" aria-hidden="true"><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM323.8 202.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4 3.9-19.8 10.5l-87 127.6L170.7 297c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l96 0 32 0 208 0c8.9 0 17.1-4.9 21.2-12.8s3.6-17.4-1.4-24.7l-120-176zM112 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"/></svg> PNG</span><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#0A7D7B" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM200 352l16 0c22.1 0 40 17.9 40 40l0 8c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-8c0-4.4-3.6-8-8-8l-16 0c-4.4 0-8 3.6-8 8l0 80c0 4.4 3.6 8 8 8l16 0c4.4 0 8-3.6 8-8l0-8c0-8.8 7.2-16 16-16s16 7.2 16 16l0 8c0 22.1-17.9 40-40 40l-16 0c-22.1 0-40-17.9-40-40l0-80c0-22.1 17.9-40 40-40zm133.1 0l34.9 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-34.9 0c-7.2 0-13.1 5.9-13.1 13.1c0 5.2 3 9.9 7.8 12l37.4 16.6c16.3 7.2 26.8 23.4 26.8 41.2c0 24.9-20.2 45.1-45.1 45.1L304 512c-8.8 0-16-7.2-16-16s7.2-16 16-16l42.9 0c7.2 0 13.1-5.9 13.1-13.1c0-5.2-3-9.9-7.8-12l-37.4-16.6c-16.3-7.2-26.8-23.4-26.8-41.2c0-24.9 20.2-45.1 45.1-45.1zm98.9 0c8.8 0 16 7.2 16 16l0 31.6c0 23 5.5 45.6 16 66c10.5-20.3 16-42.9 16-66l0-31.6c0-8.8 7.2-16 16-16s16 7.2 16 16l0 31.6c0 34.7-10.3 68.7-29.6 97.6l-5.1 7.7c-3 4.5-8 7.1-13.3 7.1s-10.3-2.7-13.3-7.1l-5.1-7.7c-19.3-28.9-29.6-62.9-29.6-97.6l0-31.6c0-8.8 7.2-16 16-16z"/></svg> CSV</span></td></tr>
+      <tr><td>Declaration</td><td class="fmts"><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#B91C1C" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"/></svg> PDF<em>pleading paper</em></span><span class="fmt-chip"><svg class="ic" viewBox="0 0 384 512" fill="#1F3A93" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM111 257.1l26.8 89.2 31.6-90.3c3.4-9.6 12.5-16.1 22.7-16.1s19.3 6.4 22.7 16.1l31.6 90.3L273 257.1c3.8-12.7 17.2-19.9 29.9-16.1s19.9 17.2 16.1 29.9l-48 160c-3 10-12 16.9-22.4 17.1s-19.8-6.2-23.2-16.1L192 336.6l-33.3 95.3c-3.4 9.8-12.8 16.3-23.2 16.1s-19.5-7.1-22.4-17.1l-48-160c-3.8-12.7 3.4-26.1 16.1-29.9s26.1 3.4 29.9 16.1z"/></svg> Word</span></td></tr>
+      <tr><td>Redline</td><td class="fmts"><span class="fmt-chip"><svg class="ic" viewBox="0 0 512 512" fill="#B91C1C" aria-hidden="true"><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 144-208 0c-35.3 0-64 28.7-64 64l0 144-48 0c-35.3 0-64-28.7-64-64L0 64zm384 64l-128 0L256 0 384 128zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"/></svg> PDF<em>clean</em></span><span class="fmt-chip"><svg class="ic" viewBox="0 0 384 512" fill="#1F3A93" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM111 257.1l26.8 89.2 31.6-90.3c3.4-9.6 12.5-16.1 22.7-16.1s19.3 6.4 22.7 16.1l31.6 90.3L273 257.1c3.8-12.7 17.2-19.9 29.9-16.1s19.9 17.2 16.1 29.9l-48 160c-3 10-12 16.9-22.4 17.1s-19.8-6.2-23.2-16.1L192 336.6l-33.3 95.3c-3.4 9.8-12.8 16.3-23.2 16.1s-19.5-7.1-22.4-17.1l-48-160c-3.8-12.7 3.4-26.1 16.1-29.9s26.1 3.4 29.9 16.1z"/></svg> Word<em>tracked changes</em></span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <span class="lbl">PDF vs Word for declarations</span>
+    <p>The PDF is the faithful one. It carries the pleading gutter and per-page
+    line numbers. Word cannot represent a fixed gutter, so the <code>.docx</code>
+    comes out without it. Send Word when counsel needs to edit; file the PDF.</p>
+  </div>
+
+  <h3>Building an exhibit bundle</h3>
+  <p>
+    The <strong>+ Exhibit</strong> button at the bottom of the sidebar assembles
+    several items into one document. Each becomes a page in the final PDF.
+  </p>
+
+  <div class="fig-row">
+    <figure>
+      <img src="assets/13-exhibit-builder.jpg" alt="The Create Exhibit dialog with available items on the left and the composition on the right">
+      <figcaption><b>Fig. 24</b> Add investigations and productions from the left; drag to reorder on the right. Graph snapshots can render dark or light.</figcaption>
+    </figure>
+    <figure>
+      <img src="assets/14-export-exhibit.jpg" alt="The Export Exhibit dialog with filename, PDF format, font and size">
+      <figcaption><b>Fig. 25</b> Name the bundle, set the typeface and size, export as one PDF.</figcaption>
+    </figure>
+  </div>
+
+  <div class="note tip">
+    <span class="lbl">A useful default bundle</span>
+    <p>Graph snapshot → chronology → chart → summary report. It walks a reader from
+    the picture, to the dated record, to the trend, to the argument, in the order
+    they need it.</p>
+  </div>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>12 · Exports</span></div>
+</section>
+
+<!-- ══════════════════ 13 · BYOA ══════════════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">13 · Bring your own AI</div>
+  </div>
+
+  <h2><span class="num">13</span>Connect your own AI (BYOA)</h2>
+  <p class="standfirst">
+    The assistant inside Daubert is not the only way to work. You can point the AI
+    you already use, Claude or ChatGPT, straight at your Daubert cases. That is
+    what "bring your own AI" means.
+  </p>
+
+  <h3>Why you might want this</h3>
+  <div class="cards">
+    <div class="card">
+      <div class="ch">One place to work</div>
+      <p>Ask about your case in the same window where you are already drafting, reading and researching.</p>
+    </div>
+    <div class="card">
+      <div class="ch">Bring your own context</div>
+      <p>Your AI can combine Daubert case data with documents and tools it already has access to.</p>
+    </div>
+    <div class="card">
+      <div class="ch">Longer jobs</div>
+      <p>Set it on a large, repetitive task and let it work through it against the real case data.</p>
+    </div>
+    <div class="card">
+      <div class="ch">Same rules apply</div>
+      <p>An outside AI gets exactly your permissions on exactly your cases, never more.</p>
+    </div>
+  </div>
+
+  <figure>
+    <img src="assets/16-connect-agent-apps.jpg" alt="The Connected AIs panel showing the MCP server URL and the connector instructions">
+    <figcaption><b>Fig. 26</b> Go to <b>your name → Account</b>, scroll to <b>Connected AIs</b>, and click <b>Connect an AI</b>. The panel pins both values you need at the top and carries the same steps as this section, so you can follow it on screen instead of from paper.</figcaption>
+  </figure>
+
+  <p>
+    Both routes below ask you for the same two values. Have them ready.
+  </p>
+
+  <table>
+    <thead><tr><th>Field</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Name</td><td><code>Daubert</code></td></tr>
+      <tr><td class="wrap">MCP server URL</td><td><code>https://api.dauberts.ai/mcp</code> &nbsp;(keep the <code>/mcp</code> on the end)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Claude</h3>
+  <ol class="steps">
+    <li><b>Open your connectors</b> <strong>Customize → Connectors</strong>. The old <code>claude.ai/settings/connectors</code> address is retired and now only tells you they moved.</li>
+    <li><b>Add a custom connector</b> Click <strong>+</strong>, then <strong>Add custom connector</strong>, and fill in the two fields above. Leave the Advanced settings empty: Daubert registers itself, so there is no client ID to find.</li>
+    <li><b>Sign in and pick your organization</b> Claude opens a browser tab. Sign in to Daubert, choose which organization to grant, and approve.</li>
+    <li><b>Allow the tools once, not every time</b> Open the connector you just added, find <strong>Tool permissions</strong>, and set them to <strong>Always allow</strong>.</li>
+  </ol>
+
+  <div class="note warn">
+    <span class="lbl">Do not skim step 4</span>
+    <p>Claude's approval dialog puts <strong>Allow once</strong> in the obvious
+    white button and <strong>Always allow</strong> in the quieter one above it.
+    The path of least resistance, clicking the obvious button or pressing
+    Cmd+Return, is the one that makes Claude ask again on every single call,
+    forever.</p>
+  </div>
+
+  <div class="note">
+    <span class="lbl">On a Claude Team or Enterprise plan?</span>
+    <p>This applies to Claude only. Your Claude workspace administrator has to
+    register Daubert once under <strong>Organization settings → Connectors</strong>.
+    After that you will see a <strong>Connect</strong> button on the entry they
+    created, and you can skip straight to signing in and approving.</p>
+  </div>
+
+  <h3>ChatGPT</h3>
+  <p>
+    ChatGPT will not accept a custom MCP server until developer mode is on. That
+    is the step people miss, so it is first. Note that its panel is called
+    <strong>Plugins</strong>, not Connectors.
+  </p>
+  <ol class="steps">
+    <li><b>Turn on developer mode</b> <strong>Settings → Plugins → Advanced</strong>. Custom MCP connectors do not appear until this is on.</li>
+    <li><b>Create a connector</b> Click <strong>Create</strong> and fill in the two fields above.</li>
+    <li><b>Sign in and pick your organization</b> Same as Claude: a browser tab opens, you sign in and approve.</li>
+    <li><b>Approve the tools as they come up</b> ChatGPT asks before each write. Choose the option that remembers your approval.</li>
+  </ol>
+
+  <figure>
+    <img src="assets/32-connect-chatgpt.jpg" alt="The Connect an AI panel with the ChatGPT tab selected, showing the four ChatGPT setup steps">
+    <figcaption><b>Fig. 27</b> The same panel with the <b>ChatGPT</b> tab selected. The two values at the top do not change; only the steps do.</figcaption>
+  </figure>
+
+  <div class="note">
+    <span class="lbl">ChatGPT asks more often, and that is ChatGPT</span>
+    <p>ChatGPT has no standing pre-approval. Its confirmation remembers a tool
+    for the <em>current conversation only</em>, and a new conversation starts
+    asking from scratch. Claude can pre-approve a whole group at once. If the
+    asking becomes tiresome, that is the surface, not Daubert.</p>
+  </div>
+
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>13 · BYOA</span></div>
+</section>
+
+<!-- ══════════════════ 14 · BYOA PART 2 ═══════════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">13 · Bring your own AI</div>
+  </div>
+
+  <h2>What a connected AI can do</h2>
+
+  <table>
+    <thead><tr><th>Group</th><th>What it covers</th></tr></thead>
+    <tbody>
+      <tr><td class="wrap">Navigate</td><td>List your cases, open one, list its investigations.</td></tr>
+      <tr><td class="wrap">Read</td><td>Case overview, graph data, productions, the entity registry, your firm's declarant profiles and boilerplate library, and the Data Room, including reading the contents of a file.</td></tr>
+      <tr><td class="wrap">Blockchain</td><td>Fetch a wallet's transaction history, look up a single transaction, get address information.</td></tr>
+      <tr><td class="wrap">Write</td><td>Create an investigation, import transactions onto a trace, and create or update productions, including declarations and redlines.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>The guardrails</h3>
+  <ul>
+    <li><strong>Scoped to one organization.</strong> You choose which firm to grant when you approve. It cannot reach any other.</li>
+    <li><strong>Bounded by your role.</strong> Your permissions are re-checked on every single request, not once at sign-in. If your access changes, its access changes with it, immediately.</li>
+    <li><strong>Every change is logged.</strong> Each create or update is recorded with the AI, the organization, the action, the target and whether it succeeded or was denied.</li>
+    <li><strong>File reads are logged too.</strong> When a connected AI reads a Data Room file it lands in the same chain-of-custody log as a human download.</li>
+    <li><strong>Revocable in one click.</strong> The bin icon beside a connected AI cuts it off instantly.</li>
+  </ul>
+
+  <h3>Your audit trail</h3>
+  <p>
+    The <strong>AI activity</strong> table on your Account page lists every
+    change any connected AI has made on your behalf, including ones you have
+    since disconnected. Check it after a long session; it is the fastest way
+    to see exactly what changed.
+  </p>
+
+  <div class="note warn">
+    <span class="lbl">The judgment call</span>
+    <p>A connected AI has real write access to real matters. Give it narrow,
+    specific instructions, review the AI activity log afterwards, and revoke
+    connections you are no longer using. If you are unsure whether an outside AI should
+    be allowed to touch a case, do that work in the built-in assistant instead.
+    It is scoped to one case at a time by design.</p>
+  </div>
+
+  <div class="note tip">
+    <span class="lbl">A good first task</span>
+    <p>Ask your connected AI: <em>"List my Daubert cases, then summarize the
+    investigations and productions in the one called X."</em> It is read-only,
+    it proves the connection works, and it shows you the shape of what it
+    can see.</p>
+  </div>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>13 · BYOA</span></div>
+</section>
+
+<!-- ══════════════════ 14 · HABITS + GLOSSARY ═════════════════ -->
+<section class="sheet">
+  <div class="runhead">
+    <div class="rh-left"><img src="assets/logo.png" alt=""><span class="rh-name">Daubert</span><span class="rh-conf">Confidential</span></div>
+    <div class="rh-sec">14 · Reference</div>
+  </div>
+
+  <h2><span class="num">14</span>Habits that hold up under cross</h2>
+
+  <ul>
+    <li><strong>Label with a reason.</strong> Every wallet you name gets a note saying how you identified it. Unsupported attributions are the softest part of any crypto expert's testimony.</li>
+    <li><strong>Verify before you assert.</strong> Every number that reaches a declaration should be traceable from the paragraph, to the graph, to the block explorer. The chronology's source links exist for exactly this.</li>
+    <li><strong>Do not let the AI have the last word.</strong> Read every drafted paragraph. It is a fast, well-informed associate, not a signatory.</li>
+    <li><strong>Keep the source documents in the Data Room.</strong> That is where the chain-of-custody log lives. Files on your desktop have none.</li>
+    <li><strong>Say what you did not do.</strong> Scope limits belong in the declaration, not in your head.</li>
+    <li><strong>Re-read the preview before exporting.</strong> Preview is the real rendering. Two minutes there beats a corrected filing.</li>
+  </ul>
+
+  <h3>Glossary</h3>
+  <dl class="gloss">
+    <dt>Address / wallet</dt>
+    <dd>A public account on a blockchain, written as a long string of letters and numbers. A node on your graph.</dd>
+
+    <dt>Chain</dt>
+    <dd>The specific blockchain a transaction happened on. Daubert traces seven: Ethereum, Polygon, Arbitrum, Base, Tron, Bitcoin and Solana.</dd>
+
+    <dt>Transaction hash</dt>
+    <dd>The unique identifier of a single transfer. Paste one into the search bar to find it; click one in a chronology to open the block explorer.</dd>
+
+    <dt>Block explorer</dt>
+    <dd>The public website for a chain: Etherscan, Tronscan, mempool.space, Solscan. The independent source anyone can check your work against.</dd>
+
+    <dt>Bundle</dt>
+    <dd>Many small transfers collapsed into one summarizing arrow, so the diagram stays readable.</dd>
+
+    <dt>Trace</dt>
+    <dd>One diagram inside an investigation. Traces can be shown and hidden independently.</dd>
+
+    <dt>Production</dt>
+    <dd>Anything you hand to counsel: report, chart, chronology, declaration or redline.</dd>
+
+    <dt>Declarant</dt>
+    <dd>The expert signing a declaration. That is you. Your profile is stored once at firm level and reused across cases.</dd>
+
+    <dt>Data Room</dt>
+    <dd>The case's file store, with an access log on every upload, download and deletion.</dd>
+
+    <dt>Exhibit</dt>
+    <dd>Either a labeled item attached to a declaration (A, B, C…), or a bundle of several productions exported as one PDF.</dd>
+
+    <dt>BYOA (bring your own AI)</dt>
+    <dd>Connecting an outside AI, Claude or ChatGPT, to your Daubert cases, with your permissions and a full audit trail.</dd>
+  </dl>
+
+  <h3>Where to go when stuck</h3>
+  <table>
+    <thead><tr><th>Problem</th><th>Try</th></tr></thead>
+    <tbody>
+      <tr><td class="wrap">Cannot see a case</td><td>Ask the case owner to add you under Settings → Members.</td></tr>
+      <tr><td class="wrap">Cannot edit anything</td><td>You are probably a Viewer on that case. Check the role beside your name in Settings.</td></tr>
+      <tr><td class="wrap">A fetch is slow or incomplete</td><td>Narrow the date range and lower the limit, then fetch again. Very active addresses page slowly by design.</td></tr>
+      <tr><td class="wrap">Word redline export refuses</td><td>You need at least one accepted edit, and the source file must still be in the Data Room. PDF always works.</td></tr>
+      <tr><td class="wrap">A connected AI stopped working</td><td>Check Account → Connected AIs. If your organization access changed, the connection is cut immediately by design. Reconnect.</td></tr>
+      <tr><td class="wrap">Anything else</td><td>Ask the built-in assistant first. It knows the product and can explain any part of it in context. If that does not resolve it, email <strong>hello@dauberts.ai</strong>.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="feature" style="margin-top:26px">
+    <div class="fk">One more thing</div>
+    <h3>If you get stuck, say so</h3>
+    <p>
+      You should not lose an afternoon to something a two-line reply can fix. If
+      a fetch will not behave, a format is wrong for your court, or you simply
+      cannot find where something lives, write to us. Tell us the case name and
+      what you were trying to do, and we will pick it up.
+    </p>
+    <p style="margin:0;font-size:14pt;font-weight:700;color:#FFFFFF;letter-spacing:-.01em">
+      hello@dauberts.ai
+    </p>
+  </div>
+
+  <div class="endbar"><span>Daubert · app.dauberts.ai</span><span>End</span></div>
+</section>
+
+</body>
+</html>

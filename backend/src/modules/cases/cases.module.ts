@@ -7,12 +7,14 @@ import { CasesController } from './cases.controller';
 import { CasesService } from './cases.service';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([CaseEntity, CaseMemberEntity, OrganizationMemberEntity]),
     AuthModule,
     UsersModule,
+    OrganizationsModule,
   ],
   controllers: [CasesController],
   providers: [CasesService],

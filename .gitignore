@@ -44,3 +44,5 @@ qa-*.png
 
 # Fullsend worktrees (local-only isolation)
 .worktrees/
+# TypeScript incremental build artifacts
+*.tsbuildinfo

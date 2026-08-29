@@ -22,6 +22,12 @@ export class OrganizationsController {
   }
 
   @RequireOrgRole('member')
+  @Get('roster')
+  getRoster(@Req() req: any) {
+    return this.service.getRoster(req.organization.id);
+  }
+
+  @RequireOrgRole('member')
   @Get('members')
   listMembers(@Req() req: any) {
     return this.service.listMembers(req.organization.id);

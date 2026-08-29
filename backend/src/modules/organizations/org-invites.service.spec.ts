@@ -46,7 +46,51 @@ const mockQb = {
   andWhere: jest.fn().mockReturnThis(),
   orderBy: jest.fn().mockReturnThis(),
   getMany: jest.fn(),
+  getOne: jest.fn(),
 };
+
+/**
+ * A query-builder stand-in that actually applies the where/andWhere calls to
+ * the seed dataset, instead of ignoring them (see organizations.service.spec.ts's
+ * makeQueryBuilder for the same pattern). This is what makes the liveness
+ * fragment (`usedAt IS NULL AND expiresAt > NOW()`) — shared by listPending,
+ * findLiveInvite, and listLiveInvites via the private liveInviteQuery helper —
+ * an actually-tested contract: if a clause is dropped from the production
+ * query, these tests fail instead of passing vacuously.
+ */
+function makeLiveQueryBuilder(seed: OrganizationInviteEntity[]) {
+  let rows = [...seed];
+  const qb: any = {
+    leftJoinAndSelect: jest.fn(() => qb),
+    where: jest.fn((sql: string, params: any) => {
+      if (sql.includes('organizationId')) {
+        rows = rows.filter((r) => r.organizationId === params.orgId);
+      }
+      return qb;
+    }),
+    andWhere: jest.fn((sql: string, params?: any) => {
+      if (sql.includes('usedAt IS NULL')) {
+        rows = rows.filter((r) => r.usedAt === null);
+      }
+      if (sql.includes('expiresAt > NOW()')) {
+        rows = rows.filter((r) => r.expiresAt.getTime() > Date.now());
+      }
+      if (sql.includes('invite.email') && params) {
+        rows = rows.filter((r) => r.email === params.email);
+      }
+      return qb;
+    }),
+    orderBy: jest.fn((field: string, dir: string) => {
+      if (field.includes('createdAt') && dir === 'DESC') {
+        rows = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      }
+      return qb;
+    }),
+    getMany: jest.fn(() => Promise.resolve(rows)),
+    getOne: jest.fn(() => Promise.resolve(rows[0] ?? null)),
+  };
+  return qb;
+}
 
 const mockInviteRepo = {
   find: jest.fn(),
@@ -185,6 +229,80 @@ describe('OrgInvitesService', () => {
       mockQb.getMany.mockResolvedValue([]);
       const result = await service.listPending(ORG_ID);
       expect(result).toEqual([]);
+    });
+  });
+
+  // ── findLiveInvite ───────────────────────────────────────────────────────────
+  //
+  // The single security check for "does this org have a live invite for this
+  // email" — used by CasesService.addMemberByEmail to decide whether a pending
+  // invitee can be staffed onto a case. Moved here from cases.service.spec.ts's
+  // old seedOrgInvites-based tests now that CasesService no longer owns this
+  // filtering.
+
+  describe('findLiveInvite', () => {
+    it('returns the invite when it is unused, unexpired, and matches org + email', async () => {
+      const invite = makeInvite();
+      mockInviteRepo.createQueryBuilder.mockReturnValue(makeLiveQueryBuilder([invite]));
+
+      const result = await service.findLiveInvite(ORG_ID, INVITE_EMAIL);
+
+      expect(result).toEqual(invite);
+    });
+
+    it('returns null when the invite has already been used', async () => {
+      const invite = makeInvite({ usedAt: new Date() });
+      mockInviteRepo.createQueryBuilder.mockReturnValue(makeLiveQueryBuilder([invite]));
+
+      const result = await service.findLiveInvite(ORG_ID, INVITE_EMAIL);
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null when the invite has expired', async () => {
+      const invite = makeInvite({ expiresAt: pastDate() });
+      mockInviteRepo.createQueryBuilder.mockReturnValue(makeLiveQueryBuilder([invite]));
+
+      const result = await service.findLiveInvite(ORG_ID, INVITE_EMAIL);
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null when the email does not match', async () => {
+      const invite = makeInvite();
+      mockInviteRepo.createQueryBuilder.mockReturnValue(makeLiveQueryBuilder([invite]));
+
+      const result = await service.findLiveInvite(ORG_ID, 'someone-else@example.com');
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null when the invite belongs to a different org (cross-org isolation)', async () => {
+      const invite = makeInvite();
+      mockInviteRepo.createQueryBuilder.mockReturnValue(makeLiveQueryBuilder([invite]));
+
+      const result = await service.findLiveInvite('some-other-org', INVITE_EMAIL);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ── listLiveInvites ──────────────────────────────────────────────────────────
+  //
+  // Backs OrganizationsService.getRoster. Shares the same liveInviteQuery
+  // helper as findLiveInvite / listPending, so the used/expired coverage above
+  // protects this too, but this checks the wiring returns only the live ones.
+
+  describe('listLiveInvites', () => {
+    it('returns only live invites for the org, newest first', async () => {
+      const live = makeInvite({ id: 'live-1' });
+      const used = makeInvite({ id: 'used-1', usedAt: new Date() });
+      const expired = makeInvite({ id: 'expired-1', expiresAt: pastDate() });
+      mockInviteRepo.createQueryBuilder.mockReturnValue(makeLiveQueryBuilder([live, used, expired]));
+
+      const result = await service.listLiveInvites(ORG_ID);
+
+      expect(result).toEqual([live]);
     });
   });
 

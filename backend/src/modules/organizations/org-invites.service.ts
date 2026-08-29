@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, GoneException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 import { customAlphabet } from 'nanoid';
 import { OrganizationEntity } from '../../database/entities/organization.entity';
 import { OrganizationInviteEntity, OrgInviteRole } from '../../database/entities/organization-invite.entity';
@@ -62,15 +62,35 @@ export class OrgInvitesService {
     return this.inviteRepo.save(invite);
   }
 
-  async listPending(orgId: string) {
+  /**
+   * The ONE place that expresses "live org invite" (unused, unexpired), using
+   * the DB clock (SQL NOW()) rather than the app clock so every consumer of
+   * liveness — listPending, findLiveInvite, and OrganizationsService.getRoster
+   * (via listLiveInvites) — shares a single clock source and cannot drift.
+   */
+  private liveInviteQuery(orgId: string): SelectQueryBuilder<OrganizationInviteEntity> {
     return this.inviteRepo
       .createQueryBuilder('invite')
-      .leftJoinAndSelect('invite.createdBy', 'createdBy')
       .where('invite.organizationId = :orgId', { orgId })
       .andWhere('invite.usedAt IS NULL')
-      .andWhere('invite.expiresAt > NOW()')
+      .andWhere('invite.expiresAt > NOW()');
+  }
+
+  async listPending(orgId: string) {
+    return this.liveInviteQuery(orgId)
+      .leftJoinAndSelect('invite.createdBy', 'createdBy')
       .orderBy('invite.createdAt', 'DESC')
       .getMany();
+  }
+
+  /** All live invites for an org, newest first. No relations joined - used by OrganizationsService.getRoster. */
+  async listLiveInvites(orgId: string): Promise<OrganizationInviteEntity[]> {
+    return this.liveInviteQuery(orgId).orderBy('invite.createdAt', 'DESC').getMany();
+  }
+
+  /** The live invite (if any) for a given org + email. Used as the cross-org security check in CasesService. */
+  async findLiveInvite(orgId: string, email: string): Promise<OrganizationInviteEntity | null> {
+    return this.liveInviteQuery(orgId).andWhere('invite.email = :email', { email }).getOne();
   }
 
   async revoke(orgId: string, inviteId: string) {

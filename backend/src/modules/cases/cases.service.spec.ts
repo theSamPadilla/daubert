@@ -29,6 +29,10 @@ const mockOrgMemberRepo = {
   createQueryBuilder: jest.fn(),
 };
 
+const mockOrgInvitesService = {
+  findLiveInvite: jest.fn(),
+};
+
 const mockDataSource = {
   transaction: jest.fn(),
 };
@@ -50,7 +54,14 @@ function makeMember(userId: string, role: CaseRole) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeService() {
-  return new CasesService(mockRepo as any, mockMemberRepo as any, mockOrgMemberRepo as any, mockDataSource as any, mockUsersService as any);
+  return new CasesService(
+    mockRepo as any,
+    mockMemberRepo as any,
+    mockOrgMemberRepo as any,
+    mockOrgInvitesService as any,
+    mockDataSource as any,
+    mockUsersService as any,
+  );
 }
 
 /**
@@ -215,13 +226,112 @@ describe('CasesService — ≥1 owner invariant: leave', () => {
 });
 
 // ── addMemberByEmail ──────────────────────────────────────────────────────────
+//
+// Org-scoping gate for granting a case seat by email: the target must belong to
+// the case's org, either as an accepted organization_members row or as a live
+// (unused, unexpired) organization_invites row. Everyone else gets a
+// NotFoundException with an identical message, so a case owner cannot probe
+// whether an address exists in some other org.
+//
+// The liveness check itself (unused, unexpired) is NOT this service's
+// responsibility anymore — it's delegated to OrgInvitesService.findLiveInvite,
+// the single place that expresses "live org invite" (see
+// org-invites.service.spec.ts for the used/expired filtering tests). This
+// suite only asserts CasesService's own wiring: it calls findLiveInvite with
+// the right (orgId, email), trusts a truthy result, and 404s on null.
 
 describe('CasesService — addMemberByEmail', () => {
   let service: CasesService;
+  const ORG_ID = 'org-1';
+  const OTHER_ORG_ID = 'org-2';
 
   beforeEach(() => {
     jest.clearAllMocks();
     service = makeService();
+    // projection lookup — the case belongs to ORG_ID
+    mockRepo.findOne.mockResolvedValue({ id: CASE_ID, orgId: ORG_ID, investigations: [] });
+    // no live org invite unless a test seeds one
+    mockOrgInvitesService.findLiveInvite.mockResolvedValue(null);
+    // no existing case membership
+    mockMemberRepo.findOneBy.mockResolvedValue(null);
+  });
+
+  /** The caller is an accepted member of `organizationId` (or of nothing when null). */
+  function mockOrgMembership(organizationId: string | null) {
+    mockOrgMemberRepo.findOneBy.mockImplementation(async (where: any) =>
+      organizationId !== null && where.organizationId === organizationId ? { ...where, role: 'member' } : null,
+    );
+  }
+
+  function makeOrgInvite(overrides: Record<string, any> = {}) {
+    return {
+      organizationId: ORG_ID,
+      email: 'pending@example.com',
+      role: 'member',
+      usedAt: null,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      ...overrides,
+    };
+  }
+
+  it('adds an accepted org member of the case org', async () => {
+    const user = { id: 'user-123', email: 'alice@example.com' };
+    const membership = makeMember(user.id, 'editor');
+    mockUsersService.findByEmail.mockResolvedValue(user);
+    mockOrgMembership(ORG_ID);
+    mockMemberRepo.create.mockReturnValue(membership);
+    mockMemberRepo.save.mockResolvedValue(membership);
+
+    const result = await service.addMemberByEmail(CASE_ID, 'alice@example.com', 'editor');
+
+    expect(mockUsersService.findByEmail).toHaveBeenCalledWith('alice@example.com');
+    expect(mockOrgMemberRepo.findOneBy).toHaveBeenCalledWith({
+      userId: user.id,
+      organizationId: ORG_ID,
+    });
+    expect(mockMemberRepo.create).toHaveBeenCalledWith({
+      caseId: CASE_ID,
+      userId: user.id,
+      role: 'editor',
+    });
+    expect(result).toEqual(membership);
+  });
+
+  it('adds a pending org invitee of the case org when OrgInvitesService reports a live invite', async () => {
+    // Shell user row provisioned by OrgInvitesService.create — no firebaseUid yet.
+    const shellUser = { id: 'user-shell', email: 'pending@example.com', firebaseUid: null };
+    const membership = makeMember(shellUser.id, 'viewer');
+    mockUsersService.findByEmail.mockResolvedValue(shellUser);
+    mockOrgMembership(null);
+    mockOrgInvitesService.findLiveInvite.mockResolvedValue(makeOrgInvite());
+    mockMemberRepo.create.mockReturnValue(membership);
+    mockMemberRepo.save.mockResolvedValue(membership);
+
+    const result = await service.addMemberByEmail(CASE_ID, 'pending@example.com', 'viewer');
+
+    expect(mockOrgInvitesService.findLiveInvite).toHaveBeenCalledWith(ORG_ID, 'pending@example.com');
+    expect(mockMemberRepo.create).toHaveBeenCalledWith({
+      caseId: CASE_ID,
+      userId: shellUser.id,
+      role: 'viewer',
+    });
+    expect(result).toEqual(membership);
+  });
+
+  it('throws NotFoundException when OrgInvitesService reports no live invite for this org (e.g. user belongs to a different org)', async () => {
+    const user = { id: 'user-outsider', email: 'mallory@other.com' };
+    mockUsersService.findByEmail.mockResolvedValue(user);
+    mockOrgMembership(OTHER_ORG_ID);
+    // findLiveInvite is scoped to the CASE's org (ORG_ID), not OTHER_ORG_ID, so
+    // even though a live invite may exist over there, this org sees none.
+    mockOrgInvitesService.findLiveInvite.mockResolvedValue(null);
+
+    await expect(
+      service.addMemberByEmail(CASE_ID, 'mallory@other.com', 'viewer'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(mockOrgInvitesService.findLiveInvite).toHaveBeenCalledWith(ORG_ID, 'mallory@other.com');
+    expect(mockMemberRepo.create).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when no user matches the email', async () => {
@@ -232,29 +342,25 @@ describe('CasesService — addMemberByEmail', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(mockUsersService.findByEmail).toHaveBeenCalledWith('ghost@example.com');
+    expect(mockMemberRepo.create).not.toHaveBeenCalled();
   });
 
-  it('calls addMember with resolved userId when user exists', async () => {
-    const user = { id: 'user-123', email: 'alice@example.com' };
-    const membership = makeMember(user.id, 'editor');
+  it('does not leak whether the email exists: same message for unknown and cross-org', async () => {
+    mockUsersService.findByEmail.mockResolvedValue(null);
+    const unknown = await service
+      .addMemberByEmail(CASE_ID, 'ghost@example.com', 'viewer')
+      .catch((e: Error) => e.message);
 
-    mockUsersService.findByEmail.mockResolvedValue(user);
-    // fetchOne inside addMember
-    mockRepo.findOne.mockResolvedValue({ id: CASE_ID, investigations: [] });
-    // no existing membership
-    mockMemberRepo.findOneBy.mockResolvedValue(null);
-    mockMemberRepo.create.mockReturnValue(membership);
-    mockMemberRepo.save.mockResolvedValue(membership);
+    jest.clearAllMocks();
+    mockRepo.findOne.mockResolvedValue({ id: CASE_ID, orgId: ORG_ID, investigations: [] });
+    mockOrgInvitesService.findLiveInvite.mockResolvedValue(null);
+    mockUsersService.findByEmail.mockResolvedValue({ id: 'user-outsider', email: 'ghost@example.com' });
+    mockOrgMembership(OTHER_ORG_ID);
+    const crossOrg = await service
+      .addMemberByEmail(CASE_ID, 'ghost@example.com', 'viewer')
+      .catch((e: Error) => e.message);
 
-    const result = await service.addMemberByEmail(CASE_ID, 'alice@example.com', 'editor');
-
-    expect(mockUsersService.findByEmail).toHaveBeenCalledWith('alice@example.com');
-    expect(mockMemberRepo.create).toHaveBeenCalledWith({
-      caseId: CASE_ID,
-      userId: user.id,
-      role: 'editor',
-    });
-    expect(result).toEqual(membership);
+    expect(crossOrg).toBe(unknown);
   });
 
   it('trims and lowercases the email before lookup', async () => {

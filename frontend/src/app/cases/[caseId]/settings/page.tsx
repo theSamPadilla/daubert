@@ -11,6 +11,7 @@ import {
   type CaseRole,
 } from '@/lib/api-client';
 import type { components } from '@/generated/api-types';
+import { buildStaffingRoster, candidateLabel, implicitAdminLabel, EMPTY_ROSTER } from '@/lib/roster';
 import { InviteCreatedModal } from '@/components/Common/InviteCreatedModal';
 import { useConfirm } from '@/components/Common/ConfirmProvider';
 import { Panel } from '@/components/ui/Panel';
@@ -24,7 +25,7 @@ import { Select } from '@/components/ui/Select';
 // Helpers
 // ---------------------------------------------------------------------------
 
-type OrganizationMember = components['schemas']['OrganizationMember'];
+type OrganizationRoster = components['schemas']['OrganizationRoster'];
 
 function Banner({ message, onClose }: { message: string; onClose: () => void }) {
   return (
@@ -134,8 +135,8 @@ function MembersSection({
   const [busy, setBusy] = useState<string | null>(null); // userId being acted on
 
   // Org roster for the "add existing member" picker (owner-only).
-  const [orgMembers, setOrgMembers] = useState<OrganizationMember[] | null>(null);
-  const [pickedUserId, setPickedUserId] = useState('');
+  const [roster, setRoster] = useState<OrganizationRoster | null>(null);
+  const [pickedKey, setPickedKey] = useState('');
   const [pickedRole, setPickedRole] = useState<CaseRole>('viewer');
   const [adding, setAdding] = useState(false);
 
@@ -153,32 +154,25 @@ function MembersSection({
     if (!canAddFromOrg || !orgSlug) return;
     let cancelled = false;
     apiClient
-      .listOrgMembers(orgSlug)
-      .then((data) => { if (!cancelled) setOrgMembers(data); })
-      .catch(() => { if (!cancelled) setOrgMembers([]); });
+      .getOrgRoster(orgSlug)
+      .then((data) => { if (!cancelled) setRoster(data); })
+      .catch(() => { if (!cancelled) setRoster(EMPTY_ROSTER); });
     return () => { cancelled = true; };
   }, [canAddFromOrg, orgSlug]);
 
-  // Org admins already hold implicit owner access on every case in the org, and
-  // an explicit case_members row takes precedence over that implicit role — so
-  // adding one here as "viewer" would silently DOWNGRADE them. Keep them out of
-  // the picker entirely and say why.
-  const existingUserIds = new Set(members.map((m) => m.userId));
-  const orgAdmins = (orgMembers ?? []).filter(
-    (m) => m.role === 'admin' && !existingUserIds.has(m.userId),
-  );
-  const candidates = (orgMembers ?? []).filter(
-    (m) => m.role !== 'admin' && !!m.user?.email && !existingUserIds.has(m.userId),
-  );
+  const { candidates, implicitAdmins } = buildStaffingRoster(roster ?? EMPTY_ROSTER, {
+    excludeUserIds: members.map((m) => m.userId),
+    excludeEmails: members.map((m) => m.user?.email).filter(Boolean) as string[],
+  });
 
   const handleAddFromOrg = async () => {
-    const picked = candidates.find((m) => m.userId === pickedUserId);
-    if (!picked?.user?.email) return;
+    const picked = candidates.find((c) => c.key === pickedKey);
+    if (!picked) return;
     setAdding(true);
     setError(null);
     try {
-      await apiClient.addCaseMember(caseId, { email: picked.user.email, role: pickedRole });
-      setPickedUserId('');
+      await apiClient.addCaseMember(caseId, { email: picked.email, role: pickedRole });
+      setPickedKey('');
       setPickedRole('viewer');
       load();
     } catch (e: unknown) {
@@ -249,7 +243,12 @@ function MembersSection({
                     {m.user?.name ?? m.user?.email ?? m.userId}
                   </p>
                   {m.user?.email && (
-                    <p className="text-[13px] text-ink-muted truncate">{m.user.email}</p>
+                    <p className="text-[13px] text-ink-muted truncate">
+                      {m.user.email}
+                      {m.user.linked === false && (
+                        <span className="text-ink-faint"> &middot; invite pending</span>
+                      )}
+                    </p>
                   )}
                 </div>
                 {viewerRole === 'owner' ? (
@@ -289,21 +288,22 @@ function MembersSection({
         </div>
       )}
 
-      {/* Add an existing org member — the primary way to staff a case. No
-          invite, no email: these people already have accounts. */}
+      {/* Add someone from the org roster, accepted or pending invite, the
+          primary way to staff a case. */}
       {canAddFromOrg && (
         <div className="mt-5 pt-5 border-t border-line space-y-3">
           <div>
             <p className="text-sm font-medium text-ink">Add from your organization</p>
             <p className="text-[13px] text-ink-muted mt-0.5">
-              Give someone who already has an account access to this case. They get it
-              immediately — no invite to send or accept.
+              Give someone in your organization access to this case. If they have an
+              account, they get it immediately. If their org invite is still pending,
+              the seat is saved and they land on this case as soon as they sign up.
             </p>
           </div>
 
-          {orgMembers === null ? (
+          {roster === null ? (
             <p className="text-sm text-ink-muted">Loading organization members…</p>
-          ) : candidates.length === 0 && orgAdmins.length === 0 ? (
+          ) : candidates.length === 0 && implicitAdmins.length === 0 ? (
             <p className="text-sm text-ink-muted">
               Everyone in your organization already has access to this case.
               {' '}Use <span className="text-ink font-medium">External invites</span> below to
@@ -314,21 +314,21 @@ function MembersSection({
               <div className="flex gap-2">
                 <div className="flex-1 min-w-0">
                   <Select
-                    value={pickedUserId}
+                    value={pickedKey}
                     disabled={adding}
-                    onChange={(e) => setPickedUserId(e.target.value)}
+                    onChange={(e) => setPickedKey(e.target.value)}
                   >
                     <option value="">Select a person…</option>
-                    {candidates.map((m) => (
-                      <option key={m.userId} value={m.userId}>
-                        {m.user?.name ? `${m.user.name} (${m.user!.email})` : m.user!.email}
+                    {candidates.map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {candidateLabel(c)}
                       </option>
                     ))}
                     {/* Shown but unselectable: org admins already hold owner
                         access, and an explicit row here would override it. */}
-                    {orgAdmins.map((m) => (
-                      <option key={m.userId} value="" disabled>
-                        {m.user?.name || m.user?.email || m.userId} — org admin, already has access
+                    {implicitAdmins.map((c) => (
+                      <option key={c.key} value="" disabled>
+                        {implicitAdminLabel(c)}
                       </option>
                     ))}
                   </Select>
@@ -348,7 +348,7 @@ function MembersSection({
               <Button
                 size="sm"
                 onClick={handleAddFromOrg}
-                disabled={!pickedUserId || adding}
+                disabled={!pickedKey || adding}
               >
                 <FaPlus size={11} />
                 {adding ? 'Adding…' : 'Add to case'}
@@ -444,10 +444,10 @@ function InvitesSection({ caseId }: { caseId: string }) {
           For people outside your organization
         </p>
         <p className="text-sm text-ink-muted leading-relaxed">
-          Use this only for someone with no account — outside counsel, a retained expert,
-          a co-defendant&apos;s team. They get a link, create an account, and land on this
-          case only. To add a colleague who is already in your organization, use{' '}
-          <span className="text-ink font-medium">Add from your organization</span> above.
+          Outside counsel, a retained expert, a co-defendant&apos;s team. They get a link,
+          create an account, and land on this case only. To add someone who is already
+          in your organization, or who you have invited but who has not signed up yet,
+          use <span className="text-ink font-medium">Add from your organization</span> above.
         </p>
       </div>
 

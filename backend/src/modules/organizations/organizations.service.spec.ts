@@ -1,6 +1,8 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
 import { OrgRole } from '../../database/entities/organization-member.entity';
+import { OrganizationInviteEntity, OrgInviteRole } from '../../database/entities/organization-invite.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -23,6 +25,26 @@ function makeUser(id: string) {
   return { id, email: `${id}@example.com`, name: id, avatarUrl: null, firebaseUid: `firebase-${id}`, createdAt: new Date(), updatedAt: new Date() };
 }
 
+const futureDate = () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+function makeInvite(overrides: Partial<OrganizationInviteEntity> = {}): OrganizationInviteEntity {
+  return {
+    id: 'invite-1',
+    organizationId: ORG_ID,
+    email: 'invitee@example.com',
+    role: 'member' as OrgInviteRole,
+    code: 'SECRET-CODE-DO-NOT-LEAK',
+    message: null,
+    createdByUserId: USER_A,
+    expiresAt: futureDate(),
+    usedAt: null,
+    usedByUserId: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  } as OrganizationInviteEntity;
+}
+
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockOrgRepo = {
@@ -40,6 +62,19 @@ const mockMemberRepo = {
   remove: jest.fn(),
 };
 
+// getRoster no longer builds its own invite query — it delegates liveness
+// filtering to OrgInvitesService.listLiveInvites, the one place that expresses
+// "live org invite". Used/expired filtering is tested against the real
+// query-builder in org-invites.service.spec.ts; here we just seed the
+// (already-live) invites that listLiveInvites would have returned.
+const mockOrgInvitesService = {
+  listLiveInvites: jest.fn(),
+};
+
+const mockUserRepo = {
+  find: jest.fn(),
+};
+
 const mockUsersService = {
   findByEmail: jest.fn(),
 };
@@ -52,6 +87,8 @@ function makeService() {
   return new OrganizationsService(
     mockOrgRepo as any,
     mockMemberRepo as any,
+    mockOrgInvitesService as any,
+    mockUserRepo as any,
     mockUsersService as any,
     mockDataSource as any,
   );
@@ -350,5 +387,145 @@ describe('OrganizationsService — leave', () => {
     });
 
     await expect(service.leave(ORG_ID, 'not-a-member')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('OrganizationsService — getRoster', () => {
+  let service: OrganizationsService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = makeService();
+    mockMemberRepo.find.mockResolvedValue([]);
+    mockUserRepo.find.mockResolvedValue([]);
+  });
+
+  /**
+   * getRoster delegates liveness filtering to OrgInvitesService.listLiveInvites,
+   * so this seeds the already-live invites that call would have returned.
+   * Used/expired filtering itself is tested against a real query-builder in
+   * org-invites.service.spec.ts (the single place that expresses liveness).
+   */
+  function seedInvites(invites: OrganizationInviteEntity[]) {
+    mockOrgInvitesService.listLiveInvites.mockResolvedValue(invites);
+  }
+
+  it('includes a live pending invite that has a backing shell user', async () => {
+    seedInvites([makeInvite()]);
+    mockUserRepo.find.mockResolvedValue([
+      { id: 'shell-user-1', email: 'invitee@example.com', name: 'invitee@example.com' } as UserEntity,
+    ]);
+
+    const result = await service.getRoster(ORG_ID);
+
+    expect(result.pendingInvites).toHaveLength(1);
+    expect(result.pendingInvites[0]).toMatchObject({
+      id: 'invite-1',
+      email: 'invitee@example.com',
+      name: null,
+      role: 'member',
+      userId: 'shell-user-1',
+    });
+    expect(result.pendingInvites[0].createdAt).toBeDefined();
+    expect(result.pendingInvites[0].expiresAt).toBeDefined();
+  });
+
+  it('excludes an invite whose email matches an accepted member', async () => {
+    mockMemberRepo.find.mockResolvedValue([makeMember(USER_A, 'admin')]);
+    seedInvites([makeInvite({ email: `${USER_A}@EXAMPLE.com` })]);
+
+    const result = await service.getRoster(ORG_ID);
+
+    expect(result.pendingInvites).toHaveLength(0);
+  });
+
+  it('collapses duplicate invites for the same email, keeping the newest', async () => {
+    const older = makeInvite({
+      id: 'invite-old',
+      email: 'dup@example.com',
+      createdAt: new Date(Date.now() - 60_000),
+    });
+    const newer = makeInvite({
+      id: 'invite-new',
+      email: 'dup@example.com',
+      createdAt: new Date(),
+    });
+    // listLiveInvites orders newest-first in production; seed it that way here
+    // since this mock is a dumb passthrough, not a real query builder.
+    seedInvites([newer, older]);
+    mockUserRepo.find.mockResolvedValue([
+      { id: 'shell-dup', email: 'dup@example.com', name: 'dup@example.com' } as UserEntity,
+    ]);
+
+    const result = await service.getRoster(ORG_ID);
+
+    expect(result.pendingInvites).toHaveLength(1);
+    expect(result.pendingInvites[0].id).toBe('invite-new');
+  });
+
+  it('never returns the invite code', async () => {
+    seedInvites([makeInvite()]);
+    mockUserRepo.find.mockResolvedValue([
+      { id: 'shell-user-1', email: 'invitee@example.com', name: 'invitee@example.com' } as UserEntity,
+    ]);
+
+    const result = await service.getRoster(ORG_ID);
+
+    expect(result.pendingInvites[0]).not.toHaveProperty('code');
+    expect(JSON.stringify(result)).not.toContain('SECRET-CODE-DO-NOT-LEAK');
+  });
+
+  it('omits an invite whose email has no backing user row, and keeps one that has', async () => {
+    const withUser = makeInvite({ id: 'invite-with-user', email: 'has-user@example.com' });
+    const withoutUser = makeInvite({ id: 'invite-without-user', email: 'no-user@example.com' });
+    seedInvites([withUser, withoutUser]);
+    mockUserRepo.find.mockResolvedValue([
+      { id: 'shell-user-1', email: 'has-user@example.com', name: 'has-user@example.com' } as UserEntity,
+    ]);
+
+    const result = await service.getRoster(ORG_ID);
+
+    expect(result.pendingInvites).toHaveLength(1);
+    expect(result.pendingInvites[0].id).toBe('invite-with-user');
+    expect(result.pendingInvites[0].userId).toBe('shell-user-1');
+  });
+
+  it('nulls out name when the shell user name is just the email placeholder, else returns the real name', async () => {
+    const placeholder = makeInvite({ id: 'invite-placeholder', email: 'placeholder@example.com' });
+    const named = makeInvite({ id: 'invite-named', email: 'named@example.com' });
+    seedInvites([placeholder, named]);
+    mockUserRepo.find.mockResolvedValue([
+      { id: 'u-placeholder', email: 'placeholder@example.com', name: 'placeholder@example.com' } as UserEntity,
+      { id: 'u-named', email: 'named@example.com', name: 'Real Name' } as UserEntity,
+    ]);
+
+    const result = await service.getRoster(ORG_ID);
+
+    const placeholderResult = result.pendingInvites.find((p) => p.id === 'invite-placeholder');
+    const namedResult = result.pendingInvites.find((p) => p.id === 'invite-named');
+    expect(placeholderResult?.name).toBeNull();
+    expect(namedResult?.name).toBe('Real Name');
+  });
+
+  it('reuses listMembers for the members field', async () => {
+    const members = [makeMember(USER_A, 'admin')];
+    mockMemberRepo.find.mockResolvedValue(members);
+    seedInvites([]);
+
+    const result = await service.getRoster(ORG_ID);
+
+    expect(result.members).toHaveLength(1);
+    expect(result.members[0].userId).toBe(USER_A);
+  });
+
+  it('looks up shell users in a single batched query, not one per invite', async () => {
+    seedInvites([
+      makeInvite({ id: 'i1', email: 'a@example.com' }),
+      makeInvite({ id: 'i2', email: 'b@example.com' }),
+    ]);
+
+    await service.getRoster(ORG_ID);
+
+    expect(mockUserRepo.find).toHaveBeenCalledTimes(1);
   });
 });

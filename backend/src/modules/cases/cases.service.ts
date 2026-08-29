@@ -8,6 +8,7 @@ import { OrganizationMemberEntity, OrgRole } from '../../database/entities/organ
 import { UserEntity } from '../../database/entities/user.entity';
 import { UpdateCaseDto } from './dto/update-case.dto';
 import { UsersService } from '../users/users.service';
+import { OrgInvitesService } from '../organizations/org-invites.service';
 import { orgRoleToImplicitCaseRole } from '../auth/case-access.service';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class CasesService {
     private readonly memberRepo: Repository<CaseMemberEntity>,
     @InjectRepository(OrganizationMemberEntity)
     private readonly orgMemberRepo: Repository<OrganizationMemberEntity>,
+    private readonly orgInvitesService: OrgInvitesService,
     private readonly dataSource: DataSource,
     private readonly usersService: UsersService,
   ) {}
@@ -212,12 +214,44 @@ export class CasesService {
     return this.memberRepo.save(member);
   }
 
+  /**
+   * Add someone to a case by email. The target must belong to the case's org:
+   * either an accepted organization_members row, or a live (unused, unexpired)
+   * organization_invites row. Pending invitees already have a shell user row, so
+   * the case_members grant is written now and activates when they sign up.
+   *
+   * Anyone else - unknown email, or a user who belongs to a different org -
+   * raises NotFoundException on purpose, NOT ForbiddenException: NewCaseModal
+   * catches 404 and falls back to creating an external case invite, which is the
+   * correct path for an outsider.
+   */
   async addMemberByEmail(caseId: string, email: string, role: CaseRole): Promise<CaseMemberEntity> {
     const lower = email.trim().toLowerCase();
+    // One message for every "not in this org" outcome, so the response cannot be
+    // used to probe whether an address exists in some other org.
+    const notFoundMessage = `No user found with email ${lower}`;
+
+    // Projection-only lookup: addMember (below) already does the full,
+    // relation-joined existence check, so this only needs orgId.
+    const caseEntity = await this.repo.findOne({ where: { id: caseId }, select: { id: true, orgId: true } });
+    if (!caseEntity) throw new NotFoundException(`Case ${caseId} not found`);
+
     const user = await this.usersService.findByEmail(lower);
     if (!user) {
-      throw new NotFoundException(`No user found with email ${lower}`);
+      throw new NotFoundException(notFoundMessage);
     }
+
+    const orgMembership = await this.orgMemberRepo.findOneBy({
+      userId: user.id,
+      organizationId: caseEntity.orgId,
+    });
+    if (!orgMembership) {
+      const liveInvite = await this.orgInvitesService.findLiveInvite(caseEntity.orgId, lower);
+      if (!liveInvite) {
+        throw new NotFoundException(notFoundMessage);
+      }
+    }
+
     return this.addMember(caseId, user.id, role);
   }
 

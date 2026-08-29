@@ -28,6 +28,6 @@ import { OrgInvitesService } from './org-invites.service';
   ],
   controllers: [OrganizationsController, OrgInvitesController],
   providers: [OrganizationsService, OrgInvitesService],
-  exports: [OrganizationsService],
+  exports: [OrganizationsService, OrgInvitesService],
 })
 export class OrganizationsModule {}

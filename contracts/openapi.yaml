@@ -137,6 +137,8 @@ paths:
     $ref: './paths/organizations.yaml#/~1orgs~1{org}'
   /orgs/{org}/members:
     $ref: './paths/organizations.yaml#/~1orgs~1{org}~1members'
+  /orgs/{org}/roster:
+    $ref: './paths/organizations.yaml#/~1orgs~1{org}~1roster'
   /orgs/{org}/members/{userId}:
     $ref: './paths/organizations.yaml#/~1orgs~1{org}~1members~1{userId}'
   /orgs/{org}/members/me/leave:
@@ -394,6 +396,10 @@ components:
       $ref: './schemas/organizations.yaml#/Organization'
     OrganizationMember:
       $ref: './schemas/organizations.yaml#/OrganizationMember'
+    OrgRosterPendingInvite:
+      $ref: './schemas/organizations.yaml#/OrgRosterPendingInvite'
+    OrganizationRoster:
+      $ref: './schemas/organizations.yaml#/OrganizationRoster'
     OrganizationInvite:
       $ref: './schemas/organizations.yaml#/OrganizationInvite'
     OrganizationInviteLookup:

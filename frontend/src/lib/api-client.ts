@@ -481,6 +481,8 @@ export const apiClient = {
     request<components['schemas']['Organization']>(`/orgs/${slug}`, { method: 'PATCH', body: JSON.stringify(dto) }),
   listOrgMembers: (slug: string) =>
     request<components['schemas']['OrganizationMember'][]>(`/orgs/${slug}/members`),
+  getOrgRoster: (slug: string) =>
+    request<components['schemas']['OrganizationRoster']>(`/orgs/${slug}/roster`),
   addOrgMember: (slug: string, dto: components['schemas']['AddOrgMemberRequest']) =>
     request<components['schemas']['OrganizationMember']>(`/orgs/${slug}/members`, { method: 'POST', body: JSON.stringify(dto) }),
   updateOrgMemberRole: (slug: string, userId: string, dto: components['schemas']['UpdateOrgMemberRoleRequest']) =>

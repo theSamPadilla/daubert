@@ -1,9 +1,12 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { OrganizationEntity } from '../../database/entities/organization.entity';
 import { OrganizationMemberEntity, OrgRole } from '../../database/entities/organization-member.entity';
+import { OrganizationInviteEntity } from '../../database/entities/organization-invite.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 import { UsersService } from '../users/users.service';
+import { OrgInvitesService } from './org-invites.service';
 import { UpdateOrgDto } from './dto/update-org.dto';
 
 @Injectable()
@@ -13,6 +16,9 @@ export class OrganizationsService {
     private readonly orgRepo: Repository<OrganizationEntity>,
     @InjectRepository(OrganizationMemberEntity)
     private readonly memberRepo: Repository<OrganizationMemberEntity>,
+    private readonly orgInvitesService: OrgInvitesService,
+    @InjectRepository(UserEntity)
+    private readonly userRepo: Repository<UserEntity>,
     private readonly usersService: UsersService,
     private readonly dataSource: DataSource,
   ) {}
@@ -68,6 +74,64 @@ export class OrganizationsService {
       createdAt: m.createdAt,
       updatedAt: m.updatedAt,
     }));
+  }
+
+  /**
+   * Everyone who can be staffed onto a case in this org: accepted members plus
+   * people with a live org invite. Pending invitees already have a shell user
+   * row (created by OrgInvitesService.create), so a case_members row can be
+   * written against them now and activates on signup.
+   *
+   * The invite `code` is never returned - this endpoint is readable by any org
+   * member, while codes are admin-only secrets.
+   *
+   * Invites with no backing shell user row are dropped: addMemberByEmail
+   * resolves the target via UsersService.findByEmail and 404s when it misses,
+   * so surfacing a candidate the backend would refuse would let the frontend
+   * offer a selection that always fails (or, worse, silently falls back to an
+   * external case invite for an in-org colleague).
+   */
+  async getRoster(orgId: string) {
+    const members = await this.listMembers(orgId);
+    const memberEmails = new Set(
+      members
+        .map((m) => m.user?.email.toLowerCase())
+        .filter((email): email is string => !!email),
+    );
+
+    const invites = await this.orgInvitesService.listLiveInvites(orgId);
+
+    const liveInvites = invites.filter((invite) => !memberEmails.has(invite.email.toLowerCase()));
+
+    // Invites have no unique constraint on (organizationId, email); keep only
+    // the newest per email. Rows arrive newest-first, so the first hit wins.
+    const newestByEmail = new Map<string, OrganizationInviteEntity>();
+    for (const invite of liveInvites) {
+      const email = invite.email.toLowerCase();
+      if (!newestByEmail.has(email)) newestByEmail.set(email, invite);
+    }
+    const dedupedInvites = [...newestByEmail.values()];
+
+    const emails = dedupedInvites.map((invite) => invite.email.toLowerCase());
+    const shellUsers = emails.length ? await this.userRepo.find({ where: { email: In(emails) } }) : [];
+    const userByEmail = new Map(shellUsers.map((user) => [user.email.toLowerCase(), user]));
+
+    const pendingInvites = dedupedInvites
+      .filter((invite) => userByEmail.has(invite.email.toLowerCase()))
+      .map((invite) => {
+        const user = userByEmail.get(invite.email.toLowerCase())!;
+        return {
+          id: invite.id,
+          email: invite.email,
+          name: user.name !== user.email ? user.name : null,
+          role: invite.role,
+          userId: user.id,
+          createdAt: invite.createdAt,
+          expiresAt: invite.expiresAt,
+        };
+      });
+
+    return { members, pendingInvites };
   }
 
   async addMemberByEmail(orgId: string, email: string, role: OrgRole) {

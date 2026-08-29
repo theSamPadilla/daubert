@@ -6,12 +6,13 @@ import { Modal, IconButton, Button } from '@/components/ui';
 import { apiClient, ApiError, type Case } from '@/lib/api-client';
 import { useAuth } from '@/components/Auth/AuthProvider';
 import type { components } from '@/generated/api-types';
+import { buildStaffingRoster, candidateLabel, implicitAdminLabel, EMPTY_ROSTER } from '@/lib/roster';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type OrganizationMember = components['schemas']['OrganizationMember'];
+type OrganizationRoster = components['schemas']['OrganizationRoster'];
 
 type MemberRole = 'editor' | 'viewer';
 
@@ -129,16 +130,16 @@ export function NewCaseModal({ open, orgId, onClose, onCreated }: NewCaseModalPr
 
   // Org roster for the "add from your organization" picker.
   const orgSlug = user?.orgs.find((o) => o.id === orgId)?.slug ?? null;
-  const [orgMembers, setOrgMembers] = useState<OrganizationMember[] | null>(null);
-  const [pickedEmail, setPickedEmail] = useState('');
+  const [orgRoster, setOrgRoster] = useState<OrganizationRoster | null>(null);
+  const [pickedKey, setPickedKey] = useState('');
 
   useEffect(() => {
     if (!open || !orgSlug) return;
     let cancelled = false;
     apiClient
-      .listOrgMembers(orgSlug)
-      .then((data) => { if (!cancelled) setOrgMembers(data); })
-      .catch(() => { if (!cancelled) setOrgMembers([]); });
+      .getOrgRoster(orgSlug)
+      .then((data) => { if (!cancelled) setOrgRoster(data); })
+      .catch(() => { if (!cancelled) setOrgRoster(EMPTY_ROSTER); });
     return () => { cancelled = true; };
   }, [open, orgSlug]);
 
@@ -146,7 +147,7 @@ export function NewCaseModal({ open, orgId, onClose, onCreated }: NewCaseModalPr
     setName('');
     setSummary('');
     setMembers([]);
-    setPickedEmail('');
+    setPickedKey('');
     setCreatedCase(null);
     setResults([]);
     setPhase('form');
@@ -184,35 +185,28 @@ export function NewCaseModal({ open, orgId, onClose, onCreated }: NewCaseModalPr
     setMembers((prev) => prev.map((m, i) => i === idx ? { ...m, role } : m));
   };
 
-  // Org admins already get implicit owner access on every case in the org, so
-  // staging them here would be a no-op at best (and an explicit case_members
-  // row takes precedence over the implicit role, so it can even downgrade
-  // them). Leave them out and say why.
   const staged = new Set(members.map((m) => m.email.trim().toLowerCase()));
-  const orgAdmins = (orgMembers ?? []).filter(
-    (m) => m.role === 'admin' && m.userId !== user?.id,
-  );
-  const orgCandidates = (orgMembers ?? []).filter(
-    (m) =>
-      m.role !== 'admin' &&
-      !!m.user?.email &&
-      m.userId !== user?.id &&
-      !staged.has(m.user.email.toLowerCase()),
+  const { candidates: orgCandidates, implicitAdmins: orgAdmins } = buildStaffingRoster(
+    orgRoster ?? EMPTY_ROSTER,
+    {
+      excludeEmails: staged,
+      excludeUserIds: user?.id ? [user.id] : [],
+    },
   );
 
   const addFromOrg = () => {
-    const picked = orgCandidates.find((m) => m.user?.email === pickedEmail);
-    if (!picked?.user?.email) return;
+    const picked = orgCandidates.find((c) => c.key === pickedKey);
+    if (!picked) return;
     setMembers((prev) => [
       ...prev,
       {
-        email: picked.user!.email,
-        name: picked.user!.name || undefined,
+        email: picked.email,
+        name: picked.name ?? undefined,
         role: 'viewer',
         fromOrg: true,
       },
     ]);
-    setPickedEmail('');
+    setPickedKey('');
   };
 
   const handleSubmit = async () => {
@@ -328,38 +322,39 @@ export function NewCaseModal({ open, orgId, onClose, onCreated }: NewCaseModalPr
             />
           </div>
 
-          {/* Add from your organization — colleagues who already have accounts */}
+          {/* Add from your organization - colleagues who already have accounts,
+              plus anyone with a pending org invite. */}
           {orgSlug && (
             <div>
               <label className="block text-sm text-ink-muted mb-1.5">
                 Add from your organization
               </label>
-              {orgMembers === null ? (
+              {orgRoster === null ? (
                 <p className="text-xs text-ink-faint">Loading…</p>
               ) : orgCandidates.length === 0 && orgAdmins.length === 0 ? (
                 <p className="text-xs text-ink-faint">
-                  {(orgMembers?.length ?? 0) <= 1
+                  {orgRoster.members.length + orgRoster.pendingInvites.length <= 1
                     ? 'No one else in your organization yet.'
                     : 'Everyone available has already been added below.'}
                 </p>
               ) : (
                 <div className="flex items-center gap-2">
                   <select
-                    value={pickedEmail}
-                    onChange={(e) => setPickedEmail(e.target.value)}
+                    value={pickedKey}
+                    onChange={(e) => setPickedKey(e.target.value)}
                     className="flex-1 min-w-0 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                   >
                     <option value="">Select a colleague…</option>
-                    {orgCandidates.map((m) => (
-                      <option key={m.userId} value={m.user!.email}>
-                        {m.user?.name ? `${m.user.name} (${m.user!.email})` : m.user!.email}
+                    {orgCandidates.map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {candidateLabel(c)}
                       </option>
                     ))}
                     {/* Shown but unselectable: org admins get access to every
                         case in the org automatically. */}
-                    {orgAdmins.map((m) => (
-                      <option key={m.userId} value="" disabled>
-                        {m.user?.name || m.user?.email || m.userId} — org admin, already has access
+                    {orgAdmins.map((a) => (
+                      <option key={a.key} value="" disabled>
+                        {implicitAdminLabel(a)}
                       </option>
                     ))}
                   </select>
@@ -367,7 +362,7 @@ export function NewCaseModal({ open, orgId, onClose, onCreated }: NewCaseModalPr
                     variant="secondary"
                     size="sm"
                     onClick={addFromOrg}
-                    disabled={!pickedEmail}
+                    disabled={!pickedKey}
                   >
                     Add
                   </Button>

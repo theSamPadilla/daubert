@@ -210,3 +210,51 @@ AcceptOrgInviteResponse:
       type: string
     alreadyMember:
       type: boolean
+
+OrgRosterPendingInvite:
+  type: object
+  description: >
+    Someone invited to the organization who has not accepted yet. A shell user
+    row already exists for the email, so they can be staffed onto a case now;
+    the grant activates when they complete signup. The invite code is
+    deliberately NOT included here - this schema is readable by any org member,
+    while codes are admin-only.
+  required: [id, email, role, userId, createdAt, expiresAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Organization invite id
+    email:
+      type: string
+      format: email
+    name:
+      type: string
+      nullable: true
+      description: Display name from the user row backing this email, or null when it is still a placeholder.
+    role:
+      $ref: '#/OrgInviteRole'
+    userId:
+      type: string
+      format: uuid
+      description: Shell user id backing this email
+    createdAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: string
+      format: date-time
+
+OrganizationRoster:
+  type: object
+  description: Everyone who can be staffed onto a case in this organization.
+  required: [members, pendingInvites]
+  properties:
+    members:
+      type: array
+      items:
+        $ref: '#/OrganizationMember'
+    pendingInvites:
+      type: array
+      items:
+        $ref: '#/OrgRosterPendingInvite'

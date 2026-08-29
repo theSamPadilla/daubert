@@ -144,6 +144,37 @@
             schema:
               $ref: '../schemas/common.yaml#/ErrorResponse'
 
+/orgs/{org}/roster:
+  get:
+    summary: Everyone who can be staffed onto a case in this organization
+    operationId: getOrganizationRoster
+    parameters:
+      - name: org
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization slug
+    responses:
+      '200':
+        description: Organization roster
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/organizations.yaml#/OrganizationRoster'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
 /orgs/{org}/members/{userId}:
   patch:
     summary: Change a member's org role (admin only)

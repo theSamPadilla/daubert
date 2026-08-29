@@ -764,6 +764,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orgs/{org}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Everyone who can be staffed onto a case in this organization */
+        get: operations["getOrganizationRoster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orgs/{org}/members/{userId}": {
         parameters: {
             query?: never;
@@ -2349,6 +2366,33 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        /** @description Someone invited to the organization who has not accepted yet. A shell user row already exists for the email, so they can be staffed onto a case now; the grant activates when they complete signup. The invite code is deliberately NOT included here - this schema is readable by any org member, while codes are admin-only. */
+        OrgRosterPendingInvite: {
+            /**
+             * Format: uuid
+             * @description Organization invite id
+             */
+            id: string;
+            /** Format: email */
+            email: string;
+            /** @description Display name from the user row backing this email, or null when it is still a placeholder. */
+            name?: string | null;
+            role: components["schemas"]["OrgInviteRole"];
+            /**
+             * Format: uuid
+             * @description Shell user id backing this email
+             */
+            userId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /** @description Everyone who can be staffed onto a case in this organization. */
+        OrganizationRoster: {
+            members: components["schemas"]["OrganizationMember"][];
+            pendingInvites: components["schemas"]["OrgRosterPendingInvite"][];
         };
         OrganizationInvite: {
             /** Format: uuid */
@@ -4935,6 +4979,47 @@ export interface operations {
             };
             /** @description User is already a member */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getOrganizationRoster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organization roster */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationRoster"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

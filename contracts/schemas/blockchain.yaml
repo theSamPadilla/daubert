@@ -339,6 +339,20 @@ UtxoContext:
 # Stricter than the sibling UtxoContext (additionalProperties: false):
 # UtxoContext predates this convention and is left as-is to avoid an
 # unrelated contract change.
+TokenMeta:
+  type: object
+  description: >-
+    Structured token metadata for rows whose `token` field is a bare symbol.
+    Carries what the symbol alone cannot: the contract address that
+    distinguishes two tokens sharing a symbol, and the decimals needed to
+    render `amount` (which is in raw base units on these rows).
+  required: [address, decimals]
+  properties:
+    address:
+      type: string
+    decimals:
+      type: integer
+
 SolanaContext:
   type: object
   description: Per-transfer provenance. Present only on rows from Solana.

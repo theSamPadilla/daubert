@@ -414,6 +414,33 @@ export const apiClient = {
       body: JSON.stringify({ address, chain }),
     }),
 
+  // Address classifications
+  /**
+   * Read-only: returns the classification rows already on file for the given
+   * pairs. Pairs with no row are simply absent from the response — absence
+   * means "not yet asked", never "asked and got nothing". Never hits a chain.
+   *
+   * `address` must already be canonical (`normalizeAddressForChain`) or the
+   * server-side key will not match.
+   */
+  lookupAddressClassifications: (addresses: components['schemas']['ChainAddressPair'][]) =>
+    request<components['schemas']['AddressClassification'][]>('/addresses/lookup', {
+      method: 'POST',
+      body: JSON.stringify({ addresses }),
+    }),
+
+  /**
+   * Asks the chain about pairs with no row on file and persists what it
+   * learns. The server caps how many pairs one call will attempt and reports
+   * the shortfall as `remaining`; callers drain that sequentially, never in
+   * parallel (every request shares one rate limiter).
+   */
+  classifyAddresses: (addresses: components['schemas']['ChainAddressPair'][]) =>
+    request<components['schemas']['ClassifyResult']>('/addresses/classify', {
+      method: 'POST',
+      body: JSON.stringify({ addresses }),
+    }),
+
   // AI
   chat: (message: string) =>
     request<{ message: string }>('/ai/chat', {

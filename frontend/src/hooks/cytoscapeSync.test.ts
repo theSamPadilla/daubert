@@ -385,4 +385,81 @@ describe('syncCytoscape', () => {
     expect(call.data.nodeShape).toBe('ellipse');
     expect(call.data.tokenStandard).toBeUndefined();
   });
+
+  // ── Classification lookup (3rd param) ───────────────────────────────────
+
+  /** Builds a `lookup` fn from a plain map of "chain:address" -> classification. */
+  function makeLookup(
+    entries: Record<string, { addressType?: string; tokenStandard?: string | null }>,
+  ) {
+    return (chain: string, address: string) => entries[`${chain}:${address}`];
+  }
+
+  it("18. lookup saying 'contract' overrides a stored 'unknown' — shape becomes roundrectangle", () => {
+    const w1 = wallet('w1', { addressType: 'unknown' });
+    const t = trace('trace-a', { nodes: [w1] });
+    const cy = makeFakeCy();
+    const lookup = makeLookup({ 'eth:0xw1': { addressType: 'contract' } });
+
+    syncCytoscape(cy, inv([t]), lookup);
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    expect(call.data.addressType).toBe('contract');
+    expect(call.data.nodeShape).toBe('roundrectangle');
+  });
+
+  it('19. lookup with tokenStandard erc20 yields hexagon and puts tokenStandard in data', () => {
+    const w1 = wallet('w1');
+    const t = trace('trace-a', { nodes: [w1] });
+    const cy = makeFakeCy();
+    const lookup = makeLookup({ 'eth:0xw1': { addressType: 'contract', tokenStandard: 'erc20' } });
+
+    syncCytoscape(cy, inv([t]), lookup);
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    expect(call.data.nodeShape).toBe('hexagon');
+    expect(call.data.tokenStandard).toBe('erc20');
+  });
+
+  it('20. with no lookup passed, behaviour is exactly as today (regression guard for the optional param)', () => {
+    const w1 = wallet('w1', { addressType: 'contract', tokenStandard: 'erc20' });
+    const t = trace('trace-a', { nodes: [w1] });
+    const cy = makeFakeCy();
+
+    syncCytoscape(cy, inv([t])); // no 3rd argument at all
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    expect(call.data.addressType).toBe('contract');
+    expect(call.data.nodeShape).toBe('hexagon');
+    expect(call.data.tokenStandard).toBe('erc20');
+  });
+
+  it('21. an explicit node.shape still overrides everything, even with a contradicting lookup', () => {
+    const w1 = wallet('w1', { shape: 'diamond' });
+    const t = trace('trace-a', { nodes: [w1] });
+    const cy = makeFakeCy();
+    const lookup = makeLookup({ 'eth:0xw1': { addressType: 'contract', tokenStandard: 'erc721' } });
+
+    syncCytoscape(cy, inv([t]), lookup);
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    expect(call.data.nodeShape).toBe('diamond');
+  });
+
+  it('22. a node absent from the lookup keeps its stored value', () => {
+    const w1 = wallet('w1', { addressType: 'contract' });
+    const w2 = wallet('w2', { addressType: 'unknown' });
+    const t = trace('trace-a', { nodes: [w1, w2] });
+    const cy = makeFakeCy();
+    // lookup only knows about w1 — w2 is absent from it entirely
+    const lookup = makeLookup({ 'eth:0xw1': { addressType: 'contract' } });
+
+    syncCytoscape(cy, inv([t]), lookup);
+
+    const call1 = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    const call2 = cy.__addCalls.find((c) => c.data.id === 'w2')!;
+    expect(call1.data.addressType).toBe('contract');
+    expect(call2.data.addressType).toBe('unknown');
+    expect(call2.data.nodeShape).toBe('ellipse');
+  });
 });

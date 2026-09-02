@@ -6,6 +6,7 @@ import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/forma
 import { buildExplorerUrl, buildTxExplorerUrl } from '@/utils/addressParser';
 import { truncateMiddle } from '@/utils/utxoDisplay';
 import { UtxoBreakdown, ChangeBadge } from './UtxoBreakdown';
+import { ChainLabel } from '@/components/Graph/ChainIcon';
 import { TransferPicker } from './TransferPicker';
 
 function resolveWalletDisplay(id: string, allWallets: { wallet: WalletNode; traceId: string }[]) {
@@ -125,7 +126,7 @@ export function TransactionDetails({
       {transaction.chain && (
         <div>
           <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Chain</h4>
-          <p className="text-sm text-canvas-muted capitalize">{transaction.chain}</p>
+          <ChainLabel chainId={transaction.chain} />
         </div>
       )}
       {transaction.txHash && (() => {

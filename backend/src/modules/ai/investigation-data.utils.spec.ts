@@ -2,7 +2,9 @@ import {
   stripTraceForAgent,
   filterTraceData,
   AgentTraceData,
+  AgentAddressClassification,
 } from './investigation-data.utils';
+import { classificationKey } from '../address-classifications/address-classifications.service';
 
 // ── Sample data ───────────────────────────────────────────────────────────────
 // 4 nodes (0xDDD is intentionally isolated — referenced by no edge),
@@ -268,6 +270,105 @@ describe('stripTraceForAgent', () => {
     const delta = result.nodes.find((n) => n.id === 'n-ddd');
     expect(delta).toBeDefined();
     expect(delta!.address).toBe('0xDDD');
+  });
+});
+
+// ── Classification Map resolution ────────────────────────────────────────────
+// stripTraceForAgent stays pure/synchronous: callers resolve a Map of
+// already-fetched `address_classifications` rows and pass it in. The Map
+// takes precedence over the persisted `addressType` field, and the literal
+// string 'unknown' (the trace schema's coercion of "not yet classified") is
+// treated as absent on BOTH sides — never as a real value to prefer.
+
+describe('stripTraceForAgent — classification Map resolution', () => {
+  function classificationMap(
+    entries: Array<[chain: string, address: string, value: AgentAddressClassification]>,
+  ): Map<string, AgentAddressClassification> {
+    const map = new Map<string, AgentAddressClassification>();
+    for (const [chain, address, value] of entries) {
+      map.set(classificationKey(chain, address), value);
+    }
+    return map;
+  }
+
+  it('with no Map passed, behaves exactly as today', () => {
+    const withMap = stripTraceForAgent(SAMPLE_DATA, undefined);
+    const withoutMap = stripTraceForAgent(SAMPLE_DATA);
+    expect(withMap).toEqual(withoutMap);
+    const alpha = withoutMap.nodes.find((n) => n.id === 'n-aaa')!;
+    expect(alpha.addressType).toBe('eoa');
+    expect(alpha.tokenStandard).toBeUndefined();
+  });
+
+  it('a Map entry overrides a stored "unknown"', () => {
+    const data = {
+      nodes: [
+        { id: 'n1', address: '0xCCC', chain: 'ethereum', label: 'Gamma', tags: [], addressType: 'unknown' },
+      ],
+      edges: [],
+    };
+    const map = classificationMap([['ethereum', '0xCCC', { addressType: 'contract' }]]);
+
+    const result = stripTraceForAgent(data, map);
+    expect(result.nodes[0].addressType).toBe('contract');
+  });
+
+  it('a Map entry overrides a stored stale value that disagrees', () => {
+    const data = {
+      nodes: [
+        { id: 'n1', address: '0xAAA', chain: 'ethereum', label: 'Alpha', tags: [], addressType: 'contract' },
+      ],
+      edges: [],
+    };
+    const map = classificationMap([['ethereum', '0xAAA', { addressType: 'wallet' }]]);
+
+    const result = stripTraceForAgent(data, map);
+    expect(result.nodes[0].addressType).toBe('wallet');
+  });
+
+  it('a node absent from the Map keeps its stored value', () => {
+    const data = {
+      nodes: [
+        { id: 'n1', address: '0xBBB', chain: 'ethereum', label: 'Beta', tags: [], addressType: 'eoa' },
+      ],
+      edges: [],
+    };
+    // Map has an entry, but for a different address — n1 is absent from it.
+    const map = classificationMap([['ethereum', '0xZZZ', { addressType: 'contract' }]]);
+
+    const result = stripTraceForAgent(data, map);
+    expect(result.nodes[0].addressType).toBe('eoa');
+  });
+
+  it('surfaces tokenStandard on the agent node when the Map supplies it', () => {
+    const data = {
+      nodes: [
+        { id: 'n1', address: '0xDDD', chain: 'ethereum', label: 'Delta', tags: [], addressType: 'unknown' },
+      ],
+      edges: [],
+    };
+    const map = classificationMap([
+      ['ethereum', '0xDDD', { addressType: 'contract', tokenStandard: 'erc20' }],
+    ]);
+
+    const result = stripTraceForAgent(data, map);
+    expect(result.nodes[0].addressType).toBe('contract');
+    expect(result.nodes[0].tokenStandard).toBe('erc20');
+  });
+
+  it('omits tokenStandard when the Map entry has none (null or absent)', () => {
+    const data = {
+      nodes: [
+        { id: 'n1', address: '0xEEE', chain: 'ethereum', label: 'Epsilon', tags: [] },
+      ],
+      edges: [],
+    };
+    const map = classificationMap([
+      ['ethereum', '0xEEE', { addressType: 'contract', tokenStandard: null }],
+    ]);
+
+    const result = stripTraceForAgent(data, map);
+    expect(result.nodes[0].tokenStandard).toBeUndefined();
   });
 });
 

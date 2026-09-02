@@ -17,6 +17,7 @@ import { TokenUsageService } from '../superadmin/token-usage/token-usage.service
 import { DataRoomService } from '../data-room/data-room.service';
 import { DeclarationLibraryService } from '../declaration-library/declaration-library.service';
 import { DeclarantsService } from '../declarants/declarants.service';
+import { AddressClassificationsService } from '../address-classifications/address-classifications.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { AGENT_TOOLS, READ_ONLY_AGENT_TOOLS } from './tools';
 import { CaseRole } from '../../database/entities/case-member.entity';
@@ -38,6 +39,7 @@ const mockCaseRepo = { findOne: jest.fn() };
 const mockDeclarationLibraryService = { listForOrg: jest.fn() };
 const mockDeclarantsService = { listForOrg: jest.fn() };
 const mockTokenUsageService = { record: jest.fn() };
+const mockAddressClassificationsService = { lookupMany: jest.fn().mockResolvedValue(new Map()) };
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -80,6 +82,7 @@ describe('AiService — executeTool label cases', () => {
         { provide: TracesService, useValue: mockTracesService },
         { provide: AnthropicProvider, useValue: mockAnthropicProvider },
         { provide: TokenUsageService, useValue: mockTokenUsageService },
+        { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
@@ -444,6 +447,7 @@ describe('AiService — pickToolsForRole', () => {
         { provide: TracesService, useValue: { findOne: jest.fn(), update: jest.fn() } },
         { provide: AnthropicProvider, useValue: {} },
         { provide: TokenUsageService, useValue: mockTokenUsageService },
+        { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
         { provide: getRepositoryToken(MessageEntity), useValue: { find: jest.fn() } },
         { provide: getRepositoryToken(InvestigationEntity), useValue: { find: jest.fn(), findOneBy: jest.fn() } },
         { provide: getRepositoryToken(TraceEntity), useValue: { findOneBy: jest.fn(), save: jest.fn() } },
@@ -546,6 +550,7 @@ describe('AiService — token usage metering', () => {
         { provide: TracesService, useValue: mockTracesService },
         { provide: AnthropicProvider, useValue: mockAnthropicProvider },
         { provide: TokenUsageService, useValue: mockTokenUsageService },
+        { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },

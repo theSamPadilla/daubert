@@ -1,3 +1,4 @@
+import { AddressClassificationEntity } from './address-classification.entity';
 import { AgentAuditLogEntity } from './agent-audit-log.entity';
 import { CaseEntity } from './case.entity';
 import { CaseInviteEntity } from './case-invite.entity';
@@ -28,6 +29,7 @@ import { TraceEntity } from './trace.entity';
 import { UserEntity } from './user.entity';
 
 export const entities = [
+  AddressClassificationEntity,
   AgentAuditLogEntity,
   CaseEntity,
   CaseInviteEntity,

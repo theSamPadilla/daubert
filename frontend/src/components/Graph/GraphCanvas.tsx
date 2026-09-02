@@ -33,6 +33,8 @@ interface GraphCanvasProps {
    * page.tsx uses this to build a context menu with Edit/Delete items.
    */
   onLabelContextMenu?: (traceId: string, labelId: string, x: number, y: number) => void;
+  /** Resolves the shared on-chain classification for a wallet node's shape/badge. See useAddressClassifications. */
+  lookupClassification?: (chain: string, address: string) => { addressType?: string; tokenStandard?: string | null } | undefined;
 }
 
 /**
@@ -73,7 +75,7 @@ function buildEdgeAnchor(edge: TransactionEdge | EdgeBundle | { id: string; txHa
 }
 
 export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
-  ({ investigation, selectedNodeIds, selectedEdgeIds, callbacks, labelCallbacks, onLabelContextMenu }, ref) => {
+  ({ investigation, selectedNodeIds, selectedEdgeIds, callbacks, labelCallbacks, onLabelContextMenu, lookupClassification }, ref) => {
     // Label editing state: which label is currently open in the edit popover.
     const [editingLabel, setEditingLabel] = useState<{ traceId: string; labelId: string } | null>(null);
     // Label selection state: which label is visually selected (outlined) on the canvas.
@@ -120,6 +122,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
       selectedEdgeIds,
       augmentedCallbacks,
       labelControls,
+      lookupClassification,
     );
 
     useImperativeHandle(ref, () => ({

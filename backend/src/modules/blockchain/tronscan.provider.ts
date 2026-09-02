@@ -8,6 +8,7 @@ import {
 } from './types';
 import { RateLimiter } from './rate-limiter';
 import { ResponseCache } from './response-cache';
+import { ContractClassification } from './contract-classifier';
 
 const TRONSCAN_BASE = 'https://apilist.tronscanapi.com/api';
 const TX_CACHE_TTL = 60 * 60 * 1000; // 1hr
@@ -265,6 +266,18 @@ export class TronscanProvider implements BlockchainProvider {
       contractAddress: '',
       tokenTransfers,
     };
+  }
+
+  /**
+   * Tronscan reports `accountType` but gives no way to distinguish "not a
+   * contract" from "field absent", and does not probe token standards at all.
+   * Rather than record a guess as a permanent shared fact, this reports that it
+   * cannot answer. Tron addresses simply go unclassified.
+   */
+  async classifyAddress(
+    address: string,
+  ): Promise<{ classification: ContractClassification; determined: boolean }> {
+    return { classification: { addressType: 'wallet' }, determined: false };
   }
 
   async getAddressInfo(address: string): Promise<RawAddressInfo> {

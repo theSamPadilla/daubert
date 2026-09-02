@@ -8,6 +8,7 @@ import { applyArcDelta } from '@/utils/arcEdge';
 import { apiClient } from '@/lib/api-client';
 import type { Investigation, WalletNode, TransactionEdge, Trace, Group, EdgeBundle } from '@/types/investigation';
 import type { GraphCanvasHandle } from '@/components/Graph/GraphCanvas';
+import type { AddressClassification } from '@/hooks/useAddressClassifications';
 
 interface SelectionDetailsPanelProps {
   selectedItem: any;
@@ -32,6 +33,8 @@ interface SelectionDetailsPanelProps {
   deleteEdgeBundle: (traceId: string, bundleId: string) => void;
 
   onFetchHistory: (address: string, chain: string) => void;
+  /** Resolves the shared on-chain classification for a wallet's badge. See useAddressClassifications. */
+  lookupClassification: (chain: string, address: string) => AddressClassification | undefined;
   onBundleAllOutbound: (walletId: string, color: string) => void;
   onDeleteAllOutbound: (walletId: string) => void;
   onBundleAllInbound: (walletId: string, color: string) => void;
@@ -46,7 +49,7 @@ export function SelectionDetailsPanel(props: SelectionDetailsPanelProps) {
     updateWallet, deleteWallet, updateTransaction, deleteTransaction, selectTransfer,
     updateTrace, deleteTrace, updateGroup, deleteGroup, setNodeGroup,
     toggleEdgeBundle, updateEdgeBundle, deleteEdgeBundle,
-    onFetchHistory, onBundleAllOutbound, onDeleteAllOutbound,
+    onFetchHistory, lookupClassification, onBundleAllOutbound, onDeleteAllOutbound,
     onBundleAllInbound, onDeleteAllInbound, onRefreshScriptRuns,
     canMutate = true,
   } = props;
@@ -119,6 +122,7 @@ export function SelectionDetailsPanel(props: SelectionDetailsPanelProps) {
         onUpdateEdgeBundle={updateEdgeBundle}
         onDeleteEdgeBundle={(traceId, bundleId) => { deleteEdgeBundle(traceId, bundleId); setSelectedItem(null); }}
         onFetchHistory={onFetchHistory}
+        lookupClassification={lookupClassification}
         onBundleAllOutbound={onBundleAllOutbound}
         onDeleteAllOutbound={onDeleteAllOutbound}
         onBundleAllInbound={onBundleAllInbound}

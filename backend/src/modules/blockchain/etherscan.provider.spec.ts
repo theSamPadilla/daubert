@@ -488,6 +488,63 @@ describe('EtherscanProvider', () => {
     });
   });
 
+  describe('classifyAddress', () => {
+    it('reports the token standard and symbol for a token contract', async () => {
+      installFetch({
+        code: { [USDC]: CONTRACT_CODE },
+        call: ERC20_CALLS,
+        balance: { [USDC]: '0x0' },
+      });
+
+      const result = await makeProvider().classifyAddress(USDC);
+
+      expect(result.determined).toBe(true);
+      expect(result.classification).toMatchObject({
+        addressType: 'contract',
+        tokenStandard: 'erc20',
+        symbol: 'USDC',
+      });
+    });
+
+    // The whole point of the seam: balance is a mutable value nothing here
+    // stores, and on a shared 5 req/s bucket one wasted call per address is
+    // 200 wasted calls on a 200-address batch.
+    it('never asks for the balance', async () => {
+      installFetch({
+        code: { [USDC]: CONTRACT_CODE },
+        call: ERC20_CALLS,
+        balance: { [USDC]: '0x0' },
+      });
+
+      await makeProvider().classifyAddress(USDC);
+
+      expect(urls.some((u) => u.includes('action=eth_getBalance'))).toBe(false);
+    });
+
+    it('reports no token standard for an EOA', async () => {
+      installFetch({ balance: { [EOA]: '0xde0b6b3a7640000' } });
+
+      const result = await makeProvider().classifyAddress(EOA);
+
+      expect(result.determined).toBe(true);
+      expect(result.classification.addressType).toBe('wallet');
+      expect(result.classification.tokenStandard).toBeUndefined();
+    });
+
+    // Unlike getAddressInfo, which throws, this degrades: the caller's job is to
+    // skip an address it could not classify, not to fail the whole batch.
+    it('reports undetermined rather than throwing when eth_getCode fails', async () => {
+      installFetch({
+        code: { [EOA]: HTTP_FAILURE },
+        balance: { [EOA]: '0xde0b6b3a7640000' },
+      });
+
+      const result = await makeProvider().classifyAddress(EOA);
+
+      expect(result.determined).toBe(false);
+    });
+  });
+
   describe('NOTOK envelope on proxy routes', () => {
     /**
      * Etherscan reports rate-limiting and auth failures as

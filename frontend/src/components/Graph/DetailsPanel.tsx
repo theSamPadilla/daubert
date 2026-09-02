@@ -1,5 +1,6 @@
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { WalletNode, TransactionEdge, Trace, Group, EdgeBundle } from '@/types/investigation';
+import type { AddressClassification } from '@/hooks/useAddressClassifications';
 import { WalletForm } from '@/components/Forms/WalletForm';
 import { TransactionForm } from '@/components/Forms/TransactionForm';
 import { TraceForm } from '@/components/Forms/TraceForm';
@@ -27,6 +28,8 @@ interface DetailsPanelProps {
   onDeleteGroup: (traceId: string, groupId: string) => void;
   onSetNodeGroup: (traceId: string, nodeIds: string[], groupId: string | null) => void;
   onFetchHistory: (address: string, chain: string) => void;
+  /** Resolves the shared on-chain classification for a wallet's badge. See useAddressClassifications. */
+  lookupClassification: (chain: string, address: string) => AddressClassification | undefined;
   onBundleAllOutbound?: (walletId: string, color: string) => void;
   onDeleteAllOutbound?: (walletId: string) => void;
   onBundleAllInbound?: (walletId: string, color: string) => void;
@@ -74,6 +77,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
   onDeleteGroup,
   onSetNodeGroup,
   onFetchHistory,
+  lookupClassification,
   onBundleAllOutbound,
   onDeleteAllOutbound,
   onBundleAllInbound,
@@ -194,6 +198,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
             onUpdateWallet(w.parentTrace, w.id, updates);
           }}
           lookupAddress={lookupAddress}
+          lookupClassification={lookupClassification}
         />
       )}
       {selectedItem.type === 'transaction' && (

@@ -1,0 +1,49 @@
+/addresses/lookup:
+  post:
+    summary: Bulk-lookup known classifications for a set of (chain, address) pairs
+    operationId: lookupAddressClassifications
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/address-classifications.yaml#/AddressesRequest'
+    responses:
+      '200':
+        description: Classifications on record for the requested pairs. Pairs with no record on file are simply absent.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/address-classifications.yaml#/AddressClassification'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/addresses/classify:
+  post:
+    summary: Probe the chain to classify whichever of the requested pairs are not already on record
+    operationId: classifyAddresses
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/address-classifications.yaml#/AddressesRequest'
+    responses:
+      '200':
+        description: Newly classified pairs, plus how many requested pairs were left unattempted by the per-call cap
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/address-classifications.yaml#/ClassifyResult'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

@@ -24,6 +24,7 @@ import { OAuthModule } from './modules/oauth/oauth.module';
 import { McpModule } from './modules/mcp/mcp.module';
 import { DeclarationLibraryModule } from './modules/declaration-library/declaration-library.module';
 import { DeclarantsModule } from './modules/declarants/declarants.module';
+import { AddressClassificationsModule } from './modules/address-classifications/address-classifications.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { DeclarantsModule } from './modules/declarants/declarants.module';
     AuthEmailModule,
     DeclarationLibraryModule,
     DeclarantsModule,
+    AddressClassificationsModule,
   ],
   controllers: [AppController],
 })

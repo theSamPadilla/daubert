@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { useInvestigation } from './useInvestigation';
 import { useWalletTransactionAuthoring } from './useWalletTransactionAuthoring';
 import { edgeIdentityKey } from '../generated/shared/edge-identity';
-import { apiClient } from '@/lib/api-client';
 import type {
   Investigation,
   Trace,
@@ -14,14 +13,6 @@ import type {
   UtxoContext,
 } from '@/types/investigation';
 import type { PanelMode } from '@/types/panel';
-
-// handleAddStagedToTrace never calls apiClient, but the module is imported by
-// useWalletTransactionAuthoring.ts (handleSaveNewWallet/findOrCreateWallet use
-// it) — mock it out so the test doesn't drag in the real firebase client, same
-// convention as useInvestigationLoader.test.ts / useCaseSeed.test.ts.
-jest.mock('@/lib/api-client', () => ({
-  apiClient: { getAddressInfo: jest.fn().mockResolvedValue({ addressType: 'unknown' }) },
-}));
 
 // ── Fixture builders (adapted from useInvestigation.test.ts) ────────────────
 
@@ -848,29 +839,5 @@ describe('handleSaveNewTransaction — decoded transfer fields', () => {
     expect(edge.selectedTransferIndex).toBe(0);
     expect(edge.tokenStandard).toBe('erc20');
     expect(edge.tokenId).toBeUndefined();
-  });
-});
-
-// ── handleSaveNewWallet — tokenStandard from getAddressInfo (regression) ────
-// `WalletNode.tokenStandard` drives the hexagon shape and token badge; the
-// getAddressInfo callback previously copied only `addressType`, so a token
-// contract's standard never reached the node.
-describe('handleSaveNewWallet — applies tokenStandard from getAddressInfo', () => {
-  it('patches the newly created node once the address lookup resolves', async () => {
-    (apiClient.getAddressInfo as jest.Mock).mockResolvedValueOnce({
-      addressType: 'contract',
-      tokenStandard: 'erc20',
-    });
-
-    const { result } = renderHook(() => useHarness(inv([trace('trace-1')])));
-    await act(async () => {
-      result.current.handleSaveNewWallet('trace-1', { address: '0xTokenContractAddr', chain: 'ethereum' });
-      await Promise.resolve();
-    });
-
-    const t1 = result.current.investigation!.traces.find((tr) => tr.id === 'trace-1')!;
-    expect(t1.nodes).toHaveLength(1);
-    expect(t1.nodes[0].addressType).toBe('contract');
-    expect(t1.nodes[0].tokenStandard).toBe('erc20');
   });
 });

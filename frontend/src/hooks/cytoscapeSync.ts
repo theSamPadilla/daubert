@@ -3,7 +3,14 @@ import type { Investigation } from '../types/investigation';
 import { contrastTextColor, formatShortDate } from './cytoscapeStyle';
 import { formatHumanAmount, formatTokenAmount, normalizeToken, parseTimestamp, tokenKey } from '../utils/formatAmount';
 
-export function syncCytoscape(cy: Core, investigation: Investigation | null): void {
+/** Minimal shape `syncCytoscape` needs from a classification row — matches the
+ * relevant fields of `AddressClassification` (see useAddressClassifications). */
+type ClassificationLookup = (
+  chain: string,
+  address: string,
+) => { addressType?: string; tokenStandard?: string | null } | undefined;
+
+export function syncCytoscape(cy: Core, investigation: Investigation | null, lookup?: ClassificationLookup): void {
   const inv = investigation;
   if (!inv) {
     cy.elements().remove();
@@ -127,18 +134,34 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null): vo
         const hasCustomLabel = !!(node.label && node.label !== addr && node.label !== truncAddr);
         const displayLabel = hasCustomLabel ? node.label : (truncAddr || node.label);
         const nodeColor = node.color || '#60a5fa';
+
+        // Resolve address type / token standard from the shared classification
+        // lookup, falling back to whatever is already stored on the node.
+        // TRAP: normalizeInvestigation.ts coerces addressType to the literal
+        // string 'unknown' (never undefined), so a plain `lookup(...) ?? node`
+        // chain would let that truthy sentinel beat a real classification.
+        // Treat 'unknown' as absent on both sides.
+        const classified = lookup?.(node.chain, node.address);
+        const resolvedAddressType =
+          classified?.addressType && classified.addressType !== 'unknown'
+            ? classified.addressType
+            : node.addressType && node.addressType !== 'unknown'
+              ? node.addressType
+              : 'unknown';
+        const resolvedTokenStandard = classified?.tokenStandard ?? node.tokenStandard;
+
         // Token contracts read differently from plain contracts at a glance.
         // The former `'exchange'` branch here was unreachable — nothing has ever
         // produced that addressType, and it only compiled via a cast. Exchange
         // attribution lives in the labeled-entities system, which WalletDetails
         // already renders.
         const addrTypeShape =
-          node.tokenStandard ? 'hexagon'
-          : node.addressType === 'contract' ? 'roundrectangle'
+          resolvedTokenStandard ? 'hexagon'
+          : resolvedAddressType === 'contract' ? 'roundrectangle'
           : 'ellipse';
         const nodeShape = node.shape || addrTypeShape;
         targetNodes.set(node.id, {
-          data: { id: node.id, parent: parentId, traceId: trace.id, label: node.label, displayLabel, hasCustomLabel, truncAddr, color: nodeColor, textColor: contrastTextColor(nodeColor), size: node.size || 60, addressType: node.addressType || 'unknown', nodeShape, tokenStandard: node.tokenStandard },
+          data: { id: node.id, parent: parentId, traceId: trace.id, label: node.label, displayLabel, hasCustomLabel, truncAddr, color: nodeColor, textColor: contrastTextColor(nodeColor), size: node.size || 60, addressType: resolvedAddressType, nodeShape, tokenStandard: resolvedTokenStandard },
           position: node.position,
         });
       });

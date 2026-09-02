@@ -3,6 +3,8 @@ import { FaXmark, FaArrowRightToBracket, FaArrowRightFromBracket } from 'react-i
 import { CopyButton } from '@/components/Common/CopyButton';
 import { WalletNode } from '@/types/investigation';
 import type { LabeledEntity } from '@/lib/api-client';
+import { ChainLabel } from '@/components/Graph/ChainIcon';
+import type { AddressClassification } from '@/hooks/useAddressClassifications';
 
 const ADDRESS_TYPE_LABELS: Record<string, string> = {
   wallet: 'Wallet',
@@ -63,6 +65,7 @@ export function WalletDetails({
   onDeleteAllInbound,
   onUpdate,
   lookupAddress,
+  lookupClassification,
 }: {
   wallet: WalletNode;
   onFetchHistory: (address: string, chain: string) => void;
@@ -72,9 +75,21 @@ export function WalletDetails({
   onDeleteAllInbound?: (walletId: string) => void;
   onUpdate?: (updates: Partial<WalletNode>) => void;
   lookupAddress: (address: string) => LabeledEntity | undefined;
+  lookupClassification: (chain: string, address: string) => AddressClassification | undefined;
 }) {
   const hasAddress = !!wallet.address;
-  const addrType = wallet.addressType || 'unknown';
+  const classification = hasAddress ? lookupClassification(wallet.chain, wallet.address) : undefined;
+  // TRAP: normalizeInvestigation.ts coerces the STORED addressType to the
+  // literal string 'unknown' (never undefined), so a plain `?? ` chain would
+  // let that truthy sentinel beat a real classification. `classification`
+  // itself never carries 'unknown' (the server schema only emits
+  // 'wallet' | 'contract'), so its value can be used as soon as it's present —
+  // only the stored fallback needs the 'unknown'-is-absent treatment. Mirrors
+  // the precedence in cytoscapeSync.ts.
+  const addrType: string =
+    classification?.addressType ??
+    (wallet.addressType && wallet.addressType !== 'unknown' ? wallet.addressType : 'unknown');
+  const resolvedTokenStandard = classification?.tokenStandard ?? wallet.tokenStandard;
   const [notes, setNotes] = useState(wallet.notes || '');
   const [pickingBundleColor, setPickingBundleColor] = useState(false);
   const [confirmDeleteOutbound, setConfirmDeleteOutbound] = useState(false);
@@ -101,9 +116,9 @@ export function WalletDetails({
             {ADDRESS_TYPE_LABELS[addrType]}
           </span>
         )}
-        {wallet.tokenStandard && (
+        {resolvedTokenStandard && (
           <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-500/20 text-cyan-300">
-            {TOKEN_STANDARD_LABELS[wallet.tokenStandard]}
+            {TOKEN_STANDARD_LABELS[resolvedTokenStandard]}
           </span>
         )}
       </div>
@@ -143,7 +158,7 @@ export function WalletDetails({
       {hasAddress && (
         <div>
           <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Chain</h4>
-          <p className="text-sm text-canvas-muted">{wallet.chain}</p>
+          <ChainLabel chainId={wallet.chain} />
         </div>
       )}
       {wallet.tags.length > 0 && (

@@ -285,6 +285,12 @@ export class EtherscanProvider implements BlockchainProvider {
     };
   }
 
+  async classifyAddress(
+    address: string,
+  ): Promise<{ classification: ContractClassification; determined: boolean }> {
+    return this.classifier.classifyDetailed(this.chain.id, address);
+  }
+
   async getAddressInfo(address: string): Promise<RawAddressInfo> {
     const [{ classification, determined }, balanceHex] = await Promise.all([
       this.classifier.classifyDetailed(this.chain.id, address),

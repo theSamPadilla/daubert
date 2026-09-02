@@ -36,6 +36,7 @@ import { Loader } from '@/components/Common/Loader';
 import type { PanelMode } from '@/types/panel';
 import { useWalletTransactionAuthoring } from '@/hooks/useWalletTransactionAuthoring';
 import { useGraphContextMenu } from '@/hooks/useGraphContextMenu';
+import { useAddressClassifications } from '@/hooks/useAddressClassifications';
 
 function InvestigationsWorkspace() {
   const { caseId, activeInvestigationId, selectInvestigation, clearInvestigation } = useInvestigationUrlSync();
@@ -75,6 +76,11 @@ function InvestigationsWorkspace() {
     deleteLabel,
     moveLabel,
   } = useInvestigation(null);
+
+  // Shared on-chain classification (wallet vs. contract, token standard) for
+  // every address in the investigation — feeds both the graph's node shapes
+  // and the details panel's badges.
+  const { lookup: lookupClassification } = useAddressClassifications(investigation);
 
   const { selectedItem, setSelectedItem, clearSelection } = useSelectedItem(investigation);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
@@ -328,6 +334,7 @@ function InvestigationsWorkspace() {
                 callbacks={cytoscapeCallbacks}
                 labelCallbacks={{ addLabel, updateLabel, deleteLabel, moveLabel }}
                 onLabelContextMenu={handleLabelContextMenu}
+                lookupClassification={lookupClassification}
               />
             )}
 
@@ -389,6 +396,7 @@ function InvestigationsWorkspace() {
                 updateEdgeBundle={canMutate ? updateEdgeBundle : () => {}}
                 deleteEdgeBundle={canMutate ? deleteEdgeBundle : () => {}}
                 onFetchHistory={handleFetchHistory}
+                lookupClassification={lookupClassification}
                 onBundleAllOutbound={canMutate ? handleBundleAllOutbound : () => {}}
                 onDeleteAllOutbound={canMutate ? handleDeleteAllOutbound : () => {}}
                 onBundleAllInbound={canMutate ? handleBundleAllInbound : () => {}}

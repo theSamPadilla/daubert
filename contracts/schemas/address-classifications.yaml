@@ -1,0 +1,80 @@
+ChainAddressPair:
+  type: object
+  required: [chain, address]
+  properties:
+    chain:
+      type: string
+    address:
+      type: string
+      description: >-
+        The server canonicalizes this via normalizeAddressForChain before use
+        as a lookup/write key (EVM addresses lowercased, base58 addresses
+        such as Tron and Bitcoin left case-preserved). Clients must apply the
+        identical normalization when deriving their own keys, or an address
+        that matches by chain semantics will not match by string equality.
+
+AddressesRequest:
+  type: object
+  required: [addresses]
+  properties:
+    addresses:
+      type: array
+      items:
+        $ref: '#/ChainAddressPair'
+
+AddressClassification:
+  type: object
+  description: >-
+    A machine-derived, on-chain fact about a (chain, address) pair. Absence
+    of a row (not modeled by this schema) means "not yet asked", never
+    "asked and got nothing".
+  required:
+    - chain
+    - address
+    - addressType
+    - tokenStandard
+    - symbol
+    - decimals
+    - name
+    - probedAt
+  properties:
+    chain:
+      type: string
+    address:
+      type: string
+      description: Canonical form per normalizeAddressForChain (EVM lowercased, base58 case-preserved).
+    addressType:
+      type: string
+      enum: [wallet, contract]
+    tokenStandard:
+      allOf:
+        - $ref: './blockchain.yaml#/TokenStandard'
+      nullable: true
+    symbol:
+      type: string
+      nullable: true
+    decimals:
+      type: integer
+      nullable: true
+    name:
+      type: string
+      nullable: true
+    probedAt:
+      type: string
+      format: date-time
+      description: When the chain was last asked.
+
+ClassifyResult:
+  type: object
+  required: [classified, remaining]
+  properties:
+    classified:
+      type: array
+      items:
+        $ref: '#/AddressClassification'
+    remaining:
+      type: integer
+      description: >-
+        How many of the requested pairs were not classified because the
+        request exceeded the per-call cap. Zero means every eligible pair
+        was attempted.

@@ -52,6 +52,10 @@ import { roleAtLeast } from '../auth/require-role.decorator';
 import { CaseRole } from '../../database/entities/case-member.entity';
 import { AccessPrincipal } from '../auth/access-principal';
 import { stripTraceForAgent, filterTraceData } from './investigation-data.utils';
+import {
+  AddressClassificationsService,
+  ChainAddressPair,
+} from '../address-classifications/address-classifications.service';
 import { AttachmentDto } from './dto/chat-message.dto';
 import { buildAttachmentBlocks } from './attachment-blocks';
 
@@ -301,6 +305,7 @@ export class AiService {
     private readonly declarationLibraryService: DeclarationLibraryService,
     private readonly declarantsService: DeclarantsService,
     private readonly tokenUsageService: TokenUsageService,
+    private readonly addressClassificationsService: AddressClassificationsService,
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
     @InjectRepository(InvestigationEntity)
@@ -1104,8 +1109,19 @@ export class AiService {
     });
     if (!investigation) return { error: `Investigation ${invId} not found` };
 
+    // Resolve classifications once for every node across all of this
+    // investigation's traces, up front — stripTraceForAgent stays pure and
+    // synchronous, so the Map is built here rather than injected into the util.
+    const pairs: ChainAddressPair[] = [];
+    for (const t of investigation.traces) {
+      for (const n of (t.data as any)?.nodes ?? []) {
+        if (n?.chain && n?.address) pairs.push({ chain: n.chain, address: n.address });
+      }
+    }
+    const classifications = await this.addressClassificationsService.lookupMany(pairs);
+
     const traces = investigation.traces.map((t) => {
-      const stripped = stripTraceForAgent(t.data);
+      const stripped = stripTraceForAgent(t.data, classifications);
       const filtered = filterTraceData(stripped, input.address, input.token);
       return { id: t.id, name: t.name, ...filtered };
     });

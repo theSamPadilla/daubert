@@ -84,6 +84,8 @@ export function useCytoscape(
   selectedEdgeIds: string[],
   callbacks: CytoscapeCallbacks = {},
   labelControls?: LabelControls,
+  /** Resolves the shared on-chain classification for a wallet node's shape/badge. See useAddressClassifications. */
+  lookupClassification?: (chain: string, address: string) => { addressType?: string; tokenStandard?: string | null } | undefined,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -178,13 +180,18 @@ export function useCytoscape(
     });
   }, []);
 
-  // Sync effect — diffs investigation data into Cytoscape
+  // Sync effect — diffs investigation data into Cytoscape.
+  // `lookupClassification`'s identity changes whenever new address
+  // classifications land (see useAddressClassifications) — it MUST stay in
+  // this dependency list so the effect below re-runs and repaints nodes once
+  // classifications arrive. Without it, the graph would never fill in: nodes
+  // would keep whatever shape/badge they had at the first sync forever.
   const syncToCytoscape = useCallback(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    syncCytoscape(cy, investigation);
+    syncCytoscape(cy, investigation, lookupClassification);
     paintSelection();
-  }, [investigation, paintSelection]);
+  }, [investigation, paintSelection, lookupClassification]);
 
   useEffect(() => {
     syncToCytoscape();

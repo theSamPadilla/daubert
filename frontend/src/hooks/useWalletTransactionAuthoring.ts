@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback } from 'react';
-import { apiClient } from '@/lib/api-client';
 import { buildExplorerUrl, buildTxExplorerUrl } from '@/utils/addressParser';
 import type { Investigation, WalletNode, TransactionEdge, UtxoContext } from '@/types/investigation';
 import type { PanelMode } from '@/types/panel';
@@ -74,13 +73,7 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
     addWallet(traceId, wallet);
     setPanelMode({ type: 'none' });
     setSelectedItem({ type: 'wallet', data: wallet });
-
-    if (addr) {
-      apiClient.getAddressInfo(addr, ch).then((info) => {
-        updateWallet(traceId, wallet.id, { addressType: info.addressType, tokenStandard: info.tokenStandard });
-      }).catch(() => {});
-    }
-  }, [panelMode, addWallet, updateWallet, setPanelMode, setSelectedItem]);
+  }, [panelMode, addWallet, setPanelMode, setSelectedItem]);
 
   const findOrCreateWallet = useCallback((address: string, chain: string, traceId: string): string => {
     const existing = allWallets.find(
@@ -108,12 +101,8 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
     };
     addWallet(traceId, wallet);
 
-    apiClient.getAddressInfo(normAddress, chain).then((info) => {
-      updateWallet(traceId, walletId, { addressType: info.addressType, tokenStandard: info.tokenStandard });
-    }).catch(() => {});
-
     return wallet.id;
-  }, [allWallets, addWallet, updateWallet]);
+  }, [allWallets, addWallet]);
 
   const handleSaveNewTransaction = useCallback((traceId: string, data: Partial<TransactionEdge>) => {
     const ch = data.chain || 'ethereum';

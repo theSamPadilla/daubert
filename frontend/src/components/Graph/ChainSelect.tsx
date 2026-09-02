@@ -1,16 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { FaChevronDown } from 'react-icons/fa6';
-import {
-  NetworkEthereum,
-  NetworkPolygon,
-  NetworkArbitrumOne,
-  NetworkBase,
-  NetworkTron,
-  NetworkBitcoin,
-  NetworkSolana,
-} from '@web3icons/react';
 import { SUPPORTED_CHAINS } from '@/services/types';
-import type { IconComponent } from '@web3icons/react';
+import { ChainIcon } from './ChainIcon';
 
 interface ChainSelectProps {
   value: string;               // chain id
@@ -19,24 +10,6 @@ interface ChainSelectProps {
   disabled?: boolean;
   /** 'canvas' (default) matches the dark graph header; 'surface' matches light form pages. */
   tone?: 'canvas' | 'surface';
-}
-
-const CHAIN_ICON_MAP: Record<string, IconComponent> = {
-  ethereum: NetworkEthereum,
-  polygon: NetworkPolygon,
-  arbitrum: NetworkArbitrumOne,
-  base: NetworkBase,
-  tron: NetworkTron,
-  bitcoin: NetworkBitcoin,
-  solana: NetworkSolana,
-};
-
-function ChainIcon({ chainId }: { chainId: string }) {
-  const Icon = CHAIN_ICON_MAP[chainId];
-  if (Icon) {
-    return <Icon variant="branded" size={16} />;
-  }
-  return <span className="w-4 h-4 rounded-full bg-canvas-fill inline-block flex-shrink-0" />;
 }
 
 export function ChainSelect({ value, options, onChange, disabled, tone = 'canvas' }: ChainSelectProps) {

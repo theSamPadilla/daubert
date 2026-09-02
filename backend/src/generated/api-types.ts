@@ -372,6 +372,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/addresses/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk-lookup known classifications for a set of (chain, address) pairs */
+        post: operations["lookupAddressClassifications"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/addresses/classify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Probe the chain to classify whichever of the requested pairs are not already on record */
+        post: operations["classifyAddresses"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{caseId}/productions": {
         parameters: {
             query?: never;
@@ -1773,6 +1807,7 @@ export interface components {
             toLabel?: string;
             utxo?: components["schemas"]["UtxoContext"];
             solana?: components["schemas"]["SolanaContext"];
+            tokenMeta?: components["schemas"]["TokenMeta"];
         };
         /** @description One side of an advanced search. Exactly one of traceId, groupId, or wallets must be provided. */
         WalletSet: {
@@ -1967,6 +2002,36 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
+        };
+        ChainAddressPair: {
+            chain: string;
+            /** @description The server canonicalizes this via normalizeAddressForChain before use as a lookup/write key (EVM addresses lowercased, base58 addresses such as Tron and Bitcoin left case-preserved). Clients must apply the identical normalization when deriving their own keys, or an address that matches by chain semantics will not match by string equality. */
+            address: string;
+        };
+        AddressesRequest: {
+            addresses: components["schemas"]["ChainAddressPair"][];
+        };
+        /** @description A machine-derived, on-chain fact about a (chain, address) pair. Absence of a row (not modeled by this schema) means "not yet asked", never "asked and got nothing". */
+        AddressClassification: {
+            chain: string;
+            /** @description Canonical form per normalizeAddressForChain (EVM lowercased, base58 case-preserved). */
+            address: string;
+            /** @enum {string} */
+            addressType: "wallet" | "contract";
+            tokenStandard: components["schemas"]["TokenStandard"] | null;
+            symbol: string | null;
+            decimals: number | null;
+            name: string | null;
+            /**
+             * Format: date-time
+             * @description When the chain was last asked.
+             */
+            probedAt: string;
+        };
+        ClassifyResult: {
+            classified: components["schemas"]["AddressClassification"][];
+            /** @description How many of the requested pairs were not classified because the request exceeded the per-call cap. Zero means every eligible pair was attempted. */
+            remaining: number;
         };
         /** @enum {string} */
         ProductionType: "report" | "chart" | "chronology" | "declaration" | "redline";
@@ -2861,6 +2926,11 @@ export interface components {
             slot?: number;
             spam?: boolean;
             spamEvidence?: string[];
+        };
+        /** @description Structured token metadata for rows whose `token` field is a bare symbol. Carries what the symbol alone cannot: the contract address that distinguishes two tokens sharing a symbol, and the decimals needed to render `amount` (which is in raw base units on these rows). */
+        TokenMeta: {
+            address: string;
+            decimals: number;
         };
         TransactionResult: {
             /** Format: uuid */
@@ -3842,6 +3912,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LabeledEntity"];
+                };
+            };
+        };
+    };
+    lookupAddressClassifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressesRequest"];
+            };
+        };
+        responses: {
+            /** @description Classifications on record for the requested pairs. Pairs with no record on file are simply absent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressClassification"][];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    classifyAddresses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressesRequest"];
+            };
+        };
+        responses: {
+            /** @description Newly classified pairs, plus how many requested pairs were left unattempted by the per-call cap */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassifyResult"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

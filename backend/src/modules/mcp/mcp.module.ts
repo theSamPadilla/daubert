@@ -15,6 +15,9 @@
  *   - InvestigationsModule  exports InvestigationsService for navigate tools.
  *   - DeclarantsModule      exports DeclarantsService for read tools.
  *   - DeclarationLibraryModule exports DeclarationLibraryService for read tools.
+ *   - AddressClassificationsModule exports AddressClassificationsService, used
+ *                          by ReadToolsService to resolve address classifications
+ *                          for get_investigation.
  *
  * Providers:
  *   - McpAuthHelper, McpToolsService — top-level controllers/dispatchers.
@@ -45,6 +48,7 @@ import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.modu
 import { BlockchainModule } from '../blockchain/blockchain.module';
 import { DeclarantsModule } from '../declarants/declarants.module';
 import { DeclarationLibraryModule } from '../declaration-library/declaration-library.module';
+import { AddressClassificationsModule } from '../address-classifications/address-classifications.module';
 import { OAuthModule } from '../oauth/oauth.module';
 import { McpAuthHelper } from './mcp-auth.helper';
 import { McpController } from './mcp.controller';
@@ -69,6 +73,7 @@ import { AgentAuditService } from './agent-audit.service';
     BlockchainModule,      // exports BlockchainService
     DeclarantsModule,      // exports DeclarantsService
     DeclarationLibraryModule, // exports DeclarationLibraryService
+    AddressClassificationsModule, // exports AddressClassificationsService (for ReadToolsService)
   ],
   controllers: [McpController],
   providers: [

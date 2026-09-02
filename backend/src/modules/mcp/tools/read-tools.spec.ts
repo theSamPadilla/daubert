@@ -71,6 +71,7 @@ function buildService(overrides: {
   labeledEntities?: any;
   declarantsService?: any;
   declarationLibraryService?: any;
+  addressClassifications?: any;
 } = {}) {
   const caseAccess = {
     assertRole: jest.fn().mockResolvedValue({ id: 'm-1', userId: USER_ID, caseId: CASE_ID, role: 'viewer' }),
@@ -117,6 +118,11 @@ function buildService(overrides: {
     ...overrides.declarationLibraryService,
   };
 
+  const addressClassifications = {
+    lookupMany: jest.fn().mockResolvedValue(new Map()),
+    ...overrides.addressClassifications,
+  };
+
   const service = new ReadToolsService(
     caseAccess,
     investigationRepo,
@@ -125,6 +131,7 @@ function buildService(overrides: {
     labeledEntities,
     declarantsService,
     declarationLibraryService,
+    addressClassifications,
   );
   const server = new McpServer({ name: 'test-mcp', version: '0.0.1' });
   service.registerAll(server, AUTH);
@@ -138,6 +145,7 @@ function buildService(overrides: {
     labeledEntities,
     declarantsService,
     declarationLibraryService,
+    addressClassifications,
   };
 }
 

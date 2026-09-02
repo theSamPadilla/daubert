@@ -22,6 +22,7 @@ import { TokenUsageModule } from '../superadmin/token-usage/token-usage.module';
 import { DataRoomModule } from '../data-room/data-room.module';
 import { DeclarationLibraryModule } from '../declaration-library/declaration-library.module';
 import { DeclarantsModule } from '../declarants/declarants.module';
+import { AddressClassificationsModule } from '../address-classifications/address-classifications.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { DeclarantsModule } from '../declarants/declarants.module';
     DataRoomModule,
     DeclarationLibraryModule,
     DeclarantsModule,
+    AddressClassificationsModule,
   ],
   controllers: [AiController, ConversationsController, CaseConversationsController],
   providers: [

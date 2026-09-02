@@ -54,6 +54,10 @@ import { extractFileForMcp } from '../../data-room/file-text';
 import { AuthSuccess } from '../mcp-auth.helper';
 import { errorResult, textResult } from './tool-utils';
 import { stripTraceForAgent, filterTraceData } from '../../ai/investigation-data.utils';
+import {
+  AddressClassificationsService,
+  ChainAddressPair,
+} from '../../address-classifications/address-classifications.service';
 
 const DATA_ROOM_MANIFEST_LIMIT = 25;
 const MCP_AGENT_READ_BYTES = 5 * 1024 * 1024;
@@ -70,6 +74,7 @@ export class ReadToolsService {
     private readonly labeledEntitiesService: LabeledEntitiesService,
     private readonly declarantsService: DeclarantsService,
     private readonly declarationLibraryService: DeclarationLibraryService,
+    private readonly addressClassificationsService: AddressClassificationsService,
   ) {}
 
   /**
@@ -251,8 +256,18 @@ export class ReadToolsService {
             };
           }
 
+          // Resolve classifications once for every node across all traces,
+          // up front — stripTraceForAgent stays pure and synchronous.
+          const pairs: ChainAddressPair[] = [];
+          for (const t of inv.traces) {
+            for (const n of (t.data as any)?.nodes ?? []) {
+              if (n?.chain && n?.address) pairs.push({ chain: n.chain, address: n.address });
+            }
+          }
+          const classifications = await this.addressClassificationsService.lookupMany(pairs);
+
           const traces = inv.traces.map((t) => {
-            const stripped = stripTraceForAgent(t.data);
+            const stripped = stripTraceForAgent(t.data, classifications);
             const filtered = filterTraceData(stripped, address, token);
             return { id: t.id, name: t.name, ...filtered };
           });

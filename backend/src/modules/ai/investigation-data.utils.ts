@@ -1,6 +1,7 @@
 // backend/src/modules/ai/investigation-data.utils.ts
 
 import type { SolanaContext } from '../blockchain/types';
+import { classificationKey } from '../address-classifications/address-classifications.service';
 
 export interface AgentNode {
   id: string;
@@ -10,9 +11,52 @@ export interface AgentNode {
   tags: string[];
   notes?: string;
   addressType?: string;
+  /** Present only when a classification determined the address is a token contract. */
+  tokenStandard?: string;
   groupId?: string;
   /** 'txJunction' for Bitcoin transaction junctions; absent for wallets. */
   kind?: string;
+}
+
+/**
+ * The subset of `AddressClassificationEntity` that `stripTraceForAgent` needs
+ * to override a node's stored `addressType`. Callers resolve the full Map via
+ * `AddressClassificationsService.lookupMany` (keyed by `classificationKey`)
+ * and pass it in — this util stays pure/synchronous and never touches the DB
+ * itself.
+ */
+export interface AgentAddressClassification {
+  addressType: string;
+  tokenStandard?: string | null;
+}
+
+/**
+ * Resolve a node's addressType/tokenStandard, preferring an already-resolved
+ * classification Map entry over the persisted `n.addressType` field.
+ *
+ * The persisted field is coerced to the literal string 'unknown' rather than
+ * left undefined (see the trace schema), so a naive `mapValue ?? n.addressType`
+ * would look right but a naive `n.addressType ?? mapValue` would always
+ * short-circuit on the stored value and a real classification would never
+ * win. Both sides therefore treat the literal 'unknown' as absent.
+ */
+function resolveNodeClassification(
+  n: any,
+  classifications?: Map<string, AgentAddressClassification>,
+): { addressType?: string; tokenStandard?: string } {
+  const fromMap =
+    n.chain && n.address
+      ? classifications?.get(classificationKey(n.chain, n.address))
+      : undefined;
+
+  const mapType =
+    fromMap?.addressType && fromMap.addressType !== 'unknown' ? fromMap.addressType : undefined;
+  const storedType = n.addressType && n.addressType !== 'unknown' ? n.addressType : undefined;
+
+  return {
+    addressType: mapType ?? storedType,
+    tokenStandard: fromMap?.tokenStandard ?? undefined,
+  };
 }
 
 /**
@@ -133,7 +177,10 @@ export function summarizeUtxo(utxo: unknown): AgentUtxoSummary | undefined {
   };
 }
 
-export function stripTraceForAgent(data: Record<string, unknown>): AgentTraceData {
+export function stripTraceForAgent(
+  data: Record<string, unknown>,
+  classifications?: Map<string, AgentAddressClassification>,
+): AgentTraceData {
   const rawNodes: any[] = (data as any)?.nodes || [];
   const rawEdges: any[] = (data as any)?.edges || [];
   const rawGroups: any[] = (data as any)?.groups || [];
@@ -151,7 +198,7 @@ export function stripTraceForAgent(data: Record<string, unknown>): AgentTraceDat
     label: n.label,
     tags: n.tags ?? [],
     notes: n.notes || undefined,
-    addressType: n.addressType || undefined,
+    ...resolveNodeClassification(n, classifications),
     groupId: n.groupId || undefined,
     kind: n.kind || undefined,
   }));

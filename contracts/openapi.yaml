@@ -93,6 +93,10 @@ paths:
     $ref: './paths/labeled-entities.yaml#/~1labeled-entities~1lookup'
   /labeled-entities/{id}:
     $ref: './paths/labeled-entities.yaml#/~1labeled-entities~1{id}'
+  /addresses/lookup:
+    $ref: './paths/address-classifications.yaml#/~1addresses~1lookup'
+  /addresses/classify:
+    $ref: './paths/address-classifications.yaml#/~1addresses~1classify'
   /cases/{caseId}/productions:
     $ref: './paths/productions.yaml#/~1cases~1{caseId}~1productions'
   /productions/{id}:
@@ -304,6 +308,14 @@ components:
       $ref: './schemas/labeled-entities.yaml#/CreateLabeledEntityRequest'
     UpdateLabeledEntityRequest:
       $ref: './schemas/labeled-entities.yaml#/UpdateLabeledEntityRequest'
+    ChainAddressPair:
+      $ref: './schemas/address-classifications.yaml#/ChainAddressPair'
+    AddressesRequest:
+      $ref: './schemas/address-classifications.yaml#/AddressesRequest'
+    AddressClassification:
+      $ref: './schemas/address-classifications.yaml#/AddressClassification'
+    ClassifyResult:
+      $ref: './schemas/address-classifications.yaml#/ClassifyResult'
     ProductionType:
       $ref: './schemas/productions.yaml#/ProductionType'
     Production:

@@ -48,7 +48,7 @@ function inv(traces: Trace[]): Investigation {
  * investigation instead of a mock.
  */
 function useHarness(initial: Investigation | null) {
-  const { investigation, addWallet, updateWallet, addTransaction, updateTransaction } =
+  const { investigation, addWallet, addTransaction, updateTransaction } =
     useInvestigation(initial);
   const allWallets = useMemo(() => {
     if (!investigation) return [];
@@ -60,7 +60,7 @@ function useHarness(initial: Investigation | null) {
 
   const authoring = useWalletTransactionAuthoring({
     investigation, allWallets, panelMode, setPanelMode, setSelectedItem,
-    setStagedItems, addWallet, updateWallet, addTransaction, updateTransaction,
+    setStagedItems, addWallet, addTransaction, updateTransaction,
   });
 
   return { investigation, stagedItems, selectedItem, ...authoring };

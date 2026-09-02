@@ -462,4 +462,20 @@ describe('syncCytoscape', () => {
     expect(call2.data.addressType).toBe('unknown');
     expect(call2.data.nodeShape).toBe('ellipse');
   });
+
+  it('23. a determined contract with tokenStandard: null clears a stale erc20', () => {
+    const w1 = wallet('w1', { addressType: 'contract', tokenStandard: 'erc20' });
+    const t = trace('trace-a', { nodes: [w1] });
+    const cy = makeFakeCy();
+    // The authoritative lookup determined this is a plain contract, not a
+    // token — its explicit null must win over the stale stored 'erc20',
+    // unlike a plain `??` chain which would let the stored value survive.
+    const lookup = makeLookup({ 'eth:0xw1': { addressType: 'contract', tokenStandard: null } });
+
+    syncCytoscape(cy, inv([t]), lookup);
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    expect(call.data.tokenStandard).toBeFalsy();
+    expect(call.data.nodeShape).toBe('roundrectangle');
+  });
 });

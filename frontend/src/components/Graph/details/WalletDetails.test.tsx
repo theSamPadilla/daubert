@@ -83,4 +83,18 @@ describe('WalletDetails — address type badge', () => {
 
     expect(screen.getByText('ERC-20')).toBeTruthy();
   });
+
+  it('clears a stale erc20 badge when a determined classification says the contract is not a token', () => {
+    const w = wallet({ addressType: 'contract', tokenStandard: 'erc20' });
+    render(
+      <WalletDetails
+        wallet={w}
+        onFetchHistory={jest.fn()}
+        lookupAddress={() => undefined}
+        lookupClassification={() => classification({ addressType: 'contract', tokenStandard: null })}
+      />,
+    );
+
+    expect(screen.queryByText('ERC-20')).toBeNull();
+  });
 });

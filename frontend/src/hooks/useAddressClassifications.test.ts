@@ -5,18 +5,27 @@ import {
   __resetAddressClassificationSession,
   type AddressClassification,
 } from './useAddressClassifications';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, ApiError } from '@/lib/api-client';
 import type { Investigation } from '@/types/investigation';
 import type { components } from '@/generated/api-types';
 
 type ChainAddressPair = components['schemas']['ChainAddressPair'];
 
-jest.mock('@/lib/api-client', () => ({
-  apiClient: {
-    lookupAddressClassifications: jest.fn(),
-    classifyAddresses: jest.fn(),
-  },
-}));
+jest.mock('@/lib/api-client', () => {
+  class ApiError extends Error {
+    constructor(message: string, public readonly status: number) {
+      super(message);
+      this.name = 'ApiError';
+    }
+  }
+  return {
+    apiClient: {
+      lookupAddressClassifications: jest.fn(),
+      classifyAddresses: jest.fn(),
+    },
+    ApiError,
+  };
+});
 
 const A1 = '0x1111111111111111111111111111111111111111';
 const A2 = '0x2222222222222222222222222222222222222222';
@@ -234,8 +243,10 @@ it('stops classifying when a round makes no progress, and does not re-ask those 
   const inv = investigation([
     { id: 't1', nodes: [node(A1, 'ethereum'), node(A2, 'ethereum')] },
   ]);
-  // The chain has nothing to say about either address.
-  classifyMock().mockResolvedValue({ classified: [], remaining: 2 });
+  // The chain has nothing to say about either address. Both pairs are still
+  // within a single call's cap, so the server reports `remaining: 0` — every
+  // pair sent was actually looked at, it just didn't land anything.
+  classifyMock().mockResolvedValue({ classified: [], remaining: 0 });
 
   const { rerender } = renderHook(({ i }) => useAddressClassifications(i), {
     initialProps: { i: inv },
@@ -298,4 +309,127 @@ it('matches a mixed-case EVM address against the lowercased row on file', async 
   expect(result.current.lookup('ethereum', MIXED_LOWER)!.symbol).toBe('USDT');
   // The server was asked with the canonical form, not the mixed-case one.
   expect(keysOf(lookupMock().mock.calls[0][0])).toEqual([`ethereum:${MIXED_LOWER}`]);
+});
+
+// ── The 200-address / partial-landing scenario (see FIX 2 in the review) ────
+
+it('keeps draining across rounds instead of stopping when a round both lands pairs and reports remaining > 0', async () => {
+  // 200 addresses; the first 25 (sorted order) were landed by another
+  // instance between this client's /lookup and its /classify call, so they
+  // never show up in `known` — but the server's classify response reports
+  // them in `classified` (post-fix) instead of silently dropping them.
+  const addresses = Array.from({ length: 200 }, (_, i) => evmAddress(i + 1));
+  const inv = investigation([{ id: 't1', nodes: addresses.map((a) => node(a, 'ethereum')) }]);
+  const CAP = 25;
+
+  classifyMock().mockImplementation(async (pairs: ChainAddressPair[]) => {
+    const attempted = pairs.slice(0, CAP);
+    return {
+      classified: attempted.map((p) => row(p.chain, p.address)),
+      remaining: Math.max(0, pairs.length - CAP),
+    };
+  });
+
+  const { result } = renderHook(() => useAddressClassifications(inv));
+
+  // 175 not-landed / 25 per round = 7 rounds to fully drain — well within
+  // the round budget. Before the fix, a `classified.length === 0` round
+  // would never even occur here, but the point is the loop must NOT bail
+  // out after round 1 just because a big `remaining` came back alongside a
+  // nonempty `classified`.
+  await waitFor(() => expect(result.current.lookup('ethereum', addresses[199])).toBeDefined());
+  expect(classifyMock().mock.calls.length).toBeGreaterThan(1);
+
+  // Nothing was starved: every address in the batch resolved.
+  for (const addr of addresses) {
+    expect(result.current.lookup('ethereum', addr)).toBeDefined();
+  }
+});
+
+it('never marks a pair "asked" when the round budget runs out before the server ever reports remaining: 0', async () => {
+  // 300 addresses, 25 attempted (and fully determined) per round — more than
+  // the 10-round budget can drain (250 of 300), so the loop must exit with
+  // `remaining` still > 0 for every round it ran.
+  const addresses = Array.from({ length: 300 }, (_, i) => evmAddress(i + 1));
+  const inv = investigation([{ id: 't1', nodes: addresses.map((a) => node(a, 'ethereum')) }]);
+  const CAP = 25;
+  const batches: ChainAddressPair[][] = [];
+
+  classifyMock().mockImplementation(async (pairs: ChainAddressPair[]) => {
+    batches.push(pairs);
+    const attempted = pairs.slice(0, CAP);
+    return {
+      classified: attempted.map((p) => row(p.chain, p.address)),
+      remaining: Math.max(0, pairs.length - CAP),
+    };
+  });
+
+  const { result, rerender } = renderHook(({ i }) => useAddressClassifications(i), {
+    initialProps: { i: inv },
+  });
+
+  await waitFor(() => expect(classifyMock()).toHaveBeenCalledTimes(10)); // MAX_CLASSIFY_ROUNDS
+  await flush();
+  expect(classifyMock()).toHaveBeenCalledTimes(10); // loop stopped, did not spin further
+
+  // Everything ever actually attempted (the first CAP of every round's
+  // batch) must be resolved. Whatever's left in the final round's batch
+  // beyond the cap was never looked at at all, and must stay pending — not
+  // the sort-order-dependent "last 50 addresses", since `pairsKey` sorts by
+  // canonical key rather than array-declaration order.
+  const resolvedKeys = new Set(
+    batches.flatMap((b) => b.slice(0, CAP)).map((p) => `${p.chain}:${p.address}`),
+  );
+  const untouchedPair = batches[batches.length - 1][CAP]; // first pair beyond the cap, final round
+  expect(untouchedPair).toBeDefined();
+
+  for (const key of resolvedKeys) {
+    const [chain, address] = key.split(':');
+    expect(result.current.lookup(chain, address)).toBeDefined();
+  }
+  expect(result.current.lookup(untouchedPair.chain, untouchedPair.address)).toBeUndefined();
+
+  // Force the effect to run again over a superset. If `untouchedPair` had
+  // been wrongly marked "asked" when the round budget ran out, it would be
+  // missing from this call's payload.
+  classifyMock().mockClear();
+  classifyMock().mockResolvedValue({
+    classified: [row(untouchedPair.chain, untouchedPair.address)],
+    remaining: 0,
+  });
+  rerender({
+    i: investigation([
+      { id: 't1', nodes: [...addresses, evmAddress(301)].map((a) => node(a, 'ethereum')) },
+    ]),
+  });
+
+  await waitFor(() => expect(classifyMock()).toHaveBeenCalledTimes(1));
+  const sentKeys = keysOf(classifyMock().mock.calls[0][0]);
+  expect(sentKeys).toContain(`${untouchedPair.chain}:${untouchedPair.address}`);
+});
+
+// ── The server's own throttle (see FIX 3 in the review) ─────────────────────
+
+it('stops cleanly on a 429, marks nothing asked, and does not immediately retry the same set', async () => {
+  const inv = investigation([{ id: 't1', nodes: [node(A1, 'ethereum'), node(A2, 'ethereum')] }]);
+  classifyMock().mockRejectedValue(new ApiError('Too Many Requests', 429));
+
+  const { rerender } = renderHook(({ i }) => useAddressClassifications(i), {
+    initialProps: { i: inv },
+  });
+
+  await waitFor(() => expect(classifyMock()).toHaveBeenCalledTimes(1));
+  await flush();
+  expect(classifyMock()).toHaveBeenCalledTimes(1); // one attempt, then it stopped — no spinning
+
+  // A superset re-runs the effect. Still within the cooldown window, so it
+  // must not immediately retry and 429 again.
+  rerender({
+    i: investigation([
+      { id: 't1', nodes: [node(A1, 'ethereum'), node(A2, 'ethereum'), node(A3, 'ethereum')] },
+    ]),
+  });
+  await flush();
+
+  expect(classifyMock()).toHaveBeenCalledTimes(1);
 });

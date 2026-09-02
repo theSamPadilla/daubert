@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, ApiError } from '@/lib/api-client';
 import { normalizeAddressForChain } from '@/generated/shared/address';
 import type { components } from '@/generated/api-types';
 import type { Investigation } from '@/types/investigation';
@@ -26,6 +26,27 @@ function parsePairKey(key: string): ChainAddressPair {
 }
 
 /**
+ * Every (chain, address) pair worth asking about in an investigation, deduped
+ * and canonically keyed. Shared by the hook's `pairsKey` memo and by
+ * `resolveAddressClassifications` (used by exhibit export, which has no live
+ * hook instance to read from — see that function's doc comment).
+ */
+export function collectAddressPairs(investigation: Investigation): ChainAddressPair[] {
+  const keys = new Set<string>();
+  for (const trace of investigation.traces ?? []) {
+    for (const node of trace.nodes ?? []) {
+      // txJunction nodes carry a Bitcoin transaction id in `address`, not an
+      // address — classifying one is meaningless and wastes a chain call.
+      if (node.kind === 'txJunction') continue;
+      const address = node.address?.trim();
+      if (!address) continue;
+      keys.add(pairKey(node.chain, address));
+    }
+  }
+  return Array.from(keys).sort().map(parsePairKey);
+}
+
+/**
  * Session-scoped record of pairs we already sent to `/addresses/classify`.
  *
  * A pair the chain cannot answer for gets no row, so `lookup` keeps reporting
@@ -33,16 +54,43 @@ function parsePairKey(key: string): ChainAddressPair {
  * the address set) would queue those same hopeless pairs again and burn the
  * shared rate limiter. Module-level so it survives component re-mounts, which
  * is exactly when the re-ask loop would otherwise restart.
+ *
+ * TRAP: only add a pair here once the server has actually looked at it (see
+ * the `remaining === 0` branch in the drain loop below). A pair truncated by
+ * the per-call cap, or one abandoned because the loop hit its round budget or
+ * a 429, was NEVER looked at — marking it asked would starve it for the rest
+ * of the session even though the chain was never given the chance to answer.
  */
 const askedThisSession = new Set<string>();
 
-/** Test hook: clears the session-scoped "already asked" set. */
+/**
+ * Timestamp (`Date.now()`) before which `/addresses/classify` must not be
+ * called again, set after the server's shared per-IP throttle 429s us (see
+ * `RATE_LIMIT_COOLDOWN_MS`). Module-level for the same reason as
+ * `askedThisSession`: a remount during the cooldown must not immediately
+ * retry and 429 again before the server's window has reset.
+ */
+let classifyCooldownUntil = 0;
+
+/** Test hook: clears session-scoped state ("already asked" pairs and any rate-limit cooldown). */
 export function __resetAddressClassificationSession(): void {
   askedThisSession.clear();
+  classifyCooldownUntil = 0;
 }
 
-/** Bounds the drain loop in case the server keeps reporting progress forever. */
-const MAX_CLASSIFY_ROUNDS = 20;
+/**
+ * Bounds the drain loop to what the server's own throttle actually permits in
+ * one window (`@Throttle({ default: { limit: 10, ttl: 60_000 } })` on
+ * `POST /addresses/classify`). Rounds beyond this always 429, and two
+ * analysts sharing an office IP share this same budget — so this must not
+ * exceed the server limit, and there is no headroom to spare.
+ */
+const MAX_CLASSIFY_ROUNDS = 10;
+
+/** Mirrors the server throttle's `ttl`. After a 429, back off for a full
+ * window rather than retrying instantly on the next remount — the per-IP
+ * limiter has not reset yet and an immediate retry just 429s again. */
+const RATE_LIMIT_COOLDOWN_MS = 60_000;
 
 interface ClassificationState {
   map: Map<string, AddressClassification>;
@@ -87,18 +135,9 @@ export function useAddressClassifications(
    */
   const pairsKey = useMemo(() => {
     if (!investigation) return '';
-    const keys = new Set<string>();
-    for (const trace of investigation.traces ?? []) {
-      for (const node of trace.nodes ?? []) {
-        // txJunction nodes carry a Bitcoin transaction id in `address`, not an
-        // address — classifying one is meaningless and wastes a chain call.
-        if (node.kind === 'txJunction') continue;
-        const address = node.address?.trim();
-        if (!address) continue;
-        keys.add(pairKey(node.chain, address));
-      }
-    }
-    return Array.from(keys).sort().join(',');
+    return collectAddressPairs(investigation)
+      .map((p) => pairKey(p.chain, p.address))
+      .join(',');
   }, [investigation]);
 
   useEffect(() => {
@@ -139,6 +178,14 @@ export function useAddressClassifications(
         return !known.has(key) && !askedThisSession.has(key);
       });
 
+      if (pending.length === 0) return;
+
+      // Respect a cooldown left by a previous 429 (see RATE_LIMIT_COOLDOWN_MS)
+      // — a remount within the window would just 429 again immediately, and
+      // the server's per-IP throttle is shared with every other analyst and
+      // tab behind the same office IP.
+      if (Date.now() < classifyCooldownUntil) return;
+
       // Sequential, never parallel: every request queues behind one shared
       // 5 req/s limiter whose queue is unbounded and untimed, so N parallel
       // batches would hold N requests open for minutes.
@@ -147,6 +194,13 @@ export function useAddressClassifications(
         try {
           result = await apiClient.classifyAddresses(pending);
         } catch (err) {
+          if (err instanceof ApiError && err.status === 429) {
+            // The server's own throttle cut us off. Stop cleanly — nothing
+            // here was actually looked at, so nothing gets marked asked —
+            // and remember not to hammer it again until the window resets.
+            classifyCooldownUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+            return;
+          }
           console.error('Failed to classify addresses:', err);
           return;
         }
@@ -156,11 +210,15 @@ export function useAddressClassifications(
         const done = new Set(result.classified.map((row) => pairKey(row.chain, row.address)));
         const next = pending.filter((pair) => !done.has(pairKey(pair.chain, pair.address)));
 
-        // Stop when the round made no progress, or when the server says it
-        // attempted everything it was given. Whatever is still missing at that
-        // point is something the chain cannot answer for — record it so a
-        // later pass over a superset of these addresses does not ask again.
-        if (result.classified.length === 0 || result.remaining === 0) {
+        // `remaining === 0` means the server accounted for every pair sent
+        // this round — each one is now either landed (and thus in
+        // `classified`) or was actually probed. So whatever's left in `next`
+        // is something the chain was asked about and had nothing to say for
+        // — safe to shelve for the rest of the session. A nonzero `remaining`
+        // means some pairs were truncated by the per-call cap and never
+        // looked at at all; those must stay eligible, so the loop keeps
+        // draining instead of marking anything asked.
+        if (result.remaining === 0) {
           for (const pair of next) askedThisSession.add(pairKey(pair.chain, pair.address));
           return;
         }
@@ -168,7 +226,11 @@ export function useAddressClassifications(
         pending = next;
       }
 
-      for (const pair of pending) askedThisSession.add(pairKey(pair.chain, pair.address));
+      // Round budget exhausted (a very large batch, or the throttle limit —
+      // see MAX_CLASSIFY_ROUNDS) without the server ever reporting
+      // `remaining === 0`. Whatever's left in `pending` was never looked at —
+      // leave it alone rather than marking it asked; a later mount, or the
+      // cooldown lifting, gets to pick up where this left off.
     };
 
     void run();
@@ -195,4 +257,62 @@ export function useAddressClassifications(
   );
 
   return { lookup, classifications: state.map, version: state.version };
+}
+
+/** What `resolveAddressClassifications` hands back — same shape as this hook's `lookup`. */
+export type AddressClassificationLookup = (
+  chain: string,
+  address: string,
+) => AddressClassification | undefined;
+
+/**
+ * One-shot classification resolver for a single investigation, used by
+ * `useGraphSnapshot` to rasterize exhibit exports whose shapes/badges must
+ * agree with what the analyst sees on screen (see cytoscapeSync.ts).
+ *
+ * Deliberately NOT a call into the page-level `useAddressClassifications`
+ * instance: that hook only ever holds data for the ONE investigation
+ * currently open in the workspace, whereas an exhibit can reference ANY
+ * investigation in the case — the page's instance would have nothing for the
+ * others. Reaching into it would also mean calling a hook from inside an
+ * async export loop, which React disallows. Instead this runs the same
+ * lookup-then-drain sequence as the hook, once, and returns a plain lookup
+ * function once it settles (or once it gives up — this never rejects; a
+ * best-effort partial result is better than blocking the whole export).
+ */
+export async function resolveAddressClassifications(
+  investigation: Investigation,
+): Promise<AddressClassificationLookup> {
+  const pairs = collectAddressPairs(investigation);
+  const map = new Map<string, AddressClassification>();
+  const lookup: AddressClassificationLookup = (chain, address) => map.get(pairKey(chain, address));
+  if (pairs.length === 0) return lookup;
+
+  try {
+    const existing = await apiClient.lookupAddressClassifications(pairs);
+    for (const row of existing) map.set(pairKey(row.chain, row.address), row);
+  } catch (err) {
+    console.error('Failed to look up address classifications for export:', err);
+    return lookup;
+  }
+
+  let pending = pairs.filter((pair) => !map.has(pairKey(pair.chain, pair.address)));
+
+  for (let round = 0; pending.length > 0 && round < MAX_CLASSIFY_ROUNDS; round++) {
+    let result;
+    try {
+      result = await apiClient.classifyAddresses(pending);
+    } catch (err) {
+      // Best-effort: export with whatever was resolved so far rather than
+      // failing the whole exhibit over a rate-limited/failed probe.
+      console.error('Failed to classify addresses for export:', err);
+      break;
+    }
+    for (const row of result.classified) map.set(pairKey(row.chain, row.address), row);
+    if (result.remaining === 0) break;
+    const done = new Set(result.classified.map((row) => pairKey(row.chain, row.address)));
+    pending = pending.filter((pair) => !done.has(pairKey(pair.chain, pair.address)));
+  }
+
+  return lookup;
 }

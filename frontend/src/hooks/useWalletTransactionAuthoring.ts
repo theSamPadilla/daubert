@@ -38,7 +38,6 @@ interface UseWalletTransactionAuthoringArgs {
   setSelectedItem: (item: any) => void;
   setStagedItems: (updater: (prev: TransactionEdge[]) => TransactionEdge[]) => void;
   addWallet: (traceId: string, wallet: WalletNode) => void;
-  updateWallet: (traceId: string, walletId: string, patch: Partial<WalletNode>) => void;
   addTransaction: (traceId: string, tx: TransactionEdge) => void;
   updateTransaction: (traceId: string, txId: string, patch: Partial<TransactionEdge>) => void;
 }
@@ -46,7 +45,7 @@ interface UseWalletTransactionAuthoringArgs {
 export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthoringArgs) {
   const {
     investigation, allWallets, panelMode, setPanelMode, setSelectedItem,
-    setStagedItems, addWallet, updateWallet, addTransaction, updateTransaction,
+    setStagedItems, addWallet, addTransaction, updateTransaction,
   } = args;
 
   const handleSaveNewWallet = useCallback((traceId: string, data: Partial<WalletNode>) => {

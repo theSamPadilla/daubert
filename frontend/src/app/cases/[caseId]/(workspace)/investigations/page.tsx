@@ -228,7 +228,7 @@ function InvestigationsWorkspace() {
     handleAddStagedToTrace,
   } = useWalletTransactionAuthoring({
     investigation, allWallets, panelMode, setPanelMode, setSelectedItem,
-    setStagedItems, addWallet, updateWallet, addTransaction, updateTransaction,
+    setStagedItems, addWallet, addTransaction, updateTransaction,
   });
 
   const {

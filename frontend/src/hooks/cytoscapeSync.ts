@@ -148,7 +148,13 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null, loo
             : node.addressType && node.addressType !== 'unknown'
               ? node.addressType
               : 'unknown';
-        const resolvedTokenStandard = classified?.tokenStandard ?? node.tokenStandard;
+        // A classification, once present, is authoritative for tokenStandard
+        // too — including when it determines "contract, not a token"
+        // (tokenStandard: null). Unlike addressType there's no truthy
+        // sentinel to filter out here, so `??` would wrongly let a stale
+        // stored value survive a determined null. Fall back to the stored
+        // value only when there's no classification for this pair at all.
+        const resolvedTokenStandard = classified ? classified.tokenStandard : node.tokenStandard;
 
         // Token contracts read differently from plain contracts at a glance.
         // The former `'exchange'` branch here was unreachable — nothing has ever

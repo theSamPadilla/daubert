@@ -180,7 +180,7 @@ describe('AddressClassificationsService', () => {
       expect(remaining).toBe(1);
     });
 
-    it('skips an address another instance already landed via the pre-probe re-SELECT', async () => {
+    it('skips an address another instance already landed via the pre-probe re-SELECT, but still reports it as classified', async () => {
       const alreadyLanded = {
         chain: 'ethereum',
         address: '0xaaa',
@@ -199,8 +199,50 @@ describe('AddressClassificationsService', () => {
 
       expect(classifyAddress).toHaveBeenCalledTimes(1);
       expect(classifyAddress).toHaveBeenCalledWith('0xbbb');
-      expect(classified).toHaveLength(1);
-      expect(classified[0].address).toBe('0xbbb');
+      // The landed row must round-trip in `classified` too — a caller has no
+      // other way to tell "already on file" from "the chain had nothing to
+      // say", and dropping it would make the caller re-ask forever.
+      expect(classified).toHaveLength(2);
+      expect(classified.map((c) => c.address).sort()).toEqual(['0xaaa', '0xbbb']);
+    });
+
+    // Regression for the 200-address drain scenario: a batch where the first
+    // slice (in request order) was landed by another instance between this
+    // caller's own /lookup and this /classify call. Before the fix, the cap
+    // was applied BEFORE the already-landed filter, so the landed pairs used
+    // up the whole cap, nothing got probed, and `remaining` counted the
+    // landed pairs as if nobody had looked at them.
+    it('does not let already-landed pairs consume cap slots or inflate remaining', async () => {
+      const landedRows = [
+        { chain: 'ethereum', address: '0xaaa', addressType: 'wallet' },
+        { chain: 'ethereum', address: '0xbbb', addressType: 'contract' },
+      ] as never[];
+      mockQb.getMany.mockResolvedValue(landedRows);
+      const classifyAddress = jest
+        .fn()
+        .mockResolvedValue({ classification: { addressType: 'wallet' }, determined: true });
+      mockProviderRegistry.get.mockReturnValue({ classifyAddress });
+
+      // 2 already landed + 3 not landed, capped to 2 probes per call.
+      const { classified, remaining } = await service.classifyMissing(
+        [
+          { chain: 'ethereum', address: '0xaaa' },
+          { chain: 'ethereum', address: '0xbbb' },
+          { chain: 'ethereum', address: '0xccc' },
+          { chain: 'ethereum', address: '0xddd' },
+          { chain: 'ethereum', address: '0xeee' },
+        ],
+        2,
+      );
+
+      // Both landed pairs come back in `classified` alongside the 2 newly
+      // probed ones — the cap only bit into the not-landed pairs.
+      expect(classified).toHaveLength(4);
+      expect(classifyAddress).toHaveBeenCalledTimes(2);
+      // 3 not-landed minus the 2 the cap allowed this call = 1 genuinely
+      // untouched pair — not 3, and definitely not the pre-fix value that
+      // would have counted the 2 landed pairs as still outstanding too.
+      expect(remaining).toBe(1);
     });
 
     it('returns immediately for empty input without querying', async () => {
@@ -208,6 +250,38 @@ describe('AddressClassificationsService', () => {
       expect(classified).toEqual([]);
       expect(remaining).toBe(0);
       expect(mockRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
+
+  // The pre-migration window is covered HERE rather than at each call site: the
+  // AI chat path awaits its tool call with no catch, so an unguarded throw would
+  // abort the whole response stream instead of one tool.
+  describe('pre-migration degradation (42P01)', () => {
+    it('lookupMany returns an empty map instead of throwing', async () => {
+      mockRepo.createQueryBuilder.mockImplementation(() => {
+        throw { code: '42P01' };
+      });
+      await expect(
+        service.lookupMany([{ chain: 'ethereum', address: '0x51c0d73faec63d6471e434a483e0874f6cb17203' }]),
+      ).resolves.toEqual(new Map());
+    });
+
+    it('classifyMissing returns an empty result instead of throwing', async () => {
+      mockRepo.createQueryBuilder.mockImplementation(() => {
+        throw { driverError: { code: '42P01' } };
+      });
+      await expect(
+        service.classifyMissing([{ chain: 'ethereum', address: '0x51c0d73faec63d6471e434a483e0874f6cb17203' }]),
+      ).resolves.toEqual({ classified: [], remaining: 0 });
+    });
+
+    it('still propagates any other database error', async () => {
+      mockRepo.createQueryBuilder.mockImplementation(() => {
+        throw new Error('connection refused');
+      });
+      await expect(
+        service.lookupMany([{ chain: 'ethereum', address: '0x51c0d73faec63d6471e434a483e0874f6cb17203' }]),
+      ).rejects.toThrow('connection refused');
     });
   });
 });

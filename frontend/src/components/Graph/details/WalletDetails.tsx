@@ -89,7 +89,12 @@ export function WalletDetails({
   const addrType: string =
     classification?.addressType ??
     (wallet.addressType && wallet.addressType !== 'unknown' ? wallet.addressType : 'unknown');
-  const resolvedTokenStandard = classification?.tokenStandard ?? wallet.tokenStandard;
+  // A classification, once present, is authoritative for tokenStandard too —
+  // including when it determines "contract, not a token" (tokenStandard:
+  // null). Mirrors the precedence in cytoscapeSync.ts: fall back to the
+  // stored value only when there's no classification at all, never when the
+  // classification explicitly says null.
+  const resolvedTokenStandard = classification ? classification.tokenStandard : wallet.tokenStandard;
   const [notes, setNotes] = useState(wallet.notes || '');
   const [pickingBundleColor, setPickingBundleColor] = useState(false);
   const [confirmDeleteOutbound, setConfirmDeleteOutbound] = useState(false);

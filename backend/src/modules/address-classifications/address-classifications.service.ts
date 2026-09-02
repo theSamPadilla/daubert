@@ -28,6 +28,45 @@ const MAX_CLASSIFY_PER_REQUEST = 25;
  */
 const PROBE_CONCURRENCY = 5;
 
+/** Postgres SQLSTATE for "relation does not exist". */
+const UNDEFINED_TABLE = '42P01';
+
+/**
+ * True when an error is Postgres "undefined_table" (42P01).
+ *
+ * This lives in the SERVICE, not in a caller, because the service is the only
+ * thing that touches `address_classifications` — so every consumer (the HTTP
+ * controller, the AI chat tool, the MCP read tool) inherits the same
+ * degradation without having to remember it. A caller that forgot would take
+ * down whatever surrounds it: the AI chat path awaits its tool call with no
+ * catch, so an unguarded throw there aborts the entire response stream rather
+ * than one tool.
+ *
+ * The window this covers is real and expected: prod runs this code against the
+ * pre-migration schema until `1788385406000-AddAddressClassifications.ts` is
+ * applied by hand. Degrade to "nothing known yet" and the graph simply keeps
+ * its stored values.
+ *
+ * Checks both locations for the same reason as
+ * `OAuthStateBagService.isUniqueConstraintError`: TypeORM copies the driver
+ * code onto `QueryFailedError`, but not in every version or driver stub.
+ */
+function isUndefinedTableError(err: unknown): boolean {
+  if (err !== null && typeof err === 'object') {
+    const e = err as Record<string, unknown>;
+    if (e['code'] === UNDEFINED_TABLE) return true;
+    const driverError = e['driverError'];
+    if (
+      driverError !== null &&
+      typeof driverError === 'object' &&
+      (driverError as Record<string, unknown>)['code'] === UNDEFINED_TABLE
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * The one canonical map key for a (chain, address) pair, used by every caller
  * so lookups and writes never disagree on what "the same address" means.
@@ -66,7 +105,32 @@ export class AddressClassificationsService {
    * Bulk lookup, keyed canonically. One round-trip for N pairs; missing pairs
    * are simply absent from the result rather than represented some other way.
    */
+  /**
+   * Every caller is protected from the pre-migration window here rather than at
+   * its own call site — see `isUndefinedTableError`.
+   */
   async lookupMany(pairs: ChainAddressPair[]): Promise<Map<string, AddressClassificationEntity>> {
+    try {
+      return await this.lookupManyImpl(pairs);
+    } catch (err) {
+      if (isUndefinedTableError(err)) return new Map();
+      throw err;
+    }
+  }
+
+  async classifyMissing(
+    pairs: ChainAddressPair[],
+    cap = MAX_CLASSIFY_PER_REQUEST,
+  ): Promise<{ classified: AddressClassificationEntity[]; remaining: number }> {
+    try {
+      return await this.classifyMissingImpl(pairs, cap);
+    } catch (err) {
+      if (isUndefinedTableError(err)) return { classified: [], remaining: 0 };
+      throw err;
+    }
+  }
+
+  private async lookupManyImpl(pairs: ChainAddressPair[]): Promise<Map<string, AddressClassificationEntity>> {
     const result = new Map<string, AddressClassificationEntity>();
     if (pairs.length === 0) return result;
 
@@ -103,7 +167,7 @@ export class AddressClassificationsService {
    * See MAX_CLASSIFY_PER_REQUEST for why this is bounded, and the module-level
    * comments for the load-bearing order of operations.
    */
-  async classifyMissing(
+  private async classifyMissingImpl(
     pairs: ChainAddressPair[],
     cap = MAX_CLASSIFY_PER_REQUEST,
   ): Promise<{ classified: AddressClassificationEntity[]; remaining: number }> {
@@ -122,17 +186,25 @@ export class AddressClassificationsService {
     }
 
     const unique = Array.from(byKey.entries());
-    const remaining = Math.max(0, unique.length - cap);
-    const capped = unique.slice(0, cap);
+    if (unique.length === 0) return { classified: [], remaining: 0 };
 
-    const classified: AddressClassificationEntity[] = [];
-    if (capped.length === 0) return { classified, remaining };
+    // 2. Re-SELECT ALL requested keys — not just a capped slice — immediately
+    // before probing. Another instance may have landed some of them since the
+    // caller's own lookup; this collapses the common sequential-arrival case
+    // across Cloud Run instances. Landed rows are reported back in
+    // `classified` (below) so a caller can tell "already on file" from
+    // "could not answer" — and, critically, the cap/remaining math below is
+    // computed AFTER this filter, so a landed pair never eats a cap slot or
+    // inflates `remaining` for pairs nobody has looked at yet.
+    const alreadyLanded = await this.lookupMany(unique.map(([, pair]) => pair));
+    const landed = unique.filter(([key]) => alreadyLanded.has(key));
+    const notLanded = unique.filter(([key]) => !alreadyLanded.has(key));
 
-    // 2. Re-SELECT the requested keys immediately before probing. Another
-    // instance may have landed them since the caller's own lookup — this
-    // collapses the common sequential-arrival case across Cloud Run instances.
-    const alreadyLanded = await this.lookupMany(capped.map(([, pair]) => pair));
-    const toProbe = capped.filter(([key]) => !alreadyLanded.has(key));
+    const remaining = Math.max(0, notLanded.length - cap);
+    const toProbe = notLanded.slice(0, cap);
+
+    const classified: AddressClassificationEntity[] = landed.map(([key]) => alreadyLanded.get(key)!);
+    if (toProbe.length === 0) return { classified, remaining };
 
     // 3. Probe the remainder with bounded concurrency.
     await runWithConcurrency(toProbe, PROBE_CONCURRENCY, async ([, pair]) => {

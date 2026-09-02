@@ -528,6 +528,19 @@ export class TracesService {
       decimals: item.solana!.kind === 'native' ? 9 : (item.solana!.decimals ?? 0),
     });
 
+    // Mirrors btcToken()/solanaToken(): EVM/Tron rows built from a
+    // structured provider token (see toImportItem) carry `item.token` as a
+    // bare symbol and `item.amount` as raw base units, with the address and
+    // decimals riding separately on item.tokenMeta; rebuild the structured
+    // token object a TransactionEdge expects. Rows with no tokenMeta (the
+    // MCP agent contract — human-readable amount, bare symbol) keep the
+    // legacy string token, unchanged.
+    const evmToken = (item: ImportTransactionItem) => ({
+      address: item.tokenMeta!.address,
+      symbol: item.token,
+      decimals: item.tokenMeta!.decimals,
+    });
+
     /**
      * Create the wallet node for `addr` unless this trace (or a sibling) already
      * has one, and return the id it resolves to.
@@ -796,7 +809,13 @@ export class TracesService {
         chain: tx.chain,
         timestamp: tx.timestamp,
         amount: tx.amount,
-        token: isBtcLedgerRow ? btcToken() : isSolanaContextRow ? solanaToken(tx) : tx.token,
+        token: isBtcLedgerRow
+          ? btcToken()
+          : isSolanaContextRow
+            ? solanaToken(tx)
+            : tx.tokenMeta
+              ? evmToken(tx)
+              : tx.token,
         blockNumber: tx.blockNumber || 0,
         notes: '',
         tags: [],
@@ -958,7 +977,10 @@ export class TracesService {
    * For native transfers the symbol is the chain's native currency (e.g. "ETH").
    * For ERC-20/TRC-20 transfers the symbol is the token symbol (e.g. "USDC").
    * amount is passed through unchanged (satoshis for BTC utxo rows) — reformatting
-   * is the import path's job (importTransactions), not this mapping.
+   * is the import path's job (importTransactions), not this mapping. The
+   * structured token (address + decimals) rides alongside as `tokenMeta` so
+   * the import path can rebuild the full token object for EVM/Tron rows
+   * instead of losing decimals — see evmToken() in importTransactions.
    */
   private toImportItem(tx: TransactionResult, chain: string): ImportTransactionItem {
     const item = new ImportTransactionItem();
@@ -978,6 +1000,12 @@ export class TracesService {
     // retains the per-transfer context importTransactions needs to rebuild
     // the structured token object and dedup identity (see solanaToken()).
     if (tx.solana) item.solana = tx.solana;
+    // EVM/Tron structured token — carried through so an imported search
+    // result retains the address+decimals importTransactions needs to
+    // rebuild the structured token object (see evmToken()).
+    if (tx.token?.address !== undefined && tx.token?.decimals !== undefined) {
+      item.tokenMeta = { address: tx.token.address, decimals: tx.token.decimals };
+    }
     return item;
   }
 }

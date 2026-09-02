@@ -89,6 +89,21 @@ describe('mapFetchedTx', () => {
     const item = mapFetchedTx(FETCHED_TX as never, 'ethereum');
     expect(item.solana).toBeUndefined();
   });
+
+  it('carries tokenMeta through when the fetched token has address + decimals', () => {
+    const item = mapFetchedTx(FETCHED_TX as never, 'ethereum');
+    expect(item.tokenMeta).toEqual({ address: '0xToken', decimals: 6 });
+  });
+
+  it('omits tokenMeta when the fetched token is a bare string', () => {
+    const item = mapFetchedTx({ ...FETCHED_TX, token: 'ETH' } as never, 'ethereum');
+    expect(item.tokenMeta).toBeUndefined();
+  });
+
+  it('omits tokenMeta when the fetched token object lacks address/decimals', () => {
+    const item = mapFetchedTx({ ...FETCHED_TX, token: { symbol: 'ETH' } } as never, 'ethereum');
+    expect(item.tokenMeta).toBeUndefined();
+  });
 });
 
 describe('dedupeTxs', () => {

@@ -164,6 +164,18 @@ export interface UtxoContext {
 }
 
 /**
+ * Structured token metadata for rows whose `token` field is a bare symbol
+ * (import payloads: `ImportTransactionItem.token`). Carries what the symbol
+ * alone cannot: the contract address that distinguishes two tokens sharing a
+ * symbol, and the decimals needed to render `amount`, which is in raw base
+ * units on these rows.
+ */
+export interface TokenMeta {
+  address: string;
+  decimals: number;
+}
+
+/**
  * Per-row context carried by every Solana transfer edge. One signature can
  * contain several transfers (native SOL + SPL token legs); `transferIndex`
  * is the position in [...nativeTransfers, ...tokenTransfers] and is what

@@ -34,7 +34,10 @@ export type SeedPhase = 'idle' | 'fetching' | 'creating' | 'importing' | 'done' 
  * backend `TransactionResult` (backend/src/modules/blockchain/blockchain.service.ts:7-24).
  * `token` is an object there, unlike `ImportTransactionItem.token` (a string).
  * We accept `token` as `object | string` for robustness against callers (e.g.
- * AI scripts) that already pass a plain symbol string.
+ * AI scripts) that already pass a plain symbol string. `address`/`decimals`
+ * on the object form are what let `mapFetchedTx` populate `tokenMeta` below —
+ * without them, an EVM/Tron token collapses to a bare symbol and the
+ * importer can't rebuild decimals (see traces.service.ts `evmToken()`).
  */
 interface FetchedTx {
   from: string;
@@ -43,7 +46,7 @@ interface FetchedTx {
   chain?: string;
   timestamp: string | number;
   amount: string;
-  token: { symbol?: string } | string;
+  token: { symbol?: string; address?: string; decimals?: number } | string;
   blockNumber?: number;
   fromLabel?: string;
   toLabel?: string;
@@ -71,7 +74,10 @@ export function shortAddress(addr: string): string {
  * is what lets a junction-flagged row be recognized and replanned client-side
  * (see `planJunction` / `useWalletTransactionAuthoring`). `solana` (Solana
  * only) is likewise carried through verbatim — it is what lets a per-transfer
- * row be deduped and authored with its full provenance client-side.
+ * row be deduped and authored with its full provenance client-side. When the
+ * fetched token object carries `address`/`decimals` (EVM/Tron), those ride
+ * along as `tokenMeta` so the backend import path can rebuild the structured
+ * token instead of losing decimals — see traces.service.ts `evmToken()`.
  */
 export function mapFetchedTx(tx: FetchedTx, chain: string): ImportItem {
   const token = typeof tx.token === 'string' ? tx.token : tx.token?.symbol ?? '';
@@ -89,6 +95,9 @@ export function mapFetchedTx(tx: FetchedTx, chain: string): ImportItem {
   if (tx.toLabel !== undefined) item.toLabel = tx.toLabel;
   if (tx.utxo !== undefined) item.utxo = tx.utxo;
   if (tx.solana !== undefined) item.solana = tx.solana;
+  if (typeof tx.token === 'object' && tx.token?.address !== undefined && tx.token?.decimals !== undefined) {
+    item.tokenMeta = { address: tx.token.address, decimals: tx.token.decimals };
+  }
   return item;
 }
 

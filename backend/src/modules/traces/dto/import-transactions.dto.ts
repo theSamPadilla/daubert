@@ -13,6 +13,7 @@ import {
 
 import type {
   SolanaContext,
+  TokenMeta,
   UtxoContext,
   UtxoInput,
   UtxoOutput,
@@ -216,6 +217,24 @@ export class SolanaContextDto implements SolanaContext {
   spamEvidence?: string[];
 }
 
+// ---------------------------------------------------------------------------
+// EVM/Tron structured token metadata.
+//
+// Same whitelist hazard as the classes above: an undeclared `tokenMeta` is
+// silently DELETED by `whitelist: true`, and the import falls back to the
+// bare-symbol token with a decimals-0 render — the exact bug this DTO field
+// exists to fix. See `evmToken()` in traces.service.ts for how it is
+// rebuilt into a structured token object.
+// ---------------------------------------------------------------------------
+
+export class TokenMetaDto implements TokenMeta {
+  @IsString()
+  address: string;
+
+  @IsNumber()
+  decimals: number;
+}
+
 export class ImportTransactionItem {
   @IsString()
   from: string;
@@ -261,6 +280,12 @@ export class ImportTransactionItem {
   @ValidateNested()
   @Type(() => SolanaContextDto)
   solana?: SolanaContextDto;
+
+  /** Present on rows whose `token` is a bare symbol and `amount` is raw base units. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TokenMetaDto)
+  tokenMeta?: TokenMetaDto;
 }
 
 export class ImportTransactionsDto {

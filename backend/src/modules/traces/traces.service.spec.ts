@@ -553,6 +553,70 @@ describe('TracesService', () => {
       expect(savedData.nodes).toHaveLength(3);
       expect(savedData.edges).toHaveLength(2);
     });
+
+    it('builds a structured EVM token from tokenMeta — amount stays raw base units', async () => {
+      const trace = structuredClone(importTraceFixture());
+      mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
+      mockTraceRepo.find.mockResolvedValue([trace]);
+      mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            {
+              from: '0xbbb',
+              to: '0xccc',
+              txHash: '0xtx2',
+              chain: 'ethereum',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              amount: '1500000000000000000',
+              token: 'ETH',
+              tokenMeta: { address: '', decimals: 18 },
+            },
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      const savedData = mockTraceRepo.save.mock.calls[0][0].data;
+      const edge = savedData.edges.find((e: any) => e.txHash === '0xtx2');
+      expect(edge.token).toEqual({ address: '', symbol: 'ETH', decimals: 18 });
+      expect(edge.amount).toBe('1500000000000000000');
+    });
+
+    it('leaves the token a bare string when tokenMeta is absent (MCP agent contract, unchanged)', async () => {
+      const trace = structuredClone(importTraceFixture());
+      mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
+      mockTraceRepo.find.mockResolvedValue([trace]);
+      mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            {
+              from: '0xbbb',
+              to: '0xccc',
+              txHash: '0xtx2',
+              chain: 'ethereum',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              // Human-readable ETH, no tokenMeta — the MCP agent shape.
+              amount: '1.5',
+              token: 'ETH',
+            },
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      const savedData = mockTraceRepo.save.mock.calls[0][0].data;
+      const edge = savedData.edges.find((e: any) => e.txHash === '0xtx2');
+      expect(edge.token).toBe('ETH');
+      expect(edge.amount).toBe('1.5');
+    });
   });
 
   // ── importTransactions: Bitcoin ──────────────────────────────────────────
@@ -1794,6 +1858,31 @@ describe('TracesService', () => {
         'tron',
         expect.objectContaining({ maxTotal: 2000, offset: 50 }),
       );
+    });
+
+    it('carries structured EVM token metadata through search results — toImportItem populates tokenMeta', async () => {
+      mockBlockchainService.fetchHistory.mockResolvedValue({
+        transactions: [
+          mockTxResult({
+            txHash: '0x8',
+            from: '0xa1',
+            to: '0xb1',
+            chain: 'ethereum',
+            amount: '1500000000000000000',
+            token: { address: '0xtokenaddr', symbol: 'USDC', decimals: 6 },
+          }),
+        ],
+        chain: 'ethereum',
+        address: '0xa1',
+      });
+      const result = await service.searchBetween(baseTraces(), {
+        sideA: { wallets: ['0xa1'] },
+        sideB: { wallets: ['0xb1'] },
+        chain: 'ethereum',
+      });
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0].token).toBe('USDC');
+      expect(result.results[0].tokenMeta).toEqual({ address: '0xtokenaddr', decimals: 6 });
     });
 
     it('retains the utxo block on bitcoin search results — toImportItem does not strip it', async () => {

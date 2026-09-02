@@ -358,7 +358,7 @@ export const apiClient = {
     request<Investigation[]>(`/cases/${caseId}/investigations`),
   getInvestigation: (id: string) =>
     request<Investigation>(`/investigations/${id}`),
-  createInvestigation: (caseId: string, body: { name: string; notes?: string }) =>
+  createInvestigation: (caseId: string, body: { name: string; notes?: string; initialTraceName?: string }) =>
     request<Investigation>(`/cases/${caseId}/investigations`, { method: 'POST', body: JSON.stringify(body) }),
   updateInvestigation: (id: string, body: Partial<{ name: string; notes: string }>) =>
     request<Investigation>(`/investigations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),

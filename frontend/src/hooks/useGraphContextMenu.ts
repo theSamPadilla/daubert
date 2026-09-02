@@ -8,8 +8,7 @@ import type { CytoscapeCallbacks } from '@/hooks/useCytoscape';
 import type { GraphCanvasHandle } from '@/components/Graph/GraphCanvas';
 import type { Investigation, WalletNode, Trace, TraceLabel } from '@/types/investigation';
 import type { PanelMode } from '@/types/panel';
-
-const TRACE_COLORS = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#ef4444'];
+import { traceColorForIndex } from '@/generated/shared/trace-colors';
 
 interface UseGraphContextMenuArgs {
   investigation: Investigation | null;
@@ -50,7 +49,7 @@ export function useGraphContextMenu(args: UseGraphContextMenuArgs) {
 
   const handleAddTrace = useCallback(async (): Promise<string | undefined> => {
     if (!activeInvestigationId) return undefined;
-    const color = TRACE_COLORS[(investigation?.traces.length || 0) % TRACE_COLORS.length];
+    const color = traceColorForIndex(investigation?.traces.length || 0);
     const name = `Trace ${(investigation?.traces.length || 0) + 1}`;
     try {
       const created = await apiClient.createTrace(activeInvestigationId, { name, color });

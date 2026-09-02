@@ -3,8 +3,7 @@
 import { useCallback, useMemo } from 'react';
 import type { Investigation, WalletNode, Group, Trace } from '@/types/investigation';
 import { apiClient } from '@/lib/api-client';
-
-const TRACE_COLORS = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#ef4444'];
+import { traceColorForIndex } from '@/generated/shared/trace-colors';
 
 interface UseBatchNodeOpsArgs {
   investigation: Investigation | null;
@@ -80,7 +79,7 @@ export function useBatchNodeOps({
 
   const handleExtractToTrace = useCallback(async () => {
     if (!activeInvestigationId || selectedNodeIds.length < 2) return;
-    const color = TRACE_COLORS[(investigation?.traces.length || 0) % TRACE_COLORS.length];
+    const color = traceColorForIndex(investigation?.traces.length || 0);
     const name = `Trace ${(investigation?.traces.length || 0) + 1}`;
     try {
       const created = await apiClient.createTrace(activeInvestigationId, { name, color });

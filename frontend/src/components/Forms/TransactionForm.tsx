@@ -154,7 +154,8 @@ export function TransactionForm({
   const [linkInput, setLinkInput] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [traceId, setTraceId] = useState(traces[0]?.id || '');
-  const [creatingTrace, setCreatingTrace] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
   // Focus the name input on mount so keyboard flow continues after the panel opens
@@ -162,25 +163,47 @@ export function TransactionForm({
     nameRef.current?.focus();
   }, []);
 
-  // Sync traceId when traces list changes (e.g. after inline create)
-  useEffect(() => {
-    if (!traceId && traces.length > 0) {
-      setTraceId(traces[traces.length - 1].id);
-    }
-  }, [traces, traceId]);
-
   // Determine trace for this transaction (from wallet's trace)
   const findTraceForWallet = (walletId: string) => {
     const entry = allWallets.find((w) => w.wallet.id === walletId);
     return entry?.traceId;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     const fromTrace = findTraceForWallet(from);
     const toTrace = findTraceForWallet(to);
     const crossTrace = !!(fromTrace && toTrace && fromTrace !== toTrace);
-    const resolvedTraceId = fromTrace || traceId || traces[0]?.id || '';
+
+    /**
+     * An edge has to land in a trace — `mapTrace` in the reducer drops any write
+     * whose trace id does not resolve. Normally an investigation always has one
+     * (the backend creates it), so this only fires when the user has deleted every
+     * trace. Creating one here is what keeps the input from being lost.
+     */
+    let resolvedTraceId = fromTrace || traceId || traces[0]?.id || '';
+    if (!resolvedTraceId) {
+      if (!onCreateTrace) {
+        setSaveError('This transaction needs a trace, and none could be created.');
+        return;
+      }
+      setSaving(true);
+      let newId: string | undefined;
+      try {
+        newId = await onCreateTrace();
+      } catch {
+        newId = undefined;
+      } finally {
+        setSaving(false);
+      }
+      if (!newId) {
+        setSaveError('Could not create a trace. Check your connection and try again.');
+        return;
+      }
+      resolvedTraceId = newId;
+    }
+    setSaveError(null);
 
     onSave(resolvedTraceId, {
       from,
@@ -221,20 +244,9 @@ export function TransactionForm({
         <div>
           <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Trace</label>
           {traces.length === 0 ? (
-            <button
-              type="button"
-              disabled={creatingTrace}
-              onClick={async () => {
-                if (!onCreateTrace) return;
-                setCreatingTrace(true);
-                const newId = await onCreateTrace();
-                setCreatingTrace(false);
-                if (newId) setTraceId(newId);
-              }}
-              className="w-full px-3 py-2 bg-brand text-white hover:bg-brand-strong disabled:opacity-50 rounded-lg text-sm text-center transition-colors"
-            >
-              {creatingTrace ? 'Creating...' : '+ Create Trace'}
-            </button>
+            <p className="text-xs text-canvas-muted/60">
+              No traces yet. One will be created when you save.
+            </p>
           ) : (
             <div className="flex gap-1.5">
               <select
@@ -249,12 +261,18 @@ export function TransactionForm({
               {onCreateTrace && (
                 <button
                   type="button"
-                  disabled={creatingTrace}
+                  disabled={saving}
                   onClick={async () => {
-                    setCreatingTrace(true);
-                    const newId = await onCreateTrace();
-                    setCreatingTrace(false);
-                    if (newId) setTraceId(newId);
+                    setSaving(true);
+                    try {
+                      const newId = await onCreateTrace();
+                      if (newId) setTraceId(newId);
+                    } catch {
+                      // Leave the trace selection unchanged on failure; the button
+                      // re-enables (finally, below) so the user can retry.
+                    } finally {
+                      setSaving(false);
+                    }
                   }}
                   className="px-3 py-2 border border-canvas-line text-canvas-muted hover:text-canvas-ink hover:bg-canvas-fill disabled:opacity-50 rounded-lg text-sm shrink-0 transition-colors"
                   title="New trace"
@@ -478,9 +496,15 @@ export function TransactionForm({
         />
       </div>
 
+      {saveError && <p className="text-redline text-xs">{saveError}</p>}
+
       <div className="flex gap-2 pt-2">
-        <button type="submit" className="px-3 py-1.5 bg-brand text-white hover:bg-brand-strong rounded-lg text-sm transition-colors">
-          Save
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-3 py-1.5 bg-brand text-white hover:bg-brand-strong disabled:opacity-50 rounded-lg text-sm transition-colors"
+        >
+          {saving ? 'Saving…' : 'Save'}
         </button>
         <button type="button" onClick={onCancel} className="px-3 py-1.5 border border-canvas-line text-canvas-muted hover:text-canvas-ink hover:bg-canvas-fill rounded-lg text-sm transition-colors">
           Cancel

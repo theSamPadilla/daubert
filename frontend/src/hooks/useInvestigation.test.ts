@@ -199,3 +199,83 @@ describe('useInvestigation — EXTRACT_TO_TRACE / aggregateCrossEdges solana han
     expect(e3.solana).toBe(solanaC);
   });
 });
+
+describe('useInvestigation — mapTrace rejects writes to an unresolved trace', () => {
+  // The reducer throws outside production, so React logs the failed render on top of
+  // mapTrace's own report. Silence both and assert on the report we care about.
+  let consoleError: jest.SpyInstance;
+
+  beforeEach(() => {
+    consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleError.mockRestore();
+  });
+
+  it('throws (and reports) when a transaction is written to the empty trace id', () => {
+    const t = trace('t1', { nodes: [wallet('w1'), wallet('w2')] });
+    const { result } = renderHook(() => useInvestigation(inv([t])));
+
+    // The exact regression: a form that resolved its target trace to '' silently
+    // dropped the whole transaction. It must now be impossible to miss.
+    expect(() => {
+      act(() => {
+        result.current.addTransaction('', edge('e1', 'w1', 'w2'));
+      });
+    }).toThrow('mapTrace: no trace "" on investigation inv-1 — write discarded');
+
+    expect(consoleError).toHaveBeenCalledWith(
+      'mapTrace: no trace "" on investigation inv-1 — write discarded'
+    );
+  });
+
+  it('throws when a wallet is written to a trace id that is not on the investigation', () => {
+    const { result } = renderHook(() => useInvestigation(inv([trace('t1')])));
+
+    expect(() => {
+      act(() => {
+        result.current.addWallet('t-gone', wallet('w1'));
+      });
+    }).toThrow('mapTrace: no trace "t-gone" on investigation inv-1 — write discarded');
+  });
+
+  it('throws when a trace is updated after it has been deleted', () => {
+    const { result } = renderHook(() => useInvestigation(inv([trace('t1'), trace('t2')])));
+
+    act(() => {
+      result.current.deleteTrace('t2');
+    });
+    expect(result.current.investigation!.traces.map((t) => t.id)).toEqual(['t1']);
+
+    expect(() => {
+      act(() => {
+        result.current.updateTrace('t2', { name: 'renamed' });
+      });
+    }).toThrow('mapTrace: no trace "t2" on investigation inv-1 — write discarded');
+  });
+
+  it('applies the write, and reports nothing, when the trace id resolves', () => {
+    const t = trace('t1', { nodes: [wallet('w1'), wallet('w2')] });
+    const { result } = renderHook(() => useInvestigation(inv([t])));
+
+    act(() => {
+      result.current.addTransaction('t1', edge('e1', 'w1', 'w2'));
+    });
+
+    const updated = result.current.investigation!.traces.find((tr) => tr.id === 't1')!;
+    expect(updated.edges.map((e) => e.id)).toEqual(['e1']);
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it('leaves a null investigation alone rather than throwing', () => {
+    const { result } = renderHook(() => useInvestigation(null));
+
+    act(() => {
+      result.current.addTransaction('whatever', edge('e1', 'w1', 'w2'));
+    });
+
+    expect(result.current.investigation).toBeNull();
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+});

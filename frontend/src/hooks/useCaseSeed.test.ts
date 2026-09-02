@@ -152,8 +152,7 @@ describe('runSeed', () => {
     api.fetchHistory
       .mockRejectedValueOnce(new Error('rate limited'))
       .mockResolvedValueOnce({ transactions: [FETCHED_TX], chain: 'ethereum', address: '0xb' });
-    api.createInvestigation.mockResolvedValue({ id: 'inv-1' } as never);
-    api.createTrace.mockResolvedValue({ id: 'trace-1' } as never);
+    api.createInvestigation.mockResolvedValue({ id: 'inv-1', traces: [{ id: 'trace-1' }] } as never);
     api.importTransactions.mockResolvedValue({ added: { nodes: 2, edges: 1 } });
     const result = await runSeed('case-1', ['0xa', '0xb'], 'ethereum');
     expect(result.investigationId).toBe('inv-1');
@@ -162,10 +161,9 @@ describe('runSeed', () => {
     expect(api.importTransactions).toHaveBeenCalledTimes(1);
   });
 
-  it('creates investigation, trace, then imports, in order', async () => {
+  it('creates investigation with a trace, then imports, in order', async () => {
     api.fetchHistory.mockResolvedValue({ transactions: [FETCHED_TX], chain: 'ethereum', address: '0xa' });
-    api.createInvestigation.mockResolvedValue({ id: 'inv-1' } as never);
-    api.createTrace.mockResolvedValue({ id: 'trace-1' } as never);
+    api.createInvestigation.mockResolvedValue({ id: 'inv-1', traces: [{ id: 'trace-1' }] } as never);
     api.importTransactions.mockResolvedValue({ added: { nodes: 2, edges: 1 } });
     const result = await runSeed('case-1', ['0xa'], 'ethereum');
     expect(result).toMatchObject({
@@ -175,12 +173,16 @@ describe('runSeed', () => {
       edgeCount: 1,
       txCount: 1,
     });
+    expect(api.createInvestigation).toHaveBeenCalledWith('case-1', {
+      name: 'Fund tracing',
+      initialTraceName: shortAddress('0xa'),
+    });
+    expect(api.createTrace).not.toHaveBeenCalled();
   });
 
   it('reports phases in order via onPhase', async () => {
     api.fetchHistory.mockResolvedValue({ transactions: [FETCHED_TX], chain: 'ethereum', address: '0xa' });
-    api.createInvestigation.mockResolvedValue({ id: 'inv-1' } as never);
-    api.createTrace.mockResolvedValue({ id: 'trace-1' } as never);
+    api.createInvestigation.mockResolvedValue({ id: 'inv-1', traces: [{ id: 'trace-1' }] } as never);
     api.importTransactions.mockResolvedValue({ added: { nodes: 2, edges: 1 } });
     const phases: string[] = [];
     await runSeed('case-1', ['0xa'], 'ethereum', (p) => phases.push(p));
@@ -189,8 +191,7 @@ describe('runSeed', () => {
 
   it('sends the import a plain-string token (not the fetched object)', async () => {
     api.fetchHistory.mockResolvedValue({ transactions: [FETCHED_TX], chain: 'ethereum', address: '0xa' });
-    api.createInvestigation.mockResolvedValue({ id: 'inv-1' } as never);
-    api.createTrace.mockResolvedValue({ id: 'trace-1' } as never);
+    api.createInvestigation.mockResolvedValue({ id: 'inv-1', traces: [{ id: 'trace-1' }] } as never);
     api.importTransactions.mockResolvedValue({ added: { nodes: 2, edges: 1 } });
     await runSeed('case-1', ['0xa'], 'ethereum');
     const sentItems = api.importTransactions.mock.calls[0][1];

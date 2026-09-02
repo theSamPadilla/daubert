@@ -42,6 +42,11 @@ CreateInvestigationRequest:
       type: string
     notes:
       type: string
+    initialTraceName:
+      type: string
+      description: >-
+        Name for the trace created alongside the investigation. Every investigation
+        is created with exactly one trace; omit this to get the default name.
 
 UpdateInvestigationRequest:
   type: object

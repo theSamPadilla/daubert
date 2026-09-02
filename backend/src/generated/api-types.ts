@@ -1683,6 +1683,8 @@ export interface components {
         CreateInvestigationRequest: {
             name: string;
             notes?: string;
+            /** @description Name for the trace created alongside the investigation. Every investigation is created with exactly one trace; omit this to get the default name. */
+            initialTraceName?: string;
         };
         UpdateInvestigationRequest: {
             name?: string;
@@ -3131,7 +3133,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Created investigation */
+            /** @description Created investigation, including its default trace */
             201: {
                 headers: {
                     [name: string]: unknown;

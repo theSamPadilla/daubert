@@ -36,7 +36,7 @@
             $ref: '../schemas/investigations.yaml#/CreateInvestigationRequest'
     responses:
       '201':
-        description: Created investigation
+        description: Created investigation, including its default trace
         content:
           application/json:
             schema:

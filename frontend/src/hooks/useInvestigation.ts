@@ -125,8 +125,24 @@ function aggregateCrossEdges(
   return result;
 }
 
+/**
+ * Applies `fn` to the trace `traceId` names.
+ *
+ * A caller that names a trace which is not on the investigation has a bug: the
+ * write it intended is not applied anywhere, and the caller cannot tell. That
+ * silence is how a whole transaction (two nodes and an edge) was lost when a form
+ * resolved its target trace to `''`. Unresolved ids are therefore reported, and
+ * throw outside production so they surface during development and in tests, while
+ * a user in production keeps their session.
+ */
 function mapTrace(state: Investigation | null, traceId: string, fn: (trace: Trace) => Trace): Investigation | null {
   if (!state) return state;
+  if (!state.traces.some((t) => t.id === traceId)) {
+    const message = `mapTrace: no trace ${JSON.stringify(traceId)} on investigation ${state.id} — write discarded`;
+    console.error(message);
+    if (process.env.NODE_ENV !== 'production') throw new Error(message);
+    return state;
+  }
   return {
     ...state,
     traces: state.traces.map((t) => (t.id === traceId ? fn(t) : t)),

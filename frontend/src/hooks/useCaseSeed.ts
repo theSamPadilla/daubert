@@ -154,12 +154,15 @@ export async function runSeed(
   }
 
   onPhase?.('creating');
-  const inv = await apiClient.createInvestigation(caseId, { name: 'Fund tracing' });
   const traceName =
     addresses.length > 1
       ? `${shortAddress(addresses[0])} +${addresses.length - 1} more`
       : shortAddress(addresses[0]);
-  const trace = await apiClient.createTrace(inv.id, { name: traceName });
+  const inv = await apiClient.createInvestigation(caseId, {
+    name: 'Fund tracing',
+    initialTraceName: traceName,
+  });
+  const trace = inv.traces![0];
 
   onPhase?.('importing');
   const imported = await apiClient.importTransactions(trace.id, deduped);

@@ -7,4 +7,8 @@ export class CreateInvestigationDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  initialTraceName?: string;
 }

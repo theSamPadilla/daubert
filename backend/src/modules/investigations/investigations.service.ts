@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
@@ -11,6 +11,9 @@ import { AccessPrincipal } from '../auth/access-principal';
 import { CaseRole } from '../../database/entities/case-member.entity';
 import { CreateInvestigationDto } from './dto/create-investigation.dto';
 import { UpdateInvestigationDto } from './dto/update-investigation.dto';
+import { traceColorForIndex } from '../../generated/shared/trace-colors';
+
+const DEFAULT_TRACE_NAME = 'Trace 1';
 
 @Injectable()
 export class InvestigationsService {
@@ -24,6 +27,7 @@ export class InvestigationsService {
     @InjectRepository(TraceEntity)
     private readonly traceRepo: Repository<TraceEntity>,
     private readonly caseAccess: CaseAccessService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findAllForCase(caseId: string) {
@@ -45,16 +49,53 @@ export class InvestigationsService {
     return inv;
   }
 
-  async create(caseId: string, dto: CreateInvestigationDto) {
-    const c = await this.caseRepo.findOneBy({ id: caseId });
-    if (!c) throw new NotFoundException(`Case ${caseId} not found`);
+  /**
+   * Creates an investigation together with its first trace.
+   *
+   * The trace is not optional. A trace is the only container the graph can write
+   * into: nodes, edges, groups and bundles all live inside `trace.data`, and every
+   * authoring path resolves a target trace id before it writes. An investigation
+   * with zero traces is therefore a state in which the workspace exists but cannot
+   * accept any input, which is what this guarantees away.
+   *
+   * Written through `traceRepo` rather than `TracesService.create` deliberately:
+   * the access check already ran (`@RequireRole('editor')` on the REST route,
+   * `assertRole` in the MCP write tool), and going through the service would add a
+   * circular module dependency for a second, redundant gate.
+   *
+   * The investigation save and the trace save run inside one transaction: a
+   * committed investigation whose trace insert then failed would leave exactly
+   * the invalid, trace-less state this method exists to prevent.
+   */
+  async create(caseId: string, dto: CreateInvestigationDto): Promise<InvestigationEntity> {
+    return this.dataSource.transaction(async (manager) => {
+      const c = await manager.findOneBy(CaseEntity, { id: caseId });
+      if (!c) throw new NotFoundException(`Case ${caseId} not found`);
 
-    const entity = this.repo.create({
-      name: dto.name,
-      notes: dto.notes || null,
-      caseId,
+      const entity = manager.create(InvestigationEntity, {
+        name: dto.name,
+        notes: dto.notes || null,
+        caseId,
+      });
+      const saved = await manager.save(entity);
+
+      await manager.save(
+        manager.create(TraceEntity, {
+          name: dto.initialTraceName?.trim() || DEFAULT_TRACE_NAME,
+          color: traceColorForIndex(0),
+          visible: true,
+          collapsed: false,
+          data: { nodes: [], edges: [] },
+          investigationId: saved.id,
+        }),
+      );
+
+      const withTrace = await manager.findOne(InvestigationEntity, {
+        where: { id: saved.id },
+        relations: ['traces'],
+      });
+      return withTrace!;
     });
-    return this.repo.save(entity);
   }
 
   async update(id: string, dto: UpdateInvestigationDto, principal: AccessPrincipal) {

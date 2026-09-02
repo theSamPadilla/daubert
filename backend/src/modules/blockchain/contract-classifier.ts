@@ -128,7 +128,17 @@ export class ContractClassifier {
       // The chain did not answer, so this is a fallback rather than a result.
       return { classification: { addressType: 'wallet' }, determined: false };
     }
-    if (!code || code === '0x' || code === '0x0') {
+    /**
+     * Bytecode or nothing. A payload that is not well-formed hex means the
+     * provider did not answer the question — an error envelope that slipped
+     * through, say — and must never be recorded as having answered it. Without
+     * this, any non-empty string reads as "has code" and an ordinary wallet is
+     * asserted to be a contract.
+     */
+    if (code !== '0x0' && !/^0x([0-9a-fA-F]{2})*$/.test(code)) {
+      return { classification: { addressType: 'wallet' }, determined: false };
+    }
+    if (code === '0x' || code === '0x0') {
       return { classification: { addressType: 'wallet' }, determined: true };
     }
 

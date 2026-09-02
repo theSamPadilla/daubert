@@ -84,6 +84,18 @@ export class EtherscanProvider implements BlockchainProvider {
       if (json.error) {
         throw new Error(`Etherscan proxy error: ${json.error.message ?? JSON.stringify(json.error)}`);
       }
+      /**
+       * Rate-limiting and auth failures arrive in the NON-JSON-RPC envelope even
+       * on proxy routes: `{status:'0', message:'NOTOK', result:'<reason>'}`. There
+       * is no `error` key, so without this guard the reason STRING is handed back
+       * as the call's result — and a caller testing `code !== '0x'` reads an
+       * English sentence as bytecode and concludes the address is a contract.
+       *
+       * Deliberately not cached: this is a transient failure, not an answer.
+       */
+      if (json.status === '0' && json.message === 'NOTOK') {
+        throw new Error(`Etherscan proxy error: ${json.result ?? 'NOTOK'}`);
+      }
       const result = json.result as T;
       this.cache.set(cacheKey, result, TX_CACHE_TTL);
       return result;

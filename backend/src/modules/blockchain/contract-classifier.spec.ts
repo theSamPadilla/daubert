@@ -200,4 +200,47 @@ describe('ContractClassifier', () => {
     expect(out.tokenStandard).toBe('erc20');
     expect(out.decimals).toBe(0);
   });
+
+  // Regression: Etherscan reports rate-limiting and auth failures in a
+  // non-JSON-RPC envelope whose `result` is a human-readable string. If such a
+  // string reaches the classifier it is not `0x`, so a naive has-code test reads
+  // it as bytecode and asserts an ordinary wallet is a contract — permanently,
+  // once results are persisted.
+  it('treats a non-hex getCode payload as undetermined, not as bytecode', async () => {
+    const call = stubCall({});
+    const c = new ContractClassifier(async () => 'Max rate limit reached', call);
+    const out = await c.classify('polygon', EOA);
+    expect(out).toEqual({ addressType: 'wallet' });
+    // Never cached: an undetermined probe must be retryable.
+    const second = await c.classify('polygon', EOA);
+    expect(second).toEqual({ addressType: 'wallet' });
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it('does not cache an undetermined non-hex result, so a later good probe wins', async () => {
+    let bad = true;
+    const getCode = jest.fn(async () => {
+      if (bad) { bad = false; return 'Invalid API Key (#err2)'; }
+      return '0x60806040';
+    });
+    const call = stubCall({
+      [USDC]: { [SELECTOR.decimals]: SIX, [SELECTOR.symbol]: USDC_SYMBOL },
+    });
+    const c = new ContractClassifier(getCode, call);
+    expect(await c.classify('polygon', USDC)).toEqual({ addressType: 'wallet' });
+    expect(await c.classify('polygon', USDC)).toMatchObject({
+      addressType: 'contract',
+      tokenStandard: 'erc20',
+    });
+    expect(getCode).toHaveBeenCalledTimes(2);
+  });
+
+  it('still reads an empty-code EOA as a determined wallet', async () => {
+    const getCode = jest.fn(async () => '0x');
+    const c = new ContractClassifier(getCode, stubCall({}));
+    expect(await c.classify('polygon', EOA)).toEqual({ addressType: 'wallet' });
+    // Determined, so cached: the second call must not re-probe.
+    await c.classify('polygon', EOA);
+    expect(getCode).toHaveBeenCalledTimes(1);
+  });
 });

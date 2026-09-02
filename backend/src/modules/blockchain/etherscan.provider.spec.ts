@@ -487,4 +487,50 @@ describe('EtherscanProvider', () => {
       );
     });
   });
+
+  describe('NOTOK envelope on proxy routes', () => {
+    /**
+     * Etherscan reports rate-limiting and auth failures as
+     * `{status:'0', message:'NOTOK', result:'<reason>'}` even on `module=proxy`
+     * routes. There is no JSON-RPC `error` key, so before this guard the reason
+     * STRING was returned as the call's result — and the classifier, testing
+     * only `code !== '0x'`, read an English sentence as bytecode and asserted an
+     * ordinary wallet was a contract.
+     */
+    function installNotokFetch(reason: string) {
+      fetchSpy.mockImplementation(async () =>
+        mockResponse(200, { status: '0', message: 'NOTOK', result: reason }),
+      );
+    }
+
+    it('raises instead of handing the reason string back as a result', async () => {
+      installNotokFetch('Max rate limit reached, please use API Key for higher rate limit');
+
+      await expect(makeProvider().getAddressInfo(EOA)).rejects.toThrow(
+        /Max rate limit reached/,
+      );
+    });
+
+    it('never reports a rate-limited EOA as a contract', async () => {
+      installNotokFetch('Invalid API Key (#err2)');
+
+      await expect(makeProvider().getAddressInfo(EOA)).rejects.toThrow();
+    });
+
+    it('does not cache the failure, so a later successful call still works', async () => {
+      const provider = makeProvider();
+      installNotokFetch('Max rate limit reached');
+      await expect(provider.getAddressInfo(EOA)).rejects.toThrow();
+
+      // Re-point the SAME spy rather than restoring it — restoring would detach
+      // it from global.fetch and let the call escape to the network.
+      installFetch({ balance: { [EOA]: '0xde0b6b3a7640000' } });
+
+      await expect(provider.getAddressInfo(EOA)).resolves.toEqual({
+        address: EOA,
+        addressType: 'wallet',
+        balance: '1000000000000000000',
+      });
+    });
+  });
 });

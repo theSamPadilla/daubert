@@ -4,6 +4,7 @@ import { ChainSelect } from './ChainSelect';
 import { inspectInput } from '@/utils/addressParser';
 import { apiClient } from '@/lib/api-client';
 import { CHAIN_IDS } from '@/generated/shared/chains';
+import { selectPrimaryTransfer } from '@/utils/selectPrimaryTransfer';
 import type { WalletNode, TransactionEdge } from '@/types/investigation';
 
 interface QuickAddInputProps {
@@ -125,12 +126,22 @@ export function QuickAddInput({
         // switched), discard the response.
         if (controller.signal.aborted) return;
 
-        // Token-transfer-first, native-tx fallback — load-bearing for tokenized txs.
-        const primaryTransfer = detail.tokenTransfers[0];
-        const token = primaryTransfer?.token || detail.token;
-        const amount = primaryTransfer?.amount || detail.amount;
-        const from = primaryTransfer?.from || detail.from;
-        const to = primaryTransfer?.to || detail.to;
+        // Decoded receipt legs are authoritative when present. `tokenTransfers`
+        // remains the fallback for chains without log decoding (Tron, Solana),
+        // and the native tx is the last resort.
+        const legs = detail.transfers ?? [];
+        const primaryIndex = selectPrimaryTransfer(legs, detail.from);
+        const primary = primaryIndex >= 0 ? legs[primaryIndex] : undefined;
+        const legacy = detail.tokenTransfers[0];
+
+        const token = primary?.token || legacy?.token || detail.token;
+        // `selectPrimaryTransfer` can land on a leg that moved nothing (every
+        // leg zero-value) — its amount is legitimately '0', which `||` would
+        // skip past in favor of the native amount. `??` only falls through on
+        // an actually-absent leg.
+        const amount = primary?.amount ?? legacy?.amount ?? detail.amount;
+        const from = primary?.from ?? legacy?.from ?? detail.from;
+        const to = primary?.to ?? legacy?.to ?? detail.to;
 
         const prefill: Partial<TransactionEdge> = {
           txHash: detail.txHash,
@@ -141,6 +152,10 @@ export function QuickAddInput({
           token,
           timestamp: detail.timestamp,
           blockNumber: detail.blockNumber,
+          transfers: legs.length ? legs : undefined,
+          selectedTransferIndex: primaryIndex >= 0 ? primaryIndex : undefined,
+          tokenStandard: primary?.standard,
+          tokenId: primary?.tokenId,
           // Carried through so the authored edge's identity key is
           // `${txHash}:sol:${transferIndex}` (edgeIdentityKey's solana branch),
           // matching what the fetch path produces — without it, a QuickAdd-authored

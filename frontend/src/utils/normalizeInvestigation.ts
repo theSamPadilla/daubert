@@ -34,6 +34,7 @@ export function normalizeInvestigation(inv: ApiInvestigation): Investigation {
           chain,
           explorerUrl: n.explorerUrl || parsed.explorerUrl || buildExplorerUrl(chain, address),
           addressType: n.addressType || 'unknown',
+          tokenStandard: n.tokenStandard,
         };
       }),
       edges: (t.data as any)?.edges || [],

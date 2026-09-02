@@ -10,7 +10,12 @@ import {
   HeliusTokenTransfer,
   MintMetadata,
 } from './helius-client';
-import { RawAddressInfo, RawTransaction } from './types';
+import {
+  DecodedTransfer,
+  RawAddressInfo,
+  RawTransaction,
+  RawTransactionDetail,
+} from './types';
 
 function stubUtxoProvider(overrides: Partial<UtxoProvider> = {}): jest.Mocked<UtxoProvider> {
   return {
@@ -83,6 +88,7 @@ function esploraTx(overrides: Partial<EsploraTx> = {}): EsploraTx {
 
 const SOL_A = 'SubjectWa11et11111111111111111111111111111';
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const EVM_ADDR = '0xabababababababababababababababababababab';
 
 function solNativeTransfer(overrides: Partial<HeliusNativeTransfer> = {}): HeliusNativeTransfer {
   return {
@@ -359,6 +365,169 @@ describe('BlockchainService', () => {
       const result = await service.fetchHistory('0xabababababababababababababababababababab', 'ethereum');
 
       expect(result.transactions).toHaveLength(1);
+    });
+  });
+
+  describe('generic provider path — getTransaction/getAddressInfo', () => {
+    let get: jest.Mock;
+    let getUtxo: jest.Mock;
+    let getSolana: jest.Mock;
+    let provider: jest.Mocked<BlockchainProvider>;
+    let service: BlockchainService;
+
+    beforeEach(() => {
+      provider = stubBlockchainProvider();
+      get = jest.fn().mockReturnValue(provider);
+      getUtxo = jest.fn(() => {
+        throw new Error('should not be called for the EVM/Tron path');
+      });
+      getSolana = jest.fn(() => {
+        throw new Error('should not be called for the EVM/Tron path');
+      });
+      const registry = { get, getUtxo, getSolana } as unknown as ProviderRegistry;
+      service = new BlockchainService(registry);
+    });
+
+    function rawDetail(overrides: Partial<RawTransactionDetail> = {}): RawTransactionDetail {
+      return {
+        hash: '0xHASH1',
+        from: '0xFROM',
+        to: '0xTO',
+        value: '0',
+        timeStamp: '1700000000',
+        blockNumber: '100',
+        gas: '21000',
+        gasUsed: '21000',
+        gasPrice: '1',
+        isError: '0',
+        contractAddress: '',
+        tokenTransfers: [],
+        ...overrides,
+      };
+    }
+
+    describe('getTransaction', () => {
+      it('passes detail.transfers through to result.transfers, with token resolved per leg', async () => {
+        const transfers: DecodedTransfer[] = [
+          {
+            standard: 'erc20',
+            contractAddress: '0xtoken1',
+            from: '0xfrom1',
+            to: '0xto1',
+            value: '1000000',
+            logIndex: 2,
+            symbol: 'USDC',
+            decimals: 6,
+          },
+          {
+            standard: 'erc721',
+            contractAddress: '0xtoken2',
+            from: '0xfrom2',
+            to: '0xto2',
+            value: '1',
+            tokenId: '42',
+            logIndex: 5,
+            symbol: 'BAYC',
+            decimals: 0,
+          },
+        ];
+        provider.getTransaction.mockResolvedValue(rawDetail({ transfers }));
+
+        const result = await service.getTransaction('0xHASH1', 'ethereum');
+
+        expect(get).toHaveBeenCalledWith('ethereum');
+        expect(result.transfers).toEqual([
+          {
+            standard: 'erc20',
+            from: '0xfrom1',
+            to: '0xto1',
+            amount: '1000000',
+            token: { address: '0xtoken1', symbol: 'USDC', decimals: 6 },
+            tokenId: undefined,
+            logIndex: 2,
+          },
+          {
+            standard: 'erc721',
+            from: '0xfrom2',
+            to: '0xto2',
+            amount: '1',
+            token: { address: '0xtoken2', symbol: 'BAYC', decimals: 0 },
+            tokenId: '42',
+            logIndex: 5,
+          },
+        ]);
+      });
+
+      it('yields transfers: [] and leaves tokenTransfers unchanged when the provider omits transfers (Tron shape)', async () => {
+        const tokenTransfers = [
+          {
+            hash: '0xHASH1',
+            from: '0xfrom',
+            to: '0xto',
+            value: '500',
+            tokenName: 'Tether USD',
+            tokenSymbol: 'USDT',
+            tokenDecimal: '6',
+            contractAddress: '0xusdt',
+            timeStamp: '1700000000',
+            blockNumber: '100',
+            gas: '0',
+            gasPrice: '0',
+            gasUsed: '0',
+            nonce: '1',
+          },
+        ];
+        // No `transfers` field at all — the shape Tron/Solana providers produce.
+        provider.getTransaction.mockResolvedValue(rawDetail({ tokenTransfers }));
+
+        const result = await service.getTransaction('0xHASH1', 'tron');
+
+        expect(result.transfers).toEqual([]);
+        expect(result.tokenTransfers).toEqual([
+          {
+            from: '0xfrom',
+            to: '0xto',
+            amount: '500',
+            token: { address: '0xusdt', symbol: 'USDT', decimals: 6 },
+          },
+        ]);
+      });
+    });
+
+    describe('getAddressInfo', () => {
+      it('passes tokenStandard (and symbol/decimals/name) through when the provider supplies them', async () => {
+        provider.getAddressInfo.mockResolvedValue({
+          address: EVM_ADDR,
+          addressType: 'contract',
+          balance: '0',
+          tokenStandard: 'erc20',
+          symbol: 'USDC',
+          decimals: 6,
+          name: 'USD Coin',
+        });
+
+        const result = await service.getAddressInfo(EVM_ADDR, 'ethereum');
+
+        expect(result.tokenStandard).toBe('erc20');
+        expect(result.symbol).toBe('USDC');
+        expect(result.decimals).toBe(6);
+        expect(result.name).toBe('USD Coin');
+      });
+
+      it('omits tokenStandard/symbol/decimals/name when the provider does not supply them', async () => {
+        provider.getAddressInfo.mockResolvedValue({
+          address: EVM_ADDR,
+          addressType: 'wallet',
+          balance: '123',
+        });
+
+        const result = await service.getAddressInfo(EVM_ADDR, 'ethereum');
+
+        expect(result.tokenStandard).toBeUndefined();
+        expect(result.symbol).toBeUndefined();
+        expect(result.decimals).toBeUndefined();
+        expect(result.name).toBeUndefined();
+      });
     });
   });
 

@@ -62,9 +62,10 @@ export const CYTOSCAPE_STYLE: cytoscape.StylesheetStyle[] = [
     },
   },
   {
-    selector: 'node[addressType = "exchange"]',
+    selector: 'node[tokenStandard]',
     style: {
-      'border-opacity': 0.85,
+      'border-style': 'solid',
+      'border-opacity': 0.9,
       'border-width': 2,
     },
   },

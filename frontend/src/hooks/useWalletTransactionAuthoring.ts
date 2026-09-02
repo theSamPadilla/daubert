@@ -27,6 +27,10 @@ function btcToken() {
   return { address: '', symbol: 'BTC', decimals: 8 };
 }
 
+/** The conventional EVM "no address" sentinel (e.g. an ERC-721 mint's `from`).
+ *  Reads as a real address otherwise; nodes for it get a human label instead. */
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
 interface UseWalletTransactionAuthoringArgs {
   investigation: Investigation | null;
   allWallets: { wallet: WalletNode; traceId: string }[];
@@ -37,12 +41,13 @@ interface UseWalletTransactionAuthoringArgs {
   addWallet: (traceId: string, wallet: WalletNode) => void;
   updateWallet: (traceId: string, walletId: string, patch: Partial<WalletNode>) => void;
   addTransaction: (traceId: string, tx: TransactionEdge) => void;
+  updateTransaction: (traceId: string, txId: string, patch: Partial<TransactionEdge>) => void;
 }
 
 export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthoringArgs) {
   const {
     investigation, allWallets, panelMode, setPanelMode, setSelectedItem,
-    setStagedItems, addWallet, updateWallet, addTransaction,
+    setStagedItems, addWallet, updateWallet, addTransaction, updateTransaction,
   } = args;
 
   const handleSaveNewWallet = useCallback((traceId: string, data: Partial<WalletNode>) => {
@@ -72,7 +77,7 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
 
     if (addr) {
       apiClient.getAddressInfo(addr, ch).then((info) => {
-        updateWallet(traceId, wallet.id, { addressType: info.addressType });
+        updateWallet(traceId, wallet.id, { addressType: info.addressType, tokenStandard: info.tokenStandard });
       }).catch(() => {});
     }
   }, [panelMode, addWallet, updateWallet, setPanelMode, setSelectedItem]);
@@ -87,7 +92,11 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
     const walletId = crypto.randomUUID();
     const wallet: WalletNode = {
       id: walletId,
-      label: normAddress.length > 10 ? `${normAddress.slice(0, 6)}...${normAddress.slice(-4)}` : normAddress,
+      label: addressKey(normAddress) === addressKey(ZERO_ADDRESS)
+        ? 'Null address'
+        : normAddress.length > 10
+          ? `${normAddress.slice(0, 6)}...${normAddress.slice(-4)}`
+          : normAddress,
       address: normAddress,
       chain,
       notes: '',
@@ -100,7 +109,7 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
     addWallet(traceId, wallet);
 
     apiClient.getAddressInfo(normAddress, chain).then((info) => {
-      updateWallet(traceId, walletId, { addressType: info.addressType });
+      updateWallet(traceId, walletId, { addressType: info.addressType, tokenStandard: info.tokenStandard });
     }).catch(() => {});
 
     return wallet.id;
@@ -152,11 +161,64 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
       tags: data.tags || [],
       blockNumber: data.blockNumber || 0,
       crossTrace,
+      transfers: data.transfers,
+      selectedTransferIndex: data.selectedTransferIndex,
+      tokenStandard: data.tokenStandard,
+      tokenId: data.tokenId,
     };
     addTransaction(traceId, transaction);
     setPanelMode({ type: 'none' });
     setSelectedItem({ type: 'transaction', data: transaction });
   }, [addTransaction, allWallets, findOrCreateWallet, setPanelMode, setSelectedItem]);
+
+  /**
+   * Repoints an edge at a different leg of its own transaction.
+   *
+   * The edge's displayed fields are REWRITTEN rather than derived, because every
+   * consumer — exports, aggregation, cytoscape, the agent's view of the graph —
+   * already reads `from`/`to`/`amount`/`token`. `transfers` is retained so the
+   * choice stays reversible.
+   *
+   * A leg's endpoints are ADDRESSES and may name nodes that do not exist yet: the
+   * legs of a relayed call routinely run between contracts the user never pasted.
+   * Each endpoint therefore goes through `findOrCreateWallet`, which returns the
+   * existing node id on a case-insensitive address match and mints one otherwise.
+   * Storing the raw address instead would produce an edge pointing at no node,
+   * which Cytoscape silently drops while the edge still persists in the trace.
+   */
+  const handleSelectTransfer = useCallback(
+    (traceId: string, transaction: TransactionEdge, index: number) => {
+      const leg = transaction.transfers?.[index];
+      if (!leg || transaction.selectedTransferIndex === index) return;
+
+      const fromId = findOrCreateWallet(leg.from, transaction.chain, traceId);
+      // `allWallets` is this render's snapshot, so it cannot yet contain the node
+      // `findOrCreateWallet` may have just minted. A self-transfer would otherwise
+      // mint a second node for the same address.
+      const toId =
+        leg.to.toLowerCase() === leg.from.toLowerCase()
+          ? fromId
+          : findOrCreateWallet(leg.to, transaction.chain, traceId);
+
+      // `findOrCreateWallet` calls `addWallet` synchronously, so a just-created
+      // node is not in `allWallets` yet this render — the `?? traceId` fallback
+      // covers it, since a node minted here always lands in `traceId`.
+      const fromTrace = allWallets.find((w) => w.wallet.id === fromId)?.traceId ?? traceId;
+      const toTrace = allWallets.find((w) => w.wallet.id === toId)?.traceId ?? traceId;
+
+      updateTransaction(traceId, transaction.id, {
+        from: fromId,
+        to: toId,
+        amount: leg.amount,
+        token: leg.token,
+        tokenStandard: leg.standard,
+        tokenId: leg.tokenId,
+        selectedTransferIndex: index,
+        crossTrace: fromTrace !== toTrace,
+      });
+    },
+    [allWallets, findOrCreateWallet, updateTransaction],
+  );
 
   const handleAddStagedToTrace = useCallback((traceId: string, selected: TransactionEdge[]) => {
     if (!investigation) return;
@@ -423,5 +485,11 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
     setStagedItems((prev) => prev.filter((i) => !selectedIds.has(i.id)));
   }, [investigation, addWallet, addTransaction, setStagedItems]);
 
-  return { handleSaveNewWallet, findOrCreateWallet, handleSaveNewTransaction, handleAddStagedToTrace };
+  return {
+    handleSaveNewWallet,
+    findOrCreateWallet,
+    handleSaveNewTransaction,
+    handleSelectTransfer,
+    handleAddStagedToTrace,
+  };
 }

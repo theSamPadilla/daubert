@@ -218,6 +218,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/blockchain/get-transaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fetch details for a single transaction */
+        post: operations["getTransaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/blockchain/get-address-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fetch info for a single address */
+        post: operations["getAddressInfo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{caseId}/conversations": {
         parameters: {
             query?: never;
@@ -1798,6 +1832,74 @@ export interface components {
             transactions?: components["schemas"]["TransactionResult"][];
             chain?: string;
             address?: string;
+        };
+        GetTransactionRequest: {
+            /** @description Transaction hash to look up */
+            txHash: string;
+            /** @description Blockchain network (ethereum, polygon, arbitrum, base, tron, bitcoin, solana) */
+            chain: string;
+        };
+        GetAddressInfoRequest: {
+            /** @description Wallet or contract address to look up */
+            address: string;
+            /** @description Blockchain network (ethereum, polygon, arbitrum, base, tron, bitcoin, solana) */
+            chain: string;
+        };
+        /** @enum {string} */
+        TokenStandard: "erc20" | "erc721" | "erc1155";
+        TransferLeg: {
+            standard: components["schemas"]["TokenStandard"];
+            from: string;
+            to: string;
+            amount: string;
+            token: {
+                address: string;
+                symbol: string;
+                decimals: number;
+            };
+            tokenId?: string;
+            logIndex: number;
+        };
+        TransactionDetailResult: {
+            txHash: string;
+            from: string;
+            to: string;
+            chain: string;
+            amount: string;
+            /** Format: date-time */
+            timestamp: string;
+            blockNumber: number;
+            token: {
+                address: string;
+                symbol: string;
+                decimals: number;
+            };
+            tokenTransfers: {
+                from: string;
+                to: string;
+                amount: string;
+                token: {
+                    address: string;
+                    symbol: string;
+                    decimals: number;
+                };
+            }[];
+            /** @description Every decoded transfer leg. Empty on chains without log decoding. */
+            transfers: components["schemas"]["TransferLeg"][];
+            isError: boolean;
+            utxo?: components["schemas"]["UtxoContext"];
+            solana?: components["schemas"]["SolanaContext"];
+        };
+        AddressInfoResult: {
+            address: string;
+            /** @enum {string} */
+            addressType: "wallet" | "contract";
+            balance: string;
+            label?: string;
+            tokenStandard?: components["schemas"]["TokenStandard"];
+            symbol?: string;
+            decimals?: number;
+            name?: string;
         };
         Conversation: {
             /** Format: uuid */
@@ -3486,6 +3588,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FetchHistoryResponse"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GetTransactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Transaction detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionDetailResult"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getAddressInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GetAddressInfoRequest"];
+            };
+        };
+        responses: {
+            /** @description Address info */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressInfoResult"];
                 };
             };
             /** @description Invalid request */

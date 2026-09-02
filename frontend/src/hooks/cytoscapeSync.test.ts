@@ -338,4 +338,51 @@ describe('syncCytoscape', () => {
     const agg = cy.__addCalls.find((c) => c.data.isAggregatedEdge)!;
     expect(agg.data.label).toBe('0.000079 BTC');
   });
+
+  it('14. token contract node: nodeShape hexagon and tokenStandard synced', () => {
+    const w1 = wallet('w1', { addressType: 'contract', tokenStandard: 'erc20' });
+    const t = trace('trace-a', { nodes: [w1] });
+    const cy = makeFakeCy();
+
+    syncCytoscape(cy, inv([t]));
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    expect(call.data.nodeShape).toBe('hexagon');
+    expect(call.data.tokenStandard).toBe('erc20');
+  });
+
+  it('15. plain contract node (no tokenStandard) still syncs roundrectangle', () => {
+    const w1 = wallet('w1', { addressType: 'contract' });
+    const t = trace('trace-a', { nodes: [w1] });
+    const cy = makeFakeCy();
+
+    syncCytoscape(cy, inv([t]));
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    expect(call.data.nodeShape).toBe('roundrectangle');
+    expect(call.data.tokenStandard).toBeUndefined();
+  });
+
+  it('16. explicit node.shape overrides both addressType and tokenStandard', () => {
+    const w1 = wallet('w1', { addressType: 'contract', tokenStandard: 'erc721', shape: 'diamond' });
+    const t = trace('trace-a', { nodes: [w1] });
+    const cy = makeFakeCy();
+
+    syncCytoscape(cy, inv([t]));
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    expect(call.data.nodeShape).toBe('diamond');
+  });
+
+  it('17. plain wallet syncs ellipse and no tokenStandard', () => {
+    const w1 = wallet('w1');
+    const t = trace('trace-a', { nodes: [w1] });
+    const cy = makeFakeCy();
+
+    syncCytoscape(cy, inv([t]));
+
+    const call = cy.__addCalls.find((c) => c.data.id === 'w1')!;
+    expect(call.data.nodeShape).toBe('ellipse');
+    expect(call.data.tokenStandard).toBeUndefined();
+  });
 });

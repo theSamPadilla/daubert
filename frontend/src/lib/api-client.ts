@@ -403,36 +403,13 @@ export const apiClient = {
     }),
 
   getTransaction: (txHash: string, chain: string) =>
-    request<{
-      txHash: string;
-      from: string;
-      to: string;
-      chain: string;
-      amount: string;
-      timestamp: string;
-      blockNumber: number;
-      token: { address: string; symbol: string; decimals: number };
-      tokenTransfers: Array<{
-        from: string;
-        to: string;
-        amount: string;
-        token: { address: string; symbol: string; decimals: number };
-      }>;
-      isError: boolean;
-      /** Per-transfer provenance (Solana only) — carried through so QuickAdd can dedup against fetch-path edges via the same edge identity key. */
-      solana?: components['schemas']['SolanaContext'];
-    }>('/blockchain/get-transaction', {
+    request<components['schemas']['TransactionDetailResult']>('/blockchain/get-transaction', {
       method: 'POST',
       body: JSON.stringify({ txHash, chain }),
     }),
 
   getAddressInfo: (address: string, chain: string) =>
-    request<{
-      address: string;
-      addressType: 'wallet' | 'contract';
-      balance: string;
-      label?: string;
-    }>('/blockchain/get-address-info', {
+    request<components['schemas']['AddressInfoResult']>('/blockchain/get-address-info', {
       method: 'POST',
       body: JSON.stringify({ address, chain }),
     }),

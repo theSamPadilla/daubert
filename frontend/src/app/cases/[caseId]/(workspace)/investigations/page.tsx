@@ -218,10 +218,11 @@ function InvestigationsWorkspace() {
   const {
     handleSaveNewWallet,
     handleSaveNewTransaction,
+    handleSelectTransfer,
     handleAddStagedToTrace,
   } = useWalletTransactionAuthoring({
     investigation, allWallets, panelMode, setPanelMode, setSelectedItem,
-    setStagedItems, addWallet, updateWallet, addTransaction,
+    setStagedItems, addWallet, updateWallet, addTransaction, updateTransaction,
   });
 
   const {
@@ -378,6 +379,7 @@ function InvestigationsWorkspace() {
                 deleteWallet={canMutate ? deleteWallet : () => {}}
                 updateTransaction={canMutate ? updateTransaction : () => {}}
                 deleteTransaction={canMutate ? deleteTransaction : () => {}}
+                selectTransfer={canMutate ? handleSelectTransfer : () => {}}
                 updateTrace={canMutate ? updateTrace : () => {}}
                 deleteTrace={canMutate ? deleteTrace : () => {}}
                 updateGroup={canMutate ? updateGroup : () => {}}

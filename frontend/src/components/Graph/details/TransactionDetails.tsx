@@ -6,6 +6,7 @@ import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/forma
 import { buildExplorerUrl, buildTxExplorerUrl } from '@/utils/addressParser';
 import { truncateMiddle } from '@/utils/utxoDisplay';
 import { UtxoBreakdown, ChangeBadge } from './UtxoBreakdown';
+import { TransferPicker } from './TransferPicker';
 
 function resolveWalletDisplay(id: string, allWallets: { wallet: WalletNode; traceId: string }[]) {
   const match = allWallets.find((w) => w.wallet.id === id);
@@ -93,11 +94,13 @@ export function TransactionDetails({
   allWallets,
   onUpdate,
   onArcEdge,
+  onSelectTransfer,
 }: {
   transaction: TransactionEdge;
   allWallets: { wallet: WalletNode; traceId: string }[];
   onUpdate?: (updates: Partial<TransactionEdge>) => void;
   onArcEdge?: (delta: number | null) => void;
+  onSelectTransfer?: (index: number) => void;
 }) {
   const fromDisplay = resolveWalletDisplay(transaction.from, allWallets);
   const toDisplay = resolveWalletDisplay(transaction.to, allWallets);
@@ -237,6 +240,11 @@ export function TransactionDetails({
           </div>
         )}
       </div>
+      <TransferPicker
+        transfers={transaction.transfers}
+        selectedIndex={transaction.selectedTransferIndex}
+        onSelect={(index) => onSelectTransfer?.(index)}
+      />
       {transaction.utxo && !transaction.utxo.legType && (
         <div>
           <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">UTXO</h4>

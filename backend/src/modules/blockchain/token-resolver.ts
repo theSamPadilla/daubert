@@ -66,8 +66,19 @@ export class TokenResolver {
     const cached = this.memoryCache.get(memKey);
     if (cached) return cached;
 
+    // The curated table outranks whatever a probe returned: it is known-good and
+    // a probe can legitimately come back empty.
+    const wellKnown = WELL_KNOWN[chain]?.[addr];
+    if (wellKnown) {
+      this.memoryCache.set(memKey, wellKnown);
+      return wellKnown;
+    }
+
     const meta: TokenMetadata = { address: addr, symbol, decimals };
-    this.memoryCache.set(memKey, meta);
+    // Only cache metadata the chain actually answered. Caching a failed probe
+    // would pin this token as symbol-less for the process lifetime — the same
+    // reasoning as ContractClassifier's `determined` flag.
+    if (symbol) this.memoryCache.set(memKey, meta);
     return meta;
   }
 }

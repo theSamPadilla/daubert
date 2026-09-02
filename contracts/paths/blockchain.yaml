@@ -23,3 +23,55 @@
           application/json:
             schema:
               $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/blockchain/get-transaction:
+  post:
+    summary: Fetch details for a single transaction
+    operationId: getTransaction
+    tags:
+      - Blockchain
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/blockchain.yaml#/GetTransactionRequest'
+    responses:
+      '200':
+        description: Transaction detail
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/blockchain.yaml#/TransactionDetailResult'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+/blockchain/get-address-info:
+  post:
+    summary: Fetch info for a single address
+    operationId: getAddressInfo
+    tags:
+      - Blockchain
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/blockchain.yaml#/GetAddressInfoRequest'
+    responses:
+      '200':
+        description: Address info
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/blockchain.yaml#/AddressInfoResult'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

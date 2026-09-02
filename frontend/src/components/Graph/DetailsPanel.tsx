@@ -36,6 +36,13 @@ interface DetailsPanelProps {
   onUpdateEdgeBundle?: (traceId: string, bundleId: string, updates: Partial<EdgeBundle>) => void;
   onDeleteEdgeBundle?: (traceId: string, bundleId: string) => void;
   onArcEdge?: (edgeId: string, delta: number | null) => void;
+  /**
+   * Repoints a transaction edge at a different leg of its own transaction.
+   * Takes the whole edge (not just its id) because the handler resolves the
+   * chosen leg's endpoint ADDRESSES into node ids, minting nodes for the ones
+   * the graph does not have yet.
+   */
+  onSelectTransfer?: (traceId: string, transaction: TransactionEdge, index: number) => void;
 }
 
 const TYPE_DISPLAY: Record<string, string> = {
@@ -76,6 +83,7 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
   onUpdateEdgeBundle,
   onDeleteEdgeBundle,
   onArcEdge,
+  onSelectTransfer,
 }: DetailsPanelProps, ref) {
   const [editing, setEditing] = useState(false);
   useImperativeHandle(ref, () => ({ startEdit: () => setEditing(true) }), []);
@@ -198,6 +206,16 @@ export const DetailsPanel = forwardRef<DetailsPanelHandle, DetailsPanelProps>(fu
             onUpdateTransaction(traceId, tx.id, updates);
           }}
           onArcEdge={onArcEdge ? (delta) => onArcEdge((selectedItem.data as TransactionEdge).id, delta) : undefined}
+          onSelectTransfer={onSelectTransfer ? (index) => {
+            const tx = selectedItem.data as TransactionEdge;
+            const traceId = traces.find((t) => t.edges.some((e) => e.id === tx.id))?.id || '';
+            // Unlike updateTransaction (a harmless no-op on an unresolved trace),
+            // handleSelectTransfer fires getAddressInfo network calls for each
+            // endpoint before its own updateTransaction is discarded — so bail
+            // before calling it rather than let it run against nothing.
+            if (!traceId) return;
+            onSelectTransfer(traceId, tx, index);
+          } : undefined}
         />
       )}
       {selectedItem.type === 'trace' && (

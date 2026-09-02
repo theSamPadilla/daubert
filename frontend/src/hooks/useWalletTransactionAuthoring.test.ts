@@ -4,11 +4,13 @@ import { useMemo, useState } from 'react';
 import { useInvestigation } from './useInvestigation';
 import { useWalletTransactionAuthoring } from './useWalletTransactionAuthoring';
 import { edgeIdentityKey } from '../generated/shared/edge-identity';
+import { apiClient } from '@/lib/api-client';
 import type {
   Investigation,
   Trace,
   WalletNode,
   TransactionEdge,
+  TransferLeg,
   UtxoContext,
 } from '@/types/investigation';
 import type { PanelMode } from '@/types/panel';
@@ -55,7 +57,8 @@ function inv(traces: Trace[]): Investigation {
  * investigation instead of a mock.
  */
 function useHarness(initial: Investigation | null) {
-  const { investigation, addWallet, updateWallet, addTransaction } = useInvestigation(initial);
+  const { investigation, addWallet, updateWallet, addTransaction, updateTransaction } =
+    useInvestigation(initial);
   const allWallets = useMemo(() => {
     if (!investigation) return [];
     return investigation.traces.flatMap((t) => t.nodes.map((w) => ({ wallet: w, traceId: t.id })));
@@ -66,7 +69,7 @@ function useHarness(initial: Investigation | null) {
 
   const authoring = useWalletTransactionAuthoring({
     investigation, allWallets, panelMode, setPanelMode, setSelectedItem,
-    setStagedItems, addWallet, updateWallet, addTransaction,
+    setStagedItems, addWallet, updateWallet, addTransaction, updateTransaction,
   });
 
   return { investigation, stagedItems, selectedItem, ...authoring };
@@ -563,5 +566,311 @@ describe('handleSaveNewTransaction — endpoint resolves to a node id', () => {
     expect(t1.nodes).toHaveLength(2); // no spurious node minted from the ids
     expect(t1.edges[0].from).toBe('node-a');
     expect(t1.edges[0].to).toBe('node-b');
+  });
+});
+
+// ── handleSelectTransfer ────────────────────────────────────────────────────
+// A relayed transaction's legs run between addresses the investigator never
+// pasted, so switching legs is not a plain field update: the new endpoints
+// routinely have no node in the graph yet.
+
+const LEG_A = '0xc55fcca7a7c2d4b6a2c9c4f5e6d7a8b9c0d1e2f3';
+const LEG_B = '0x776023a4f2e1d0c9b8a7968574635241302f1e0d';
+const LEG_C = '0x66dbff2c1a0b9e8d7c6b5a4938271605f4e3d2c1';
+const USDC = { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', symbol: 'USDC', decimals: 6 };
+const WETH = { address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', symbol: 'WETH', decimals: 18 };
+
+function transferLeg(overrides: Partial<TransferLeg> = {}): TransferLeg {
+  return {
+    standard: 'erc20',
+    from: LEG_A,
+    to: LEG_B,
+    amount: '1500000',
+    token: USDC,
+    logIndex: 0,
+    ...overrides,
+  };
+}
+
+function node(id: string, address: string, parentTrace: string): WalletNode {
+  return {
+    id, label: id, address, chain: 'ethereum',
+    notes: '', tags: [], position: { x: 0, y: 0 }, parentTrace,
+  };
+}
+
+function multiLegEdge(overrides: Partial<TransactionEdge> = {}): TransactionEdge {
+  return {
+    id: 'edge-1',
+    from: 'node-a',
+    to: 'node-b',
+    txHash: '0xrelayed',
+    chain: 'ethereum',
+    timestamp: '2024-06-01T00:00:00.000Z',
+    amount: '1500000',
+    token: USDC,
+    tokenStandard: 'erc20',
+    notes: '',
+    tags: [],
+    blockNumber: 100,
+    crossTrace: false,
+    selectedTransferIndex: 0,
+    ...overrides,
+  };
+}
+
+describe('handleSelectTransfer', () => {
+  it('repoints the edge at existing nodes, rewriting the displayed fields and minting nothing', () => {
+    const edge = multiLegEdge({
+      transfers: [
+        transferLeg({ logIndex: 0 }),
+        transferLeg({ from: LEG_B, to: LEG_C, amount: '2500000', token: WETH, logIndex: 1 }),
+      ],
+    });
+    const t = trace('trace-1', {
+      nodes: [
+        node('node-a', LEG_A, 'trace-1'),
+        node('node-b', LEG_B, 'trace-1'),
+        node('node-c', LEG_C, 'trace-1'),
+      ],
+      edges: [edge],
+    });
+
+    const { result } = renderHook(() => useHarness(inv([t])));
+    act(() => {
+      result.current.handleSelectTransfer('trace-1', edge, 1);
+    });
+
+    const t1 = result.current.investigation!.traces.find((tr) => tr.id === 'trace-1')!;
+    expect(t1.nodes).toHaveLength(3); // no new nodes
+
+    const updated = t1.edges[0];
+    expect(updated.from).toBe('node-b');
+    expect(updated.to).toBe('node-c');
+    expect(updated.amount).toBe('2500000');
+    expect(updated.token).toEqual(WETH);
+    expect(updated.tokenStandard).toBe('erc20');
+    expect(updated.tokenId).toBeUndefined();
+    expect(updated.selectedTransferIndex).toBe(1);
+    // The choice stays reversible.
+    expect(updated.transfers).toHaveLength(2);
+  });
+
+  it('creates a wallet node for each missing endpoint and never leaves a raw address in from/to', () => {
+    const edge = multiLegEdge({
+      transfers: [
+        transferLeg({ logIndex: 0 }),
+        transferLeg({
+          standard: 'erc721',
+          from: LEG_B,
+          to: LEG_C,
+          amount: '1',
+          tokenId: '4242',
+          token: { address: '0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d', symbol: 'BAYC', decimals: 0 },
+          logIndex: 1,
+        }),
+      ],
+    });
+    // Only the pasted sender exists; neither leg-1 endpoint has a node.
+    const t = trace('trace-1', { nodes: [node('node-a', LEG_A, 'trace-1')], edges: [edge] });
+
+    const { result } = renderHook(() => useHarness(inv([t])));
+    act(() => {
+      result.current.handleSelectTransfer('trace-1', edge, 1);
+    });
+
+    const t1 = result.current.investigation!.traces.find((tr) => tr.id === 'trace-1')!;
+    expect(t1.nodes).toHaveLength(3);
+    expect(t1.nodes.map((n) => n.address).sort()).toEqual([LEG_A, LEG_B, LEG_C].sort());
+
+    const updated = t1.edges[0];
+    const byAddress = (addr: string) => t1.nodes.find((n) => n.address === addr)!.id;
+    expect(updated.from).toBe(byAddress(LEG_B));
+    expect(updated.to).toBe(byAddress(LEG_C));
+    // Never the raw address.
+    expect(updated.from).not.toBe(LEG_B);
+    expect(updated.to).not.toBe(LEG_C);
+    // Every endpoint resolves to a real node — no dangling references.
+    const ids = new Set(t1.nodes.map((n) => n.id));
+    expect(ids.has(updated.from)).toBe(true);
+    expect(ids.has(updated.to)).toBe(true);
+
+    expect(updated.tokenStandard).toBe('erc721');
+    expect(updated.tokenId).toBe('4242');
+  });
+
+  it('recomputes crossTrace from the resolved endpoints traces', () => {
+    const edge = multiLegEdge({
+      transfers: [
+        transferLeg({ from: LEG_A, to: LEG_B, logIndex: 0 }),
+        transferLeg({ from: LEG_A, to: LEG_C, amount: '2500000', logIndex: 1 }),
+      ],
+    });
+    const t1 = trace('trace-1', {
+      nodes: [node('node-a', LEG_A, 'trace-1'), node('node-b', LEG_B, 'trace-1')],
+      edges: [edge],
+    });
+    const t2 = trace('trace-2', { nodes: [node('node-c', LEG_C, 'trace-2')] });
+
+    const { result } = renderHook(() => useHarness(inv([t1, t2])));
+
+    // Leg 1 lands on a node living in a sibling trace.
+    act(() => {
+      result.current.handleSelectTransfer('trace-1', edge, 1);
+    });
+    let updated = result.current.investigation!.traces.find((tr) => tr.id === 'trace-1')!.edges[0];
+    expect(updated.to).toBe('node-c');
+    expect(updated.crossTrace).toBe(true);
+
+    // Switching back to a same-trace leg clears it again.
+    act(() => {
+      result.current.handleSelectTransfer('trace-1', updated, 0);
+    });
+    updated = result.current.investigation!.traces.find((tr) => tr.id === 'trace-1')!.edges[0];
+    expect(updated.to).toBe('node-b');
+    expect(updated.crossTrace).toBe(false);
+  });
+
+  it('is a no-op when the already-selected index is picked again', () => {
+    const edge = multiLegEdge({
+      amount: 'UNTOUCHED',
+      selectedTransferIndex: 1,
+      from: 'node-a',
+      to: 'node-a',
+      transfers: [
+        transferLeg({ logIndex: 0 }),
+        transferLeg({ from: LEG_B, to: LEG_C, amount: '2500000', logIndex: 1 }),
+      ],
+    });
+    const t = trace('trace-1', { nodes: [node('node-a', LEG_A, 'trace-1')], edges: [edge] });
+
+    const { result } = renderHook(() => useHarness(inv([t])));
+    act(() => {
+      result.current.handleSelectTransfer('trace-1', edge, 1);
+    });
+
+    const t1 = result.current.investigation!.traces.find((tr) => tr.id === 'trace-1')!;
+    expect(t1.nodes).toHaveLength(1); // no endpoints minted
+    expect(t1.edges[0].amount).toBe('UNTOUCHED');
+    expect(t1.edges[0].from).toBe('node-a');
+    expect(t1.edges[0].to).toBe('node-a');
+  });
+
+  it('resolves `to` against the just-minted `from` node for a self-transfer leg, minting exactly one node', () => {
+    const SELF = '0x9999999999999999999999999999999999999e';
+    const edge = multiLegEdge({
+      transfers: [
+        transferLeg({ logIndex: 0 }),
+        transferLeg({ from: SELF, to: SELF, amount: '999', logIndex: 1 }),
+      ],
+    });
+    // Neither leg-1 endpoint (both are SELF) has a node yet.
+    const t = trace('trace-1', { nodes: [node('node-a', LEG_A, 'trace-1')], edges: [edge] });
+
+    const { result } = renderHook(() => useHarness(inv([t])));
+    act(() => {
+      result.current.handleSelectTransfer('trace-1', edge, 1);
+    });
+
+    const t1 = result.current.investigation!.traces.find((tr) => tr.id === 'trace-1')!;
+    // node-a (pre-existing) + exactly one new node for SELF — not two.
+    expect(t1.nodes).toHaveLength(2);
+    const selfNode = t1.nodes.find((n) => n.address === SELF);
+    expect(selfNode).toBeDefined();
+
+    const updated = t1.edges[0];
+    expect(updated.from).toBe(selfNode!.id);
+    expect(updated.to).toBe(selfNode!.id);
+  });
+
+  it('labels a newly-minted zero-address node "Null address" instead of a truncated address', () => {
+    const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+    const edge = multiLegEdge({
+      transfers: [
+        transferLeg({ logIndex: 0 }),
+        transferLeg({
+          standard: 'erc721',
+          from: ZERO_ADDRESS,
+          to: LEG_C,
+          amount: '1',
+          tokenId: '7',
+          logIndex: 1,
+        }),
+      ],
+    });
+    const t = trace('trace-1', { nodes: [node('node-a', LEG_A, 'trace-1')], edges: [edge] });
+
+    const { result } = renderHook(() => useHarness(inv([t])));
+    act(() => {
+      result.current.handleSelectTransfer('trace-1', edge, 1);
+    });
+
+    const t1 = result.current.investigation!.traces.find((tr) => tr.id === 'trace-1')!;
+    const zeroNode = t1.nodes.find((n) => n.address === ZERO_ADDRESS);
+    expect(zeroNode).toBeDefined();
+    expect(zeroNode!.label).toBe('Null address');
+    // The address itself is unchanged — only the label reflects the sentinel.
+    expect(zeroNode!.address).toBe(ZERO_ADDRESS);
+  });
+});
+
+// ── handleSaveNewTransaction — decoded transfer fields (regression) ─────────
+// TransactionForm/QuickAddInput pass `transfers`/`selectedTransferIndex`/
+// `tokenStandard`/`tokenId` through `data` off the prefill. These previously
+// never made it onto the authored edge, so TransferPicker had nothing to
+// render for a QuickAdd-authored transaction — this is the real authoring
+// path, unlike the handleSelectTransfer tests above which seed `transfers`
+// directly onto a fabricated edge.
+describe('handleSaveNewTransaction — decoded transfer fields', () => {
+  it('carries transfers, selectedTransferIndex, tokenStandard and tokenId onto the created edge', () => {
+    const legs: TransferLeg[] = [
+      transferLeg({ logIndex: 0 }),
+      transferLeg({ from: LEG_B, to: LEG_C, amount: '1', standard: 'erc721', tokenId: '42', logIndex: 1 }),
+    ];
+
+    const { result } = renderHook(() => useHarness(inv([trace('trace-1')])));
+    act(() => {
+      result.current.handleSaveNewTransaction('trace-1', {
+        from: LEG_A,
+        to: LEG_B,
+        chain: 'ethereum',
+        amount: legs[0].amount,
+        token: legs[0].token,
+        transfers: legs,
+        selectedTransferIndex: 0,
+        tokenStandard: 'erc20',
+      });
+    });
+
+    const t1 = result.current.investigation!.traces.find((tr) => tr.id === 'trace-1')!;
+    const edge = t1.edges[0];
+    expect(edge.transfers).toEqual(legs);
+    expect(edge.selectedTransferIndex).toBe(0);
+    expect(edge.tokenStandard).toBe('erc20');
+    expect(edge.tokenId).toBeUndefined();
+  });
+});
+
+// ── handleSaveNewWallet — tokenStandard from getAddressInfo (regression) ────
+// `WalletNode.tokenStandard` drives the hexagon shape and token badge; the
+// getAddressInfo callback previously copied only `addressType`, so a token
+// contract's standard never reached the node.
+describe('handleSaveNewWallet — applies tokenStandard from getAddressInfo', () => {
+  it('patches the newly created node once the address lookup resolves', async () => {
+    (apiClient.getAddressInfo as jest.Mock).mockResolvedValueOnce({
+      addressType: 'contract',
+      tokenStandard: 'erc20',
+    });
+
+    const { result } = renderHook(() => useHarness(inv([trace('trace-1')])));
+    await act(async () => {
+      result.current.handleSaveNewWallet('trace-1', { address: '0xTokenContractAddr', chain: 'ethereum' });
+      await Promise.resolve();
+    });
+
+    const t1 = result.current.investigation!.traces.find((tr) => tr.id === 'trace-1')!;
+    expect(t1.nodes).toHaveLength(1);
+    expect(t1.nodes[0].addressType).toBe('contract');
+    expect(t1.nodes[0].tokenStandard).toBe('erc20');
   });
 });

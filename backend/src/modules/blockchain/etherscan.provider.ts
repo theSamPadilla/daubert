@@ -5,14 +5,25 @@ import {
   RawTokenTransfer,
   RawTransactionDetail,
   RawAddressInfo,
+  DecodedTransfer,
   FetchOptions,
   ETHERSCAN_V2_BASE,
 } from './types';
 import { RateLimiter } from './rate-limiter';
 import { ResponseCache } from './response-cache';
+import { decodeTransferLogs } from './log-decoder';
+import { ContractClassifier, ContractClassification } from './contract-classifier';
 
 const TX_CACHE_TTL = 60 * 60 * 1000; // 1hr
 const TOKEN_META_TTL = 24 * 60 * 60 * 1000; // 24hr
+
+/**
+ * Classification costs up to 6 rate-limited calls per contract on a shared
+ * 5 req/s limiter, so a receipt touching many tokens could hold a request open
+ * for a minute. Legs past this cap keep their decoded values and simply carry no
+ * metadata — the same graceful degradation as a failed probe.
+ */
+const MAX_CLASSIFIED_CONTRACTS = 25;
 
 interface EtherscanResponse<T> {
   status: string;
@@ -21,6 +32,17 @@ interface EtherscanResponse<T> {
 }
 
 export class EtherscanProvider implements BlockchainProvider {
+  // The closures are lazy — they capture `this` but invoke nothing at
+  // construction — so field-initialization order versus the constructor's
+  // parameter properties does not matter. `fetchApi` already caches and
+  // rate-limits, so the probes inherit both, and it throws on JSON-RPC `error`
+  // objects, which is what ContractClassifier's per-probe try/catch reads as a
+  // revert.
+  private readonly classifier = new ContractClassifier(
+    (address) => this.fetchApi<string>('proxy', 'eth_getCode', { address, tag: 'latest' }),
+    (address, data) => this.fetchApi<string>('proxy', 'eth_call', { to: address, data, tag: 'latest' }),
+  );
+
   constructor(
     private chain: ChainConfig,
     private apiKey: string,
@@ -168,27 +190,65 @@ export class EtherscanProvider implements BlockchainProvider {
       // Timestamp unavailable
     }
 
-    // Look up token transfers for this tx hash
-    let tokenTransfers: RawTokenTransfer[] = [];
-    try {
-      const allTokenTxs = await this.fetchApi<RawTokenTransfer[]>(
-        'account',
-        'tokentx',
-        {
-          address: txResult.from,
-          startblock: String(blockNumber),
-          endblock: String(blockNumber),
-          page: '1',
-          offset: '100',
-          sort: 'asc',
-        },
-      );
-      tokenTransfers = allTokenTxs.filter(
-        (t) => t.hash.toLowerCase() === txHash.toLowerCase(),
-      );
-    } catch {
-      // Token transfers unavailable
-    }
+    // Decode transfers from the receipt we already have. The previous
+    // implementation asked `account/tokentx` for `txResult.from`, which is
+    // ERC-20-only AND keyed by a party to the transfer — for a relayed call the
+    // sender is party to nothing and the query returns zero rows.
+    const transfers = decodeTransferLogs(receiptResult?.logs ?? []);
+
+    // Classify each distinct token contract once, for symbol/decimals. Failures
+    // degrade to an undecorated transfer rather than losing the transfer.
+    const contracts = [...new Set(transfers.map((t) => t.contractAddress))].slice(
+      0,
+      MAX_CLASSIFIED_CONTRACTS,
+    );
+    const metadata = new Map<string, ContractClassification>();
+    await Promise.all(
+      contracts.map(async (addr) => {
+        try {
+          metadata.set(addr, await this.classifier.classify(this.chain.id, addr));
+        } catch {
+          // Leave unclassified.
+        }
+      }),
+    );
+
+    // `tokenTransfers` remains the cross-chain field Tron and Solana populate,
+    // so it keeps carrying the ERC-20 subset in its original shape.
+    const tokenTransfers: RawTokenTransfer[] = transfers
+      .filter((t) => t.standard === 'erc20')
+      .map((t) => {
+        const meta = metadata.get(t.contractAddress);
+        return {
+          hash: txResult.hash,
+          from: t.from,
+          to: t.to,
+          value: t.value,
+          tokenName: meta?.name ?? '',
+          tokenSymbol: meta?.symbol ?? '',
+          tokenDecimal: meta?.decimals !== undefined ? String(meta.decimals) : '',
+          contractAddress: t.contractAddress,
+          timeStamp: timestamp,
+          blockNumber: String(blockNumber),
+          gas: txResult.gas ? BigInt(txResult.gas).toString() : '0',
+          gasPrice: txResult.gasPrice ? BigInt(txResult.gasPrice).toString() : '0',
+          gasUsed: receiptResult?.gasUsed ? BigInt(receiptResult.gasUsed).toString() : '0',
+          nonce: txResult.nonce ? BigInt(txResult.nonce).toString() : '0',
+        };
+      });
+
+    // `decodeTransferLogs` cannot know symbol/decimals — logs carry neither — so
+    // the metadata is grafted on here, after classification. A leg whose contract
+    // failed to classify keeps its raw value and simply has no metadata.
+    const enrichedTransfers: DecodedTransfer[] = transfers.map((t) => {
+      const meta = metadata.get(t.contractAddress);
+      return {
+        ...t,
+        ...(meta?.symbol ? { symbol: meta.symbol } : {}),
+        ...(meta?.decimals !== undefined ? { decimals: meta.decimals } : {}),
+        ...(meta?.name ? { name: meta.name } : {}),
+      };
+    });
 
     return {
       hash: txResult.hash,
@@ -209,22 +269,29 @@ export class EtherscanProvider implements BlockchainProvider {
       isError: receiptResult?.status === '0x0' ? '1' : '0',
       contractAddress: receiptResult?.contractAddress || '',
       tokenTransfers,
+      transfers: enrichedTransfers,
     };
   }
 
   async getAddressInfo(address: string): Promise<RawAddressInfo> {
-    const [code, balanceHex] = await Promise.all([
-      this.fetchApi<string>('proxy', 'eth_getCode', { address, tag: 'latest' }),
+    const [{ classification, determined }, balanceHex] = await Promise.all([
+      this.classifier.classifyDetailed(this.chain.id, address),
       this.fetchApi<string>('proxy', 'eth_getBalance', { address, tag: 'latest' }),
     ]);
-
-    const isContract = !!code && code !== '0x' && code !== '0x0';
-    const balance = balanceHex ? BigInt(balanceHex).toString() : '0';
-
+    // Unlike getTransaction, this result IS the finding — reporting a
+    // wallet-vs-contract classification the chain never actually answered
+    // would be testimony we cannot back up.
+    if (!determined) {
+      throw new Error(`Could not determine address type for ${address}: chain unreachable`);
+    }
     return {
       address,
-      addressType: isContract ? 'contract' : 'wallet',
-      balance,
+      addressType: classification.addressType,
+      balance: balanceHex ? BigInt(balanceHex).toString() : '0',
+      ...(classification.tokenStandard ? { tokenStandard: classification.tokenStandard } : {}),
+      ...(classification.symbol ? { symbol: classification.symbol } : {}),
+      ...(classification.decimals !== undefined ? { decimals: classification.decimals } : {}),
+      ...(classification.name ? { name: classification.name } : {}),
     };
   }
 }

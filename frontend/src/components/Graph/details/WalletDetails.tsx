@@ -16,6 +16,12 @@ const ADDRESS_TYPE_COLORS: Record<string, string> = {
   unknown: 'bg-canvas-fill text-canvas-muted',
 };
 
+const TOKEN_STANDARD_LABELS: Record<string, string> = {
+  erc20: 'ERC-20',
+  erc721: 'ERC-721',
+  erc1155: 'ERC-1155',
+};
+
 const NODE_SHAPES: { value: WalletNode['shape']; label: string; icon: string }[] = [
   { value: 'ellipse',        label: 'Circle',   icon: '⬤' },
   { value: 'rectangle',      label: 'Rect',     icon: '▬' },
@@ -93,6 +99,11 @@ export function WalletDetails({
         {hasAddress && (
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${ADDRESS_TYPE_COLORS[addrType]}`}>
             {ADDRESS_TYPE_LABELS[addrType]}
+          </span>
+        )}
+        {wallet.tokenStandard && (
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-500/20 text-cyan-300">
+            {TOKEN_STANDARD_LABELS[wallet.tokenStandard]}
           </span>
         )}
       </div>

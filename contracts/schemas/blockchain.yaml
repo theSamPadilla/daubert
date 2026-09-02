@@ -91,6 +91,168 @@ TransactionResult:
     solana:
       $ref: '#/SolanaContext'
 
+GetTransactionRequest:
+  type: object
+  required:
+    - txHash
+    - chain
+  properties:
+    txHash:
+      type: string
+      description: Transaction hash to look up
+    chain:
+      type: string
+      description: Blockchain network (ethereum, polygon, arbitrum, base, tron, bitcoin, solana)
+
+GetAddressInfoRequest:
+  type: object
+  required:
+    - address
+    - chain
+  properties:
+    address:
+      type: string
+      description: Wallet or contract address to look up
+    chain:
+      type: string
+      description: Blockchain network (ethereum, polygon, arbitrum, base, tron, bitcoin, solana)
+
+TokenStandard:
+  type: string
+  enum: [erc20, erc721, erc1155]
+
+TransferLeg:
+  type: object
+  required:
+    - standard
+    - from
+    - to
+    - amount
+    - token
+    - logIndex
+  properties:
+    standard:
+      $ref: '#/TokenStandard'
+    from:
+      type: string
+    to:
+      type: string
+    amount:
+      type: string
+    token:
+      type: object
+      required: [address, symbol, decimals]
+      properties:
+        address:
+          type: string
+        symbol:
+          type: string
+        decimals:
+          type: integer
+    tokenId:
+      type: string
+    logIndex:
+      type: integer
+
+TransactionDetailResult:
+  type: object
+  required:
+    - txHash
+    - from
+    - to
+    - chain
+    - amount
+    - timestamp
+    - blockNumber
+    - token
+    - tokenTransfers
+    - transfers
+    - isError
+  properties:
+    txHash:
+      type: string
+    from:
+      type: string
+    to:
+      type: string
+    chain:
+      type: string
+    amount:
+      type: string
+    timestamp:
+      type: string
+      format: date-time
+    blockNumber:
+      type: integer
+    token:
+      type: object
+      required: [address, symbol, decimals]
+      properties:
+        address:
+          type: string
+        symbol:
+          type: string
+        decimals:
+          type: integer
+    tokenTransfers:
+      type: array
+      items:
+        type: object
+        required: [from, to, amount, token]
+        properties:
+          from:
+            type: string
+          to:
+            type: string
+          amount:
+            type: string
+          token:
+            type: object
+            required: [address, symbol, decimals]
+            properties:
+              address:
+                type: string
+              symbol:
+                type: string
+              decimals:
+                type: integer
+    transfers:
+      type: array
+      description: Every decoded transfer leg. Empty on chains without log decoding.
+      items:
+        $ref: '#/TransferLeg'
+    isError:
+      type: boolean
+    utxo:
+      $ref: '#/UtxoContext'
+    solana:
+      $ref: '#/SolanaContext'
+
+AddressInfoResult:
+  type: object
+  required:
+    - address
+    - addressType
+    - balance
+  properties:
+    address:
+      type: string
+    addressType:
+      type: string
+      enum: [wallet, contract]
+    balance:
+      type: string
+    label:
+      type: string
+    tokenStandard:
+      $ref: '#/TokenStandard'
+    symbol:
+      type: string
+    decimals:
+      type: integer
+    name:
+      type: string
+
 # Single source of truth for UTXO provenance across the contract surface.
 # Referenced by TransactionResult (fetch results) and by
 # `traces.yaml#/ImportTransactionItem` (import payloads) — the two must never

@@ -21,6 +21,7 @@ interface SelectionDetailsPanelProps {
   deleteWallet: (traceId: string, walletId: string) => void;
   updateTransaction: (traceId: string, txId: string, patch: Partial<TransactionEdge>) => void;
   deleteTransaction: (traceId: string, txId: string) => void;
+  selectTransfer: (traceId: string, transaction: TransactionEdge, index: number) => void;
   updateTrace: (traceId: string, patch: Partial<Trace>) => void;
   deleteTrace: (traceId: string) => void;
   updateGroup: (traceId: string, groupId: string, patch: Partial<Group>) => void;
@@ -42,7 +43,7 @@ interface SelectionDetailsPanelProps {
 export function SelectionDetailsPanel(props: SelectionDetailsPanelProps) {
   const {
     selectedItem, setSelectedItem, investigation, allWallets, graphRef,
-    updateWallet, deleteWallet, updateTransaction, deleteTransaction,
+    updateWallet, deleteWallet, updateTransaction, deleteTransaction, selectTransfer,
     updateTrace, deleteTrace, updateGroup, deleteGroup, setNodeGroup,
     toggleEdgeBundle, updateEdgeBundle, deleteEdgeBundle,
     onFetchHistory, onBundleAllOutbound, onDeleteAllOutbound,
@@ -104,6 +105,7 @@ export function SelectionDetailsPanel(props: SelectionDetailsPanelProps) {
         onDeleteWallet={(traceId, walletId) => { deleteWallet(traceId, walletId); setSelectedItem(null); }}
         onUpdateTransaction={updateTransaction}
         onDeleteTransaction={(traceId, txId) => { deleteTransaction(traceId, txId); setSelectedItem(null); }}
+        onSelectTransfer={selectTransfer}
         onUpdateTrace={updateTrace}
         onDeleteTrace={(traceId) => {
           apiClient.deleteTrace(traceId).catch(console.error);

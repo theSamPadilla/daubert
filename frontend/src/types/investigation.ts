@@ -14,6 +14,12 @@ export type UtxoContext = components['schemas']['UtxoContext'];
  */
 export type SolanaContext = components['schemas']['SolanaContext'];
 
+/**
+ * Token contract standard, decoded from a transaction's logs. Aliased from
+ * the generated OpenAPI schema the same way as UtxoContext/SolanaContext.
+ */
+export type TokenStandard = components['schemas']['TokenStandard'];
+
 export interface Group {
   id: string;
   name: string;
@@ -113,7 +119,16 @@ export interface WalletNode {
   kind?: 'wallet' | 'txJunction';
   /** Full UTXO ledger record for a txJunction node. Absent on ordinary wallets. */
   utxoTx?: UtxoContext;
+  /** Set when the address is a token contract. Distinct from `addressType`,
+   *  which records only whether the address has code. */
+  tokenStandard?: TokenStandard;
 }
+
+/**
+ * A single decoded transfer from a transaction's receipt. Aliased from the
+ * generated OpenAPI schema the same way as UtxoContext/SolanaContext/TokenStandard.
+ */
+export type TransferLeg = components['schemas']['TransferLeg'];
 
 export interface TransactionEdge {
   id: string;
@@ -146,4 +161,17 @@ export interface TransactionEdge {
   utxo?: UtxoContext;
   /** Per-transfer provenance (Solana only). */
   solana?: SolanaContext;
+  tokenStandard?: TokenStandard;
+  tokenId?: string;
+  /**
+   * Every transfer decoded from this transaction's receipt. The edge itself
+   * always mirrors ONE of them (see `selectedTransferIndex`) — switching the
+   * selection rewrites `from`/`to`/`amount`/`token` so that every existing
+   * consumer keeps reading the same fields it always has.
+   *
+   * `from`/`to` here are ADDRESSES; the edge's own `from`/`to` are NODE IDS.
+   */
+  transfers?: TransferLeg[];
+  /** Index into `transfers` that this edge currently represents. */
+  selectedTransferIndex?: number;
 }

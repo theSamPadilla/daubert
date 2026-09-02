@@ -6,6 +6,7 @@ import {
   CHAIN_CONFIGS,
   FetchOptions,
   SolanaContext,
+  TokenStandard,
   UtxoContext,
   UtxoOutput,
 } from './types';
@@ -50,6 +51,20 @@ export interface AddressInfoResult {
   addressType: 'wallet' | 'contract';
   balance: string;
   label?: string;
+  tokenStandard?: TokenStandard;
+  symbol?: string;
+  decimals?: number;
+  name?: string;
+}
+
+export interface TransferLegResult {
+  standard: TokenStandard;
+  from: string;
+  to: string;
+  amount: string;
+  token: { address: string; symbol: string; decimals: number };
+  tokenId?: string;
+  logIndex: number;
 }
 
 export interface TransactionDetailResult {
@@ -67,6 +82,8 @@ export interface TransactionDetailResult {
     amount: string;
     token: { address: string; symbol: string; decimals: number };
   }>;
+  /** Every decoded transfer leg. Empty on chains without log decoding. */
+  transfers: TransferLegResult[];
   isError: boolean;
   /** UTXO provenance. Present only for detail results from UTXO chains (Bitcoin). */
   utxo?: UtxoContext;
@@ -228,7 +245,10 @@ export class BlockchainService {
         chain,
         tx.contractAddress,
         tx.tokenSymbol,
-        Number(tx.tokenDecimal),
+        // An empty tokenDecimal means classification could not answer — treat
+        // it as 0 rather than NaN so a visibly-zero amount renders instead of
+        // a plausibly-wrong one.
+        Number(tx.tokenDecimal) || 0,
       );
 
       transactions.push({
@@ -300,6 +320,7 @@ export class BlockchainService {
         blockNumber: tx.status.block_height ?? 0,
         token: { ...BTC_TOKEN },
         tokenTransfers: [],
+        transfers: [],
         isError: false,
         utxo,
       };
@@ -319,13 +340,33 @@ export class BlockchainService {
         chain,
         t.contractAddress,
         t.tokenSymbol,
-        Number(t.tokenDecimal),
+        // Same NaN guard as fetchHistory above — an empty tokenDecimal means
+        // classification could not answer.
+        Number(t.tokenDecimal) || 0,
       );
       return {
         from: t.from,
         to: t.to,
         amount: t.value,
         token: { address: meta.address, symbol: meta.symbol, decimals: meta.decimals },
+      };
+    });
+
+    const transfers: TransferLegResult[] = (detail.transfers ?? []).map((t) => {
+      const meta = this.tokenResolver.resolveFromTransfer(
+        chain,
+        t.contractAddress,
+        t.symbol ?? '',
+        t.decimals ?? 0,
+      );
+      return {
+        standard: t.standard,
+        from: t.from,
+        to: t.to,
+        amount: t.value,
+        token: { address: meta.address, symbol: meta.symbol, decimals: meta.decimals },
+        tokenId: t.tokenId,
+        logIndex: t.logIndex,
       };
     });
 
@@ -345,6 +386,7 @@ export class BlockchainService {
         decimals: chainConfig.nativeCurrency.decimals,
       },
       tokenTransfers,
+      transfers,
       isError: detail.isError === '1',
     };
   }
@@ -388,6 +430,10 @@ export class BlockchainService {
         addressType: raw.addressType,
         balance: raw.balance,
         label: raw.label,
+        tokenStandard: raw.tokenStandard,
+        symbol: raw.symbol,
+        decimals: raw.decimals,
+        name: raw.name,
       };
     }
 
@@ -398,6 +444,10 @@ export class BlockchainService {
         addressType: raw.addressType,
         balance: raw.balance,
         label: raw.label,
+        tokenStandard: raw.tokenStandard,
+        symbol: raw.symbol,
+        decimals: raw.decimals,
+        name: raw.name,
       };
     }
 
@@ -408,6 +458,10 @@ export class BlockchainService {
       addressType: raw.addressType,
       balance: raw.balance,
       label: raw.label,
+      tokenStandard: raw.tokenStandard,
+      symbol: raw.symbol,
+      decimals: raw.decimals,
+      name: raw.name,
     };
   }
 
@@ -523,6 +577,7 @@ export class BlockchainService {
       blockNumber: tx.slot,
       token: representative?.token ?? { address: '', symbol: 'SOL', decimals: 9 },
       tokenTransfers,
+      transfers: [],
       isError: tx.transactionError != null,
       solana: representative?.solana,
     };

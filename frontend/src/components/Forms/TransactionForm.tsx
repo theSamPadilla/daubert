@@ -225,6 +225,13 @@ export function TransactionForm({
       tags,
       links,
       crossTrace,
+      // Carried straight off the prefill: these describe the transaction as
+      // decoded from its receipt, not anything the form edits. Dropping them
+      // here is what previously made the transfer picker unreachable.
+      transfers: source?.transfers,
+      selectedTransferIndex: source?.selectedTransferIndex,
+      tokenStandard: source?.tokenStandard,
+      tokenId: source?.tokenId,
     });
   };
 

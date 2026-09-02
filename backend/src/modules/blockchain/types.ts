@@ -43,6 +43,31 @@ export interface RawTokenTransfer {
   nonce: string;
 }
 
+export type TokenStandard = 'erc20' | 'erc721' | 'erc1155';
+
+/** One token transfer decoded from a receipt log. Addresses are lowercased. */
+export interface DecodedTransfer {
+  standard: TokenStandard;
+  contractAddress: string;
+  from: string;
+  to: string;
+  /** Raw base units. Always '1' for ERC-721. */
+  value: string;
+  /** Present for ERC-721 and ERC-1155 only. */
+  tokenId?: string;
+  logIndex: number;
+  /**
+   * Token metadata, grafted on by the provider after it classifies the leg's
+   * contract. `decodeTransferLogs` never sets these, because a receipt log
+   * carries no symbol or decimals — so they are absent on a freshly decoded leg
+   * and populated before it leaves the provider. A leg whose contract failed to
+   * classify keeps its raw value and simply has none of them.
+   */
+  symbol?: string;
+  decimals?: number;
+  name?: string;
+}
+
 export interface RawTransactionDetail {
   hash: string;
   from: string;
@@ -56,6 +81,12 @@ export interface RawTransactionDetail {
   isError: string;
   contractAddress: string;
   tokenTransfers: RawTokenTransfer[];
+  /**
+   * Every token transfer decoded from the receipt logs, in log order.
+   * EVM only — Tron and Solana providers leave this undefined and continue to
+   * populate `tokenTransfers`.
+   */
+  transfers?: DecodedTransfer[];
 }
 
 export interface RawAddressInfo {
@@ -63,6 +94,11 @@ export interface RawAddressInfo {
   addressType: 'wallet' | 'contract';
   balance: string;
   label?: string;
+  /** Set when the address is a token contract. */
+  tokenStandard?: TokenStandard;
+  symbol?: string;
+  decimals?: number;
+  name?: string;
 }
 
 export interface TokenMetadata {

@@ -75,6 +75,10 @@ paths:
     $ref: './paths/investigations.yaml#/~1investigations~1{id}~1search-between'
   /blockchain/fetch-history:
     $ref: './paths/blockchain.yaml#/~1blockchain~1fetch-history'
+  /blockchain/get-transaction:
+    $ref: './paths/blockchain.yaml#/~1blockchain~1get-transaction'
+  /blockchain/get-address-info:
+    $ref: './paths/blockchain.yaml#/~1blockchain~1get-address-info'
   /cases/{caseId}/conversations:
     $ref: './paths/ai.yaml#/~1cases~1{caseId}~1conversations'
   /conversations/{id}:
@@ -272,6 +276,18 @@ components:
       $ref: './schemas/blockchain.yaml#/FetchHistoryRequest'
     FetchHistoryResponse:
       $ref: './schemas/blockchain.yaml#/FetchHistoryResponse'
+    GetTransactionRequest:
+      $ref: './schemas/blockchain.yaml#/GetTransactionRequest'
+    GetAddressInfoRequest:
+      $ref: './schemas/blockchain.yaml#/GetAddressInfoRequest'
+    TokenStandard:
+      $ref: './schemas/blockchain.yaml#/TokenStandard'
+    TransferLeg:
+      $ref: './schemas/blockchain.yaml#/TransferLeg'
+    TransactionDetailResult:
+      $ref: './schemas/blockchain.yaml#/TransactionDetailResult'
+    AddressInfoResult:
+      $ref: './schemas/blockchain.yaml#/AddressInfoResult'
     Conversation:
       $ref: './schemas/ai.yaml#/Conversation'
     Message:

@@ -32,13 +32,10 @@ export class AnthropicProvider implements LlmProvider {
     model?: string;
     containerId?: string;
   }): AsyncGenerator<StreamEvent> {
-    // Cache the last tool definition — Anthropic caches everything up to and
-    // including the last cache_control breakpoint, so this covers all tools.
-    const tools = params.tools.map((tool, i) =>
-      i === params.tools.length - 1
-        ? { ...tool, cache_control: { type: 'ephemeral' as const } }
-        : tool,
-    );
+    // No cache_control on the tools: the cached prefix runs tools -> system ->
+    // messages, so the caller's system-prompt breakpoint already covers them,
+    // and the caller needs all four of the API's breakpoints (see
+    // AiService.streamChat).
 
     // Forward the container id when the previous turn under the
     // compact-2026-01-12 (programmatic tool calling) beta returned one.
@@ -53,7 +50,7 @@ export class AnthropicProvider implements LlmProvider {
       thinking: { type: 'adaptive' },
       system: params.system,
       messages: params.messages,
-      tools,
+      tools: params.tools,
       ...(params.containerId ? { container: params.containerId } : {}),
     } as Parameters<typeof this.client.beta.messages.stream>[0]);
 

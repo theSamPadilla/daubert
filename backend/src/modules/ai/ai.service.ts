@@ -237,6 +237,22 @@ function mergeConsecutiveRoles(
   return merged;
 }
 
+/** The last block of a message that can carry cache_control. The API rejects
+ *  it on thinking blocks (legacy DB rows may still contain them) and on empty
+ *  text blocks. */
+function lastCacheableBlock(
+  message: Anthropic.Beta.BetaMessageParam | undefined,
+): { cache_control?: unknown } | undefined {
+  const blocks = Array.isArray(message?.content) ? message.content : [];
+  for (let j = blocks.length - 1; j >= 0; j--) {
+    const b = blocks[j] as any;
+    if (b.type === 'thinking' || b.type === 'redacted_thinking') continue;
+    if (b.type === 'text' && !b.text) continue;
+    return b;
+  }
+  return undefined;
+}
+
 /** Buffer a readable stream fully into memory. Used to materialise a data-room
  *  file before handing it to buildAttachmentBlocks (which needs base64). */
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
@@ -386,31 +402,34 @@ export class AiService {
     );
     messages.push({ role: 'user', content: userContentBlocks });
 
-    // Mark cache breakpoints on message history for prompt caching.
-    // Breakpoint 1: end of old history — cached between user turns so prior
-    //   conversation context isn't re-processed on every new message.
-    // Breakpoint 2: end of new user message — cached within the agent loop so
-    //   iterations 1+ (after tool results) don't re-process the user turn.
+    // Prompt-cache breakpoints. The API allows four per request:
+    //   1. System prompt (set in the loop below). The cached prefix runs
+    //      tools -> system, so this one also covers the tool definitions.
+    //   2. End of old history, so prior conversation context isn't
+    //      re-processed on every new message.
+    //   3-4. The agent loop's rolling tail (see markTailBreakpoint below).
     const newUserIdx = messages.length - 1;
     if (newUserIdx > 0) {
-      const lastOld = messages[newUserIdx - 1];
-      const blocks = Array.isArray(lastOld.content) ? lastOld.content : [];
-      // Defensive: legacy DB rows persisted before the provider-layer strip
-      // may still contain thinking blocks. The API rejects cache_control on them.
-      for (let j = blocks.length - 1; j >= 0; j--) {
-        const t = (blocks[j] as any).type;
-        if (t !== 'thinking' && t !== 'redacted_thinking') {
-          (blocks[j] as any).cache_control = { type: 'ephemeral' };
-          break;
-        }
-      }
+      const lastOld = lastCacheableBlock(messages[newUserIdx - 1]);
+      if (lastOld) lastOld.cache_control = { type: 'ephemeral' };
     }
-    {
-      const userBlocks = Array.isArray(userContentBlocks) ? userContentBlocks : [];
-      if (userBlocks.length > 0) {
-        (userBlocks[userBlocks.length - 1] as any).cache_control = { type: 'ephemeral' };
-      }
-    }
+
+    // Each loop iteration appends the model's response plus its tool results
+    // (and any data-room file content), so without a breakpoint on the new
+    // tail every call re-processes all of it uncached: a turn that reads a
+    // dozen files ends up re-sending hundreds of thousands of tokens per call.
+    // Before each call, mark the current tail and keep the previous tail's
+    // mark, so the call reads what the last one wrote and writes for the next.
+    // The first tail is the new user message itself. Marks live only on the
+    // in-memory blocks; every DB row is saved before its blocks are marked.
+    const tailBreakpoints: Array<{ cache_control?: unknown }> = [];
+    const markTailBreakpoint = () => {
+      const block = lastCacheableBlock(messages[messages.length - 1]);
+      if (!block || tailBreakpoints.includes(block)) return;
+      block.cache_control = { type: 'ephemeral' };
+      tailBreakpoints.push(block);
+      if (tailBreakpoints.length > 2) delete tailBreakpoints.shift()!.cache_control;
+    };
 
     // Fire title generation on the first message in a conversation.
     // Uses only the user message (no need to wait for assistant response).
@@ -445,6 +464,8 @@ export class AiService {
 
     try {
       for (let i = 0; i < MAX_ITERATIONS; i++) {
+        markTailBreakpoint();
+
         // System prompt is stable across all requests — cache it.
         const system: Anthropic.Beta.BetaTextBlockParam[] = [
           {

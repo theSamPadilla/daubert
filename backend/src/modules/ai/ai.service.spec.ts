@@ -674,3 +674,134 @@ describe('AiService — token usage metering', () => {
     );
   });
 });
+
+// ── Prompt cache breakpoints ──────────────────────────────────────────────────
+
+describe('AiService — prompt cache breakpoints', () => {
+  let aiService: AiService;
+
+  function makeResponse(
+    content: unknown[],
+    stopReason: 'tool_use' | 'end_turn',
+  ): Anthropic.Beta.BetaMessage {
+    return {
+      id: 'msg_test',
+      type: 'message',
+      role: 'assistant',
+      content,
+      model: 'claude-opus-5',
+      stop_reason: stopReason,
+      stop_sequence: null,
+      usage: {
+        input_tokens: 100,
+        output_tokens: 50,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_creation: null,
+        inference_geo: null,
+        iterations: null,
+      } as Anthropic.Beta.BetaUsage,
+      container: null,
+    } as unknown as Anthropic.Beta.BetaMessage;
+  }
+
+  const toolTurn = (id: string, input: Record<string, unknown>) =>
+    makeResponse([{ type: 'tool_use', id, name: 'list_script_runs', input }], 'tool_use');
+
+  /** Blocks carrying cache_control across a list of messages. */
+  const countMarks = (messages: any[]) =>
+    messages
+      .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+      .filter((b: any) => b.cache_control).length;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AiService,
+        { provide: ConversationsService, useValue: mockConversationsService },
+        { provide: ScriptExecutionService, useValue: mockScriptExecutionService },
+        { provide: LabeledEntitiesService, useValue: mockLabeledEntitiesService },
+        { provide: ProductionsService, useValue: mockProductionsService },
+        { provide: TracesService, useValue: mockTracesService },
+        { provide: AnthropicProvider, useValue: mockAnthropicProvider },
+        { provide: TokenUsageService, useValue: mockTokenUsageService },
+        { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
+        { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
+        { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
+        { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
+        { provide: DataRoomService, useValue: mockDataRoomService },
+        { provide: DeclarationLibraryService, useValue: mockDeclarationLibraryService },
+        { provide: DeclarantsService, useValue: mockDeclarantsService },
+        { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
+        { provide: getRepositoryToken(CaseEntity), useValue: mockCaseRepo },
+      ],
+    }).compile();
+
+    aiService = module.get<AiService>(AiService);
+  });
+
+  it('rolls two breakpoints along the agent loop tail without exceeding the API limit of four', async () => {
+    mockConversationRepo.findOne.mockResolvedValue({ id: 'conv-1', caseId: CASE_ID, case: { orgId: 'org-1' } });
+    mockConversationsService.findOne.mockResolvedValue({ id: 'conv-1' });
+    // One prior exchange, so the end-of-history breakpoint is in play too.
+    mockConversationsService.getMessages.mockResolvedValue([
+      { role: 'user', content: [{ type: 'text', text: 'earlier question' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'earlier answer' }] },
+    ]);
+    mockMessageRepo.create.mockImplementation((e: any) => e);
+    // Snapshot rows at save time, which is when TypeORM serializes them.
+    const savedRows: any[] = [];
+    mockMessageRepo.save.mockImplementation(async (e: any) => {
+      savedRows.push(structuredClone(e));
+      return { id: 'msg-saved-id', ...e };
+    });
+    mockScriptExecutionService.listRunsForCase.mockResolvedValue([]);
+    mockTokenUsageService.record.mockResolvedValue(undefined);
+
+    const responses = [
+      toolTurn('tu-1', { n: 1 }),
+      toolTurn('tu-2', { n: 2 }),
+      makeResponse([{ type: 'text', text: 'Done.' }], 'end_turn'),
+    ];
+    // Snapshot each request when it is made: the service mutates one shared
+    // messages array across iterations.
+    const requests: any[] = [];
+    mockAnthropicProvider.streamChat.mockImplementation((params: any) => {
+      requests.push(structuredClone(params));
+      const response = responses[requests.length - 1];
+      return (async function* () {
+        yield { type: 'end_turn', response };
+      })();
+    });
+
+    for await (const _ of aiService.streamChat(
+      'conv-1', 'user-1', 'new question', CASE_ID, undefined, undefined, undefined, 'editor',
+    )) {
+      // drain
+    }
+
+    expect(requests).toHaveLength(3);
+    for (const req of requests) {
+      const systemMarks = req.system.filter((b: any) => b.cache_control).length;
+      const toolMarks = req.tools.filter((t: any) => t.cache_control).length;
+      expect(systemMarks + toolMarks + countMarks(req.messages)).toBeLessThanOrEqual(4);
+      // The tail is always marked, so the next call can read what this one writes.
+      const tail = req.messages[req.messages.length - 1].content;
+      expect(tail[tail.length - 1].cache_control).toEqual({ type: 'ephemeral' });
+    }
+    // First call: end of old history + the new user message.
+    expect(countMarks(requests[0].messages)).toBe(2);
+    // Later calls keep the previous tail marked (two messages back) so they
+    // read the cache the previous call wrote.
+    for (const req of requests.slice(1)) {
+      expect(countMarks(req.messages)).toBe(3);
+      const prevTail = req.messages[req.messages.length - 3].content;
+      expect(prevTail[prevTail.length - 1].cache_control).toEqual({ type: 'ephemeral' });
+    }
+    // Marks live only on in-memory blocks, never on persisted rows.
+    expect(savedRows.length).toBeGreaterThan(0);
+    expect(countMarks(savedRows)).toBe(0);
+  });
+});

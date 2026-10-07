@@ -10,6 +10,9 @@ import { Kicker } from '@/components/ui';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
+const STREAM_INTERRUPTED =
+  'The response was interrupted before it finished. Long requests can time out, so try again or break the task into smaller steps.';
+
 const ACCEPTED_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'application/pdf',
@@ -581,6 +584,14 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
     const abort = new AbortController();
     abortRef.current = abort;
 
+    // Whether the server closed the turn with a `done` or `error` event. A
+    // stream that ends without one was cut off (e.g. the request timed out
+    // upstream), and the user needs to be told rather than left on "...".
+    let finished = false;
+    // Error to show once the stream is settled; null means nothing went wrong
+    // (or the user pressed Stop).
+    let failure: string | null = null;
+
     try {
       const body: Record<string, unknown> = { model: selectedModel };
       if (userText) body.message = userText;
@@ -608,7 +619,18 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
         signal: abort.signal,
       });
 
-      const reader = res.body!.getReader();
+      // Non-2xx responses carry a JSON error (or an upstream HTML page, e.g. a
+      // 502), not an event stream. Reading them as SSE would parse nothing.
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => null);
+        failure =
+          typeof err?.message === 'string'
+            ? err.message
+            : `The request failed (HTTP ${res.status}). Please try again.`;
+        return;
+      }
+
+      const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = '';
       let eventType = '';
@@ -688,9 +710,11 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
             } else if (eventType === 'production_updated') {
               onProductionUpdated?.();
             } else if (eventType === 'done') {
+              finished = true;
               removeStatus();
               finalizeOrDropCurrent();
             } else if (eventType === 'error') {
+              finished = true;
               removeStatus();
               const errorText = data.errorId
                 ? `${data.message} (ref: ${data.errorId})`
@@ -715,15 +739,23 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
           }
         }
       }
+      if (!finished) failure = STREAM_INTERRUPTED;
     } catch (err: unknown) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, text: 'Connection error.', isStreaming: false } : m
-          )
-        );
-      }
+      if (!(err instanceof Error && err.name === 'AbortError')) failure = STREAM_INTERRUPTED;
     } finally {
+      // Settle every bubble still marked streaming: drop empty placeholders
+      // and tool-status lines, keep partial text, then append the failure (if
+      // any). Without this, a turn that never sent `done` left "..." forever.
+      setMessages((prev) => {
+        const settled = prev.flatMap((m) => {
+          if (!m.isStreaming) return [m];
+          if (m.role === 'status' || !m.text) return [];
+          return [{ ...m, isStreaming: false }];
+        });
+        return failure
+          ? [...settled, { id: crypto.randomUUID(), role: 'assistant', text: failure }]
+          : settled;
+      });
       setStreaming(false);
       abortRef.current = null;
       // Intentionally not refreshing the conversation list here — a captured

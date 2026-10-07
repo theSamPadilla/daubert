@@ -59,6 +59,19 @@ describe('GcsStorageProvider', () => {
     });
   });
 
+  it('uploads: a failed body rejects and destroys the write stream', async () => {
+    const ws = new PassThrough();
+    createWriteStream.mockReturnValue(ws);
+    const body = new PassThrough();
+
+    const provider = new GcsStorageProvider('bkt');
+    const pending = provider.upload('org/o1/k', body, 'text/plain');
+    body.destroy(new Error('Upload aborted by client'));
+
+    await expect(pending).rejects.toThrow('Upload aborted by client');
+    expect(ws.destroyed).toBe(true);
+  });
+
   it('downloads: returns the stream and numeric size', async () => {
     getMetadata.mockResolvedValue([{ size: '11' }]);
     const rs = Readable.from(Buffer.from('hello world'));

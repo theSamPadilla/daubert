@@ -14,6 +14,7 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import type { Readable } from 'stream';
 // busboy is a CommonJS `export =` module and the project has esModuleInterop off,
 // so a default import compiles to `busboy_1.default` (undefined at runtime).
 import busboy = require('busboy');
@@ -89,7 +90,7 @@ export class DataRoomController {
     const userId = (req as any).user.id as string;
 
     const safeRespond = (status: number, body: unknown) => {
-      if (res.headersSent) return;
+      if (res.headersSent || res.destroyed) return;
       res.status(status).json(body);
     };
 
@@ -100,9 +101,19 @@ export class DataRoomController {
 
     let handled = false;
     let oversize = false;
+    let activeFile: Readable | null = null;
+
+    // A client that disconnects mid-file (a cancelled upload, a closed tab, a
+    // dropped connection) never sends the closing boundary, so busboy neither
+    // ends nor errors the file stream and the storage write would hang open.
+    // Fail the stream instead: storage tears the write down and no row is saved.
+    req.on('close', () => {
+      if (!req.complete) activeFile?.destroy(new Error('Upload aborted by client'));
+    });
 
     bb.on('file', async (_field, fileStream, info) => {
       handled = true;
+      activeFile = fileStream;
 
       // busboy's `fileSize` limit fires on the file stream, not the busboy
       // instance. Without this listener the stream is silently truncated at

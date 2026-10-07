@@ -1,4 +1,5 @@
 import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { Storage } from '@google-cloud/storage';
 import { StorageProvider } from './storage-provider.interface';
 
@@ -22,27 +23,24 @@ export class GcsStorageProvider implements StorageProvider {
     return this.storage.bucket(this.bucketName);
   }
 
-  upload(
+  // `pipeline` (not `pipe`) so a failed body also destroys the write stream,
+  // abandoning the resumable upload instead of leaving it open.
+  async upload(
     objectKey: string,
     body: Readable,
     contentType: string,
   ): Promise<{ size: number }> {
-    return new Promise((resolve, reject) => {
-      let size = 0;
-      body.on('data', (chunk: Buffer | string) => {
-        size += Buffer.byteLength(chunk);
-      });
-
-      const writeStream = this.bucket()
-        .file(objectKey)
-        .createWriteStream({ resumable: true, contentType });
-
-      body.on('error', reject);
-      writeStream.on('error', reject);
-      writeStream.on('finish', () => resolve({ size }));
-
-      body.pipe(writeStream);
+    let size = 0;
+    body.on('data', (chunk: Buffer | string) => {
+      size += Buffer.byteLength(chunk);
     });
+
+    const writeStream = this.bucket()
+      .file(objectKey)
+      .createWriteStream({ resumable: true, contentType });
+
+    await pipeline(body, writeStream);
+    return { size };
   }
 
   async download(

@@ -32,6 +32,12 @@ import {
   type DataRoomFolder,
 } from '@/lib/api-client';
 import { pickDriveFiles, pickDriveFolderForExport } from '@/lib/google-picker';
+import {
+  dirKey,
+  planFromDataTransfer,
+  planFromFileList,
+  type UploadPlan,
+} from '@/lib/folder-upload';
 import { Loader } from '@/components/Common/Loader';
 import { Button } from '@/components/ui';
 import { PageHeader } from '@/components/Common/PageHeader';
@@ -90,6 +96,8 @@ export default function DataRoomPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Neutral counterpart to `error`, for outcomes the user chose (e.g. a cancel).
+  const [notice, setNotice] = useState<string | null>(null);
   const [files, setFiles] = useState<DataRoomFile[]>([]);
   const [folders, setFolders] = useState<DataRoomFolder[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string }[]>([]);
@@ -111,12 +119,16 @@ export default function DataRoomPage() {
     }
   }, []);
 
-  // Upload state
+  // Upload state. Progress is batch-wide: `label` names the current step and the
+  // byte counts span every file in the batch.
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingName, setUploadingName] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<{ loaded: number; total: number } | null>(
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const [upload, setUpload] = useState<{ label: string; loaded: number; total: number } | null>(
     null,
   );
+  const uploading = upload !== null;
+  // Set while a batch runs; Cancel aborts it, stopping the in-flight file too.
+  const uploadAbort = useRef<AbortController | null>(null);
 
   // Drag-and-drop state. `dragDepth` counts enter/leave across nested children
   // so the overlay doesn't flicker as the cursor crosses child boundaries.
@@ -146,6 +158,11 @@ export default function DataRoomPage() {
       setError(err instanceof Error ? err.message : 'Failed to list files');
     }
   }, [caseId, currentFolderId]);
+
+  // An upload can outlive a folder change; when it finishes, refresh whichever
+  // folder is open then, not the one it started in.
+  const fetchContentsRef = useRef(fetchContents);
+  fetchContentsRef.current = fetchContents;
 
   // Initial load + re-fetch whenever the current folder changes.
   useEffect(() => {
@@ -177,53 +194,126 @@ export default function DataRoomPage() {
     });
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  // Upload one or more files sequentially to the current folder, streaming
-  // per-file progress. A failure on one file is surfaced but does not abort the
-  // rest. Shared by the file picker, the "Upload file" button, and drag-and-drop.
-  const uploadFiles = useCallback(
-    async (fileList: File[]) => {
-      if (!canMutate || fileList.length === 0) return;
+  // Upload a batch into the current folder: recreate its folder tree
+  // parent-first, then upload files one at a time with batch-wide progress. A
+  // failure is collected and the batch keeps going; a folder that can't be
+  // created takes its subtree with it. Cancelling keeps whatever already
+  // landed. Shared by both pickers and drag-and-drop. Takes a promise so a
+  // drop's folder walk counts as part of the busy state.
+  const uploadPlan = useCallback(
+    async (planned: UploadPlan | Promise<UploadPlan>) => {
+      if (!canMutate) return;
       setError(null);
-      let failed = 0;
-      for (const file of fileList) {
-        setUploadingName(file.name);
-        setUploadProgress({ loaded: 0, total: file.size });
-        try {
-          await apiClient.dataRoomUpload(
-            caseId,
-            file,
-            (loaded, total) => setUploadProgress({ loaded, total }),
-            currentFolderId,
-          );
-        } catch (err) {
-          failed += 1;
-          setError(err instanceof Error ? err.message : `Upload failed for ${file.name}`);
+      setNotice(null);
+      setUpload({ label: 'Preparing upload', loaded: 0, total: 0 });
+      const controller = new AbortController();
+      uploadAbort.current = controller;
+      const { signal } = controller;
+      const failures: { name: string; reason: string }[] = [];
+      let itemCount = 0;
+      let count = 0;
+      let uploaded = 0;
+      try {
+        const plan = await planned;
+        itemCount = plan.dirs.length + plan.files.length;
+        count = plan.files.length;
+        const total = plan.files.reduce((n, f) => n + f.file.size, 0);
+
+        const folderIds = new Map<string, string | null>([[dirKey([]), currentFolderId]]);
+        for (const dir of plan.dirs) {
+          if (signal.aborted) break;
+          const parentId = folderIds.get(dirKey(dir.slice(0, -1)));
+          if (parentId === undefined) continue; // an ancestor failed
+          const name = dir[dir.length - 1];
+          setUpload({ label: `Creating folder ${name}`, loaded: 0, total });
+          try {
+            const created = await apiClient.dataRoomCreateFolder(caseId, name, parentId);
+            folderIds.set(dirKey(dir), created.id);
+          } catch (err) {
+            if (signal.aborted) break;
+            failures.push({
+              name: `${name}/`,
+              reason: err instanceof Error ? err.message : 'Could not create folder',
+            });
+          }
         }
+
+        let done = 0;
+        for (const [i, { file, dir }] of plan.files.entries()) {
+          if (signal.aborted) break;
+          const folderId = folderIds.get(dirKey(dir));
+          if (folderId === undefined) {
+            failures.push({ name: file.name, reason: 'Its folder could not be created' });
+            continue;
+          }
+          const label =
+            count > 1 ? `Uploading ${i + 1} of ${count}: ${file.name}` : `Uploading ${file.name}`;
+          const base = done;
+          setUpload({ label, loaded: base, total });
+          try {
+            await apiClient.dataRoomUpload(
+              caseId,
+              file,
+              (loaded, fileTotal) =>
+                setUpload({
+                  label,
+                  loaded: base + (fileTotal ? (loaded / fileTotal) * file.size : 0),
+                  total,
+                }),
+              folderId,
+              signal,
+            );
+            uploaded += 1;
+          } catch (err) {
+            if (signal.aborted) break;
+            failures.push({
+              name: file.name,
+              reason: err instanceof Error ? err.message : `Upload failed for ${file.name}`,
+            });
+          }
+          done += file.size;
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not read the selected items');
+      } finally {
+        uploadAbort.current = null;
+        setUpload(null);
       }
-      setUploadingName(null);
-      setUploadProgress(null);
-      await fetchContents();
-      if (failed > 0 && fileList.length > 1) {
-        setError(`${failed} of ${fileList.length} file(s) failed to upload.`);
+
+      await fetchContentsRef.current();
+      if (signal.aborted) {
+        setNotice(
+          `Upload cancelled after ${uploaded} of ${count} file${count === 1 ? '' : 's'}. ` +
+            'Anything already uploaded was kept.',
+        );
+      }
+      if (failures.length === 0) return;
+      if (itemCount === 1) {
+        setError(failures[0].reason);
+      } else if (failures.length === 1) {
+        setError(`${failures[0].name} failed to upload: ${failures[0].reason}`);
+      } else {
+        const names = failures.slice(0, 3).map((f) => f.name).join(', ');
+        const more = failures.length > 3 ? ` and ${failures.length - 3} more` : '';
+        setError(`${failures.length} items failed to upload: ${names}${more}.`);
       }
     },
-    [canMutate, caseId, currentFolderId, fetchContents],
+    [canMutate, caseId, currentFolderId],
   );
 
-  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Both pickers share this: a plain multi-file pick, or a folder pick whose
+  // files carry their path inside the chosen folder.
+  const handlePickerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files ?? []);
-    // Reset the input so selecting the same file again triggers another change.
+    // Reset the input so selecting the same items again triggers another change.
     if (e.target) e.target.value = '';
-    if (selected.length) await uploadFiles(selected);
+    if (selected.length) await uploadPlan(planFromFileList(selected));
   };
 
   // ----------------------------- Drag-and-drop -----------------------------
-  // The whole data-room surface is a dropzone: drag files anywhere over the
-  // content area to upload them into the current folder. Editors only.
+  // The whole data-room surface is a dropzone: drag files or folders anywhere
+  // over the content area to upload them into the current folder, keeping the
+  // folder structure. Editors only, and one batch at a time.
 
   const isFileDrag = (e: React.DragEvent) => e.dataTransfer?.types?.includes('Files');
 
@@ -234,10 +324,12 @@ export default function DataRoomPage() {
     setIsDragging(true);
   };
 
+  // Always claim the drag, even mid-upload: an unclaimed file drop makes the
+  // browser navigate away to open the file.
   const handleDragOver = (e: React.DragEvent) => {
     if (!canMutate || !isFileDrag(e)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+    e.dataTransfer.dropEffect = uploading ? 'none' : 'copy';
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -254,8 +346,10 @@ export default function DataRoomPage() {
     e.preventDefault();
     dragDepth.current = 0;
     setIsDragging(false);
-    const dropped = Array.from(e.dataTransfer.files ?? []);
-    if (dropped.length) void uploadFiles(dropped);
+    if (uploading) return;
+    // planFromDataTransfer reads the dropped entries synchronously, before this
+    // handler returns; only the folder walk after that is async.
+    void uploadPlan(planFromDataTransfer(e.dataTransfer));
   };
 
   const handleDownload = async (file: DataRoomFile) => {
@@ -424,13 +518,31 @@ export default function DataRoomPage() {
         {isDragging && canMutate && (
           <div className="absolute inset-3 z-40 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-brand bg-brand/10 backdrop-blur-sm pointer-events-none">
             <FaCloudArrowUp className="w-10 h-10 text-brand mb-3" />
-            <p className="text-ink text-sm font-medium">Drop files to upload</p>
-            <p className="text-ink-faint text-xs mt-1">
-              into {breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : 'Data Room'}
-            </p>
+            {uploading ? (
+              <p className="text-ink text-sm font-medium">Wait for the current upload to finish</p>
+            ) : (
+              <>
+                <p className="text-ink text-sm font-medium">Drop files or folders to upload</p>
+                <p className="text-ink-faint text-xs mt-1">
+                  into {breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : 'Data Room'}
+                </p>
+              </>
+            )}
           </div>
         )}
         <div className="max-w-6xl mx-auto">
+          {notice && (
+            <div className="mb-4 p-3 rounded-lg bg-surface-panel border border-line text-ink-muted text-sm flex items-center justify-between">
+              <span>{notice}</span>
+              <button
+                onClick={() => setNotice(null)}
+                className="text-ink-faint hover:text-ink text-xs"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           {/* Error banner */}
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-redline/10 border border-redline/30 text-redline text-sm flex items-center justify-between">
@@ -482,26 +594,46 @@ export default function DataRoomPage() {
 
               {/* Upload controls */}
               {canMutate && (
-                <div className="mb-5 flex items-center gap-2.5">
+                <div className="mb-5 flex flex-wrap items-center gap-2.5">
                   <input
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    onChange={handleUploadFile}
+                    onChange={handlePickerChange}
                     className="hidden"
+                    data-testid="upload-files-input"
+                  />
+                  {/* `webkitdirectory` (supported by every current browser) turns the
+                      picker into a folder picker; React's typings don't know it. */}
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    multiple
+                    onChange={handlePickerChange}
+                    className="hidden"
+                    data-testid="upload-folder-input"
+                    {...{ webkitdirectory: '' }}
                   />
                   <Button
                     size="sm"
-                    onClick={handleUploadClick}
-                    disabled={uploadingName !== null || importing}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading || importing}
                   >
-                    <FaCloudArrowUp className="w-3.5 h-3.5" /> Upload file
+                    <FaCloudArrowUp className="w-3.5 h-3.5" /> Upload files
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => folderInputRef.current?.click()}
+                    disabled={uploading || importing}
+                  >
+                    <FaFolderOpen className="w-3.5 h-3.5" /> Upload folder
                   </Button>
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={handleImportFromDrive}
-                    disabled={uploadingName !== null || importing}
+                    disabled={uploading || importing}
                   >
                     <FaGoogle className="w-3.5 h-3.5" /> Add from Google Drive
                   </Button>
@@ -509,30 +641,42 @@ export default function DataRoomPage() {
                     variant="secondary"
                     size="sm"
                     onClick={handleCreateFolder}
-                    disabled={uploadingName !== null || importing}
+                    disabled={uploading || importing}
                   >
                     <FaFolderPlus className="w-3.5 h-3.5" /> New folder
                   </Button>
-                  <p className="text-xs text-ink-faint ml-auto">Max 50MB per upload.</p>
+                  <p className="text-xs text-ink-faint ml-auto">
+                    Or drag files and folders anywhere here. Max 50MB per file.
+                  </p>
                 </div>
               )}
 
               {/* Upload progress */}
-              {uploadingName && uploadProgress && (
+              {upload && (
                 <div className="mb-4 p-3 rounded-lg bg-surface-panel border border-line">
                   <div className="flex items-center justify-between mb-2 text-sm">
-                    <span className="text-ink-muted truncate">Uploading {uploadingName}</span>
-                    <span className="text-ink-muted ml-2 shrink-0">
-                      {formatBytes(String(uploadProgress.loaded))} /{' '}
-                      {formatBytes(String(uploadProgress.total))}
-                    </span>
+                    <span className="text-ink-muted truncate">{upload.label}</span>
+                    <div className="ml-2 flex items-center gap-3 shrink-0">
+                      {upload.total > 0 && (
+                        <span className="text-ink-muted">
+                          {formatBytes(String(upload.loaded))} /{' '}
+                          {formatBytes(String(upload.total))}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => uploadAbort.current?.abort()}
+                        className="text-ink-faint hover:text-ink text-xs"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                   <div className="h-1.5 bg-surface-raised rounded-full overflow-hidden">
                     <div
                       className="h-full bg-brand transition-all"
                       style={{
-                        width: uploadProgress.total
-                          ? `${Math.min(100, (uploadProgress.loaded / uploadProgress.total) * 100)}%`
+                        width: upload.total
+                          ? `${Math.min(100, (upload.loaded / upload.total) * 100)}%`
                           : '0%',
                       }}
                     />
@@ -549,7 +693,7 @@ export default function DataRoomPage() {
                   <p className="text-ink text-sm font-medium">No files yet.</p>
                   {canMutate && (
                     <p className="text-ink-faint text-xs mt-1">
-                      Drag files anywhere here to upload, or add from Google Drive.
+                      Drag files or whole folders anywhere here to upload, or add from Google Drive.
                     </p>
                   )}
                 </div>

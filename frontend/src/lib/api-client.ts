@@ -691,13 +691,14 @@ export const apiClient = {
   /**
    * Upload a file to the built-in data room. Uses XMLHttpRequest because
    * `fetch` doesn't expose upload progress events. Resolves with the created
-   * file metadata.
+   * file metadata. Aborting `signal` cancels the request mid-transfer.
    */
   dataRoomUpload: async (
     caseId: string,
     file: File,
     onProgress?: (loaded: number, total: number) => void,
     folderId?: string | null,
+    signal?: AbortSignal,
   ): Promise<DataRoomFile> => {
     let token: string | null = null;
     try {
@@ -711,7 +712,12 @@ export const apiClient = {
     form.append('file', file, file.name);
 
     return new Promise<DataRoomFile>((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error('Upload aborted'));
+        return;
+      }
       const xhr = new XMLHttpRequest();
+      signal?.addEventListener('abort', () => xhr.abort(), { once: true });
       const uploadUrl = folderId
         ? `${API_BASE}/cases/${caseId}/data-room/files?folderId=${encodeURIComponent(folderId)}`
         : `${API_BASE}/cases/${caseId}/data-room/files`;

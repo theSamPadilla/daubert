@@ -170,7 +170,10 @@ describe('DataRoomPage', () => {
 
     await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
 
-    expect(screen.getByText('Upload file')).toBeTruthy();
+    expect(screen.getByText('Upload files')).toBeTruthy();
+    expect(screen.getByText('Upload folder')).toBeTruthy();
+    // The folder button drives a directory picker.
+    expect(screen.getByTestId('upload-folder-input').hasAttribute('webkitdirectory')).toBe(true);
   });
 
   // (c) For a viewer, no upload/delete controls but download is available
@@ -180,7 +183,8 @@ describe('DataRoomPage', () => {
 
     await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
 
-    expect(screen.queryByText('Upload file')).toBeNull();
+    expect(screen.queryByText('Upload files')).toBeNull();
+    expect(screen.queryByText('Upload folder')).toBeNull();
     expect(screen.queryByTitle('Delete')).toBeNull();
 
     const downloadButtons = screen.getAllByTitle('Download');
@@ -204,7 +208,7 @@ describe('DataRoomPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/Drag files anywhere here to upload/)).toBeTruthy();
+      expect(screen.getByText(/Drag files or whole folders anywhere here to upload/)).toBeTruthy();
     });
   });
 
@@ -240,6 +244,147 @@ describe('DataRoomPage', () => {
     // give any async handler a chance to (not) fire
     await Promise.resolve();
     expect(mockDataRoomUpload).not.toHaveBeenCalled();
+  });
+
+  // Folder upload recreates the tree: each folder is created under its parent's
+  // new id, and each file lands in the folder it came from.
+  const createFolderEchoingIds = () =>
+    mockDataRoomCreateFolder.mockImplementation(
+      async (_caseId: string, name: string, parentFolderId: string | null) => ({
+        ...FAKE_FOLDER,
+        id: `id-${name}`,
+        name,
+        parentFolderId,
+      }),
+    );
+  const uploadsByName = () =>
+    Object.fromEntries(
+      mockDataRoomUpload.mock.calls.map((c) => [(c[1] as File).name, c[3] as string | null]),
+    );
+
+  it('uploads a picked folder with its structure', async () => {
+    createFolderEchoingIds();
+    mockDataRoomUpload.mockResolvedValue(undefined);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
+
+    const withPath = (name: string, path: string) => {
+      const f = new File(['x'], name);
+      Object.defineProperty(f, 'webkitRelativePath', { value: path });
+      return f;
+    };
+    fireEvent.change(screen.getByTestId('upload-folder-input'), {
+      target: {
+        files: [
+          withPath('a.pdf', 'Evidence/a.pdf'),
+          withPath('b.csv', 'Evidence/Bank/b.csv'),
+          withPath('.DS_Store', 'Evidence/.DS_Store'),
+        ],
+      },
+    });
+
+    await waitFor(() => expect(mockDataRoomUpload).toHaveBeenCalledTimes(2));
+    expect(mockDataRoomCreateFolder.mock.calls.map((c) => c.slice(1))).toEqual([
+      ['Evidence', null],
+      ['Bank', 'id-Evidence'],
+    ]);
+    expect(uploadsByName()).toEqual({ 'a.pdf': 'id-Evidence', 'b.csv': 'id-Bank' });
+  });
+
+  it('uploads a dropped folder with its structure', async () => {
+    createFolderEchoingIds();
+    mockDataRoomUpload.mockResolvedValue(undefined);
+    const { container } = renderPage();
+    await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
+
+    const fileEntry = (name: string) => ({
+      isFile: true,
+      isDirectory: false,
+      name,
+      file: (ok: (f: File) => void) => ok(new File(['x'], name)),
+    });
+    const dirEntry = (name: string, children: unknown[]) => ({
+      isFile: false,
+      isDirectory: true,
+      name,
+      createReader: () => {
+        let read = false;
+        return {
+          readEntries: (ok: (b: unknown[]) => void) => {
+            ok(read ? [] : children);
+            read = true;
+          },
+        };
+      },
+    });
+    const dropped = dirEntry('Evidence', [fileEntry('a.pdf'), dirEntry('Bank', [fileEntry('b.csv')])]);
+
+    const dropzone = container.querySelector('.overflow-y-auto') as HTMLElement;
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        types: ['Files'],
+        files: [],
+        items: [{ kind: 'file', webkitGetAsEntry: () => dropped, getAsFile: () => null }],
+      },
+    });
+
+    await waitFor(() => expect(mockDataRoomUpload).toHaveBeenCalledTimes(2));
+    expect(mockDataRoomCreateFolder.mock.calls.map((c) => c.slice(1))).toEqual([
+      ['Evidence', null],
+      ['Bank', 'id-Evidence'],
+    ]);
+    expect(uploadsByName()).toEqual({ 'a.pdf': 'id-Evidence', 'b.csv': 'id-Bank' });
+  });
+
+  // One bad file doesn't stop the batch; the banner names what failed.
+  it('keeps going past a failed file and reports it', async () => {
+    mockDataRoomUpload
+      .mockRejectedValueOnce(new Error('File exceeds 50MB'))
+      .mockResolvedValue(undefined);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
+
+    fireEvent.change(screen.getByTestId('upload-files-input'), {
+      target: { files: [new File(['x'], 'huge.mov'), new File(['x'], 'ok.pdf')] },
+    });
+
+    await waitFor(() => expect(mockDataRoomUpload).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByText('huge.mov failed to upload: File exceeds 50MB')).toBeTruthy(),
+    );
+  });
+
+  // Cancel stops the in-flight file and everything after it, keeps what landed.
+  it('cancels a running batch and keeps what already uploaded', async () => {
+    mockDataRoomUpload
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(
+        (_c: string, _f: File, _p: unknown, _folder: unknown, signal: AbortSignal) =>
+          new Promise((_resolve, reject) =>
+            signal.addEventListener('abort', () => reject(new Error('Upload aborted'))),
+          ),
+      );
+    renderPage();
+    await waitFor(() => expect(screen.getByText('contract.pdf')).toBeTruthy());
+
+    fireEvent.change(screen.getByTestId('upload-files-input'), {
+      target: {
+        files: [new File(['x'], 'one.pdf'), new File(['x'], 'two.pdf'), new File(['x'], 'three.pdf')],
+      },
+    });
+
+    await waitFor(() => expect(screen.getByText('Uploading 2 of 3: two.pdf')).toBeTruthy());
+    fireEvent.click(screen.getByText('Cancel'));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          'Upload cancelled after 1 of 3 files. Anything already uploaded was kept.',
+        ),
+      ).toBeTruthy(),
+    );
+    expect(mockDataRoomUpload).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/failed to upload/)).toBeNull();
   });
 
   // Google Drive import — editor sees button, clicks it, calls import + refreshes list

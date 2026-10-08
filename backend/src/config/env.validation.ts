@@ -61,6 +61,21 @@ export function validateEnv(env: Record<string, string>): Record<string, string>
     missing.push('GCS_DATA_ROOM_BUCKET');
   }
 
+  // Agent runs dispatch through Cloud Tasks in production. In-process dispatch
+  // would run turns as unprotected background work on Cloud Run.
+  const agentRunEnvVars = ['AGENT_RUNS_QUEUE', 'AGENT_RUNS_WORKER_URL', 'AGENT_RUNS_INVOKER_SA'];
+  if (env.NODE_ENV === 'production' || env.AGENT_RUNS_QUEUE) {
+    for (const key of agentRunEnvVars) {
+      if (!env[key]) missing.push(key);
+    }
+    if (env.AGENT_RUNS_WORKER_URL && !/^https:\/\/[^/]+$/.test(env.AGENT_RUNS_WORKER_URL)) {
+      missing.push('AGENT_RUNS_WORKER_URL (https origin, no path or trailing slash)');
+    }
+    if (env.AGENT_RUNS_QUEUE && !/^projects\/[^/]+\/locations\/[^/]+\/queues\/[^/]+$/.test(env.AGENT_RUNS_QUEUE)) {
+      missing.push('AGENT_RUNS_QUEUE (projects/<p>/locations/<r>/queues/<q>)');
+    }
+  }
+
   // Print warnings
   for (const w of warnings) {
     console.warn(`[env] WARNING: ${w}`);

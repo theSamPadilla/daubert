@@ -44,11 +44,82 @@ Message:
 
 ChatRequest:
   type: object
-  required: [message]
   properties:
     message:
       type: string
       minLength: 1
+    caseId:
+      type: string
+      format: uuid
+    investigationId:
+      type: string
+      format: uuid
+    model:
+      type: string
+    attachments:
+      type: array
+      items:
+        type: object
+        required: [name, mediaType, data]
+        properties:
+          name:
+            type: string
+          mediaType:
+            type: string
+          data:
+            type: string
+            description: Base64-encoded file content
+
+AgentRun:
+  type: object
+  required: [id, status, userMessageId, error, createdAt, finishedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [queued, running, succeeded, failed, cancelled, timed_out, interrupted]
+    userMessageId:
+      type: string
+      format: uuid
+      nullable: true
+    error:
+      type: object
+      nullable: true
+      required: [errorId, message]
+      properties:
+        errorId:
+          type: string
+        message:
+          type: string
+    createdAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: string
+      format: date-time
+      nullable: true
+
+AgentRunStarted:
+  type: object
+  required: [runId, status]
+  properties:
+    runId:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [queued, running, succeeded, failed, cancelled, timed_out, interrupted]
+
+LatestAgentRun:
+  type: object
+  required: [run]
+  properties:
+    run:
+      allOf:
+        - $ref: '../schemas/ai.yaml#/AgentRun'
+      nullable: true
 
 # SSE stream — documents the event types emitted on the chat endpoint.
 # Actual response is text/event-stream, not JSON.

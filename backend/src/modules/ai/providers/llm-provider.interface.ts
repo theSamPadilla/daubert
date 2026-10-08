@@ -18,6 +18,8 @@ export interface LlmProvider {
     tools: Anthropic.Beta.BetaTool[];
     model?: string;
     containerId?: string;
+    /** Aborts the in-flight request (Stop, run time limit, lost lease). */
+    signal?: AbortSignal;
   }): AsyncIterable<StreamEvent>;
 
   generateText(params: {

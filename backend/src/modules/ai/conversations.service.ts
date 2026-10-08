@@ -5,6 +5,7 @@ import { ConversationEntity } from '../../database/entities/conversation.entity'
 import { MessageEntity } from '../../database/entities/message.entity';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { CaseAccessService } from '../auth/case-access.service';
+import { TOOL_RESULT_TERMINATOR } from './runs/run-abort';
 
 @Injectable()
 export class ConversationsService {
@@ -64,5 +65,33 @@ export class ConversationsService {
   async delete(id: string, userId: string): Promise<void> {
     const conv = await this.findOne(id, userId);
     await this.conversationRepo.remove(conv);
+  }
+
+  /**
+   * Append the synthetic assistant terminator if the conversation ends in a
+   * user turn made only of tool_result blocks. AiService.runTurn does this
+   * itself when it exits cleanly; this covers runs that died without running
+   * their finally block (see AgentRunsService.sweepStale).
+   */
+  async appendTerminatorIfToolResultTail(conversationId: string): Promise<void> {
+    const last = await this.messageRepo.findOne({
+      where: { conversationId },
+      order: { createdAt: 'DESC' },
+    });
+    if (!last || last.role !== 'user') return;
+    const blocks = last.content as Array<{ type?: string }>;
+    if (blocks.length === 0 || !blocks.every((b) => b?.type === 'tool_result')) return;
+    await this.messageRepo.save(
+      this.messageRepo.create({
+        conversationId,
+        role: 'assistant',
+        content: [{ type: 'text', text: TOOL_RESULT_TERMINATOR }],
+      }),
+    );
+  }
+
+  /** Remove one message. Used to roll back a run that could not be dispatched. */
+  async deleteMessage(conversationId: string, messageId: string): Promise<void> {
+    await this.messageRepo.delete({ id: messageId, conversationId });
   }
 }

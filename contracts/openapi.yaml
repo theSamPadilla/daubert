@@ -87,6 +87,14 @@ paths:
     $ref: './paths/ai.yaml#/~1conversations~1{id}~1messages'
   /conversations/{id}/chat:
     $ref: './paths/ai.yaml#/~1conversations~1{id}~1chat'
+  /conversations/{id}/runs:
+    $ref: './paths/ai.yaml#/~1conversations~1{id}~1runs'
+  /conversations/{id}/runs/latest:
+    $ref: './paths/ai.yaml#/~1conversations~1{id}~1runs~1latest'
+  /conversations/{id}/runs/{runId}/events:
+    $ref: './paths/ai.yaml#/~1conversations~1{id}~1runs~1{runId}~1events'
+  /conversations/{id}/runs/{runId}/cancel:
+    $ref: './paths/ai.yaml#/~1conversations~1{id}~1runs~1{runId}~1cancel'
   /labeled-entities:
     $ref: './paths/labeled-entities.yaml#/~1labeled-entities'
   /labeled-entities/lookup:

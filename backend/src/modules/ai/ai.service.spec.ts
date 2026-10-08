@@ -21,6 +21,7 @@ import { AddressClassificationsService } from '../address-classifications/addres
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { AGENT_TOOLS, READ_ONLY_AGENT_TOOLS } from './tools';
 import { CaseRole } from '../../database/entities/case-member.entity';
+import { STOP_NOTES, TOOL_RESULT_TERMINATOR } from './runs/run-abort';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -577,7 +578,9 @@ describe('AiService — token usage metering', () => {
 
     // ConversationsService.findOne (access check) + getMessages (history)
     mockConversationsService.findOne.mockResolvedValue({ id: CONV_ID, caseId: CHAT_CASE_ID, userId: USER_ID });
-    mockConversationsService.getMessages.mockResolvedValue([]);
+    mockConversationsService.getMessages.mockResolvedValue([
+      { id: 'run-user-msg', role: 'user', content: [{ type: 'text', text: 'Hello AI' }] },
+    ]);
 
     // messageRepo.save returns entity with id; create is identity
     mockMessageRepo.create.mockImplementation((e: any) => e);
@@ -594,21 +597,16 @@ describe('AiService — token usage metering', () => {
     mockTokenUsageService.record.mockResolvedValue(undefined);
 
     const events: any[] = [];
-    for await (const ev of aiService.streamChat(
-      CONV_ID,
-      USER_ID,
-      'Hello AI',
-      CHAT_CASE_ID,
-      undefined,
-      undefined,
-      undefined,
-      'editor',
-    )) {
+    for await (const ev of aiService.runTurn({
+      conversationId: CONV_ID, userId: USER_ID, userMessageId: 'run-user-msg',
+      caseId: CHAT_CASE_ID, investigationId: undefined, model: undefined,
+      viewerRole: 'editor', signal: new AbortController().signal,
+    })) {
       events.push(ev);
     }
 
     // Should have finished
-    expect(events.some((e) => e.type === 'done')).toBe(true);
+    expect(events.some((e) => e.type === 'done')).toBe(false);
 
     // tokenUsageService.record should be called exactly once with chat surface
     expect(mockTokenUsageService.record).toHaveBeenCalledTimes(1);
@@ -749,6 +747,7 @@ describe('AiService — prompt cache breakpoints', () => {
     mockConversationsService.getMessages.mockResolvedValue([
       { role: 'user', content: [{ type: 'text', text: 'earlier question' }] },
       { role: 'assistant', content: [{ type: 'text', text: 'earlier answer' }] },
+      { id: 'run-user-msg', role: 'user', content: [{ type: 'text', text: 'new question' }] },
     ]);
     mockMessageRepo.create.mockImplementation((e: any) => e);
     // Snapshot rows at save time, which is when TypeORM serializes them.
@@ -776,9 +775,7 @@ describe('AiService — prompt cache breakpoints', () => {
       })();
     });
 
-    for await (const _ of aiService.streamChat(
-      'conv-1', 'user-1', 'new question', CASE_ID, undefined, undefined, undefined, 'editor',
-    )) {
+    for await (const _ of aiService.runTurn({ conversationId: 'conv-1', userId: 'user-1', userMessageId: 'run-user-msg', caseId: CASE_ID, investigationId: undefined, model: undefined, viewerRole: 'editor', signal: new AbortController().signal })) {
       // drain
     }
 
@@ -803,5 +800,187 @@ describe('AiService — prompt cache breakpoints', () => {
     // Marks live only on in-memory blocks, never on persisted rows.
     expect(savedRows.length).toBeGreaterThan(0);
     expect(countMarks(savedRows)).toBe(0);
+  });
+});
+
+// ── runTurn lifecycle ─────────────────────────────────────────────────────────
+
+describe('AiService — runTurn lifecycle', () => {
+  let aiService: AiService;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AiService,
+        { provide: ConversationsService, useValue: mockConversationsService },
+        { provide: ScriptExecutionService, useValue: mockScriptExecutionService },
+        { provide: LabeledEntitiesService, useValue: mockLabeledEntitiesService },
+        { provide: ProductionsService, useValue: mockProductionsService },
+        { provide: TracesService, useValue: mockTracesService },
+        { provide: AnthropicProvider, useValue: mockAnthropicProvider },
+        { provide: TokenUsageService, useValue: mockTokenUsageService },
+        { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
+        { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
+        { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
+        { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
+        { provide: DataRoomService, useValue: mockDataRoomService },
+        { provide: DeclarationLibraryService, useValue: mockDeclarationLibraryService },
+        { provide: DeclarantsService, useValue: mockDeclarantsService },
+        { provide: getRepositoryToken(ConversationEntity), useValue: mockConversationRepo },
+        { provide: getRepositoryToken(CaseEntity), useValue: mockCaseRepo },
+      ],
+    }).compile();
+
+    aiService = module.get<AiService>(AiService);
+  });
+
+  const resp = (content: any[], stop_reason: string) => ({
+    id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-opus-5',
+    content, stop_reason, container: null,
+    usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation: null },
+  });
+  const history = [
+    { id: 'm1', role: 'user', content: [{ type: 'text', text: 'earlier question' }] },
+    { id: 'm2', role: 'assistant', content: [{ type: 'text', text: 'earlier answer' }] },
+    { id: 'run-user-msg', role: 'user', content: [{ type: 'text', text: 'new question' }] },
+  ];
+  const params = (signal: AbortSignal) => ({
+    conversationId: 'conv-1', userId: 'user-1', userMessageId: 'run-user-msg',
+    caseId: CASE_ID, investigationId: undefined, model: undefined,
+    viewerRole: 'editor' as const, signal,
+  });
+  const drain = async (gen: AsyncGenerator<any>) => {
+    const out: any[] = [];
+    for await (const ev of gen) out.push(ev);
+    return out;
+  };
+
+  beforeEach(() => {
+    mockConversationRepo.findOne.mockResolvedValue({ id: 'conv-1', caseId: CASE_ID, case: { orgId: 'org-1' } });
+    mockConversationsService.findOne.mockResolvedValue({ id: 'conv-1' });
+    mockConversationsService.getMessages.mockResolvedValue(structuredClone(history));
+    mockMessageRepo.create.mockImplementation((e: any) => e);
+    mockMessageRepo.save.mockImplementation(async (e: any) => ({ id: 'saved', ...e }));
+    mockTokenUsageService.record.mockResolvedValue(undefined);
+  });
+
+  it('sends prior history plus the run user message last, and does not re-persist it', async () => {
+    const requests: any[] = [];
+    mockAnthropicProvider.streamChat.mockImplementation((p: any) => {
+      requests.push(p);
+      return (async function* () { yield { type: 'end_turn', response: resp([{ type: 'text', text: 'ok' }], 'end_turn') }; })();
+    });
+
+    const events = await drain(aiService.runTurn(params(new AbortController().signal)));
+
+    expect(requests[0].messages).toHaveLength(3);
+    expect(requests[0].messages[2].content[0].text).toBe('new question');
+    expect(mockMessageRepo.save).not.toHaveBeenCalledWith(expect.objectContaining({ role: 'user' }));
+    expect(events.some((e) => e.type === 'done')).toBe(false);
+  });
+
+  it('separates a dangling tool_result tail from the run user message', async () => {
+    mockConversationsService.getMessages.mockResolvedValue([
+      { id: 'h1', role: 'user', content: [{ type: 'text', text: 'q' }] },
+      { id: 'h2', role: 'assistant', content: [{ type: 'tool_use', id: 'tu-1', name: 'get_case_data', input: {} }] },
+      { id: 'h3', role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu-1', content: '{}' }] },
+      { id: 'run-user-msg', role: 'user', content: [{ type: 'text', text: 'new question' }] },
+    ]);
+    const requests: any[] = [];
+    mockAnthropicProvider.streamChat.mockImplementation((p: any) => {
+      requests.push(p);
+      return (async function* () { yield { type: 'end_turn', response: resp([{ type: 'text', text: 'ok' }], 'end_turn') }; })();
+    });
+
+    await drain(aiService.runTurn(params(new AbortController().signal)));
+
+    const msgs = requests[0].messages;
+    expect(msgs.map((m: any) => m.role)).toEqual(['user', 'assistant', 'user', 'assistant', 'user']);
+    expect(msgs[3].content[0].text).toBe('(continuing)');
+    expect(msgs[4].content[0].text).toBe('new question');
+  });
+
+  it('passes the run signal to the provider', async () => {
+    const controller = new AbortController();
+    mockAnthropicProvider.streamChat.mockImplementation(() =>
+      (async function* () { yield { type: 'end_turn', response: resp([{ type: 'text', text: 'ok' }], 'end_turn') }; })(),
+    );
+    await drain(aiService.runTurn(params(controller.signal)));
+    expect(mockAnthropicProvider.streamChat).toHaveBeenCalledWith(expect.objectContaining({ signal: controller.signal }));
+  });
+
+  it('throws when the run user message is missing', async () => {
+    mockConversationsService.getMessages.mockResolvedValue(history.slice(0, 2));
+    await expect(drain(aiService.runTurn(params(new AbortController().signal)))).rejects.toThrow(/run-user-msg/);
+  });
+
+  it('persists partial text with the stop note when cancelled mid-response', async () => {
+    const controller = new AbortController();
+    mockAnthropicProvider.streamChat.mockImplementation(() =>
+      (async function* () {
+        yield { type: 'text', content: 'Partial' };
+        controller.abort('cancelled');
+        throw new Error('Request was aborted.');
+      })(),
+    );
+
+    const events = await drain(aiService.runTurn(params(controller.signal)));
+
+    expect(events).toEqual([
+      { type: 'text_delta', data: { content: 'Partial' } },
+      { type: 'text_delta', data: { content: `\n\n${STOP_NOTES.cancelled}` } },
+    ]);
+    expect(mockMessageRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({
+      role: 'assistant',
+      content: [{ type: 'text', text: `Partial\n\n${STOP_NOTES.cancelled}` }],
+    }));
+  });
+
+  it('persists nothing when the lease is lost mid-response', async () => {
+    const controller = new AbortController();
+    mockAnthropicProvider.streamChat.mockImplementation(() =>
+      (async function* () {
+        yield { type: 'text', content: 'Partial' };
+        controller.abort('lease_lost');
+        throw new Error('Request was aborted.');
+      })(),
+    );
+    await drain(aiService.runTurn(params(controller.signal)));
+    expect(mockMessageRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('stops between iterations with the time-limit note instead of the generic terminator', async () => {
+    const controller = new AbortController();
+    mockAnthropicProvider.streamChat.mockImplementation(() =>
+      (async function* () {
+        yield { type: 'end_turn', response: resp([{ type: 'tool_use', id: 'tu-1', name: 'get_case_data', input: {} }], 'tool_use') };
+      })(),
+    );
+    jest.spyOn(aiService as any, 'executeTool').mockImplementation(async () => {
+      controller.abort('time_limit');
+      return { ok: true };
+    });
+
+    const events = await drain(aiService.runTurn(params(controller.signal)));
+
+    expect(events.at(-1)).toEqual({ type: 'text_delta', data: { content: STOP_NOTES.time_limit } });
+    const saved = mockMessageRepo.save.mock.calls.map((c: any[]) => c[0]);
+    expect(saved.map((r: any) => r.role)).toEqual(['assistant', 'user', 'assistant']);
+    expect(saved[2].content).toEqual([{ type: 'text', text: STOP_NOTES.time_limit }]);
+    expect(JSON.stringify(saved)).not.toContain(TOOL_RESULT_TERMINATOR);
+    expect(mockAnthropicProvider.streamChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('persistUserMessage saves attachment blocks then text, or a placeholder', async () => {
+    await aiService.persistUserMessage('conv-1', 'hello', undefined);
+    expect(mockMessageRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({
+      conversationId: 'conv-1', role: 'user', content: [{ type: 'text', text: 'hello' }],
+    }));
+    await aiService.persistUserMessage('conv-1', undefined, undefined);
+    expect(mockMessageRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: [{ type: 'text', text: '(attachment)' }],
+    }));
   });
 });

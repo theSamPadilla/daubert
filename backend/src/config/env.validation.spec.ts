@@ -30,6 +30,9 @@ describe('validateEnv — data-room rules', () => {
       ...BASE_ENV,
       NODE_ENV: 'production',
       GCS_DATA_ROOM_BUCKET: 'my-bucket',
+      AGENT_RUNS_QUEUE: 'projects/p/locations/l/queues/q',
+      AGENT_RUNS_WORKER_URL: 'https://svc.run.app',
+      AGENT_RUNS_INVOKER_SA: 'inv@p.iam.gserviceaccount.com',
     };
     expect(() => validateEnv(env)).not.toThrow();
   });
@@ -77,5 +80,41 @@ describe('validateEnv — OAuth authorization server rules', () => {
 
   it('does not throw when both OAUTH_ISSUER_URL and OAUTH_STATE_SECRET (>=32 chars) are set', () => {
     expect(() => validateEnv(BASE_ENV)).not.toThrow();
+  });
+});
+
+describe('validateEnv — agent runs', () => {
+  const AGENT = {
+    AGENT_RUNS_QUEUE: 'projects/p/locations/l/queues/q',
+    AGENT_RUNS_WORKER_URL: 'https://svc.run.app',
+    AGENT_RUNS_INVOKER_SA: 'inv@p.iam.gserviceaccount.com',
+  };
+
+  it('requires the Cloud Tasks vars in production', () => {
+    const env = { ...BASE_ENV, NODE_ENV: 'production', GCS_DATA_ROOM_BUCKET: 'b' };
+    expect(() => validateEnv(env)).toThrow(/AGENT_RUNS_QUEUE/);
+  });
+
+  it('accepts production with all Cloud Tasks vars', () => {
+    expect(() => validateEnv({ ...BASE_ENV, NODE_ENV: 'production', GCS_DATA_ROOM_BUCKET: 'b', ...AGENT })).not.toThrow();
+  });
+
+  it('requires the companion vars whenever a queue is set', () => {
+    const env = { ...BASE_ENV, NODE_ENV: 'development', AGENT_RUNS_QUEUE: AGENT.AGENT_RUNS_QUEUE };
+    expect(() => validateEnv(env)).toThrow(/AGENT_RUNS_WORKER_URL/);
+  });
+
+  it('rejects a worker URL with a trailing slash', () => {
+    expect(() => validateEnv({ ...BASE_ENV, NODE_ENV: 'development', ...AGENT, AGENT_RUNS_WORKER_URL: 'https://svc.run.app/' }))
+      .toThrow(/AGENT_RUNS_WORKER_URL/);
+  });
+
+  it('rejects a malformed queue name', () => {
+    expect(() => validateEnv({ ...BASE_ENV, NODE_ENV: 'development', ...AGENT, AGENT_RUNS_QUEUE: 'my-queue' }))
+      .toThrow(/AGENT_RUNS_QUEUE/);
+  });
+
+  it('needs none of them in development', () => {
+    expect(() => validateEnv({ ...BASE_ENV, NODE_ENV: 'development' })).not.toThrow();
   });
 });

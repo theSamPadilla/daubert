@@ -23,6 +23,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@google-cloud/storage": "^7.21.0",
+    "@google-cloud/tasks": "^7.2.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs/common": "^10.4.0",
     "@nestjs/config": "^3.3.0",
@@ -36,6 +37,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "firebase-admin": "^13.8.0",
+    "google-auth-library": "^11.2.0",
     "googleapis": "^171.4.0",
     "helmet": "^8.1.0",
     "html-to-docx": "^1.8.0",

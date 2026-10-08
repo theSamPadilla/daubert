@@ -1,4 +1,6 @@
 import { AddressClassificationEntity } from './address-classification.entity';
+import { AgentRunEntity } from './agent-run.entity';
+import { AgentRunEventEntity } from './agent-run-event.entity';
 import { AgentAuditLogEntity } from './agent-audit-log.entity';
 import { CaseEntity } from './case.entity';
 import { CaseInviteEntity } from './case-invite.entity';
@@ -31,6 +33,8 @@ import { UserEntity } from './user.entity';
 export const entities = [
   AddressClassificationEntity,
   AgentAuditLogEntity,
+  AgentRunEntity,
+  AgentRunEventEntity,
   CaseEntity,
   CaseInviteEntity,
   CaseMemberEntity,

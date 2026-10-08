@@ -58,6 +58,7 @@ import {
 } from '../address-classifications/address-classifications.service';
 import { AttachmentDto } from './dto/chat-message.dto';
 import { buildAttachmentBlocks } from './attachment-blocks';
+import { abortReasonOf, STOP_NOTES, TOOL_RESULT_TERMINATOR } from './runs/run-abort';
 
 /**
  * Ensures every client tool_use block in an assistant message has a matching
@@ -297,6 +298,29 @@ function slimToolResult(toolName: string, full: string): string {
   return full;
 }
 
+/** Plain text of a persisted user turn, for title generation. */
+function textOf(content: unknown): string | undefined {
+  const text = (content as Array<{ type?: string; text?: string }>)
+    .filter((b) => b?.type === 'text')
+    .map((b) => b.text ?? '')
+    .join('\n')
+    .trim();
+  return text || undefined;
+}
+
+export interface RunTurnParams {
+  conversationId: string;
+  userId: string;
+  /** The user row the launcher persisted for this run; it is the conversation's newest row. */
+  userMessageId: string;
+  caseId: string | undefined;
+  investigationId: string | undefined;
+  model: string | undefined;
+  viewerRole: CaseRole;
+  /** Aborted by the executor; `signal.reason` is a RunAbortReason. */
+  signal: AbortSignal;
+}
+
 export interface SseEvent {
   type: 'text_delta' | 'tool_start' | 'tool_done' | 'graph_updated' | 'production_updated' | 'done' | 'error';
   data: unknown;
@@ -339,16 +363,51 @@ export class AiService {
     return roleAtLeast(viewerRole, 'editor') ? AGENT_TOOLS : READ_ONLY_AGENT_TOOLS;
   }
 
-  async *streamChat(
+  /**
+   * Build and persist the user turn for a new run. Attachments go through the
+   * shared helper; an empty turn is stored as "(attachment)".
+   */
+  async persistUserMessage(
     conversationId: string,
-    userId: string,
     userMessage: string | undefined,
-    caseId: string | undefined,
-    investigationId: string | undefined,
     attachments: AttachmentDto[] | undefined,
-    model: string | undefined,
-    viewerRole: CaseRole,
-  ): AsyncGenerator<SseEvent> {
+  ): Promise<MessageEntity> {
+    const content: Anthropic.Beta.BetaContentBlockParam[] = [
+      ...(await buildAttachmentBlocks(attachments)),
+    ];
+    if (userMessage?.trim()) content.push({ type: 'text', text: userMessage });
+    if (content.length === 0) content.push({ type: 'text', text: '(attachment)' });
+    return this.messageRepo.save(
+      this.messageRepo.create({ conversationId, role: 'user', content }),
+    );
+  }
+
+  /**
+   * Persist the text the user already saw plus a stop note, as one assistant
+   * row. Returns the text to stream after what the user already saw, or null
+   * when nothing was written (a lost lease: the sweeper has already closed the
+   * run and repaired the tail).
+   */
+  private async persistStopNote(
+    conversationId: string,
+    partialText: string,
+    signal: AbortSignal,
+  ): Promise<string | null> {
+    const reason = abortReasonOf(signal);
+    if (reason === null || reason === 'lease_lost') return null;
+    const note = STOP_NOTES[reason];
+    await this.messageRepo.save(
+      this.messageRepo.create({
+        conversationId,
+        role: 'assistant',
+        content: [{ type: 'text', text: partialText ? `${partialText}\n\n${note}` : note }],
+      }),
+    );
+    return partialText ? `\n\n${note}` : note;
+  }
+
+  async *runTurn(params: RunTurnParams): AsyncGenerator<SseEvent> {
+    const { conversationId, userId, userMessageId, caseId, investigationId, model, viewerRole, signal } = params;
     await this.conversationsService.findOne(conversationId, userId);
 
     // Resolve orgId and caseId once per stream for token usage metering.
@@ -360,13 +419,23 @@ export class AiService {
     const resolvedCaseId = convWithCase?.caseId ?? null;
     const resolvedOrgId = convWithCase?.case?.orgId ?? null;
 
-    // Load history and reconstruct MessageParam[] verbatim.
+    // Load history and reconstruct MessageParam[] verbatim. The launcher
+    // persisted this run's user message before dispatch, and only one run is
+    // active per conversation, so that row is the newest: everything before
+    // it is prior history.
     // The Anthropic provider strips server-side and thinking blocks at the
     // stream layer, so persisted history is already clean of them.
     const dbMessages = await this.conversationsService.getMessages(conversationId, userId);
-    const rawMessages: Anthropic.Beta.BetaMessageParam[] = dbMessages.map(
-      (m) => ({ role: m.role, content: m.content }),
-    ) as Anthropic.Beta.BetaMessageParam[];
+    const userIdx = dbMessages.findIndex((m) => m.id === userMessageId);
+    if (userIdx === -1) {
+      throw new NotFoundException(
+        `User message ${userMessageId} not found in conversation ${conversationId}`,
+      );
+    }
+    const userRow = dbMessages[userIdx];
+    const rawMessages: Anthropic.Beta.BetaMessageParam[] = dbMessages
+      .slice(0, userIdx + 1)
+      .map((m) => ({ role: m.role, content: m.content })) as Anthropic.Beta.BetaMessageParam[];
     // Sanitize, in order:
     //   1. dropOrphanServerToolResults — strip intra-message orphan
     //      web_search_tool_result / code_execution_tool_result blocks left
@@ -374,33 +443,12 @@ export class AiService {
     //   2. sanitizeToolPairs — strip cross-message client tool_use/tool_result
     //      orphans from same-transaction timestamps or compaction.
     //   3. mergeConsecutiveRoles — API requires strictly alternating roles.
+    // The run's user row goes through the same pipeline so a dangling
+    // user(tool_result) tail gets the '(continuing)' separator instead of being
+    // merged with the new text (which the compact beta rejects).
     const messages = mergeConsecutiveRoles(
       sanitizeToolPairs(dropOrphanServerToolResults(rawMessages)),
     );
-
-    // Build content blocks for the user turn — attachments are processed by
-    // the shared helper so the same logic applies to chat uploads and (later)
-    // Drive-tool reads.
-    const attachmentBlocks = await buildAttachmentBlocks(attachments);
-    const userContentBlocks: Anthropic.Beta.BetaContentBlockParam[] = [...attachmentBlocks];
-
-    if (userMessage?.trim()) {
-      userContentBlocks.push({ type: 'text', text: userMessage });
-    }
-
-    if (userContentBlocks.length === 0) {
-      userContentBlocks.push({ type: 'text', text: '(attachment)' });
-    }
-
-    // Persist and append user message
-    await this.messageRepo.save(
-      this.messageRepo.create({
-        conversationId,
-        role: 'user',
-        content: userContentBlocks,
-      }),
-    );
-    messages.push({ role: 'user', content: userContentBlocks });
 
     // Prompt-cache breakpoints. The API allows four per request:
     //   1. System prompt (set in the loop below). The cached prefix runs
@@ -433,9 +481,8 @@ export class AiService {
 
     // Fire title generation on the first message in a conversation.
     // Uses only the user message (no need to wait for assistant response).
-    const isFirstMessage = dbMessages.length === 0;
-    if (isFirstMessage) {
-      void this.generateTitle(conversationId, userId, userMessage);
+    if (userIdx === 0) {
+      void this.generateTitle(conversationId, userId, textOf(userRow.content));
     }
 
     // Pick the tool set based on the caller's role.
@@ -464,6 +511,17 @@ export class AiService {
 
     try {
       for (let i = 0; i < MAX_ITERATIONS; i++) {
+        // Cancel or time limit landed between iterations. Tools run to
+        // completion once started, so their side effects are never half-done.
+        if (signal.aborted) {
+          const tail = await this.persistStopNote(conversationId, '', signal);
+          if (tail !== null) {
+            lastPersistedWasToolResult = false;
+            yield { type: 'text_delta', data: { content: tail } };
+          }
+          return;
+        }
+
         markTailBreakpoint();
 
         // System prompt is stable across all requests — cache it.
@@ -476,21 +534,51 @@ export class AiService {
         ];
 
         let response: Anthropic.Beta.BetaMessage | undefined;
-        for await (const event of this.llm.streamChat({
-          system,
-          messages,
-          tools: tools as Anthropic.Beta.BetaTool[],
-          model,
-          containerId,
-        })) {
-          if (event.type === 'text') {
-            yield { type: 'text_delta', data: { content: event.content } };
-          } else if (event.type === 'end_turn') {
-            response = event.response;
+        // Text streamed by this call. Persisted with a stop note if the run is
+        // aborted mid-response, so what the user saw survives a reload.
+        let partialText = '';
+        const callStartedAt = Date.now();
+        try {
+          for await (const event of this.llm.streamChat({
+            system,
+            messages,
+            tools: tools as Anthropic.Beta.BetaTool[],
+            model,
+            containerId,
+            signal,
+          })) {
+            if (event.type === 'text') {
+              partialText += event.content;
+              yield { type: 'text_delta', data: { content: event.content } };
+            } else if (event.type === 'end_turn') {
+              response = event.response;
+            }
           }
+        } catch (err) {
+          if (!signal.aborted) throw err;
+          const tail = await this.persistStopNote(conversationId, partialText, signal);
+          if (tail !== null) {
+            lastPersistedWasToolResult = false;
+            yield { type: 'text_delta', data: { content: tail } };
+          }
+          return;
         }
 
-        if (!response) break;
+        if (!response) {
+          if (signal.aborted) {
+            const tail = await this.persistStopNote(conversationId, partialText, signal);
+            if (tail !== null) {
+              lastPersistedWasToolResult = false;
+              yield { type: 'text_delta', data: { content: tail } };
+            }
+            return;
+          }
+          break;
+        }
+
+        this.logger.log(
+          `turn_model_call conversationId=${conversationId} iteration=${i} stopReason=${response.stop_reason} durationMs=${Date.now() - callStartedAt}`,
+        );
 
         // Capture the container id for the next iteration. Persisted history
         // is not affected — it's a per-loop value tied to the live container.
@@ -542,7 +630,6 @@ export class AiService {
             yield { type: 'error', data: { message } };
           }
 
-          yield { type: 'done', data: { conversationId } };
           return;
         }
 
@@ -563,7 +650,6 @@ export class AiService {
             conversationId,
             messageId: null,
           });
-          yield { type: 'done', data: { conversationId } };
           return;
         }
         prevToolKey = toolKey;
@@ -669,20 +755,16 @@ export class AiService {
 
       // Exhausted iterations — falls through to finally to persist terminator
       // if the last save was a user(tool_result).
-      yield { type: 'done', data: { conversationId } };
     } finally {
-      if (lastPersistedWasToolResult) {
+      // A lost lease means the sweeper already declared this run dead and
+      // repaired the tail; writing here would duplicate its terminator.
+      if (lastPersistedWasToolResult && abortReasonOf(signal) !== 'lease_lost') {
         try {
           await this.messageRepo.save(
             this.messageRepo.create({
               conversationId,
               role: 'assistant',
-              content: [
-                {
-                  type: 'text',
-                  text: '(Stopped before continuation. Send another message to resume.)',
-                },
-              ],
+              content: [{ type: 'text', text: TOOL_RESULT_TERMINATOR }],
             }),
           );
         } catch {

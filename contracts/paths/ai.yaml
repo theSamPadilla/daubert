@@ -78,7 +78,8 @@
 
 /conversations/{id}/chat:
   post:
-    summary: Send a message and receive an SSE stream
+    deprecated: true
+    summary: 'Legacy: start a run and relay its events on this response'
     operationId: chatStream
     tags: [AI]
     parameters:
@@ -101,3 +102,119 @@
           text/event-stream:
             schema:
               $ref: '../schemas/ai.yaml#/ChatSseEvent'
+
+/conversations/{id}/runs:
+  post:
+    summary: Start an agent run for a new user message
+    description: Returns immediately. Follow progress via /conversations/{id}/runs/{runId}/events.
+    operationId: startAgentRun
+    tags: [AI]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ai.yaml#/ChatRequest'
+    responses:
+      '202':
+        description: Run queued
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ai.yaml#/AgentRunStarted'
+      '409':
+        description: A run is already active in this conversation (body includes activeRunId)
+
+/conversations/{id}/runs/latest:
+  get:
+    summary: The conversation's most recent run, or null
+    operationId: getLatestAgentRun
+    tags: [AI]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Latest run
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ai.yaml#/LatestAgentRun'
+
+/conversations/{id}/runs/{runId}/events:
+  get:
+    summary: Resumable SSE stream of a run's events
+    description: >-
+      Each event carries `id: <seq>`. The stream ends at the `done` event, or
+      after a few minutes without it, in which case reconnect with
+      `after=<last id>`. `done` data is `{ conversationId, status }`.
+    operationId: streamAgentRunEvents
+    tags: [AI]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+    responses:
+      '200':
+        description: SSE stream (text/event-stream)
+        content:
+          text/event-stream:
+            schema:
+              $ref: '../schemas/ai.yaml#/ChatSseEvent'
+
+/conversations/{id}/runs/{runId}/cancel:
+  post:
+    summary: Ask a run to stop
+    operationId: cancelAgentRun
+    tags: [AI]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '202':
+        description: Cancellation requested
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [runId]
+              properties:
+                runId:
+                  type: string
+                  format: uuid

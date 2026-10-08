@@ -6,6 +6,7 @@ import { ConversationEntity } from '../../database/entities/conversation.entity'
 import { MessageEntity } from '../../database/entities/message.entity';
 import { CaseMemberEntity } from '../../database/entities/case-member.entity';
 import { CaseAccessService } from '../auth/case-access.service';
+import { TOOL_RESULT_TERMINATOR } from './runs/run-abort';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,10 @@ const mockConversationRepo = {
 
 const mockMessageRepo = {
   find: jest.fn(),
+  findOne: jest.fn(),
+  create: jest.fn((e: any) => e),
+  save: jest.fn(async (e: any) => e),
+  delete: jest.fn(),
 };
 
 const mockMemberRepo = {
@@ -247,6 +252,29 @@ describe('ConversationsService', () => {
       );
       expect(service.findOne).toHaveBeenCalledWith(CONV_ID, USER_ID);
       expect(mockConversationRepo.remove).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('run helpers', () => {
+    it('appends the terminator when the tail is a user turn of only tool_result blocks', async () => {
+      mockMessageRepo.findOne.mockResolvedValue({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: '{}' }] });
+      await service.appendTerminatorIfToolResultTail('conv-1');
+      expect(mockMessageRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+        conversationId: 'conv-1', role: 'assistant', content: [{ type: 'text', text: TOOL_RESULT_TERMINATOR }],
+      }));
+    });
+
+    it('does nothing when the tail is an assistant turn or a user text turn', async () => {
+      mockMessageRepo.findOne.mockResolvedValueOnce({ role: 'assistant', content: [{ type: 'text', text: 'hi' }] });
+      await service.appendTerminatorIfToolResultTail('conv-1');
+      mockMessageRepo.findOne.mockResolvedValueOnce({ role: 'user', content: [{ type: 'text', text: 'q' }] });
+      await service.appendTerminatorIfToolResultTail('conv-1');
+      expect(mockMessageRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('deleteMessage deletes only within the conversation', async () => {
+      await service.deleteMessage('conv-1', 'msg-1');
+      expect(mockMessageRepo.delete).toHaveBeenCalledWith({ id: 'msg-1', conversationId: 'conv-1' });
     });
   });
 });

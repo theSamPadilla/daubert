@@ -313,8 +313,85 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Send a message and receive an SSE stream */
+        /**
+         * Legacy: start a run and relay its events on this response
+         * @deprecated
+         */
         post: operations["chatStream"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start an agent run for a new user message
+         * @description Returns immediately. Follow progress via /conversations/{id}/runs/{runId}/events.
+         */
+        post: operations["startAgentRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/runs/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The conversation's most recent run, or null */
+        get: operations["getLatestAgentRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/runs/{runId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resumable SSE stream of a run's events
+         * @description Each event carries `id: <seq>`. The stream ends at the `done` event, or after a few minutes without it, in which case reconnect with `after=<last id>`. `done` data is `{ conversationId, status }`.
+         */
+        get: operations["streamAgentRunEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/runs/{runId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask a run to stop */
+        post: operations["cancelAgentRun"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1961,7 +2038,18 @@ export interface components {
             createdAt: string;
         };
         ChatRequest: {
-            message: string;
+            message?: string;
+            /** Format: uuid */
+            caseId?: string;
+            /** Format: uuid */
+            investigationId?: string;
+            model?: string;
+            attachments?: {
+                name: string;
+                mediaType: string;
+                /** @description Base64-encoded file content */
+                data: string;
+            }[];
         };
         ChatSseEvent: {
             /** @enum {string} */
@@ -2954,6 +3042,31 @@ export interface components {
             utxo?: components["schemas"]["UtxoContext"];
             solana?: components["schemas"]["SolanaContext"];
         };
+        AgentRunStarted: {
+            /** Format: uuid */
+            runId: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "timed_out" | "interrupted";
+        };
+        AgentRun: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "timed_out" | "interrupted";
+            /** Format: uuid */
+            userMessageId: string | null;
+            error: {
+                errorId: string;
+                message: string;
+            } | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            finishedAt: string | null;
+        };
+        LatestAgentRun: {
+            run: components["schemas"]["AgentRun"] | null;
+        };
         /** @enum {string} */
         DeclarationFormatDeclarantField: "dateOfBirth" | "address";
     };
@@ -3845,6 +3958,112 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": components["schemas"]["ChatSseEvent"];
+                };
+            };
+        };
+    };
+    startAgentRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Run queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRunStarted"];
+                };
+            };
+            /** @description A run is already active in this conversation (body includes activeRunId) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getLatestAgentRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Latest run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LatestAgentRun"];
+                };
+            };
+        };
+    };
+    streamAgentRunEvents: {
+        parameters: {
+            query?: {
+                after?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream (text/event-stream) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["ChatSseEvent"];
+                };
+            };
+        };
+    };
+    cancelAgentRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancellation requested */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        runId: string;
+                    };
                 };
             };
         };

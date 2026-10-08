@@ -4,14 +4,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { FaArrowLeft, FaPlus, FaClockRotateLeft, FaXmark, FaChevronUp, FaChevronDown, FaPaperclip, FaTrash, FaArrowUp } from 'react-icons/fa6';
-import { apiClient, type Conversation, type ChatMessage } from '@/lib/api-client';
+import { apiClient, ApiError, type AgentRun, type Conversation, type ChatMessage, type StartRunBody } from '@/lib/api-client';
+import { subscribeRunEvents } from '@/lib/run-events';
+import { ChatTurn } from './chatTurn';
 import { useCaseContext } from '@/contexts/CaseContext';
 import { Kicker } from '@/components/ui';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
-
-const STREAM_INTERRUPTED =
-  'The response was interrupted before it finished. Long requests can time out, so try again or break the task into smaller steps.';
+const RUN_CONNECTION_LOST =
+  'Lost the connection to this response. It keeps running on the server, so reopen the conversation to see the result.';
+const RUN_INTERRUPTED_NOTICE =
+  'The previous response was interrupted before it finished. Send another message to continue.';
 
 const ACCEPTED_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
@@ -57,6 +59,12 @@ function extractText(content: ChatMessage['content']): string {
     .filter((b) => b.type === 'text')
     .map((b) => b.text || '')
     .join('');
+}
+
+function toLocalMessages(msgs: ChatMessage[]): LocalMessage[] {
+  return msgs
+    .filter((m) => extractText(m.content).length > 0)
+    .map((m) => ({ id: m.id, role: m.role, text: extractText(m.content) }));
 }
 
 function formatRelativeDate(dateStr: string): string {
@@ -340,7 +348,14 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  // Local subscription to the active run. Aborting it stops following, not the run.
+  const subAbortRef = useRef<AbortController | null>(null);
+  const runRef = useRef<{ convId: string; runId: string } | null>(null);
+  // Conversation a send is starting a run in, while POST /runs is in flight.
+  // Cleared if the user switches away, so the reply isn't drawn into the wrong chat.
+  const pendingSendConvRef = useRef<string | null>(null);
+  // Conversation whose pending send was stopped before POST /runs returned a run id.
+  const stopRequestedRef = useRef<string | null>(null);
   const dragCounterRef = useRef(0);
   const createInFlightRef = useRef(false);
   const skipNextLoadRef = useRef<string | null>(null);
@@ -362,28 +377,58 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   }, [activeCaseId]);
 
   useEffect(() => {
-    if (!activeConvId) { setMessages([]); return; }
+    // Leaving a conversation stops following its run (the run itself continues),
+    // and abandons a send that is still starting there.
+    if (runRef.current && runRef.current.convId !== activeConvId) subAbortRef.current?.abort('switch');
+    if (pendingSendConvRef.current && pendingSendConvRef.current !== activeConvId) {
+      pendingSendConvRef.current = null;
+      // Don't keep the new conversation's composer locked waiting on the old send.
+      if (!subAbortRef.current) setStreaming(false);
+    }
 
     // Skip the server load when we just created this conv locally. Without
     // this, the empty result would wipe the optimistic user+assistant rows
-    // and any in-flight stream content.
-    if (skipNextLoadRef.current === activeConvId) {
+    // and the run being followed for them.
+    if (activeConvId && skipNextLoadRef.current === activeConvId) {
       skipNextLoadRef.current = null;
       return;
     }
+    if (!activeConvId) { setMessages([]); return; }
 
     let cancelled = false;
-    apiClient.getConversationMessages(activeConvId).then((msgs) => {
+    const convId = activeConvId;
+    // Run first: if it is terminal, messages read after it include all its rows.
+    apiClient.getLatestRun(convId)
+      .catch(() => ({ run: null as AgentRun | null }))
+      .then(async ({ run }) => ({ run, msgs: await apiClient.getConversationMessages(convId) }))
+      .then(({ msgs, run }) => {
       if (cancelled) return;
-      setMessages(
-        msgs
-          .filter((m) => extractText(m.content).length > 0)
-          .map((m) => ({ id: m.id, role: m.role, text: extractText(m.content) }))
-      );
+      const active = !!run && (run.status === 'queued' || run.status === 'running');
+      if (active && run) {
+        // Rows after the run's user message are its partial output; the event
+        // replay rebuilds them, so cut them to avoid showing them twice.
+        const cut = run.userMessageId ? msgs.findIndex((m) => m.id === run.userMessageId) : -1;
+        void consumeRun(convId, run.id, toLocalMessages(cut >= 0 ? msgs.slice(0, cut + 1) : msgs));
+        return;
+      }
+      const history = toLocalMessages(msgs);
+      if (run && (run.status === 'failed' || run.status === 'interrupted')
+          && run.userMessageId && msgs.some((m) => m.id === run.userMessageId)) {
+        const text = run.error
+          ? (run.status === 'failed' ? `${run.error.message} (ref: ${run.error.errorId})` : run.error.message)
+          : RUN_INTERRUPTED_NOTICE;
+        setMessages([...history, { id: `notice-${run.id}`, role: 'assistant', text }]);
+        return;
+      }
+      setMessages(history);
     }).catch(() => {});
 
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConvId]);
+
+  // Stop following (not the run) when the chat unmounts.
+  useEffect(() => () => { pendingSendConvRef.current = null; subAbortRef.current?.abort('switch'); }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -530,6 +575,43 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
     }
   };
 
+  // Follow a run's events into the transcript. `base` is everything before
+  // this turn's assistant output (history plus the user's message).
+  const consumeRun = async (convId: string, runId: string, base: LocalMessage[]) => {
+    subAbortRef.current?.abort('switch');
+    const sub = new AbortController();
+    subAbortRef.current = sub;
+    runRef.current = { convId, runId };
+    setStreaming(true);
+
+    const turn = new ChatTurn({ newId: () => crypto.randomUUID(), formatToolStatus }, { placeholder: true });
+    setMessages([...base, ...turn.bubbles()]);
+
+    let failure: string | null = null;
+    try {
+      const result = await subscribeRunEvents({
+        conversationId: convId,
+        runId,
+        signal: sub.signal,
+        onEvent: (type, data) => {
+          const effect = turn.apply(type, data);
+          if (effect === 'graph') onGraphUpdated?.();
+          if (effect === 'production') onProductionUpdated?.();
+          setMessages([...base, ...turn.bubbles()]);
+        },
+      });
+      if (result === 'lost') failure = RUN_CONNECTION_LOST;
+    } finally {
+      if (subAbortRef.current === sub) {
+        // 'switch' means another conversation took over the transcript; leave it alone.
+        if (sub.signal.reason !== 'switch') setMessages([...base, ...turn.settle(failure)]);
+        subAbortRef.current = null;
+        runRef.current = null;
+        setStreaming(false);
+      }
+    }
+  };
+
   const handleSend = async () => {
     const hasText = input.trim().length > 0;
     const hasAttachments = attachments.length > 0;
@@ -565,204 +647,62 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
     setAttachments([]);
     setFileError(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
+
+    const userMsg: LocalMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      text: userText,
+      attachments: sentAttachments.length > 0 ? sentAttachments : undefined,
+    };
+    const base = [...messages, userMsg];
     setStreaming(true);
+    setMessages([...base, { id: crypto.randomUUID(), role: 'assistant', text: '', isStreaming: true }]);
 
-    const userId = crypto.randomUUID();
-    const assistantId = crypto.randomUUID();
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: userId,
-        role: 'user',
-        text: userText,
-        attachments: sentAttachments.length > 0 ? sentAttachments : undefined,
-      },
-      { id: assistantId, role: 'assistant', text: '', isStreaming: true },
-    ]);
-
-    const abort = new AbortController();
-    abortRef.current = abort;
-
-    // Whether the server closed the turn with a `done` or `error` event. A
-    // stream that ends without one was cut off (e.g. the request timed out
-    // upstream), and the user needs to be told rather than left on "...".
-    let finished = false;
-    // Error to show once the stream is settled; null means nothing went wrong
-    // (or the user pressed Stop).
-    let failure: string | null = null;
-
-    try {
-      const body: Record<string, unknown> = { model: selectedModel };
-      if (userText) body.message = userText;
-      if (activeCaseId) body.caseId = activeCaseId;
-      if (activeInvestigationId) body.investigationId = activeInvestigationId;
-      if (attachments.length > 0) {
-        body.attachments = attachments.map(({ name, mediaType, data }) => ({ name, mediaType, data }));
-      }
-
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      // Attach Firebase auth token for SSE request
-      const { getFirebaseAuth } = await import('@/lib/firebase');
-      try {
-        const currentUser = getFirebaseAuth().currentUser;
-        if (currentUser) {
-          const token = await currentUser.getIdToken();
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-      } catch {}
-
-      const res = await fetch(`${API_BASE}/conversations/${convId}/chat`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-        signal: abort.signal,
-      });
-
-      // Non-2xx responses carry a JSON error (or an upstream HTML page, e.g. a
-      // 502), not an event stream. Reading them as SSE would parse nothing.
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => null);
-        failure =
-          typeof err?.message === 'string'
-            ? err.message
-            : `The request failed (HTTP ${res.status}). Please try again.`;
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      let eventType = '';
-
-      let curMsgId = assistantId;
-      let statusId: string | null = null;
-
-      const updateMsg = (id: string, updater: (m: LocalMessage) => LocalMessage) =>
-        setMessages((prev) => prev.map((m) => (m.id === id ? updater(m) : m)));
-
-      const removeStatus = () => {
-        if (statusId) {
-          const rid = statusId;
-          statusId = null;
-          setMessages((prev) => prev.filter((m) => m.id !== rid));
-        }
-      };
-
-      const showStatus = (text: string) => {
-        removeStatus();
-        const id = crypto.randomUUID();
-        statusId = id;
-        setMessages((prev) => [...prev, { id, role: 'status', text, isStreaming: true }]);
-      };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim();
-          } else if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6));
-            // Drop the bubble at curMsgId if it's an empty placeholder, or
-            // finalize it if it has text. Used by tool_start / tool_done so
-            // back-to-back tools don't leave stranded "..." bubbles behind.
-            const finalizeOrDropCurrent = () =>
-              setMessages((prev) =>
-                prev.flatMap((m) => {
-                  if (m.id !== curMsgId) return [m];
-                  return m.text ? [{ ...m, isStreaming: false }] : [];
-                }),
-              );
-
-            if (eventType === 'text_delta') {
-              const content = data.content ?? '';
-              removeStatus();
-              setMessages((prev) => {
-                const cur = prev.find((m) => m.id === curMsgId);
-                if (!cur || !cur.isStreaming) {
-                  // Lazily create a new assistant bubble. Happens after
-                  // tool_done dropped the previous one, or if the very first
-                  // event is text_delta after assistantId was already
-                  // finalized somehow.
-                  const newId = crypto.randomUUID();
-                  curMsgId = newId;
-                  return [...prev, { id: newId, role: 'assistant', text: content, isStreaming: true }];
-                }
-                return prev.map((m) => m.id === curMsgId ? { ...m, text: m.text + content } : m);
-              });
-            } else if (eventType === 'tool_start') {
-              finalizeOrDropCurrent();
-              const tool: ToolStatus = { name: data.name, input: data.input };
-              showStatus(formatToolStatus(tool));
-            } else if (eventType === 'tool_done') {
-              removeStatus();
-              // Don't pre-create an empty assistant bubble — text_delta
-              // creates one lazily when text actually arrives.
-              finalizeOrDropCurrent();
-              curMsgId = '';
-            } else if (eventType === 'graph_updated') {
-              onGraphUpdated?.();
-            } else if (eventType === 'production_updated') {
-              onProductionUpdated?.();
-            } else if (eventType === 'done') {
-              finished = true;
-              removeStatus();
-              finalizeOrDropCurrent();
-            } else if (eventType === 'error') {
-              finished = true;
-              removeStatus();
-              const errorText = data.errorId
-                ? `${data.message} (ref: ${data.errorId})`
-                : data.message;
-              setMessages((prev) => {
-                const cur = prev.find((m) => m.id === curMsgId);
-                if (cur) {
-                  return prev.map((m) =>
-                    m.id === curMsgId
-                      ? { ...m, text: m.text || errorText, isStreaming: false }
-                      : m,
-                  );
-                }
-                // No current bubble (post tool_done with no text yet) — append
-                // a fresh assistant bubble carrying the error.
-                return [
-                  ...prev,
-                  { id: crypto.randomUUID(), role: 'assistant', text: errorText, isStreaming: false },
-                ];
-              });
-            }
-          }
-        }
-      }
-      if (!finished) failure = STREAM_INTERRUPTED;
-    } catch (err: unknown) {
-      if (!(err instanceof Error && err.name === 'AbortError')) failure = STREAM_INTERRUPTED;
-    } finally {
-      // Settle every bubble still marked streaming: drop empty placeholders
-      // and tool-status lines, keep partial text, then append the failure (if
-      // any). Without this, a turn that never sent `done` left "..." forever.
-      setMessages((prev) => {
-        const settled = prev.flatMap((m) => {
-          if (!m.isStreaming) return [m];
-          if (m.role === 'status' || !m.text) return [];
-          return [{ ...m, isStreaming: false }];
-        });
-        return failure
-          ? [...settled, { id: crypto.randomUUID(), role: 'assistant', text: failure }]
-          : settled;
-      });
-      setStreaming(false);
-      abortRef.current = null;
-      // Intentionally not refreshing the conversation list here — a captured
-      // callback would close over the case at send-start and could clobber
-      // a different case's state if the user switched cases mid-stream.
-      // Auto-generated title appears on next case-load.
+    const body: StartRunBody = { model: selectedModel };
+    if (userText) body.message = userText;
+    if (activeCaseId) body.caseId = activeCaseId;
+    if (activeInvestigationId) body.investigationId = activeInvestigationId;
+    if (attachments.length > 0) {
+      body.attachments = attachments.map(({ name, mediaType, data }) => ({ name, mediaType, data }));
     }
+
+    if (stopRequestedRef.current === convId) stopRequestedRef.current = null;
+    pendingSendConvRef.current = convId;
+    let runId: string;
+    try {
+      ({ runId } = await apiClient.startRun(convId, body));
+    } catch (err) {
+      if (pendingSendConvRef.current === convId) {
+        pendingSendConvRef.current = null;
+        // Nothing was sent: drop the optimistic bubble, give the draft back, show why.
+        const text = err instanceof ApiError ? err.message : 'The request failed. Please try again.';
+        setMessages([...messages, { id: crypto.randomUUID(), role: 'assistant', text }]);
+        setInput(userText);
+        // Clearing attachments at send revoked their blob: previews (see the
+        // revoke effect), so restore them with data: URLs built from the base64.
+        setAttachments(attachments.map((a) => ({
+          ...a,
+          previewUrl: a.previewUrl.startsWith('blob:') ? `data:${a.mediaType};base64,${a.data}` : a.previewUrl,
+        })));
+      }
+      if (stopRequestedRef.current === convId) stopRequestedRef.current = null;
+      // Another conversation may be following or starting its own run; leave its state alone.
+      if (!subAbortRef.current && !pendingSendConvRef.current) setStreaming(false);
+      return;
+    }
+
+    if (stopRequestedRef.current === convId) {
+      stopRequestedRef.current = null;
+      void apiClient.cancelRun(convId, runId).catch(() => {});
+    }
+    if (pendingSendConvRef.current !== convId) {
+      // The user switched conversations mid-start. The run continues on the
+      // server, and reopening that conversation reattaches to it.
+      if (!subAbortRef.current && !pendingSendConvRef.current) setStreaming(false);
+      return;
+    }
+    pendingSendConvRef.current = null;
+    await consumeRun(convId, runId, base);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -773,6 +713,22 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   };
 
   const canSend = (input.trim().length > 0 || attachments.length > 0) && !streaming;
+
+  const handleStop = async () => {
+    const run = runRef.current;
+    if (!run) {
+      // POST /runs hasn't returned yet; handleSend cancels as soon as it has the id.
+      stopRequestedRef.current = pendingSendConvRef.current;
+      return;
+    }
+    try {
+      // The run persists what it has and sends `done`; the subscription then settles the turn.
+      await apiClient.cancelRun(run.convId, run.runId);
+    } catch {
+      // Server unreachable: stop following locally. The run may still finish.
+      subAbortRef.current?.abort('stop');
+    }
+  };
 
   return (
     <div
@@ -1016,7 +972,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
               </div>
               {streaming ? (
                 <button
-                  onClick={() => abortRef.current?.abort()}
+                  onClick={handleStop}
                   aria-label="Stop generating"
                   className="w-8 h-8 flex items-center justify-center bg-redline hover:bg-redline/90 rounded-lg text-white transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                   title="Stop"

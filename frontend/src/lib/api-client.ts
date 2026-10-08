@@ -191,6 +191,26 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+export type AgentRunStatus =
+  | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'timed_out' | 'interrupted';
+
+export interface AgentRun {
+  id: string;
+  status: AgentRunStatus;
+  userMessageId: string | null;
+  error: { errorId: string; message: string } | null;
+  createdAt: string;
+  finishedAt: string | null;
+}
+
+export interface StartRunBody {
+  model?: string;
+  message?: string;
+  caseId?: string;
+  investigationId?: string;
+  attachments?: Array<{ name: string; mediaType: string; data: string }>;
+}
+
 export interface ScriptRun {
   id: string;
   name: string;
@@ -457,6 +477,17 @@ export const apiClient = {
     request<ChatMessage[]>(`/conversations/${conversationId}/messages`),
   deleteConversation: (conversationId: string) =>
     request<void>(`/conversations/${conversationId}`, { method: 'DELETE' }),
+  startRun: (conversationId: string, body: StartRunBody) =>
+    request<{ runId: string; status: AgentRunStatus }>(`/conversations/${conversationId}/runs`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  getLatestRun: (conversationId: string) =>
+    request<{ run: AgentRun | null }>(`/conversations/${conversationId}/runs/latest`),
+  cancelRun: (conversationId: string, runId: string) =>
+    request<{ runId: string }>(`/conversations/${conversationId}/runs/${runId}/cancel`, {
+      method: 'POST',
+    }),
 
   // Script Runs
   listScriptRuns: (investigationId: string) =>

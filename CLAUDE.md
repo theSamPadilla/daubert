@@ -62,6 +62,15 @@ Keep it very short and objective. If you can use "widgets", use them.
 **Avoid suggesting short term patches**. If a decision surfaces a bad architectural choice, point it out.
 When deciding between A and B, always recommend the more complete solution.
 
+## Running tests
+
+**Never run the full test suite unless explicitly asked.** The backend suite (~1700 tests, e2e against Postgres, Puppeteer) and parallel jest workers exhaust this machine's memory.
+
+- Run only the spec file(s) for the code you touched: `npx jest path/to/file.spec.ts`. Not `npm test`, not directory sweeps like `npx jest src/modules/ai`.
+- No scripts that boot the whole Nest app to "smoke test" a small change.
+- Type-check (`npx tsc --noEmit`) only when types changed.
+- This applies to subagents too: put this rule in their prompts.
+
 ## Git commits
 
 **Never commit work unless explicitly told to.** This applies to you and to any subagent you dispatch. The default is: leave changes in the working tree (staged or unstaged) for the user to review and commit themselves.

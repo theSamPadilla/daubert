@@ -3,10 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 
 /**
- * Admits only Cloud Tasks deliveries: a Google-signed OIDC token whose
- * audience is our worker URL and whose subject is the dedicated invoker
- * service account. Without that config (dev), runs dispatch in-process and
- * this route does not exist.
+ * Admits only Cloud Tasks deliveries and Cloud Scheduler calls: a
+ * Google-signed OIDC token whose audience is our worker URL and whose subject
+ * is the dedicated invoker service account. Without that config (dev), runs
+ * dispatch in-process and the guarded routes do not exist.
  */
 @Injectable()
 export class CloudTasksOidcGuard implements CanActivate {

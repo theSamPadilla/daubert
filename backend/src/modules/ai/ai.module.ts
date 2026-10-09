@@ -22,6 +22,8 @@ import { AgentRunExecutor } from './runs/agent-run-executor.service';
 import { AgentRunLauncher } from './runs/agent-run-launcher.service';
 import { AgentRunEventsStreamer } from './runs/agent-run-events.streamer';
 import { agentRunDispatcherProvider } from './runs/dispatch/dispatcher.factory';
+import { ChatRetentionService } from './retention/chat-retention.service';
+import { ChatRetentionInternalController } from './retention/chat-retention-internal.controller';
 import { AuthModule } from '../auth/auth.module';
 import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
 import { ProductionsModule } from '../productions/productions.module';
@@ -58,7 +60,7 @@ import { AddressClassificationsModule } from '../address-classifications/address
     AddressClassificationsModule,
   ],
   controllers: [AiController, ConversationsController, CaseConversationsController,
-    AgentRunsController, AgentRunsInternalController],
+    AgentRunsController, AgentRunsInternalController, ChatRetentionInternalController],
   providers: [
     AnthropicProvider,
     ScriptExecutionService,
@@ -69,6 +71,7 @@ import { AddressClassificationsModule } from '../address-classifications/address
     AgentRunLauncher,
     AgentRunEventsStreamer,
     agentRunDispatcherProvider,
+    ChatRetentionService,
   ],
   exports: [AiService],
 })

@@ -263,6 +263,8 @@ The frontend expands `data` into typed `nodes`, `edges`, `groups`, `edgeBundles`
 
 **Relations**: Many-to-one -> `conversations` (onDelete: CASCADE)
 
+**Retention**: a daily purge deletes whole turns older than 30 days, and conversations left empty (see `docs/chat-retention.md`).
+
 #### Content Format
 
 The `content` column stores Anthropic's content block format directly:

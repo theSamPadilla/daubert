@@ -14,6 +14,7 @@ import { ProductionsModule } from './modules/productions/productions.module';
 import { SuperadminModule } from './modules/superadmin/superadmin.module';
 import { ExportModule } from './modules/export/export.module';
 import { DataRoomModule } from './modules/data-room/data-room.module';
+import { CaseActivityModule } from './modules/case-activity/case-activity.module';
 import { ExternalTraceModule } from './modules/external-trace/external-trace.module';
 import { InvitesModule } from './modules/invites/invites.module';
 import { ScriptModule } from './modules/script/script.module';
@@ -44,6 +45,7 @@ import { AddressClassificationsModule } from './modules/address-classifications/
     SuperadminModule,
     ExportModule,
     DataRoomModule,
+    CaseActivityModule,
     ExternalTraceModule,
     InvitesModule,
     ScriptModule,

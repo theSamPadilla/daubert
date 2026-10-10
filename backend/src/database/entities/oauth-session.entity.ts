@@ -53,21 +53,21 @@ export class OAuthSessionEntity {
   id: string;
 
   @ManyToOne(() => UserEntity, { nullable: false, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'owner_user_id' })
+  @JoinColumn({ name: 'owner_user_id', foreignKeyConstraintName: 'FK_oauth_session_owner_user_id' })
   owner: UserEntity;
 
   @Column({ name: 'owner_user_id', type: 'uuid' })
   ownerUserId: string;
 
   @ManyToOne(() => OrganizationEntity, { nullable: false, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'organization_id' })
+  @JoinColumn({ name: 'organization_id', foreignKeyConstraintName: 'FK_oauth_session_organization_id' })
   organization: OrganizationEntity;
 
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
 
   @ManyToOne(() => OAuthClientEntity, { nullable: false, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'client_id' })
+  @JoinColumn({ name: 'client_id', foreignKeyConstraintName: 'FK_oauth_session_client_id' })
   client: OAuthClientEntity;
 
   @Column({ name: 'client_id', type: 'varchar', length: 64 })

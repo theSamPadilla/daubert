@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Post, Query, Req, Res,
+  BadRequestException, Body, Controller, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Post, Query, Req, Res,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { AgentRunEntity } from '../../../database/entities/agent-run.entity';
@@ -27,7 +27,11 @@ export class AgentRunsController {
   @HttpCode(202)
   async start(@Param('id') id: string, @Body() body: ChatMessageDto, @Req() req: any) {
     const userId = requireUserPrincipal(req);
-    await this.conversationsService.findOne(id, userId);
+    const conv = await this.conversationsService.findOne(id, userId);
+    // Tools act on body.caseId; the activity log files under the conversation's case. They must agree.
+    if (body.caseId && body.caseId !== conv.caseId) {
+      throw new BadRequestException('caseId does not match the conversation');
+    }
     const viewerRole = await resolveViewerRole(req, body.caseId, this.caseAccess);
     const run = await this.launcher.start({ conversationId: id, userId, viewerRole, dto: body });
     return { runId: run.id, status: run.status };

@@ -18,6 +18,7 @@ import { DataRoomService } from '../data-room/data-room.service';
 import { DeclarationLibraryService } from '../declaration-library/declaration-library.service';
 import { DeclarantsService } from '../declarants/declarants.service';
 import { AddressClassificationsService } from '../address-classifications/address-classifications.service';
+import { CaseActivityService } from '../case-activity/case-activity.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { AGENT_TOOLS, READ_ONLY_AGENT_TOOLS } from './tools';
 import { CaseRole } from '../../database/entities/case-member.entity';
@@ -41,6 +42,7 @@ const mockDeclarationLibraryService = { listForOrg: jest.fn() };
 const mockDeclarantsService = { listForOrg: jest.fn() };
 const mockTokenUsageService = { record: jest.fn() };
 const mockAddressClassificationsService = { lookupMany: jest.fn().mockResolvedValue(new Map()) };
+const mockCaseActivity = { record: jest.fn().mockResolvedValue(undefined) };
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -84,6 +86,7 @@ describe('AiService — executeTool label cases', () => {
         { provide: AnthropicProvider, useValue: mockAnthropicProvider },
         { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
+        { provide: CaseActivityService, useValue: mockCaseActivity },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
@@ -449,6 +452,7 @@ describe('AiService — pickToolsForRole', () => {
         { provide: AnthropicProvider, useValue: {} },
         { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
+        { provide: CaseActivityService, useValue: mockCaseActivity },
         { provide: getRepositoryToken(MessageEntity), useValue: { find: jest.fn() } },
         { provide: getRepositoryToken(InvestigationEntity), useValue: { find: jest.fn(), findOneBy: jest.fn() } },
         { provide: getRepositoryToken(TraceEntity), useValue: { findOneBy: jest.fn(), save: jest.fn() } },
@@ -552,6 +556,7 @@ describe('AiService — token usage metering', () => {
         { provide: AnthropicProvider, useValue: mockAnthropicProvider },
         { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
+        { provide: CaseActivityService, useValue: mockCaseActivity },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
@@ -726,6 +731,7 @@ describe('AiService — prompt cache breakpoints', () => {
         { provide: AnthropicProvider, useValue: mockAnthropicProvider },
         { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
+        { provide: CaseActivityService, useValue: mockCaseActivity },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
@@ -801,6 +807,81 @@ describe('AiService — prompt cache breakpoints', () => {
     expect(savedRows.length).toBeGreaterThan(0);
     expect(countMarks(savedRows)).toBe(0);
   });
+
+  /** Drains runTurn over a scripted sequence of model responses. */
+  async function runLoop(responses: Anthropic.Beta.BetaMessage[], caseId: string | undefined) {
+    mockConversationRepo.findOne.mockResolvedValue({ id: 'conv-1', caseId: CASE_ID, case: { orgId: 'org-1' } });
+    mockConversationsService.findOne.mockResolvedValue({ id: 'conv-1' });
+    mockConversationsService.getMessages.mockResolvedValue([
+      { id: 'run-user-msg', role: 'user', content: [{ type: 'text', text: 'new question' }] },
+    ]);
+    mockMessageRepo.create.mockImplementation((e: any) => e);
+    mockMessageRepo.save.mockImplementation(async (e: any) => ({ id: 'msg-saved-id', ...e }));
+    mockScriptExecutionService.listRunsForCase.mockResolvedValue([]);
+    mockTokenUsageService.record.mockResolvedValue(undefined);
+    let calls = 0;
+    mockAnthropicProvider.streamChat.mockImplementation(() => {
+      const response = responses[calls++];
+      return (async function* () {
+        yield { type: 'end_turn', response };
+      })();
+    });
+
+    for await (const _ of aiService.runTurn({ conversationId: 'conv-1', userId: 'user-1', userMessageId: 'run-user-msg', caseId, investigationId: undefined, model: undefined, viewerRole: 'editor', signal: new AbortController().signal })) {
+      // drain
+    }
+  }
+
+  it('records each client tool call to the case activity log', async () => {
+    await runLoop([
+      makeResponse([{ type: 'tool_use', id: 'tu-1', name: 'list_script_runs', input: {} }], 'tool_use'),
+      makeResponse([{ type: 'text', text: 'Done.' }], 'end_turn'),
+    ], CASE_ID);
+
+    expect(mockCaseActivity.record).toHaveBeenCalledWith(expect.objectContaining({
+      caseId: CASE_ID,
+      userId: 'user-1',
+      source: 'chat',
+      agent: 'claude-opus-5',
+      conversationId: 'conv-1',
+      action: 'list_script_runs',
+      input: {},
+      status: 'ok',
+    }));
+  });
+
+  it('records a tool that returns { error } as a failure', async () => {
+    // No caseId on the request, so the tool fails; the log still resolves the
+    // case from the conversation.
+    await runLoop([
+      makeResponse([{ type: 'tool_use', id: 'tu-1', name: 'get_case_data', input: {} }], 'tool_use'),
+      makeResponse([{ type: 'text', text: 'Done.' }], 'end_turn'),
+    ], undefined);
+
+    expect(mockCaseActivity.record).toHaveBeenCalledWith(expect.objectContaining({
+      caseId: CASE_ID,
+      action: 'get_case_data',
+      status: 'error',
+      summary: { error: expect.stringContaining('No case context') },
+    }));
+  });
+
+  it('records server-side web searches from the response', async () => {
+    await runLoop([
+      makeResponse([
+        { type: 'server_tool_use', id: 's1', name: 'web_search', input: { query: 'mixer' } },
+        { type: 'web_search_tool_result', tool_use_id: 's1', content: [{ type: 'web_search_result', title: 'T', url: 'https://u' }] },
+        { type: 'text', text: 'done' },
+      ], 'end_turn'),
+    ], CASE_ID);
+
+    expect(mockCaseActivity.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'web_search',
+      input: { query: 'mixer' },
+      status: 'ok',
+      summary: { sources: [{ title: 'T', url: 'https://u' }] },
+    }));
+  });
 });
 
 // ── runTurn lifecycle ─────────────────────────────────────────────────────────
@@ -822,6 +903,7 @@ describe('AiService — runTurn lifecycle', () => {
         { provide: AnthropicProvider, useValue: mockAnthropicProvider },
         { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
+        { provide: CaseActivityService, useValue: mockCaseActivity },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },

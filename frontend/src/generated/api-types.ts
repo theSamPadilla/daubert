@@ -483,6 +483,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{caseId}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List what AI agents did on a case, newest first
+         * @description Append-only. Covers the in-app chat agent and MCP agents. Any case member may read it.
+         */
+        get: operations["listCaseActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{caseId}/productions": {
         parameters: {
             query?: never;
@@ -2120,6 +2140,39 @@ export interface components {
             classified: components["schemas"]["AddressClassification"][];
             /** @description How many of the requested pairs were not classified because the request exceeded the per-call cap. Zero means every eligible pair was attempted. */
             remaining: number;
+        };
+        CaseActivityEntry: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @enum {string} */
+            source: "chat" | "mcp";
+            /** @description Chat entries name the model; MCP entries name the connected surface, e.g. "Claude Desktop". */
+            agent: string | null;
+            /** @description Tool name, e.g. get_case_data or web_search. */
+            action: string;
+            /** @description Tool input as the agent sent it. Inputs over 16 KB are replaced by { _truncated, preview }. */
+            input: unknown;
+            /** @enum {string} */
+            status: "ok" | "error";
+            summary: {
+                [key: string]: unknown;
+            } | null;
+            backfilled: boolean;
+            /** Format: uuid */
+            conversationId: string | null;
+            /** @description Null for viewers (they never see member data) and for deleted users. */
+            user: {
+                /** Format: uuid */
+                id: string;
+                name: string | null;
+                email: string;
+            } | null;
+        };
+        CaseActivityPage: {
+            items: components["schemas"]["CaseActivityEntry"][];
+            nextCursor: string | null;
         };
         /** @enum {string} */
         ProductionType: "report" | "chart" | "chronology" | "declaration" | "redline";
@@ -4192,6 +4245,41 @@ export interface operations {
             };
             /** @description Invalid request */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listCaseActivity: {
+        parameters: {
+            query?: {
+                /** @description nextCursor from the previous page */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseActivityPage"];
+                };
+            };
+            /** @description Not a member of the case */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

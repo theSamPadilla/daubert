@@ -18,6 +18,7 @@
  *   - AddressClassificationsModule exports AddressClassificationsService, used
  *                          by ReadToolsService to resolve address classifications
  *                          for get_investigation.
+ *   - CaseActivityModule   exports CaseActivityService for McpActivityRecorder.
  *
  * Providers:
  *   - McpAuthHelper, McpToolsService — top-level controllers/dispatchers.
@@ -26,6 +27,8 @@
  *   - BlockchainToolsService — blockchain tool group (Task 14). Later
  *     tasks add additional `*ToolsService` providers here and have
  *     `McpToolsService.registerForScope` call into them.
+ *   - McpActivityRecorder — wraps the server handed to the tool groups so
+ *     every case-scoped tool call is written to the case activity log.
  *   - McpIpThrottlerGuard — declared here so the route-level
  *     @UseGuards(McpIpThrottlerGuard) on McpController resolves through
  *     this module's DI context.
@@ -38,6 +41,8 @@ import { McpIpThrottlerGuard } from '../../common/guards/mcp-ip-throttler.guard'
 import { OrganizationMemberEntity } from '../../database/entities/organization-member.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
 import { AgentAuditLogEntity } from '../../database/entities/agent-audit-log.entity';
+import { TraceEntity } from '../../database/entities/trace.entity';
+import { ProductionEntity } from '../../database/entities/production.entity';
 import { AuthModule } from '../auth/auth.module';
 import { CasesModule } from '../cases/cases.module';
 import { InvestigationsModule } from '../investigations/investigations.module';
@@ -50,6 +55,7 @@ import { DeclarantsModule } from '../declarants/declarants.module';
 import { DeclarationLibraryModule } from '../declaration-library/declaration-library.module';
 import { AddressClassificationsModule } from '../address-classifications/address-classifications.module';
 import { OAuthModule } from '../oauth/oauth.module';
+import { CaseActivityModule } from '../case-activity/case-activity.module';
 import { McpAuthHelper } from './mcp-auth.helper';
 import { McpController } from './mcp.controller';
 import { McpToolsService } from './mcp.tools';
@@ -58,11 +64,18 @@ import { ReadToolsService } from './tools/read-tools';
 import { BlockchainToolsService } from './tools/blockchain-tools';
 import { WriteToolsService } from './tools/write-tools';
 import { AgentAuditService } from './agent-audit.service';
+import { McpActivityRecorder } from './tools/case-activity-recorder';
 
 @Module({
   imports: [
     OAuthModule,          // exports OAuthService + McpThrottleService
-    TypeOrmModule.forFeature([OrganizationMemberEntity, InvestigationEntity, AgentAuditLogEntity]),
+    TypeOrmModule.forFeature([
+      OrganizationMemberEntity,
+      InvestigationEntity,
+      AgentAuditLogEntity,
+      TraceEntity,        // McpActivityRecorder: trace -> case lookup
+      ProductionEntity,   // McpActivityRecorder: production -> case lookup
+    ]),
     AuthModule,           // exports CaseAccessService
     CasesModule,          // exports CasesService
     InvestigationsModule, // exports InvestigationsService
@@ -74,6 +87,7 @@ import { AgentAuditService } from './agent-audit.service';
     DeclarantsModule,      // exports DeclarantsService
     DeclarationLibraryModule, // exports DeclarationLibraryService
     AddressClassificationsModule, // exports AddressClassificationsService (for ReadToolsService)
+    CaseActivityModule,   // exports CaseActivityService (for McpActivityRecorder)
   ],
   controllers: [McpController],
   providers: [
@@ -84,6 +98,7 @@ import { AgentAuditService } from './agent-audit.service';
     BlockchainToolsService,
     WriteToolsService,
     AgentAuditService,
+    McpActivityRecorder,
     McpIpThrottlerGuard,
   ],
 })

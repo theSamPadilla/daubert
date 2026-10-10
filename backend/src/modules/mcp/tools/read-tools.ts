@@ -33,7 +33,7 @@
  *   3. DataRoomService.getManifest — data-room file list (capped at 25 entries).
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -179,6 +179,7 @@ export class ReadToolsService {
               productionId,
               principal,
             );
+            if (result.caseId !== caseId) throw new NotFoundException(`Production ${productionId} not found`);
             return textResult(result);
           }
 

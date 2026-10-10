@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
 import {
   FaPen, FaChevronRight, FaChevronDown, FaArrowLeft,
-  FaFileLines, FaChartLine, FaTableList, FaFileSignature, FaGear, FaPlus, FaFolder,
+  FaFileLines, FaChartLine, FaTableList, FaFileSignature, FaGear, FaPlus, FaFolder, FaClockRotateLeft,
 } from 'react-icons/fa6';
 
 const PRODUCTION_TYPE_ORDER = ['report', 'chart', 'chronology', 'declaration'] as const;
@@ -295,6 +295,24 @@ export function InvestigationsSidebar({ caseId }: InvestigationsSidebarProps) {
               >
                 <FaFolder size={12} className="shrink-0 text-ink-faint" />
                 <span className="font-medium">Data Room</span>
+              </a>
+            </div>
+          );
+        })()}
+        {(() => {
+          const activityHref = `/cases/${caseId}/activity`;
+          const activityActive = pathname === activityHref || pathname?.startsWith(activityHref + '/');
+          return (
+            <div>
+              <a
+                href={activityHref}
+                onClick={(e) => { e.preventDefault(); router.push(activityHref); }}
+                className={`flex items-center gap-2 mx-2 px-2 py-1.5 rounded-lg cursor-pointer text-sm transition-colors ${
+                  activityActive ? 'bg-surface border border-line-strong text-ink' : 'text-ink-muted hover:bg-surface-raised hover:text-ink'
+                }`}
+              >
+                <FaClockRotateLeft size={12} className="shrink-0 text-ink-faint" />
+                <span className="font-medium">Activity</span>
               </a>
             </div>
           );

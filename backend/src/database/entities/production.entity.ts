@@ -18,7 +18,7 @@ export class ProductionEntity extends BaseEntity {
   @Column({ type: 'varchar' })
   type: ProductionType;
 
-  @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
+  @Column({ type: 'jsonb', default: () => "'{}'" })
   data: Record<string, unknown>;
 
   @Column({ name: 'case_id' })

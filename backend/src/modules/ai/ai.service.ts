@@ -59,6 +59,13 @@ import {
 import { AttachmentDto } from './dto/chat-message.dto';
 import { buildAttachmentBlocks } from './attachment-blocks';
 import { abortReasonOf, STOP_NOTES, TOOL_RESULT_TERMINATOR } from './runs/run-abort';
+import { CaseActivityService } from '../case-activity/case-activity.service';
+import {
+  chatToolOutcome,
+  thrownOutcome,
+  webSearchActivities,
+  ActivityOutcome,
+} from '../case-activity/activity-summaries';
 
 /**
  * Ensures every client tool_use block in an assistant message has a matching
@@ -346,6 +353,7 @@ export class AiService {
     private readonly declarantsService: DeclarantsService,
     private readonly tokenUsageService: TokenUsageService,
     private readonly addressClassificationsService: AddressClassificationsService,
+    private readonly caseActivity: CaseActivityService,
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
     @InjectRepository(InvestigationEntity)
@@ -418,6 +426,8 @@ export class AiService {
     });
     const resolvedCaseId = convWithCase?.caseId ?? null;
     const resolvedOrgId = convWithCase?.case?.orgId ?? null;
+    // The conversation's case is authoritative; the request's caseId is a fallback.
+    const activityCaseId = resolvedCaseId ?? caseId ?? null;
 
     // Load history and reconstruct MessageParam[] verbatim. The launcher
     // persisted this run's user message before dispatch, and only one run is
@@ -584,9 +594,25 @@ export class AiService {
         // is not affected — it's a per-loop value tied to the live container.
         containerId = response.container?.id ?? containerId;
 
-        // Provider already stripped server-side and thinking blocks.
+        // Provider stripped thinking blocks; server tool blocks (web_search) remain.
         const responseContent =
           response.content as unknown as Anthropic.Beta.BetaContentBlock[];
+
+        if (activityCaseId) {
+          for (const search of webSearchActivities(responseContent as unknown as Array<{ type: string; [k: string]: unknown }>)) {
+            await this.caseActivity.record({
+              caseId: activityCaseId,
+              userId,
+              source: 'chat',
+              agent: response.model,
+              conversationId,
+              action: 'web_search',
+              input: search.input,
+              status: search.outcome.status,
+              summary: search.outcome.summary,
+            });
+          }
+        }
 
         // Find user-defined tool calls (web_search is server-side, never appears here)
         const toolUseBlocks = responseContent.filter(
@@ -664,7 +690,17 @@ export class AiService {
         for (const toolUse of toolUseBlocks) {
           yield { type: 'tool_start', data: { name: toolUse.name, input: toolUse.input } };
 
-          const result = await this.executeTool(toolUse, caseId, investigationId, viewerRole, userId);
+          let result: unknown;
+          try {
+            result = await this.executeTool(toolUse, caseId, investigationId, viewerRole, userId);
+          } catch (err) {
+            await this.recordChatActivity(activityCaseId, userId, response.model, conversationId, toolUse, thrownOutcome(err));
+            throw err;
+          }
+          await this.recordChatActivity(
+            activityCaseId, userId, response.model, conversationId, toolUse,
+            chatToolOutcome(toolUse.name, toolUse.input, result),
+          );
 
           yield { type: 'tool_done', data: { name: toolUse.name } };
 
@@ -775,6 +811,29 @@ export class AiService {
   }
 
   // ---- Tool dispatch ----
+
+  /** One entry per client tool call; the log outlives the chat (see CaseActivityService). */
+  private async recordChatActivity(
+    caseId: string | null,
+    userId: string,
+    agent: string,
+    conversationId: string,
+    toolUse: Anthropic.ToolUseBlock,
+    outcome: ActivityOutcome,
+  ): Promise<void> {
+    if (!caseId) return;
+    await this.caseActivity.record({
+      caseId,
+      userId,
+      source: 'chat',
+      agent,
+      conversationId,
+      action: toolUse.name,
+      input: toolUse.input,
+      status: outcome.status,
+      summary: outcome.summary,
+    });
+  }
 
   private async executeTool(
     toolUse: Anthropic.ToolUseBlock,

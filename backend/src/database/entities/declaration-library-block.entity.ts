@@ -18,7 +18,7 @@ export class DeclarationLibraryBlockEntity extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   category: string | null;
 
-  @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
+  @Column({ type: 'jsonb', default: () => "'{}'" })
   content: Record<string, unknown>;
 
   @Column({ name: 'organization_id' })

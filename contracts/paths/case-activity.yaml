@@ -1,0 +1,38 @@
+/cases/{caseId}/activity:
+  get:
+    summary: List what AI agents did on a case, newest first
+    description: Append-only. Covers the in-app chat agent and MCP agents. Any case member may read it.
+    operationId: listCaseActivity
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: cursor
+        in: query
+        required: false
+        description: nextCursor from the previous page
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          maximum: 200
+    responses:
+      '200':
+        description: One page of entries
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/case-activity.yaml#/CaseActivityPage'
+      '403':
+        description: Not a member of the case
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

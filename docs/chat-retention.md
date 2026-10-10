@@ -18,6 +18,7 @@ The purge is idempotent: rerunning it deletes nothing new.
 - `agent_runs`: status, timing and error metadata, no message content.
 - `token_usage`: counts and cost only. Its `message_id` and `conversation_id` links go to NULL.
 - Compaction summaries: when a long chat was compacted, the summary block inside a kept assistant message describes earlier turns, including ones the purge deleted.
+- `case_activity_log`: one entry per action an AI agent took on a case (tool, inputs, outcome, short summary), for the life of the case. The purge never touches it, so the methodology stays reviewable after the chat is gone.
 - Not covered by this policy: `script_runs` (AI-written scripts and their output) and `agent_audit_log.detail` (MCP tool-call arguments).
 - Database backups: deleted rows remain in Neon's restore history until it rolls past them.
 

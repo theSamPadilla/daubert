@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AgentRunsController } from './agent-runs.controller';
 import { SUBSCRIPTION_MAX_MS } from './agent-run-events.streamer';
 
@@ -9,7 +9,7 @@ describe('AgentRunsController', () => {
   let controller: AgentRunsController;
 
   beforeEach(() => {
-    conversations = { findOne: jest.fn().mockResolvedValue({ id: 'conv-1' }) };
+    conversations = { findOne: jest.fn().mockResolvedValue({ id: 'conv-1', caseId: 'case-1' }) };
     caseAccess = { assertRole: jest.fn().mockResolvedValue({ role: 'editor' }) };
     runs = {
       sweepStale: jest.fn(), findLatest: jest.fn().mockResolvedValue(run),
@@ -25,6 +25,12 @@ describe('AgentRunsController', () => {
     await expect(controller.start('conv-1', body, req)).resolves.toEqual({ runId: 'run-1', status: 'queued' });
     expect(conversations.findOne).toHaveBeenCalledWith('conv-1', 'user-1');
     expect(launcher.start).toHaveBeenCalledWith({ conversationId: 'conv-1', userId: 'user-1', viewerRole: 'editor', dto: body });
+  });
+
+  it('start rejects a caseId that does not match the conversation', async () => {
+    const body = { message: 'hi', caseId: 'case-2' } as any;
+    await expect(controller.start('conv-1', body, req)).rejects.toBeInstanceOf(BadRequestException);
+    expect(launcher.start).not.toHaveBeenCalled();
   });
 
   it('latest sweeps before reading', async () => {

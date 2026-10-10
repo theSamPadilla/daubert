@@ -105,6 +105,8 @@ paths:
     $ref: './paths/address-classifications.yaml#/~1addresses~1lookup'
   /addresses/classify:
     $ref: './paths/address-classifications.yaml#/~1addresses~1classify'
+  /cases/{caseId}/activity:
+    $ref: './paths/case-activity.yaml#/~1cases~1{caseId}~1activity'
   /cases/{caseId}/productions:
     $ref: './paths/productions.yaml#/~1cases~1{caseId}~1productions'
   /productions/{id}:
@@ -324,6 +326,10 @@ components:
       $ref: './schemas/address-classifications.yaml#/AddressClassification'
     ClassifyResult:
       $ref: './schemas/address-classifications.yaml#/ClassifyResult'
+    CaseActivityEntry:
+      $ref: './schemas/case-activity.yaml#/CaseActivityEntry'
+    CaseActivityPage:
+      $ref: './schemas/case-activity.yaml#/CaseActivityPage'
     ProductionType:
       $ref: './schemas/productions.yaml#/ProductionType'
     Production:

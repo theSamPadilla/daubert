@@ -14,13 +14,13 @@ export class DeclarantEntity extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   firm: string | null;
 
-  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  @Column({ type: 'jsonb', default: () => "'[]'" })
   qualifications: Record<string, unknown>[];
 
   @Column({ name: 'cv_exhibit', type: 'varchar', nullable: true })
   cvExhibit: string | null;
 
-  @Column({ name: 'prior_testimony', type: 'jsonb', default: () => "'[]'::jsonb" })
+  @Column({ name: 'prior_testimony', type: 'jsonb', default: () => "'[]'" })
   priorTestimony: string[];
 
   @Column({ name: 'hourly_rate', type: 'varchar', nullable: true })

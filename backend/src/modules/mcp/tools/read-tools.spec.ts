@@ -275,6 +275,17 @@ describe('ReadToolsService', () => {
       expect(result.isError).toBeUndefined();
     });
 
+    it('404s when the production belongs to another case', async () => {
+      const production = { id: PROD_ID, name: 'P', type: 'report', caseId: 'other-case', data: {} };
+      const { server } = buildService({
+        productions: { findOne: jest.fn().mockResolvedValue(production) },
+      });
+
+      const result = await callTool(server, 'read_production', { caseId: CASE_ID, productionId: PROD_ID });
+
+      expect(result.isError).toBe(true);
+    });
+
     it('calls findAllForCase when no productionId is given', async () => {
       const { server, productions } = buildService();
 

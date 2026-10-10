@@ -129,6 +129,7 @@ The superadmin column shows what a superadmin can do *as superadmin*, i.e., on p
 | AI chat -- read-only tools (incl. `execute_script` for blockchain & loopback reads) | no² | yes³ | yes⁵ | no⁴ | yes | yes | yes |
 | AI chat -- mutating tools (productions, traces, labels) | no² | yes³ | yes⁵ | no⁴ | yes | yes | no |
 | See member list | no² | yes³ | yes⁵ | no⁴ | yes | yes | no |
+| View case activity log (`GET /cases/:caseId/activity`; user stripped for viewers) | no² | yes³ | yes⁵ | no⁴ | yes | yes | yes (no user) |
 | Create / edit / delete investigations | no² | yes³ | yes⁵ | no⁴ | yes | yes | no |
 | Create / edit / delete traces | no² | yes³ | yes⁵ | no⁴ | yes | yes | no |
 | Manage data room (upload, folders, delete, import) | no² | yes³ | yes⁵ | no⁴ | yes | yes | no |

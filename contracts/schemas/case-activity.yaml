@@ -1,0 +1,61 @@
+CaseActivityEntry:
+  type: object
+  required: [id, createdAt, source, agent, action, input, status, summary, backfilled, conversationId, user]
+  properties:
+    id:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+    source:
+      type: string
+      enum: [chat, mcp]
+    agent:
+      type: string
+      nullable: true
+      description: Chat entries name the model; MCP entries name the connected surface, e.g. "Claude Desktop".
+    action:
+      type: string
+      description: Tool name, e.g. get_case_data or web_search.
+    input:
+      description: Tool input as the agent sent it. Inputs over 16 KB are replaced by { _truncated, preview }.
+    status:
+      type: string
+      enum: [ok, error]
+    summary:
+      type: object
+      nullable: true
+      additionalProperties: true
+    backfilled:
+      type: boolean
+    conversationId:
+      type: string
+      format: uuid
+      nullable: true
+    user:
+      description: Null for viewers (they never see member data) and for deleted users.
+      type: object
+      nullable: true
+      required: [id, name, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+        email:
+          type: string
+
+CaseActivityPage:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/CaseActivityEntry'
+    nextCursor:
+      type: string
+      nullable: true

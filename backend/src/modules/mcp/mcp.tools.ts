@@ -30,6 +30,7 @@ import { NavigateToolsService } from './tools/navigate-tools';
 import { ReadToolsService } from './tools/read-tools';
 import { BlockchainToolsService } from './tools/blockchain-tools';
 import { WriteToolsService } from './tools/write-tools';
+import { McpActivityRecorder } from './tools/case-activity-recorder';
 import { getSkillContent, SKILL_REGISTRY } from '../../skills/skill-registry';
 
 /**
@@ -53,6 +54,7 @@ export class McpToolsService {
     private readonly read: ReadToolsService,
     private readonly blockchain: BlockchainToolsService,
     private readonly write: WriteToolsService,
+    private readonly activityRecorder: McpActivityRecorder,
   ) {}
 
   /**
@@ -60,12 +62,15 @@ export class McpToolsService {
    * Called once per MCP request, after auth succeeds.
    *
    * Add new tool groups here as additional `registerAll(server, auth)` calls.
+   * Every group registers on the activity-recording wrapper, so case-scoped
+   * calls land in the case activity log without the tools knowing about it.
    */
   registerForScope(server: McpServer, auth: AuthSuccess): void {
-    this.navigate.registerAll(server, auth);
-    this.read.registerAll(server, auth);
-    this.blockchain.registerAll(server, auth);
-    this.write.registerAll(server, auth);
+    const recorded = this.activityRecorder.wrap(server, auth);
+    this.navigate.registerAll(recorded, auth);
+    this.read.registerAll(recorded, auth);
+    this.blockchain.registerAll(recorded, auth);
+    this.write.registerAll(recorded, auth);
   }
 
   /**

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Post,
   Get,
@@ -69,7 +70,11 @@ export class ConversationsController {
     @Res() res: Response,
   ) {
     const userId = requireUserPrincipal(req);
-    await this.conversationsService.findOne(id, userId);
+    const conv = await this.conversationsService.findOne(id, userId);
+    // Tools act on body.caseId; the activity log files under the conversation's case. They must agree.
+    if (body.caseId && body.caseId !== conv.caseId) {
+      throw new BadRequestException('caseId does not match the conversation');
+    }
     const viewerRole = await resolveViewerRole(req, body.caseId, this.caseAccess);
     const run = await this.launcher.start({ conversationId: id, userId, viewerRole, dto: body });
     await this.streamer.stream(res, run, 0, Number.POSITIVE_INFINITY);

@@ -589,6 +589,12 @@ export const apiClient = {
   superadminDeleteLabeledEntity: (id: string) =>
     request<void>(`/superadmin/labeled-entities/${id}`, { method: 'DELETE' }),
 
+  // Case activity
+  listCaseActivity: (caseId: string, cursor?: string | null, limit = 50) =>
+    request<components['schemas']['CaseActivityPage']>(
+      `/cases/${caseId}/activity?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+    ),
+
   // Productions
   listProductions: (caseId: string, type?: string) => {
     const qs = type ? `?type=${type}` : '';

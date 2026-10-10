@@ -34,6 +34,7 @@ import { DataRoomModule } from '../data-room/data-room.module';
 import { DeclarationLibraryModule } from '../declaration-library/declaration-library.module';
 import { DeclarantsModule } from '../declarants/declarants.module';
 import { AddressClassificationsModule } from '../address-classifications/address-classifications.module';
+import { CaseActivityModule } from '../case-activity/case-activity.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { AddressClassificationsModule } from '../address-classifications/address
     DeclarationLibraryModule,
     DeclarantsModule,
     AddressClassificationsModule,
+    CaseActivityModule,
   ],
   controllers: [AiController, ConversationsController, CaseConversationsController,
     AgentRunsController, AgentRunsInternalController, ChatRetentionInternalController],

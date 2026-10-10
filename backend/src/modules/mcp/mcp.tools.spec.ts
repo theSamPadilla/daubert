@@ -20,6 +20,11 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as skillRegistry from '../../skills/skill-registry';
 import { McpToolsService } from './mcp.tools';
 import type { AuthSuccess } from './mcp-auth.helper';
+import { NavigateToolsService } from './tools/navigate-tools';
+import { ReadToolsService } from './tools/read-tools';
+import { BlockchainToolsService } from './tools/blockchain-tools';
+import { WriteToolsService } from './tools/write-tools';
+import { MCP_CASE_TOOLS, MCP_UNSCOPED_TOOLS } from './tools/case-activity-recorder';
 
 // ---------------------------------------------------------------------------
 // Auth fixture
@@ -44,7 +49,8 @@ const AUTH: AuthSuccess = {
 /** Build a McpToolsService with all sub-services fully mocked. */
 function buildService(): McpToolsService {
   const noopService = { registerAll: jest.fn() } as any;
-  return new McpToolsService(noopService, noopService, noopService, noopService);
+  const passThroughRecorder = { wrap: (s: unknown) => s } as any;
+  return new McpToolsService(noopService, noopService, noopService, noopService, passThroughRecorder);
 }
 
 /**
@@ -171,5 +177,33 @@ describe('McpToolsService.registerPromptsForScope', () => {
 
       getSkillContent.mockRestore();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Activity-log coverage: every registered MCP tool must be classified as
+// case-scoped (and so recorded) or explicitly unscoped. A new tool that is
+// in neither list would silently skip the case activity log.
+// ---------------------------------------------------------------------------
+
+describe('McpToolsService.registerForScope activity classification', () => {
+  it('classifies every registered MCP tool as case-scoped or unscoped', () => {
+    const names: string[] = [];
+    const server = { registerTool: (name: string) => names.push(name) } as any;
+    const a = {} as any;
+    const service = new McpToolsService(
+      new NavigateToolsService(a, a, a),
+      new ReadToolsService(a, a, a, a, a, a, a, a),
+      new BlockchainToolsService(a),
+      new WriteToolsService(a, a, a, a, a),
+      { wrap: (s: unknown) => s } as any,
+    );
+
+    service.registerForScope(server, AUTH);
+
+    expect(names.length).toBeGreaterThan(0);
+    const classified = new Set([...Object.keys(MCP_CASE_TOOLS), ...MCP_UNSCOPED_TOOLS]);
+    const unclassified = names.filter((n) => !classified.has(n));
+    expect(unclassified).toEqual([]);
   });
 });

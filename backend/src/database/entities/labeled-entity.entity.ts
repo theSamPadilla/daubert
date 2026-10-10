@@ -24,7 +24,7 @@ export class LabeledEntityEntity extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  @Column({ type: 'jsonb', default: () => "'[]'" })
   wallets: string[];
 
   @Column({ type: 'jsonb', nullable: true })

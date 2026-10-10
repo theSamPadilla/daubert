@@ -24,7 +24,7 @@ export class ScriptRunEntity extends BaseEntity {
   caseId: string;
 
   @ManyToOne(() => CaseEntity, (c) => c.scriptRuns, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'case_id' })
+  @JoinColumn({ name: 'case_id', foreignKeyConstraintName: 'FK_script_runs_case_id' })
   case: CaseEntity;
 
   @Column({ name: 'investigation_id', type: 'uuid', nullable: true })

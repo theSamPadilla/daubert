@@ -288,6 +288,30 @@ Compaction blocks (from the `compact-2026-01-12` beta) are also preserved verbat
 
 ---
 
+### `case_activity_log`
+
+| Column | Type | Constraints |
+|--------|------|------------|
+| `id` | uuid | PK, generated |
+| `created_at` | timestamptz(3) | not null, default now (no `updated_at`) |
+| `case_id` | uuid | FK -> cases (onDelete: CASCADE), not null |
+| `user_id` | uuid | FK -> users (onDelete: SET NULL), nullable. The person the agent acted for |
+| `source` | varchar(16) | `'chat'` or `'mcp'` |
+| `agent` | varchar(255) | nullable. Chat: the model. MCP: the session's surface label |
+| `conversation_id` | uuid | nullable, no FK (chats are purged after 30 days) |
+| `mcp_session_id` | uuid | nullable, no FK (matches `agent_audit_log.session_id`) |
+| `action` | varchar(64) | not null. Tool name |
+| `input` | jsonb | not null |
+| `status` | varchar(16) | `'ok'` or `'error'` |
+| `summary` | jsonb | nullable |
+| `backfilled` | boolean | not null, default false. Rebuilt from chat messages by the migration |
+
+**Index** `ix_case_activity_log_case_created` on `(case_id, created_at, id)`.
+
+Append-only, enforced in production by triggers (`case_activity_log_no_update_delete`, `case_activity_log_no_truncate`) that reject UPDATE, DELETE and TRUNCATE except the foreign-key actions. Dev databases built by `synchronize` do not have the triggers. Not touched by the chat retention purge; rows go with their case.
+
+---
+
 ### `script_runs`
 
 | Column | Type | Constraints |

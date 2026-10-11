@@ -76,6 +76,75 @@
               items:
                 $ref: '../schemas/ai.yaml#/Message'
 
+/conversations/{id}/continue:
+  post:
+    summary: Continue a long conversation in a new one seeded with a summary
+    description: >-
+      Summarizes the source conversation and creates a new conversation seeded
+      with that summary. The source conversation is left unchanged.
+    operationId: continueConversation
+    tags: [AI]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '201':
+        description: The new conversation
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ai.yaml#/Conversation'
+      '403':
+        description: Caller does not own the conversation
+      '404':
+        description: Conversation not found
+      '409':
+        description: A run is queued or running on the source conversation
+      '502':
+        description: Summary generation failed
+
+/conversations/{id}/export:
+  post:
+    summary: Export a conversation as PDF or DOCX
+    description: Only the conversation owner may export.
+    operationId: exportConversation
+    tags: [AI]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [format]
+            properties:
+              format:
+                type: string
+                enum: [pdf, docx]
+    responses:
+      '200':
+        description: Exported file
+        content:
+          application/pdf: { schema: { type: string, format: binary } }
+          application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+            schema: { type: string, format: binary }
+      '400':
+        description: Invalid format
+      '403':
+        description: Caller does not own the conversation
+      '404':
+        description: Conversation not found
+
 /conversations/{id}/chat:
   post:
     deprecated: true

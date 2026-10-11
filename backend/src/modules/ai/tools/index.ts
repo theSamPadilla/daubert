@@ -14,6 +14,8 @@ export {
   GET_DECLARANTS_TOOL,
   LIST_DATA_ROOM_FILES_TOOL,
   READ_DATA_ROOM_FILE_TOOL,
+  RECORD_FILE_NOTES_TOOL,
+  GET_FILE_NOTES_TOOL,
 } from './tool-definitions';
 export {
   ADD_LABEL_TOOL,
@@ -39,6 +41,8 @@ import {
   GET_DECLARANTS_TOOL,
   LIST_DATA_ROOM_FILES_TOOL,
   READ_DATA_ROOM_FILE_TOOL,
+  RECORD_FILE_NOTES_TOOL,
+  GET_FILE_NOTES_TOOL,
 } from './tool-definitions';
 import { LABEL_TOOLS } from './label-tools';
 
@@ -57,6 +61,8 @@ export const AGENT_TOOLS = [
   GET_DECLARANTS_TOOL,
   LIST_DATA_ROOM_FILES_TOOL,
   READ_DATA_ROOM_FILE_TOOL,
+  RECORD_FILE_NOTES_TOOL,
+  GET_FILE_NOTES_TOOL,
   ...LABEL_TOOLS,
 ];
 
@@ -64,6 +70,8 @@ export const AGENT_TOOLS = [
 // library blocks / declarant profiles and never mutate state, so they belong in
 // the viewer tool set alongside the other read/query tools (and are included in
 // AGENT_TOOLS above for editors/owners).
+// record_file_notes is the one write in this set: notes are the agent's reading
+// records, not case edits, so viewers' agents may save them.
 export const READ_ONLY_AGENT_TOOLS = [
   WEB_SEARCH_TOOL,
   GET_CASE_DATA_TOOL,
@@ -77,4 +85,6 @@ export const READ_ONLY_AGENT_TOOLS = [
   GET_DECLARANTS_TOOL,
   LIST_DATA_ROOM_FILES_TOOL,
   READ_DATA_ROOM_FILE_TOOL,
+  RECORD_FILE_NOTES_TOOL,
+  GET_FILE_NOTES_TOOL,
 ];

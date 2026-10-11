@@ -3,9 +3,11 @@ export interface TurnMessage {
   role: 'assistant' | 'status';
   text: string;
   isStreaming?: boolean;
+  /** Error code carried by a failed run's error bubble, e.g. 'context_overflow'. */
+  code?: string;
 }
 
-export type TurnSideEffect = 'graph' | 'production' | null;
+export type TurnSideEffect = 'graph' | 'production' | 'context' | null;
 
 interface TurnDeps {
   newId: () => string;
@@ -23,6 +25,8 @@ export class ChatTurn {
   private curId = '';
   private statusId: string | null = null;
   finished = false;
+  /** Latest context size from a `context_usage` event; read it when apply() returns 'context'. */
+  contextTokens: number | null = null;
 
   constructor(private readonly deps: TurnDeps, opts: { placeholder: boolean }) {
     if (opts.placeholder) {
@@ -62,6 +66,10 @@ export class ChatTurn {
         return 'graph';
       case 'production_updated':
         return 'production';
+      case 'context_usage':
+        if (typeof data?.tokens !== 'number') return null;
+        this.contextTokens = data.tokens;
+        return 'context';
       case 'done':
         this.finished = true;
         this.removeStatus();
@@ -72,13 +80,14 @@ export class ChatTurn {
         const text: string = data?.errorId
           ? `${data.message} (ref: ${data.errorId})`
           : data?.message ?? 'Something went wrong.';
+        const code: string | undefined = typeof data?.code === 'string' ? data.code : undefined;
         const cur = this.current();
         if (cur && !cur.text) {
-          this.replace({ ...cur, text, isStreaming: false });
+          this.replace({ ...cur, text, isStreaming: false, ...(code ? { code } : {}) });
         } else {
           this.finalizeOrDropCurrent();
           this.curId = '';
-          this.items = [...this.items, { id: this.deps.newId(), role: 'assistant', text, isStreaming: false }];
+          this.items = [...this.items, { id: this.deps.newId(), role: 'assistant', text, isStreaming: false, ...(code ? { code } : {}) }];
         }
         return null;
       }

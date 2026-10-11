@@ -21,6 +21,7 @@ export type CaseActivityStatus = 'ok' | 'error';
  */
 @Entity('case_activity_log')
 @Index('ix_case_activity_log_case_created', ['caseId', 'createdAt', 'id'])
+@Index('ix_case_activity_log_conversation_created', ['conversationId', 'createdAt', 'id'])
 export class CaseActivityLogEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

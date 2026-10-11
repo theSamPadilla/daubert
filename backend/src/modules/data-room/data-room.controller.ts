@@ -19,12 +19,12 @@ import type { Readable } from 'stream';
 // so a default import compiles to `busboy_1.default` (undefined at runtime).
 import busboy = require('busboy');
 import { RequireRole } from '../auth/require-role.decorator';
-import { DataRoomService } from './data-room.service';
+import { DATA_ROOM_UPLOAD_LIMIT_BYTES, DataRoomService } from './data-room.service';
 import { ImportFromDriveDto } from './dto/import-drive.dto';
 import { ExportToDriveDto } from './dto/export-drive.dto';
 import { CreateFolderDto, MoveRequestDto } from './dto/folder.dto';
 
-const UPLOAD_LIMIT_BYTES = 50 * 1024 * 1024; // 50 MiB
+const UPLOAD_LIMIT_BYTES = DATA_ROOM_UPLOAD_LIMIT_BYTES;
 
 @Controller()
 export class DataRoomController {

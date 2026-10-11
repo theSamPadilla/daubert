@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
 import type { components } from '@/generated/api-types';
 import { Loader } from '@/components/Common/Loader';
@@ -467,7 +468,11 @@ export default function SuperadminTokenUsagePage() {
               {byCase.map((row, i) => (
                 <tr key={row.caseId} className="border-b border-line hover:bg-surface-panel transition-colors">
                   <td className={`${tdClass} text-ink-faint`}>{i + 1}</td>
-                  <td className={`${tdClass} font-medium text-ink`}>{row.caseName}</td>
+                  <td className={`${tdClass} font-medium text-ink`}>
+                    <Link href={`/superadmin/tool-calls?caseId=${row.caseId}`} className="hover:text-brand hover:underline">
+                      {row.caseName}
+                    </Link>
+                  </td>
                   <td className={`${tdClass} text-ink-muted`}>{row.orgName ?? '—'}</td>
                   <td className={`${tdClass} text-right text-ink-muted`}>{fmtTokens(row.calls)}</td>
                   <td className={`${tdClass} text-right text-ink-muted`}>{fmtCost(row.cost)}</td>
@@ -514,7 +519,9 @@ export default function SuperadminTokenUsagePage() {
                 <tr key={row.conversationId} className="border-b border-line hover:bg-surface-panel transition-colors">
                   <td className={`${tdClass} text-ink-faint`}>{i + 1}</td>
                   <td className={`${tdClass} font-medium text-ink`}>
-                    {row.title ?? <span className="text-ink-faint italic">(untitled)</span>}
+                    <Link href={`/superadmin/tool-calls?conversationId=${row.conversationId}`} className="hover:text-brand hover:underline">
+                      {row.title ?? <span className="text-ink-faint italic">(untitled)</span>}
+                    </Link>
                   </td>
                   <td className={`${tdClass} text-ink-muted`}>{row.caseName ?? '—'}</td>
                   <td className={`${tdClass} text-ink-muted`}>{row.userEmail ?? '—'}</td>

@@ -13,7 +13,9 @@ describe('AI tool registry partition', () => {
   });
 
   it('READ_ONLY_AGENT_TOOLS contains no mutating tools', () => {
-    const names = READ_ONLY_AGENT_TOOLS.map((t) => t.name);
+    // record_file_notes is deliberately allowed here: notes are the agent's
+    // reading records, not case edits.
+    const names = READ_ONLY_AGENT_TOOLS.map((t) => t.name).filter((n) => n !== 'record_file_notes');
     for (const writeName of [
       'create_production',
       'update_production',
@@ -32,6 +34,14 @@ describe('AI tool registry partition', () => {
       const names = set.map((t) => t.name);
       expect(names).toContain('list_data_room_files');
       expect(names).toContain('read_data_room_file');
+    }
+  });
+
+  it('exposes the file-notes tools to every role (read-only and full)', () => {
+    for (const set of [AGENT_TOOLS, READ_ONLY_AGENT_TOOLS]) {
+      const names = set.map((t) => t.name);
+      expect(names).toContain('record_file_notes');
+      expect(names).toContain('get_file_notes');
     }
   });
 });

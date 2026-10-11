@@ -1,0 +1,52 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`renderConversation renders a sample transcript 1`] = `
+"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>Wallet review</title>
+<style>
+  thead { display: table-header-group; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a1a; line-height: 1.6; font-size: 11pt; }
+  h1 { font-size: 20pt; margin-bottom: 12pt; color: #111; }
+  h2 { font-size: 15pt; margin-top: 18pt; margin-bottom: 8pt; color: #222; }
+  h3 { font-size: 12pt; margin-top: 14pt; margin-bottom: 6pt; color: #333; }
+  p { margin-bottom: 8pt; }
+  ul, ol { margin-left: 20pt; margin-bottom: 8pt; }
+  a { color: #2563eb; text-decoration: underline; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16pt; font-size: 10pt; }
+  th { background: #f3f4f6; font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid #d1d5db; }
+  td { padding: 8px 12px; border: 1px solid #d1d5db; vertical-align: top; }
+  .citation { color: #2563eb; font-size: 8pt; vertical-align: super; cursor: default; }
+  .works-cited { margin-top: 24pt; border-top: 2px solid #d1d5db; padding-top: 16pt; }
+  .works-cited h2 { font-size: 14pt; }
+  .works-cited li { margin-bottom: 4pt; font-size: 10pt; word-break: break-all; }
+  @page { margin: 20mm 15mm; }
+  @media print { .no-print { display: none; } }
+
+  .meta { color: #4b5563; font-size: 10pt; margin-bottom: 12pt; }
+  .meta div { margin-bottom: 2pt; }
+  .retention { font-size: 10pt; font-style: italic; color: #92400e; margin-bottom: 12pt; }
+  .turn { margin-bottom: 14pt; }
+  .turn-head { font-size: 9pt; color: #6b7280; margin-bottom: 4pt; }
+  .turn-head .who { font-weight: 700; color: #111; text-transform: uppercase; letter-spacing: 0.04em; }
+  .turn.user .body { border-left: 3px solid #d1d5db; padding-left: 10pt; }
+  .attachments { font-size: 10pt; color: #4b5563; margin-top: 4pt; }
+  .actions { margin: 0 0 14pt 0; }
+  .action { font-size: 9pt; color: #6b7280; margin: 0 0 2pt 0; }
+  .disclaimer { margin-top: 24pt; font-size: 9pt; color: #6b7280; text-align: center; }
+</style>
+</head><body>
+<h1>Wallet review</h1>
+<div class="meta"><div>Case: Acme Case</div><div>Exported by: Jane Doe</div><div>Exported at: 2026-10-11 12:00 UTC</div><div>Date range: 2026-09-01</div></div>
+
+<div class="turn user"><div class="turn-head"><span class="who">You</span> 2026-09-01 10:00 UTC</div><div class="body"><p>Look at this<br>second line</p><p class="attachments">Attachments: Affidavit.pdf</p></div></div>
+<div class="actions"><p class="action">Read data room file: Affidavit.pdf</p><p class="action">Web search: acme corp (failed)</p></div>
+<div class="turn assistant"><div class="turn-head"><span class="who">Assistant</span> 2026-09-01 10:00 UTC</div><div class="body"><h2>Findings</h2>
+<ul>
+<li>one</li>
+<li><strong>two</strong></li>
+</ul>
+</div></div>
+
+</body></html>"
+`;

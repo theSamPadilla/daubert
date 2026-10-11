@@ -1,5 +1,6 @@
 import { getMetadataArgsStorage } from 'typeorm';
 import { DataRoomFileEntity } from './data-room-file.entity';
+import { DataRoomFileNoteEntity } from './data-room-file-note.entity';
 import { DataRoomFolderEntity } from './data-room-folder.entity';
 import { DataRoomAccessLogEntity } from './data-room-access-log.entity';
 
@@ -10,6 +11,10 @@ describe('data room entities', () => {
   it('map to expected tables', () => {
     expect(tables.find((t) => t.target === DataRoomFileEntity)?.name).toBe('data_room_files');
     expect(tables.find((t) => t.target === DataRoomAccessLogEntity)?.name).toBe('data_room_access_log');
+  });
+
+  it('DataRoomFileNoteEntity maps to data_room_file_notes', () => {
+    expect(tables.find((t) => t.target === DataRoomFileNoteEntity)?.name).toBe('data_room_file_notes');
   });
 
   it('DataRoomFolderEntity maps to data_room_folders', () => {

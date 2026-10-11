@@ -21,20 +21,36 @@ const MAX_TOKENS = 32000;
  * adaptive thinking and the dynamic-filtering web search; Haiku 4.5 predates
  * both and rejects them (400 "adaptive thinking is not supported", and
  * web_search_20260209 needs programmatic tool calling, which Haiku 4.5 lacks),
- * so it gets a fixed thinking budget and the basic web search tool.
+ * so it gets a fixed thinking budget and the basic web search tool. Haiku 4.5
+ * also does not support server-side compaction.
  */
 interface ModelRequestShape {
   thinking: Anthropic.Beta.BetaThinkingConfigParam;
   webSearchType: string | null; // null: send the web_search tool unchanged
+  compaction: number | null; // input-token trigger; null: no context_management
 }
 
-const DEFAULT_SHAPE: ModelRequestShape = { thinking: { type: 'adaptive' }, webSearchType: null };
+/**
+ * Input tokens at which the API compacts the conversation server-side
+ * (compact-2026-01-12). Well above the API's 150k default and well below the
+ * 1M window: the long-conversation warnings fire at 200k and 400k and never
+ * block sending, so compaction is the backstop past 400k. Prod conversations
+ * were reaching 930k-990k input tokens against Opus's 1M limit.
+ */
+export const COMPACTION_TRIGGER_TOKENS = 500_000;
+
+const DEFAULT_SHAPE: ModelRequestShape = {
+  thinking: { type: 'adaptive' },
+  webSearchType: null,
+  compaction: COMPACTION_TRIGGER_TOKENS,
+};
 
 const MODEL_SHAPES: Record<string, ModelRequestShape> = {
   'claude-haiku-4-5': {
     // Must stay below MAX_TOKENS; leaves 24k for tool inputs and text.
     thinking: { type: 'enabled', budget_tokens: 8000 },
     webSearchType: 'web_search_20250305',
+    compaction: null,
   },
 };
 
@@ -43,6 +59,27 @@ function shapeTools(tools: Anthropic.Beta.BetaTool[], shape: ModelRequestShape):
   return tools.map((t) =>
     t.name === 'web_search' ? ({ ...t, type: shape.webSearchType } as unknown as Anthropic.Beta.BetaTool) : t,
   );
+}
+
+/**
+ * Models without server-side compaction (compaction: null) reject compaction
+ * blocks in history. Convert a summary into plain text and drop a failed one
+ * (null content), on a copy: stored and in-memory messages are never mutated.
+ */
+function shapeMessages(
+  messages: Anthropic.Beta.BetaMessageParam[],
+  shape: ModelRequestShape,
+): Anthropic.Beta.BetaMessageParam[] {
+  if (shape.compaction) return messages;
+  return messages.map((m) => {
+    if (!Array.isArray(m.content) || !m.content.some((b) => (b as { type?: string }).type === 'compaction')) return m;
+    const content = m.content.flatMap((b): Anthropic.Beta.BetaContentBlockParam[] => {
+      if ((b as { type?: string }).type !== 'compaction') return [b];
+      const text = (b as { content?: unknown }).content;
+      return typeof text === 'string' ? [{ type: 'text', text }] : [];
+    });
+    return { ...m, content: content.length > 0 ? content : [{ type: 'text', text: '(continuing)' }] };
+  });
 }
 
 @Injectable()
@@ -61,14 +98,16 @@ export class AnthropicProvider implements LlmProvider {
     model?: string;
     containerId?: string;
     signal?: AbortSignal;
+    /** Sent as `tool_choice`; omitted when unset (the API default, auto). */
+    toolChoice?: Anthropic.Beta.BetaToolChoice;
   }): AsyncGenerator<StreamEvent> {
     // No cache_control on the tools: the cached prefix runs tools -> system ->
     // messages, so the caller's system-prompt breakpoint already covers them,
     // and the caller needs all four of the API's breakpoints (see
     // AiService.streamChat).
 
-    // Forward the container id when the previous turn under the
-    // compact-2026-01-12 (programmatic tool calling) beta returned one.
+    // Forward the container id when the previous turn returned one (server-side
+    // code execution, which web_search_20260209 runs for dynamic filtering).
     // Pending tool_use blocks generated inside a server-side code_execution
     // block can only be resolved against the same container — without this,
     // the next request fails with "container_id is required when there are
@@ -82,9 +121,17 @@ export class AnthropicProvider implements LlmProvider {
         max_tokens: MAX_TOKENS,
         thinking: shape.thinking,
         system: params.system,
-        messages: params.messages,
+        messages: shapeMessages(params.messages, shape),
         tools: shapeTools(params.tools, shape),
+        ...(shape.compaction
+          ? {
+              context_management: {
+                edits: [{ type: 'compact_20260112', trigger: { type: 'input_tokens', value: shape.compaction } }],
+              },
+            }
+          : {}),
         ...(params.containerId ? { container: params.containerId } : {}),
+        ...(params.toolChoice ? { tool_choice: params.toolChoice } : {}),
       } as Parameters<typeof this.client.beta.messages.stream>[0],
       { signal: params.signal },
     );
@@ -100,6 +147,7 @@ export class AnthropicProvider implements LlmProvider {
 
     // Strip thinking / redacted_thinking blocks: we don't carry reasoning
     // across turns, and persisting them caused cache_control breakpoint bugs.
+    // Compaction blocks pass through: they must be replayed on later requests.
     //
     // Server-side tool blocks (server_tool_use + web_search_tool_result,
     // code_execution + code_execution_tool_result) MUST be preserved as
@@ -144,6 +192,38 @@ export class AnthropicProvider implements LlmProvider {
     const block = response.content[0];
     const text = block?.type === 'text' ? block.text.trim() : null;
     return { text, usage: response.usage, model };
+  }
+
+  /**
+   * One streaming model call (final message only) with a system prompt and no
+   * tools. Used for the long-conversation handoff summary. Streaming avoids
+   * the SDK's long-request guard; the timeout is set per call because the
+   * input can be very large.
+   */
+  async summarize(params: {
+    system: string;
+    prompt: string;
+    model: string;
+    maxTokens: number;
+    timeoutMs: number;
+  }): Promise<GeneratedText & { stopReason: string | null }> {
+    const response = await this.client.messages
+      .stream(
+        {
+          model: params.model,
+          max_tokens: params.maxTokens,
+          system: params.system,
+          messages: [{ role: 'user', content: params.prompt }],
+        },
+        { timeout: params.timeoutMs, maxRetries: 1 },
+      )
+      .finalMessage();
+    const text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim();
+    return { text: text || null, usage: response.usage, model: params.model, stopReason: response.stop_reason };
   }
 
   /**

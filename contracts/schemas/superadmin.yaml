@@ -264,3 +264,43 @@ TokenUsageCacheEffectiveness:
         outputTokens:
           type: integer
           format: int64
+
+ToolCallRow:
+  type: object
+  required: [id, createdAt, caseId, source, action, input, status, backfilled]
+  properties:
+    id: { type: string, format: uuid }
+    createdAt: { type: string, format: date-time }
+    orgId: { type: string, format: uuid, nullable: true }
+    orgName: { type: string, nullable: true }
+    caseId: { type: string, format: uuid }
+    caseName: { type: string, nullable: true }
+    userId: { type: string, format: uuid, nullable: true }
+    userEmail: { type: string, nullable: true }
+    conversationId: { type: string, format: uuid, nullable: true }
+    conversationTitle: { type: string, nullable: true }
+    source: { type: string, enum: [chat, mcp] }
+    agent: { type: string, nullable: true }
+    action: { type: string }
+    input: {}
+    status: { type: string, enum: [ok, error] }
+    summary: { type: object, additionalProperties: true, nullable: true }
+    backfilled: { type: boolean }
+
+ToolCallPage:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ToolCallRow'
+    nextCursor: { type: string, nullable: true }
+
+ToolCallSummaryRow:
+  type: object
+  required: [action, status, count]
+  properties:
+    action: { type: string }
+    status: { type: string, enum: [ok, error] }
+    count: { type: integer, format: int64 }

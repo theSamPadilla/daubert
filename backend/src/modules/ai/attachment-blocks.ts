@@ -3,7 +3,7 @@ import * as mammoth from 'mammoth';
 import type Anthropic from '@anthropic-ai/sdk';
 
 /** Anthropic's hard limits on raw bytes (×0.75 of base64 char count). */
-const PDF_B64_LIMIT = 6_200_000;   // ~4.5 MB raw — inline base64 document ceiling
+export const PDF_B64_LIMIT = 6_200_000;   // ~4.5 MB raw — inline base64 document ceiling
 const IMG_B64_LIMIT = 6_800_000;   // ~5 MB raw
 /** Anthropic's PDF *processing* ceiling (raw bytes) when uploaded via the Files API. */
 const PDF_FILES_API_LIMIT = 32 * 1024 * 1024;   // 32 MB raw

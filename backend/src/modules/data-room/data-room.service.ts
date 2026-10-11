@@ -16,6 +16,10 @@ import {
 } from '../../database/entities/data-room-access-log.entity';
 import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { DataRoomFolderEntity } from '../../database/entities/data-room-folder.entity';
+import {
+  DataRoomFileNoteEntity,
+  FileNotes,
+} from '../../database/entities/data-room-file-note.entity';
 import { GoogleDriveExportService } from './google-drive-export.service';
 import { GoogleDriveImportService } from './google-drive-import.service';
 import {
@@ -30,6 +34,12 @@ import { DOCX_MIME } from '../productions/redline-extract';
  * other types stay on the caller-supplied (smaller) inline ceiling.
  */
 const PDF_AGENT_READ_BYTES = 32 * 1024 * 1024;
+
+/** Largest file a single upload may store (HTTP upload and chat attachments). */
+export const DATA_ROOM_UPLOAD_LIMIT_BYTES = 50 * 1024 * 1024; // 50 MiB
+
+/** Root folder that holds files users attach in the AI chat. One per case. */
+export const CHAT_UPLOADS_FOLDER = 'Chat uploads';
 
 /**
  * Ceiling for redline source ingestion. The extractor (mammoth/unpdf) buffers
@@ -71,7 +81,12 @@ export interface DataRoomManifestEntry {
   mimeType: string;
   size: number;
   folder: string; // POSIX-style path, '/' for root
+  hasNotes: boolean;
+  notesUpdatedAt: string | null;
 }
+
+/** Hard cap on file ids per getFileNotes call. */
+export const FILE_NOTES_MAX_IDS = 50;
 
 export interface DataRoomManifest {
   files: DataRoomManifestEntry[];
@@ -120,6 +135,8 @@ export class DataRoomService {
     private readonly caseRepo: Repository<CaseEntity>,
     @InjectRepository(DataRoomFolderEntity)
     private readonly folderRepo: Repository<DataRoomFolderEntity>,
+    @InjectRepository(DataRoomFileNoteEntity)
+    private readonly noteRepo: Repository<DataRoomFileNoteEntity>,
     @Inject(STORAGE_PROVIDER)
     private readonly storage: StorageProvider,
     private readonly driveImport: GoogleDriveImportService,
@@ -153,6 +170,14 @@ export class DataRoomService {
       this.fileRepo.count({ where: { caseId } }),
     ]);
 
+    const noteRows = rows.length
+      ? await this.noteRepo.find({
+          where: { caseId, fileId: In(rows.map((r) => r.id)) },
+          select: { fileId: true, updatedAt: true },
+        })
+      : [];
+    const notesByFile = new Map(noteRows.map((n) => [n.fileId, n.updatedAt]));
+
     const folders = await this.folderRepo.find({ where: { caseId } });
     const byId = new Map(folders.map((f) => [f.id, f]));
     const pathFor = (folderId: string | null): string => {
@@ -176,10 +201,59 @@ export class DataRoomService {
         mimeType: r.mimeType,
         size: Number(r.size),
         folder: pathFor(r.folderId),
+        hasNotes: notesByFile.has(r.id),
+        notesUpdatedAt: notesByFile.get(r.id)?.toISOString() ?? null,
       })),
       total,
       truncated: limit != null && total > limit,
     };
+  }
+
+  /**
+   * Save (replace) the agent's notes for a file. The file must belong to the
+   * case; a file from another case is "not found". One row per file.
+   */
+  async upsertFileNotes(
+    caseId: string,
+    fileId: string,
+    notes: FileNotes,
+    meta: { userId: string | null; conversationId: string | null; model: string | null },
+  ): Promise<void> {
+    const file = await this.fileRepo.findOne({ where: { id: fileId, caseId } });
+    if (!file) throw new NotFoundException('File not found');
+    await this.noteRepo.upsert(
+      {
+        caseId,
+        fileId,
+        notes,
+        updatedByUserId: meta.userId,
+        conversationId: meta.conversationId,
+        model: meta.model,
+      },
+      ['fileId'],
+    );
+  }
+
+  /**
+   * Notes for the given files, scoped to the case (foreign or unknown ids are
+   * silently dropped). Capped at {@link FILE_NOTES_MAX_IDS} ids.
+   */
+  async getFileNotes(
+    caseId: string,
+    fileIds: string[],
+  ): Promise<{ fileId: string; name: string; notes: FileNotes; updatedAt: string }[]> {
+    const ids = fileIds.slice(0, FILE_NOTES_MAX_IDS);
+    if (ids.length === 0) return [];
+    const rows = await this.noteRepo.find({
+      where: { caseId, fileId: In(ids) },
+      relations: { file: true },
+    });
+    return rows.map((r) => ({
+      fileId: r.fileId,
+      name: r.file.name,
+      notes: r.notes,
+      updatedAt: r.updatedAt.toISOString(),
+    }));
   }
 
   /**
@@ -219,6 +293,49 @@ export class DataRoomService {
     await this.log(caseId, userId, 'upload', id);
     this.logger.log(`upload caseId=${caseId} fileId=${id} size=${size}`);
     return this.toDto(row);
+  }
+
+  /**
+   * Store a file the user attached in the AI chat. It goes into the case's
+   * "Chat uploads" root folder (created on first use) through
+   * {@link uploadFromStream}, so storage, the upload limit and the access log
+   * behave like any upload. No role gate here: any case member whose agent can
+   * chat may attach files, viewers included.
+   */
+  async saveChatUpload(
+    caseId: string,
+    userId: string,
+    name: string,
+    mimeType: string,
+    buffer: Buffer,
+  ): Promise<DataRoomFileDto> {
+    if (buffer.length > DATA_ROOM_UPLOAD_LIMIT_BYTES) {
+      throw new BadRequestException(`"${name}" is larger than the 50 MB upload limit`);
+    }
+    const folderId = await this.chatUploadsFolderId(caseId, userId);
+    return this.uploadFromStream(caseId, userId, name, mimeType, Readable.from([buffer]), folderId);
+  }
+
+  /**
+   * Find or create the case's "Chat uploads" root folder. Folder names carry no
+   * unique constraint, so the lookup and create run in one transaction behind a
+   * per-case advisory lock: concurrent first uploads serialize and the second
+   * finds the first's folder.
+   */
+  private async chatUploadsFolderId(caseId: string, userId: string): Promise<string> {
+    return this.folderRepo.manager.transaction(async (em) => {
+      await em.query(`SELECT pg_advisory_xact_lock(hashtext('chat_uploads:' || $1::text))`, [caseId]);
+      const folders = em.getRepository(DataRoomFolderEntity);
+      const existing = await folders.findOne({
+        where: { caseId, parentFolderId: IsNull(), name: CHAT_UPLOADS_FOLDER },
+        order: { createdAt: 'ASC', id: 'ASC' },
+      });
+      if (existing) return existing.id;
+      const row = await folders.save(
+        folders.create({ caseId, parentFolderId: null, name: CHAT_UPLOADS_FOLDER, createdByUserId: userId }),
+      );
+      return row.id;
+    });
   }
 
   /**
@@ -346,6 +463,33 @@ export class DataRoomService {
     fileId: string,
     maxBytes: number,
   ): Promise<AgentReadResult> {
+    const res = await this.openForAgent(caseId, fileId, maxBytes);
+    if (res.tooLarge) return res;
+    await this.log(caseId, userId, 'agent_read', fileId);
+    this.logger.log(`agent_read caseId=${caseId} fileId=${fileId}`);
+    return res;
+  }
+
+  /**
+   * Re-open a file the agent already read, to reload it into a later request
+   * of the same conversation. Same tenancy scoping and size gate as
+   * {@link getFileForAgentRead}, but writes NO access-log row: this is not a
+   * new read, and rehydrating on every message would flood the custody log.
+   */
+  async getFileForRehydrate(
+    caseId: string,
+    fileId: string,
+    maxBytes: number,
+  ): Promise<AgentReadResult> {
+    return this.openForAgent(caseId, fileId, maxBytes);
+  }
+
+  /** Shared by agent reads and rehydration: tenancy lookup, size gate, open stream. No audit. */
+  private async openForAgent(
+    caseId: string,
+    fileId: string,
+    maxBytes: number,
+  ): Promise<AgentReadResult> {
     const row = await this.fileRepo.findOne({ where: { id: fileId, caseId } });
     if (!row) {
       throw new NotFoundException('file_not_found');
@@ -363,8 +507,6 @@ export class DataRoomService {
       };
     }
     const { stream } = await this.storage.download(row.objectKey);
-    await this.log(caseId, userId, 'agent_read', fileId);
-    this.logger.log(`agent_read caseId=${caseId} fileId=${fileId}`);
     return {
       tooLarge: false,
       name: row.name,

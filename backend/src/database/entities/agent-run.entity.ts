@@ -19,10 +19,15 @@ export const ACTIVE_RUN_STATUSES: AgentRunStatus[] = ['queued', 'running'];
 /** Name of the partial unique index; matched on unique-violation errors. */
 export const ACTIVE_RUN_INDEX = 'uq_agent_runs_active_per_conversation';
 
+export type RunErrorCode = 'context_overflow' | 'service_unavailable' | 'unknown';
+
 export interface RunError {
   errorId: string;
   /** User-safe message, shown in the chat. */
   message: string;
+  /** Failure class the UI acts on (context_overflow offers "continue in a new
+   *  conversation"). Absent means unknown. */
+  code?: RunErrorCode;
 }
 
 /**

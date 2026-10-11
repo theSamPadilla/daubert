@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { SuperAdminGuard } from '@/components/Auth/SuperAdminGuard';
 import UserMenu from '@/components/Auth/UserMenu';
-import { FaUsers, FaFolderOpen, FaTags, FaArrowLeft, FaBuilding, FaChartLine } from 'react-icons/fa6';
+import { FaUsers, FaFolderOpen, FaTags, FaArrowLeft, FaBuilding, FaChartLine, FaScrewdriverWrench } from 'react-icons/fa6';
 
 const NAV = [
   { href: '/superadmin/orgs', label: 'Orgs', icon: FaBuilding, exact: false },
@@ -13,6 +13,7 @@ const NAV = [
   { href: '/superadmin/cases', label: 'Cases', icon: FaFolderOpen, exact: false },
   { href: '/superadmin/entities', label: 'Entities', icon: FaTags, exact: false },
   { href: '/superadmin/token-usage', label: 'Token Usage', icon: FaChartLine, exact: false },
+  { href: '/superadmin/tool-calls', label: 'Tool Calls', icon: FaScrewdriverWrench, exact: false },
 ];
 
 function Sidebar() {

@@ -20,6 +20,8 @@ export interface LlmProvider {
     containerId?: string;
     /** Aborts the in-flight request (Stop, run time limit, lost lease). */
     signal?: AbortSignal;
+    /** Sent as `tool_choice`; omitted when unset. */
+    toolChoice?: Anthropic.Beta.BetaToolChoice;
   }): AsyncIterable<StreamEvent>;
 
   generateText(params: {
@@ -29,4 +31,13 @@ export interface LlmProvider {
   }): Promise<GeneratedText>;
 
   uploadFile(buffer: Buffer, filename: string, mimeType: string): Promise<string>;
+
+  /** One non-streaming call with a system prompt and no tools. */
+  summarize(params: {
+    system: string;
+    prompt: string;
+    model: string;
+    maxTokens: number;
+    timeoutMs: number;
+  }): Promise<GeneratedText & { stopReason: string | null }>;
 }

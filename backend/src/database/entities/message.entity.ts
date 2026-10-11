@@ -1,11 +1,12 @@
 // backend/src/database/entities/message.entity.ts
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { ConversationEntity } from './conversation.entity';
 
 export type MessageRole = 'user' | 'assistant';
 
 @Entity('messages')
+@Index('IDX_messages_conversation_created', ['conversationId', 'createdAt'])
 export class MessageEntity extends BaseEntity {
   @Column({ name: 'conversation_id' })
   conversationId: string;

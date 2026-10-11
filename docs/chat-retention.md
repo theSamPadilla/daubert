@@ -8,7 +8,10 @@ AI chat content is kept for 30 days (`CHAT_RETENTION_DAYS` in `backend/src/modul
 |------|------|
 | `messages` | Whole turns whose prompt is older than 30 days. A turn is a user prompt plus every row after it up to the next prompt (assistant replies, tool calls, tool results). Cutting at prompts keeps the remaining history valid for the API: it still starts with a prompt and has no orphaned tool results. A turn that straddles the cutoff goes with its prompt. |
 | `conversations` | Older than 30 days with no messages left, unless a run is queued or running in it (its first run creates the run row before the user message). Cascades to `agent_runs`. |
+| `conversations.seed_summary` | Cleared (set to NULL) on conversations created more than 30 days ago. It is a model-written summary of the chat a "Continue in a new conversation" was started from, so it is chat content. The conversation row stays. |
 | `agent_run_events` | Older than 30 days. These are streamed copies of message text; each new run already clears the older events of its conversation, so this catches the last run of idle chats. |
+
+When the purge deletes any of a conversation's messages it also stamps `conversations.history_truncated_at`, so exports can say the history is incomplete.
 
 The purge is idempotent: rerunning it deletes nothing new.
 
@@ -27,7 +30,7 @@ The purge is idempotent: rerunning it deletes nothing new.
 Cloud Scheduler calls `POST /internal/chat-retention/purge` once a day with an OIDC token signed as the `agent-runs-invoker` service account. The route uses the same guard as the Cloud Tasks run worker, so it accepts only that account and does not exist where `AGENT_RUNS_WORKER_URL` / `AGENT_RUNS_INVOKER_SA` are unset (dev). Each call logs one line:
 
 ```
-chat_retention_purge days=30 messages=<n> conversations=<n> runEvents=<n>
+chat_retention_purge days=30 messages=<n> conversations=<n> runEvents=<n> seedSummaries=<n>
 ```
 
 ## Setup (operator, once)

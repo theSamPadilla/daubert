@@ -12,6 +12,13 @@ export class ApiError extends Error {
 
 type RequestOptions = RequestInit & { unauthed?: boolean };
 
+function toQuery(params: Record<string, string | number | undefined>): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') qs.set(k, String(v));
+  const str = qs.toString();
+  return str ? `?${str}` : '';
+}
+
 async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -181,6 +188,12 @@ export interface Conversation {
   title: string | null;
   createdAt: string;
   updatedAt: string;
+  oldestMessageAt: string | null;
+  contextTokens: number;
+  seedSummary: string | null;
+  continuedFromConversationId: string | null;
+  continuedFromTitle: string | null;
+  historyTruncatedAt: string | null;
 }
 
 export interface ChatMessage {
@@ -198,7 +211,7 @@ export interface AgentRun {
   id: string;
   status: AgentRunStatus;
   userMessageId: string | null;
-  error: { errorId: string; message: string } | null;
+  error: { errorId: string; message: string; code?: 'context_overflow' | 'service_unavailable' | 'unknown' } | null;
   createdAt: string;
   finishedAt: string | null;
 }
@@ -475,6 +488,8 @@ export const apiClient = {
     request<Conversation>(`/cases/${caseId}/conversations`, { method: 'POST' }),
   getConversationMessages: (conversationId: string) =>
     request<ChatMessage[]>(`/conversations/${conversationId}/messages`),
+  continueConversation: (conversationId: string) =>
+    request<Conversation>(`/conversations/${conversationId}/continue`, { method: 'POST' }),
   deleteConversation: (conversationId: string) =>
     request<void>(`/conversations/${conversationId}`, { method: 'DELETE' }),
   startRun: (conversationId: string, body: StartRunBody) =>
@@ -581,6 +596,11 @@ export const apiClient = {
   superadminTokenUsageCacheEffectiveness: (days: 7 | 30 | 90 = 30) =>
     request<components['schemas']['TokenUsageCacheEffectiveness']>(`/superadmin/token-usage/cache-effectiveness?days=${days}`),
 
+  superadminToolCalls: (params: Record<string, string | number | undefined>) =>
+    request<components['schemas']['ToolCallPage']>(`/superadmin/tool-calls${toQuery(params)}`),
+  superadminToolCallSummary: (params: Record<string, string | undefined>) =>
+    request<components['schemas']['ToolCallSummaryRow'][]>(`/superadmin/tool-calls/summary${toQuery(params)}`),
+
   // Superadmin — Labeled Entities (CUD only; reads stay on /labeled-entities)
   superadminCreateLabeledEntity: (body: { name: string; category: string; wallets: string[]; description?: string; metadata?: Record<string, unknown> }) =>
     request<LabeledEntity>('/superadmin/labeled-entities', { method: 'POST', body: JSON.stringify(body) }),
@@ -616,6 +636,21 @@ export const apiClient = {
     requestText(`/productions/${productionId}/declaration-preview`),
 
   // Export
+  exportConversation: (id: string, format: 'pdf' | 'docx', title: string | null, createdAt: string) => {
+    // Same slug rule as the backend export filename.
+    const slug =
+      (title ?? '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60)
+        .replace(/-+$/g, '') || `conversation-${createdAt.slice(0, 10)}`;
+    return downloadFile(`/conversations/${id}/export`, `${slug}.${format}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format }),
+    });
+  },
   exportProduction: (
     id: string,
     format: 'pdf' | 'png' | 'docx' | 'csv',

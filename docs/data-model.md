@@ -246,6 +246,10 @@ The frontend expands `data` into typed `nodes`, `edges`, `groups`, `edgeBundles`
 | `title` | varchar | nullable (auto-set after first message, truncated to 40 chars) |
 | `case_id` | uuid | FK -> cases (onDelete: CASCADE), not null |
 | `user_id` | uuid | FK -> users (onDelete: CASCADE), not null |
+| `history_truncated_at` | timestamptz | nullable; set by the retention purge whenever it deletes any of this conversation's messages |
+| `context_tokens` | int | not null, default 0; latest input-token count the model saw, used to offer "Continue in a new conversation" |
+| `seed_summary` | text | nullable; model-written summary of the conversation this one continues. Cleared by the retention purge 30 days after the conversation's `created_at` |
+| `continued_from_conversation_id` | uuid | nullable, FK -> conversations (onDelete: SET NULL); the conversation this one continues |
 
 **Index** on `(case_id, user_id)`. Conversations are per-user within a case: each member sees only their own chats.
 
@@ -260,6 +264,8 @@ The frontend expands `data` into typed `nodes`, `edges`, `groups`, `edgeBundles`
 | `conversation_id` | uuid | FK -> conversations, not null |
 | `role` | varchar | `'user'` or `'assistant'` |
 | `content` | jsonb | Anthropic ContentBlock[] verbatim |
+
+**Index** `IDX_messages_conversation_created` on `(conversation_id, created_at)`
 
 **Relations**: Many-to-one -> `conversations` (onDelete: CASCADE)
 
@@ -411,6 +417,21 @@ Section `kind` is one of `qualifications`, `assignment`, `summary_of_opinions`, 
 | `anthropic_file_id` | varchar | nullable -- cached Anthropic Files API id, set the first time the AI agent reads an oversized PDF |
 
 See `docs/data-room.md` for the storage architecture (GCS/local providers, streaming, chain of custody).
+
+---
+
+### `data_room_file_notes`
+
+| Column | Type | Constraints |
+|--------|------|------------|
+| `case_id` | uuid | not null, indexed, FK to `cases` ON DELETE CASCADE |
+| `file_id` | uuid | not null, unique, FK to `data_room_files` ON DELETE CASCADE -- one current notes row per file |
+| `notes` | jsonb | `FileNotes`: `summary`, `keyFacts[]`, `parties[]`, `dates[{date, event}]`, `quotes[{text, page?}]`, `relevance`, `coverage` (`'full'` or `'partial'`), `coverageNote?` |
+| `updated_by_user_id` | uuid | nullable, FK to `users` ON DELETE SET NULL |
+| `conversation_id` | uuid | nullable, no FK (conversations are purged by chat retention) |
+| `model` | varchar | nullable -- model that wrote the notes |
+
+`coverage = 'partial'` means the read got only part of the file (excerpt, page cap); `coverageNote` says which part.
 
 ---
 

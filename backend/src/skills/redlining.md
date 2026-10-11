@@ -11,7 +11,7 @@ Load this skill before creating or editing any redline production.
 
 ## Workflow
 
-1. **Find the draft and read it for full context.** Check `get_case_data`'s manifest or call `list_data_room_files` to locate the file, then `read_data_room_file` to read its full contents before doing anything else. You need the whole document in context to judge factual claims and paragraph boundaries — do not propose edits from a partial read.
+1. **Find the draft and read it for full context.** Check `get_case_data`'s manifest or call `list_data_room_files` to locate the file, then `read_data_room_file` to read its full contents before doing anything else. You need the whole document in context to judge factual claims and paragraph boundaries; do not propose edits from a partial read. Never state or infer what a document says unless you read it with `read_data_room_file`; the manifest is metadata only. In the in-app chat, also follow the notes rules in your system prompt.
 
 2. **Create the redline production.** Call `create_production` with `type: "redline"` and `data: { sourceFileId }`, where `sourceFileId` is the data-room file id from step 1 (.docx preferred, .pdf fallback). The server extracts the document's text and snapshots it into an immutable `baseText` — this is the fixed reference every anchor is matched against. You cannot edit `baseText` itself; all changes are proposed as ops layered on top of it.
 

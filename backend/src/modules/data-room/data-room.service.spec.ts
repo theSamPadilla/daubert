@@ -7,7 +7,8 @@ import { CaseEntity } from '../../database/entities/case.entity';
 import { DataRoomAccessLogEntity } from '../../database/entities/data-room-access-log.entity';
 import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
 import { DataRoomFolderEntity } from '../../database/entities/data-room-folder.entity';
-import { DataRoomService } from './data-room.service';
+import { DataRoomFileNoteEntity } from '../../database/entities/data-room-file-note.entity';
+import { CHAT_UPLOADS_FOLDER, DATA_ROOM_UPLOAD_LIMIT_BYTES, DataRoomService } from './data-room.service';
 import { GoogleDriveExportService } from './google-drive-export.service';
 import { GoogleDriveImportService } from './google-drive-import.service';
 import { STORAGE_PROVIDER } from './storage/storage-provider.interface';
@@ -23,6 +24,7 @@ interface MockRepo {
   remove: jest.Mock;
   delete: jest.Mock;
   count: jest.Mock;
+  upsert: jest.Mock;
 }
 
 interface MockStorage {
@@ -47,6 +49,7 @@ describe('DataRoomService', () => {
   let logRepo: MockRepo;
   let caseRepo: MockRepo;
   let folderRepo: MockRepo;
+  let noteRepo: MockRepo;
   let storage: MockStorage;
   let driveImport: MockDriveImport;
   let driveExport: MockDriveExport;
@@ -63,6 +66,7 @@ describe('DataRoomService', () => {
       remove: jest.fn(),
       delete: jest.fn(),
       count: jest.fn(),
+      upsert: jest.fn(),
     };
   }
 
@@ -71,6 +75,8 @@ describe('DataRoomService', () => {
     logRepo = makeRepo();
     caseRepo = makeRepo();
     folderRepo = makeRepo();
+    noteRepo = makeRepo();
+    noteRepo.find.mockResolvedValue([]);
     storage = {
       upload: jest.fn(),
       download: jest.fn(),
@@ -92,6 +98,7 @@ describe('DataRoomService', () => {
           provide: getRepositoryToken(DataRoomFolderEntity),
           useValue: folderRepo,
         },
+        { provide: getRepositoryToken(DataRoomFileNoteEntity), useValue: noteRepo },
         { provide: STORAGE_PROVIDER, useValue: storage },
         { provide: GoogleDriveImportService, useValue: driveImport },
         { provide: GoogleDriveExportService, useValue: driveExport },
@@ -200,6 +207,70 @@ describe('DataRoomService', () => {
   // ---------------------------------------------------------------------------
   // getFileForDownload
   // ---------------------------------------------------------------------------
+  describe('saveChatUpload', () => {
+    const chatFolderWhere = { caseId: 'c1', parentFolderId: IsNull(), name: CHAT_UPLOADS_FOLDER };
+    let em: { query: jest.Mock; getRepository: jest.Mock };
+
+    beforeEach(() => {
+      caseRepo.findOneByOrFail.mockResolvedValue({ id: 'c1', orgId: 'o1' });
+      storage.upload.mockResolvedValue({ size: 5 });
+      fileRepo.save.mockImplementation(async (e) => e);
+      logRepo.save.mockImplementation(async (e) => e);
+      folderRepo.findOneBy.mockImplementation(async ({ id }) => ({ id, caseId: 'c1' }));
+      // The folder lookup/create runs in a transaction on the repo's manager;
+      // model it as a manager whose repository is the same mock.
+      em = { query: jest.fn().mockResolvedValue([]), getRepository: jest.fn().mockReturnValue(folderRepo) };
+      (folderRepo as any).manager = { transaction: jest.fn(async (cb: (m: any) => unknown) => cb(em)) };
+    });
+
+    it('creates the "Chat uploads" root folder on first use and stores the file in it', async () => {
+      folderRepo.findOne.mockResolvedValueOnce(null); // none yet
+      folderRepo.save.mockImplementation(async (e) => ({ id: 'folder-1', createdAt: new Date(), ...e }));
+
+      const dto = await service.saveChatUpload('c1', 'u1', 'a.csv', 'text/csv', Buffer.from('a,b\n1'));
+
+      expect(folderRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: chatFolderWhere }));
+      expect(folderRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+        caseId: 'c1', parentFolderId: null, name: CHAT_UPLOADS_FOLDER, createdByUserId: 'u1',
+      }));
+      const savedFile = fileRepo.save.mock.calls[0][0];
+      expect(savedFile).toMatchObject({ caseId: 'c1', name: 'a.csv', mimeType: 'text/csv', folderId: 'folder-1', uploadedByUserId: 'u1' });
+      expect(savedFile.objectKey).toBe(`org/o1/case/c1/${savedFile.id}`);
+      expect(logRepo.save).toHaveBeenCalledWith(expect.objectContaining({ caseId: 'c1', action: 'upload', fileId: savedFile.id }));
+      expect(dto.id).toBe(savedFile.id);
+    });
+
+    it('reuses the existing folder on later uploads', async () => {
+      folderRepo.findOne.mockResolvedValue({ id: 'folder-1' });
+
+      await service.saveChatUpload('c1', 'u1', 'a.csv', 'text/csv', Buffer.from('x'));
+      await service.saveChatUpload('c1', 'u1', 'b.csv', 'text/csv', Buffer.from('y'));
+
+      expect(folderRepo.save).not.toHaveBeenCalled();
+      expect(fileRepo.save.mock.calls.map((c) => c[0].folderId)).toEqual(['folder-1', 'folder-1']);
+    });
+
+    it('takes a per-case advisory lock before looking the folder up, and never deletes a folder', async () => {
+      folderRepo.findOne.mockResolvedValueOnce(null);
+      folderRepo.save.mockImplementation(async (e) => ({ id: 'folder-1', createdAt: new Date(), ...e }));
+
+      await service.saveChatUpload('c1', 'u1', 'a.csv', 'text/csv', Buffer.from('x'));
+
+      expect((folderRepo as any).manager.transaction).toHaveBeenCalledTimes(1);
+      expect(em.query).toHaveBeenCalledWith(expect.stringContaining('pg_advisory_xact_lock'), ['c1']);
+      expect(em.query.mock.invocationCallOrder[0]).toBeLessThan(folderRepo.findOne.mock.invocationCallOrder[0]);
+      expect(folderRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('rejects a file over the upload limit without storing anything', async () => {
+      const big = Buffer.alloc(DATA_ROOM_UPLOAD_LIMIT_BYTES + 1);
+      await expect(service.saveChatUpload('c1', 'u1', 'big.pdf', 'application/pdf', big))
+        .rejects.toBeInstanceOf(BadRequestException);
+      expect(storage.upload).not.toHaveBeenCalled();
+      expect(folderRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getFileForDownload', () => {
     it('throws NotFoundException when no row matches {id, caseId}', async () => {
       fileRepo.findOne.mockResolvedValue(null);
@@ -781,8 +852,8 @@ describe('DataRoomService', () => {
       expect(res.total).toBe(2);
       expect(res.truncated).toBe(false);
       expect(res.files).toEqual([
-        { id: 'a', name: 'stmt.pdf', mimeType: 'application/pdf', size: 10, folder: '/Bank Statements/2024' },
-        { id: 'b', name: 'root.csv', mimeType: 'text/csv', size: 20, folder: '/' },
+        { id: 'a', name: 'stmt.pdf', mimeType: 'application/pdf', size: 10, folder: '/Bank Statements/2024', hasNotes: false, notesUpdatedAt: null },
+        { id: 'b', name: 'root.csv', mimeType: 'text/csv', size: 20, folder: '/', hasNotes: false, notesUpdatedAt: null },
       ]);
       expect(fileRepo.find).toHaveBeenCalledWith(
         expect.objectContaining({ where: { caseId: 'c1' }, order: { createdAt: 'DESC' }, take: 25 }),
@@ -796,6 +867,77 @@ describe('DataRoomService', () => {
       const res = await service.getManifest('c1', 1);
       expect(res.truncated).toBe(true);
       expect(res.total).toBe(40);
+    });
+
+    it('sets hasNotes/notesUpdatedAt only for files with a notes row', async () => {
+      folderRepo.find.mockResolvedValue([]);
+      fileRepo.find.mockResolvedValue([
+        { id: 'a', caseId: 'c1', name: 'x', mimeType: 'text/plain', size: '1', folderId: null },
+        { id: 'b', caseId: 'c1', name: 'y', mimeType: 'text/plain', size: '1', folderId: null },
+      ]);
+      fileRepo.count.mockResolvedValue(2);
+      noteRepo.find.mockResolvedValue([{ fileId: 'a', updatedAt: new Date('2026-02-03T04:05:06.000Z') }]);
+      const res = await service.getManifest('c1');
+      expect(res.files[0]).toMatchObject({ id: 'a', hasNotes: true, notesUpdatedAt: '2026-02-03T04:05:06.000Z' });
+      expect(res.files[1]).toMatchObject({ id: 'b', hasNotes: false, notesUpdatedAt: null });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // upsertFileNotes / getFileNotes
+  // ---------------------------------------------------------------------------
+  describe('file notes', () => {
+    const notes = {
+      summary: 's',
+      keyFacts: [],
+      parties: [],
+      dates: [],
+      quotes: [],
+      relevance: 'r',
+      coverage: 'full' as const,
+    };
+    const meta = { userId: 'u1', conversationId: 'conv1', model: 'm1' };
+
+    it('upserts on fileId when the file belongs to the case (insert or update)', async () => {
+      fileRepo.findOne.mockResolvedValue({ id: 'a', caseId: 'c1' });
+      await service.upsertFileNotes('c1', 'a', notes, meta);
+      await service.upsertFileNotes('c1', 'a', { ...notes, summary: 'v2' }, meta);
+      expect(fileRepo.findOne).toHaveBeenCalledWith({ where: { id: 'a', caseId: 'c1' } });
+      expect(noteRepo.upsert).toHaveBeenCalledTimes(2);
+      expect(noteRepo.upsert).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          caseId: 'c1',
+          fileId: 'a',
+          notes: expect.objectContaining({ summary: 'v2' }),
+          updatedByUserId: 'u1',
+          conversationId: 'conv1',
+          model: 'm1',
+        }),
+        ['fileId'],
+      );
+    });
+
+    it('rejects a fileId from another case', async () => {
+      fileRepo.findOne.mockResolvedValue(null);
+      await expect(service.upsertFileNotes('c1', 'other', notes, meta)).rejects.toThrow(NotFoundException);
+      expect(noteRepo.upsert).not.toHaveBeenCalled();
+    });
+
+    it('getFileNotes scopes the query to the case and maps rows', async () => {
+      noteRepo.find.mockResolvedValue([
+        { fileId: 'a', notes, updatedAt: new Date('2026-02-03T04:05:06.000Z'), file: { name: 'a.pdf' } },
+      ]);
+      const res = await service.getFileNotes('c1', ['a', 'b']);
+      expect(res).toEqual([{ fileId: 'a', name: 'a.pdf', notes, updatedAt: '2026-02-03T04:05:06.000Z' }]);
+      const arg = noteRepo.find.mock.calls[0][0];
+      expect(arg.where.caseId).toBe('c1');
+    });
+
+    it('getFileNotes caps at 50 ids', async () => {
+      const ids = Array.from({ length: 80 }, (_, i) => `f${i}`);
+      await service.getFileNotes('c1', ids);
+      const arg = noteRepo.find.mock.calls[0][0];
+      expect(arg.where.fileId.value).toHaveLength(50);
     });
   });
 
@@ -827,6 +969,47 @@ describe('DataRoomService', () => {
       expect(res.stream).toBeUndefined();
       expect(storage.download).not.toHaveBeenCalled();
       expect(logRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getFileForRehydrate
+  // ---------------------------------------------------------------------------
+  describe('getFileForRehydrate', () => {
+    const fileRow = { id: 'a', caseId: 'c1', name: 'doc.pdf', mimeType: 'application/pdf', size: '100', objectKey: 'org/o/case/c1/a', anthropicFileId: 'file_x' };
+
+    it('streams the object scoped to the case and writes NO access-log row', async () => {
+      fileRepo.findOne.mockResolvedValue(fileRow);
+      storage.download.mockResolvedValue({ stream: Readable.from(['x']) });
+      const res = await service.getFileForRehydrate('c1', 'a', 5 * 1024 * 1024);
+      expect(res).toMatchObject({ name: 'doc.pdf', mimeType: 'application/pdf', size: 100, tooLarge: false, anthropicFileId: 'file_x' });
+      expect(res.stream).toBeDefined();
+      expect(fileRepo.findOne).toHaveBeenCalledWith({ where: { id: 'a', caseId: 'c1' } });
+      expect(storage.download).toHaveBeenCalledWith('org/o/case/c1/a');
+      expect(logRepo.create).not.toHaveBeenCalled();
+      expect(logRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFound for a file from another case', async () => {
+      fileRepo.findOne.mockResolvedValue(null);
+      await expect(service.getFileForRehydrate('c1', 'a', 5 * 1024 * 1024)).rejects.toThrow(NotFoundException);
+      expect(storage.download).not.toHaveBeenCalled();
+    });
+
+    it('applies the same size gate as an agent read: tooLarge, no download, no log', async () => {
+      fileRepo.findOne.mockResolvedValue({ ...fileRow, size: String(99 * 1024 * 1024) });
+      const res = await service.getFileForRehydrate('c1', 'a', 5 * 1024 * 1024);
+      expect(res.tooLarge).toBe(true);
+      expect(res.stream).toBeUndefined();
+      expect(storage.download).not.toHaveBeenCalled();
+      expect(logRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('uses maxBytes for non-PDF types', async () => {
+      fileRepo.findOne.mockResolvedValue({ ...fileRow, mimeType: 'image/png', size: String(6 * 1024 * 1024) });
+      const res = await service.getFileForRehydrate('c1', 'a', 5 * 1024 * 1024);
+      expect(res.tooLarge).toBe(true);
+      expect(storage.download).not.toHaveBeenCalled();
     });
   });
 

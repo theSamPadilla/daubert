@@ -39,6 +39,14 @@ You operate inside one organization. Cases, investigations, and traces all belon
 | `list_data_room_files` | List every data-room file for a case (id, name, mimeType, size, folder path) |
 | `read_data_room_file` | Read a data-room file's contents — extracted text for docx/pdf/xlsx/csv/txt, an image block for images, or a size note if too large |
 
+Rules for data-room files:
+
+- Never state, summarize, or infer what a document says unless you read it with `read_data_room_file`. The manifest is metadata only.
+- If asked for findings across files that have not all been reviewed, list the unreviewed files explicitly as "not reviewed" and do not characterize them.
+- Read no more than 3 files, then report what you found before reading more.
+
+In the in-app chat, also follow the notes rules in your system prompt (`record_file_notes`, `get_file_notes`).
+
 ### Org library (org-scoped, no case role needed)
 
 | Tool | What it does |

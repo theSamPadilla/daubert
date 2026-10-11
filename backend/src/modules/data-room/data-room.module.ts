@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataRoomFileEntity } from '../../database/entities/data-room-file.entity';
+import { DataRoomFileNoteEntity } from '../../database/entities/data-room-file-note.entity';
 import { DataRoomAccessLogEntity } from '../../database/entities/data-room-access-log.entity';
 import { DataRoomFolderEntity } from '../../database/entities/data-room-folder.entity';
 import { CaseEntity } from '../../database/entities/case.entity';
@@ -15,6 +16,7 @@ import { storageProvider } from './storage/storage.factory';
   imports: [
     TypeOrmModule.forFeature([
       DataRoomFileEntity,
+      DataRoomFileNoteEntity,
       DataRoomAccessLogEntity,
       DataRoomFolderEntity,
       CaseEntity,

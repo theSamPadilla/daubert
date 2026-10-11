@@ -19,8 +19,8 @@ export const STOP_NOTES: Record<Exclude<RunAbortReason, 'lease_lost'>, string> =
 };
 
 /**
- * Persisted when a turn ends with a user(tool_result) tail. The compact beta
- * rejects a next user turn that mixes text into a tool-responding turn, so
+ * Persisted when a turn ends with a user(tool_result) tail. Programmatic tool
+ * calling rejects a next user turn that mixes text into a tool-responding turn, so
  * leaving that tail wedges the conversation.
  */
 export const TOOL_RESULT_TERMINATOR =

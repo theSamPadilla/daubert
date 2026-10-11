@@ -11,5 +11,6 @@ import { DataRoomModule } from '../data-room/data-room.module';
   imports: [ProductionsModule, InvestigationsModule, DataRoomModule],
   controllers: [ExportController, DeclarationFormatsController, RedlineController],
   providers: [ExportService],
+  exports: [ExportService],
 })
 export class ExportModule {}

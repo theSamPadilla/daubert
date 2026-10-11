@@ -3,10 +3,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { FaArrowLeft, FaPlus, FaClockRotateLeft, FaXmark, FaChevronUp, FaChevronDown, FaPaperclip, FaTrash, FaArrowUp } from 'react-icons/fa6';
+import { FaArrowLeft, FaPlus, FaClockRotateLeft, FaXmark, FaChevronUp, FaChevronDown, FaPaperclip, FaTrash, FaArrowUp, FaImage } from 'react-icons/fa6';
 import { apiClient, ApiError, type AgentRun, type Conversation, type ChatMessage, type StartRunBody } from '@/lib/api-client';
 import { subscribeRunEvents } from '@/lib/run-events';
 import { ChatTurn } from './chatTurn';
+import ConversationExportMenu from './ConversationExportMenu';
+import { daysUntilPurge, purgeNotice } from './chatRetention';
+import { ContextBanner, ContinueButton, SeedSummaryCard } from './ContextBanner';
+import { bannerState } from './contextThresholds';
 import { useCaseContext } from '@/contexts/CaseContext';
 import { Kicker } from '@/components/ui';
 
@@ -51,6 +55,8 @@ interface LocalMessage {
   role: 'user' | 'assistant' | 'status';
   text: string;
   isStreaming?: boolean;
+  /** Run error code, e.g. 'context_overflow'; drives the continue button on the bubble. */
+  code?: string;
   attachments?: Pick<Attachment, 'name' | 'mediaType' | 'previewUrl'>[];
 }
 
@@ -61,10 +67,47 @@ function extractText(content: ChatMessage['content']): string {
     .join('');
 }
 
+type MessageAttachment = Pick<Attachment, 'name' | 'mediaType' | 'previewUrl'>;
+
+/**
+ * Attachments of a stored user row. Current rows hold `data_room_ref` pointers
+ * (origin 'upload'; the file lives in the case data room, so there is no
+ * preview). Legacy rows hold the inline document/image blocks themselves.
+ * The backend already strips the agent-facing "Attached files saved to the
+ * data room..." note (DATA_ROOM_ATTACHED_PREFIX in
+ * backend/src/modules/ai/data-room-rehydrate.ts).
+ */
+function extractAttachments(m: ChatMessage): MessageAttachment[] {
+  if (m.role !== 'user') return [];
+  const out: MessageAttachment[] = [];
+  for (const b of m.content) {
+    if (b.type === 'data_room_ref' && b.origin === 'upload') {
+      out.push({ name: String(b.name ?? 'Attached file'), mediaType: String(b.mediaType ?? ''), previewUrl: '' });
+    } else if (b.type === 'image') {
+      const src = b.source as { type?: string; media_type?: string; data?: string } | undefined;
+      const mediaType = src?.media_type ?? 'image/png';
+      const previewUrl = src?.type === 'base64' && src.data ? `data:${mediaType};base64,${src.data}` : '';
+      out.push({ name: 'Image', mediaType, previewUrl });
+    } else if (b.type === 'document') {
+      const src = b.source as { media_type?: string } | undefined;
+      const name = typeof b.title === 'string' && b.title ? b.title : 'Attached file';
+      // Extracted text documents (CSV/XLSX/DOCX) are text/plain; the name picks the icon.
+      out.push({ name, mediaType: src?.media_type === 'application/pdf' ? 'application/pdf' : '', previewUrl: '' });
+    }
+  }
+  return out;
+}
+
 function toLocalMessages(msgs: ChatMessage[]): LocalMessage[] {
   return msgs
-    .filter((m) => extractText(m.content).length > 0)
-    .map((m) => ({ id: m.id, role: m.role, text: extractText(m.content) }));
+    .map((m) => ({ m, text: extractText(m.content), attachments: extractAttachments(m) }))
+    .filter(({ text, attachments }) => text.length > 0 || attachments.length > 0)
+    .map(({ m, text, attachments }) => ({
+      id: m.id,
+      role: m.role,
+      text,
+      ...(attachments.length > 0 ? { attachments } : {}),
+    }));
 }
 
 function formatRelativeDate(dateStr: string): string {
@@ -236,10 +279,10 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 function iconForMediaType(mt: string, name: string) {
-  if (mt.startsWith('image/')) return null;
-  if (mt === XLSX_MIME) return <XlsxIcon />;
-  if (mt === DOCX_MIME) return <DocxIcon />;
+  if (mt.startsWith('image/')) return <FaImage className="w-4 h-4 shrink-0 text-ink-muted" />;
   const lower = name.toLowerCase();
+  if (mt === XLSX_MIME || lower.endsWith('.xlsx')) return <XlsxIcon />;
+  if (mt === DOCX_MIME || lower.endsWith('.docx')) return <DocxIcon />;
   if (lower.endsWith('.csv')) return <CsvIcon />;
   if (lower.endsWith('.txt') || lower.endsWith('.md')) return <TxtIcon />;
   return <PdfIcon />;
@@ -284,12 +327,12 @@ function AttachmentChip({
 function MessageAttachments({
   attachments,
 }: {
-  attachments: Pick<Attachment, 'name' | 'mediaType' | 'previewUrl'>[];
+  attachments: MessageAttachment[];
 }) {
   return (
     <div className="flex flex-wrap gap-1.5 mb-1.5">
       {attachments.map((att, i) =>
-        att.mediaType.startsWith('image/') ? (
+        att.mediaType.startsWith('image/') && att.previewUrl ? (
           <img
             key={i}
             src={att.previewUrl}
@@ -340,11 +383,21 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [exportMenuConvId, setExportMenuConvId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<ModelId>('claude-opus-5');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  // Conversations whose warn banner was dismissed this session.
+  const [warnDismissed, setWarnDismissed] = useState<Set<string>>(() => new Set());
+  // Conversation being summarized for "Continue in a new conversation". One at a time, shared by every ContinueButton.
+  const [continuingConvId, setContinuingConvId] = useState<string | null>(null);
+  const continueSourceRef = useRef<string | null>(null);
+  const activeCaseIdRef = useRef<string | null>(activeCaseId);
+  const activeConvIdRef = useRef<string | null>(null);
+  activeCaseIdRef.current = activeCaseId;
+  activeConvIdRef.current = activeConvId;
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -417,7 +470,7 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
         const text = run.error
           ? (run.status === 'failed' ? `${run.error.message} (ref: ${run.error.errorId})` : run.error.message)
           : RUN_INTERRUPTED_NOTICE;
-        setMessages([...history, { id: `notice-${run.id}`, role: 'assistant', text }]);
+        setMessages([...history, { id: `notice-${run.id}`, role: 'assistant', text, code: run.error?.code }]);
         return;
       }
       setMessages(history);
@@ -557,6 +610,34 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
     }
   };
 
+  // A continued conversation exists server-side: show it first, then reconcile the list.
+  const handleContinueStart = (sourceId: string) => {
+    continueSourceRef.current = sourceId;
+    setContinuingConvId(sourceId);
+  };
+  const handleContinueFinish = () => {
+    continueSourceRef.current = null;
+    setContinuingConvId(null);
+  };
+
+  // The summary can take minutes; the user may have changed case or conversation meanwhile.
+  // A result for another case is dropped (it shows up in that case's history).
+  const handleContinued = async (conv: Conversation) => {
+    if (activeCaseIdRef.current !== conv.caseId) return;
+    const sourceId = continueSourceRef.current;
+    setConversations((prev) => [conv, ...prev.filter((c) => c.id !== conv.id)]);
+    if (activeConvIdRef.current === sourceId) {
+      setActiveConvId(conv.id);
+      setShowHistory(false);
+    }
+    try {
+      const convs = await apiClient.listConversations(conv.caseId);
+      if (activeCaseIdRef.current === conv.caseId) setConversations(convs);
+    } catch {
+      // The optimistic entry above stays.
+    }
+  };
+
   const handleLoadConversation = (convId: string) => {
     setActiveConvId(convId);
     setShowHistory(false);
@@ -597,6 +678,10 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
           const effect = turn.apply(type, data);
           if (effect === 'graph') onGraphUpdated?.();
           if (effect === 'production') onProductionUpdated?.();
+          if (effect === 'context' && turn.contextTokens !== null) {
+            const tokens = turn.contextTokens;
+            setConversations((prev) => prev.map((c) => (c.id === convId ? { ...c, contextTokens: tokens } : c)));
+          }
           setMessages([...base, ...turn.bubbles()]);
         },
       });
@@ -712,7 +797,9 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
     }
   };
 
-  const canSend = (input.trim().length > 0 || attachments.length > 0) && !streaming;
+  const activeConv = conversations.find((c) => c.id === activeConvId);
+
+  const canSend = (input.trim().length > 0 || attachments.length > 0) && !streaming && !(continuingConvId && continuingConvId === activeConvId);
 
   const handleStop = async () => {
     const run = runRef.current;
@@ -798,6 +885,14 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                   <option key={m.id} value={m.id}>{m.label}</option>
                 ))}
               </select>
+              {activeConvId && (
+                <ConversationExportMenu
+                  conversationId={activeConvId}
+                  title={conversations.find((c) => c.id === activeConvId)?.title ?? null}
+                  createdAt={conversations.find((c) => c.id === activeConvId)?.createdAt ?? new Date().toISOString()}
+                  disabled={streaming || messages.length === 0}
+                />
+              )}
               <button
                 onClick={() => setShowHistory(true)}
                 aria-label="Conversation history"
@@ -826,7 +921,10 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
           {conversations.length === 0 ? (
             <p className="text-ink-faint text-xs text-center py-6 font-medium">No conversations yet</p>
           ) : (
-            conversations.map((conv) => (
+            conversations.map((conv, convIndex) => {
+              const purgeDays = daysUntilPurge(conv.oldestMessageAt);
+              const showPurge = purgeDays !== null && purgeDays <= 7;
+              return (
               <div
                 key={conv.id}
                 className={`group flex items-center gap-1 px-3 py-2.5 rounded-lg mx-1 transition-colors ${
@@ -846,6 +944,24 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                     {formatRelativeDate(conv.updatedAt)}
                   </span>
                 </button>
+                {showPurge && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setExportMenuConvId(conv.id); }}
+                    className="text-xs text-ink-faint hover:text-ink-muted font-medium text-right transition-colors"
+                  >
+                    {purgeNotice(purgeDays)}
+                  </button>
+                )}
+                <ConversationExportMenu
+                  conversationId={conv.id}
+                  title={conv.title}
+                  createdAt={conv.createdAt}
+                  menuPlacement={convIndex >= conversations.length - 2 ? 'up' : 'down'}
+                  disabled={streaming && activeConvId === conv.id}
+                  buttonClassName="!h-7 !w-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                  open={exportMenuConvId === conv.id}
+                  onOpenChange={(o) => setExportMenuConvId(o ? conv.id : null)}
+                />
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv.id); }}
                   aria-label="Delete conversation"
@@ -855,7 +971,8 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                   <FaTrash className="w-3 h-3" />
                 </button>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
@@ -864,6 +981,14 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
       {!showHistory && (
         <>
           <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 bg-surface/60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {activeConv?.seedSummary && (
+              <SeedSummaryCard
+                summary={activeConv.seedSummary}
+                fromTitle={activeConv.continuedFromTitle}
+                fromConversationId={activeConv.continuedFromConversationId}
+                onOpenPrevious={handleLoadConversation}
+              />
+            )}
             {messages.length === 0 && (
               <p className="text-ink-faint text-sm text-center mt-8 leading-relaxed font-medium">
                 Ask me about addresses, transactions,<br />or patterns in this case.
@@ -901,6 +1026,18 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                     ) : m.isStreaming ? (
                       <ThinkingDots />
                     ) : null}
+                    {m.code === 'context_overflow' && activeConvId && (
+                      <div className="mt-2">
+                        <ContinueButton
+                          conversationId={activeConvId}
+                          disabled={streaming}
+                          onContinued={handleContinued}
+                          continuingConvId={continuingConvId}
+                          onContinueStart={handleContinueStart}
+                          onContinueFinish={handleContinueFinish}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -910,6 +1047,22 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
 
           {/* Input area */}
           <div className="px-4 pt-2 pb-3 border-t border-line shrink-0">
+            {activeConvId && (
+              <ContextBanner
+                state={
+                  bannerState(activeConv?.contextTokens ?? 0) === 'warn' && warnDismissed.has(activeConvId)
+                    ? 'none'
+                    : bannerState(activeConv?.contextTokens ?? 0)
+                }
+                conversationId={activeConvId}
+                disabled={streaming}
+                onContinued={handleContinued}
+                continuingConvId={continuingConvId}
+                onContinueStart={handleContinueStart}
+                onContinueFinish={handleContinueFinish}
+                onDismissWarn={() => setWarnDismissed((prev) => new Set(prev).add(activeConvId))}
+              />
+            )}
             {/* Attachment previews */}
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
@@ -921,6 +1074,11 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                   />
                 ))}
               </div>
+            )}
+            {attachments.length > 0 && (
+              <p className="text-[11px] text-ink-faint mb-1.5">
+                Attached files are saved to this case&apos;s data room.
+              </p>
             )}
 
             {/* Error */}

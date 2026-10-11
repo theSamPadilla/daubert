@@ -9,12 +9,14 @@ import { CaseEntity } from '../../database/entities/case.entity';
 import { AgentRunEntity } from '../../database/entities/agent-run.entity';
 import { AgentRunEventEntity } from '../../database/entities/agent-run-event.entity';
 import { TraceEntity } from '../../database/entities/trace.entity';
+import { ProductionEntity } from '../../database/entities/production.entity';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import { ScriptExecutionService } from './services/script-execution.service';
 import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
 import { ConversationsController, CaseConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
+import { ConversationSummaryService } from './conversation-summary.service';
 import { AgentRunsController } from './runs/agent-runs.controller';
 import { AgentRunsInternalController } from './runs/agent-runs-internal.controller';
 import { AgentRunsService } from './runs/agent-runs.service';
@@ -35,6 +37,7 @@ import { DeclarationLibraryModule } from '../declaration-library/declaration-lib
 import { DeclarantsModule } from '../declarants/declarants.module';
 import { AddressClassificationsModule } from '../address-classifications/address-classifications.module';
 import { CaseActivityModule } from '../case-activity/case-activity.module';
+import { ExportModule } from '../export/export.module';
 
 @Module({
   imports: [
@@ -48,6 +51,7 @@ import { CaseActivityModule } from '../case-activity/case-activity.module';
       TraceEntity,
       AgentRunEntity,
       AgentRunEventEntity,
+      ProductionEntity,
     ]),
     AuthModule,
     LabeledEntitiesModule,
@@ -60,6 +64,7 @@ import { CaseActivityModule } from '../case-activity/case-activity.module';
     DeclarantsModule,
     AddressClassificationsModule,
     CaseActivityModule,
+    ExportModule,
   ],
   controllers: [AiController, ConversationsController, CaseConversationsController,
     AgentRunsController, AgentRunsInternalController, ChatRetentionInternalController],
@@ -68,6 +73,7 @@ import { CaseActivityModule } from '../case-activity/case-activity.module';
     ScriptExecutionService,
     AiService,
     ConversationsService,
+    ConversationSummaryService,
     AgentRunsService,
     AgentRunExecutor,
     AgentRunLauncher,

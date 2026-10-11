@@ -85,6 +85,10 @@ paths:
     $ref: './paths/ai.yaml#/~1conversations~1{id}'
   /conversations/{id}/messages:
     $ref: './paths/ai.yaml#/~1conversations~1{id}~1messages'
+  /conversations/{id}/continue:
+    $ref: './paths/ai.yaml#/~1conversations~1{id}~1continue'
+  /conversations/{id}/export:
+    $ref: './paths/ai.yaml#/~1conversations~1{id}~1export'
   /conversations/{id}/chat:
     $ref: './paths/ai.yaml#/~1conversations~1{id}~1chat'
   /conversations/{id}/runs:
@@ -191,6 +195,10 @@ paths:
     $ref: './paths/superadmin.yaml#/~1superadmin~1labeled-entities'
   /superadmin/labeled-entities/{id}:
     $ref: './paths/superadmin.yaml#/~1superadmin~1labeled-entities~1{id}'
+  /superadmin/tool-calls:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1tool-calls'
+  /superadmin/tool-calls/summary:
+    $ref: './paths/superadmin.yaml#/~1superadmin~1tool-calls~1summary'
   /superadmin/token-usage/overview:
     $ref: './paths/superadmin.yaml#/~1superadmin~1token-usage~1overview'
   /superadmin/token-usage/by-org:
@@ -482,6 +490,12 @@ components:
       $ref: './schemas/superadmin.yaml#/TokenUsageOrgModelMatrixRow'
     TokenUsageCacheEffectiveness:
       $ref: './schemas/superadmin.yaml#/TokenUsageCacheEffectiveness'
+    ToolCallRow:
+      $ref: './schemas/superadmin.yaml#/ToolCallRow'
+    ToolCallPage:
+      $ref: './schemas/superadmin.yaml#/ToolCallPage'
+    ToolCallSummaryRow:
+      $ref: './schemas/superadmin.yaml#/ToolCallSummaryRow'
     OAuthConsentPreview:
       $ref: './schemas/oauth.yaml#/OAuthConsentPreview'
     EligibleOrgSummary:

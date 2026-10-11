@@ -1,6 +1,6 @@
 Conversation:
   type: object
-  required: [id, caseId, userId, createdAt, updatedAt]
+  required: [id, caseId, userId, createdAt, updatedAt, oldestMessageAt, contextTokens, seedSummary, continuedFromConversationId, continuedFromTitle, historyTruncatedAt]
   properties:
     id:
       type: string
@@ -20,6 +20,32 @@ Conversation:
     updatedAt:
       type: string
       format: date-time
+    oldestMessageAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Timestamp of the oldest retained message, or null if the conversation has none (always null on create)
+    contextTokens:
+      type: integer
+      description: Estimated size of the conversation's context in tokens, as of the latest run
+    seedSummary:
+      type: string
+      nullable: true
+      description: Summary of the source conversation this one was seeded with, or null if not a continuation
+    continuedFromConversationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: The conversation this one continues, or null if not a continuation
+    historyTruncatedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: When retention last purged messages from this conversation, or null if its history is complete
+    continuedFromTitle:
+      type: string
+      nullable: true
+      description: Title of the source conversation, or null if not a continuation
 
 Message:
   type: object
@@ -93,6 +119,10 @@ AgentRun:
           type: string
         message:
           type: string
+        code:
+          type: string
+          enum: [context_overflow, service_unavailable, unknown]
+          description: Classification of the failure
     createdAt:
       type: string
       format: date-time
@@ -128,6 +158,19 @@ ChatSseEvent:
   properties:
     type:
       type: string
-      enum: [text_delta, tool_start, tool_done, graph_updated, production_updated, done, error]
+      enum: [text_delta, tool_start, tool_done, graph_updated, production_updated, context_usage, done, error]
     data:
       type: object
+      description: >-
+        Event payload. `context_usage` data is `{ tokens: integer }` (current
+        context size in tokens). `error` data is `{ errorId, message, code? }`
+        where `code` is one of `context_overflow`, `service_unavailable`,
+        `unknown`.
+      properties:
+        tokens:
+          type: integer
+          description: context_usage events only
+        code:
+          type: string
+          enum: [context_overflow, service_unavailable, unknown]
+          description: error events only

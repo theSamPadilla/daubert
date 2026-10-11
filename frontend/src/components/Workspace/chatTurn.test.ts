@@ -48,6 +48,27 @@ describe('ChatTurn', () => {
     expect(turn.bubbles().map((m) => m.text)).toEqual(['Partial', 'Boom (ref: e1)']);
   });
 
+  it('carries the error code on the error bubble', () => {
+    const turn = make();
+    turn.apply('error', { message: 'Too long', errorId: 'e2', code: 'context_overflow' });
+    expect(turn.bubbles()).toEqual([
+      { id: 'id1', role: 'assistant', text: 'Too long (ref: e2)', isStreaming: false, code: 'context_overflow' },
+    ]);
+    const t2 = make();
+    t2.apply('text_delta', { content: 'Partial' });
+    t2.apply('error', { message: 'Too long', code: 'context_overflow' });
+    expect(t2.bubbles()[1].code).toBe('context_overflow');
+  });
+
+  it('returns a context side effect and records the token count', () => {
+    const turn = make();
+    expect(turn.contextTokens).toBeNull();
+    expect(turn.apply('context_usage', { tokens: 210_000 })).toBe('context');
+    expect(turn.contextTokens).toBe(210_000);
+    expect(turn.apply('context_usage', {})).toBeNull();
+    expect(turn.contextTokens).toBe(210_000);
+  });
+
   it('marks finished on done and settles: drops empties and status, appends failure', () => {
     const turn = make();
     turn.apply('done', { status: 'succeeded' });

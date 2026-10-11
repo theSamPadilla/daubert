@@ -14,6 +14,7 @@ import { SuperadminLabeledEntitiesController } from './labeled-entities/superadm
 import { SuperadminOrgsController } from './orgs/superadmin-orgs.controller';
 import { SuperadminOrgsService } from './orgs/superadmin-orgs.service';
 import { TokenUsageModule } from './token-usage/token-usage.module';
+import { ToolCallsModule } from './tool-calls/tool-calls.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TokenUsageModule } from './token-usage/token-usage.module';
     LabeledEntitiesModule,
     TypeOrmModule.forFeature([UserEntity, CaseEntity, OrganizationEntity, OrganizationMemberEntity]),
     TokenUsageModule,
+    ToolCallsModule,
   ],
   controllers: [
     SuperadminUsersController,

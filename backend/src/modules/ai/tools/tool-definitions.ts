@@ -184,7 +184,7 @@ export const LIST_DATA_ROOM_FILES_TOOL: Anthropic.Tool = {
 export const READ_DATA_ROOM_FILE_TOOL: Anthropic.Tool = {
   name: 'read_data_room_file',
   description:
-    "Read a data-room file's contents into the conversation. Pass a fileId from get_case_data's manifest or list_data_room_files. PDFs of any size up to 32 MB / 100 pages are read in full natively (only files beyond that need a manual excerpt); images are read natively; spreadsheets (xlsx) and Word docs (docx) are converted to text; CSV/TXT are read as text. Files beyond those limits and unsupported types (e.g. un-exported Google-Workspace files) cannot be read inline and return a note instead. The content is provided to you for THIS turn only — it is not retained in conversation history, so call this again if you need the file in a later turn.",
+    "Read a data-room file's contents into the conversation. Pass a fileId from get_case_data's manifest or list_data_room_files. PDFs of any size up to 32 MB / 100 pages are read in full natively (only files beyond that need a manual excerpt); images are read natively; spreadsheets (xlsx) and Word docs (docx) are converted to text; CSV/TXT are read as text. Files beyond those limits and unsupported types (e.g. un-exported Google-Workspace files) cannot be read inline and return a note instead. The content stays in the conversation after you read it. After reading, record notes with record_file_notes before moving on to the next file.",
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -194,6 +194,72 @@ export const READ_DATA_ROOM_FILE_TOOL: Anthropic.Tool = {
       },
     },
     required: ['fileId'],
+  },
+};
+
+export const RECORD_FILE_NOTES_TOOL: Anthropic.Tool = {
+  name: 'record_file_notes',
+  description:
+    "Save your notes on a data-room file. Call this right after reading a file and before reading the next one. It replaces the file's current notes, so merge in anything from the existing notes that you want to keep. Notes are shared with everyone on the case and survive after this conversation ends. Set coverage to 'partial' and explain in coverageNote if you did not read the whole file.",
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      fileId: { type: 'string', description: 'The data-room file id the notes are about.' },
+      notes: {
+        type: 'object',
+        properties: {
+          summary: { type: 'string', description: 'What the file is and what it says, in a few sentences.' },
+          keyFacts: { type: 'array', items: { type: 'string' }, description: 'Specific facts worth remembering.' },
+          parties: { type: 'array', items: { type: 'string' }, description: 'People and organizations named in the file.' },
+          dates: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                date: { type: 'string' },
+                event: { type: 'string' },
+              },
+              required: ['date', 'event'],
+            },
+            description: 'Dated events from the file.',
+          },
+          quotes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                text: { type: 'string' },
+                page: { type: 'number' },
+              },
+              required: ['text'],
+            },
+            description: 'Verbatim quotes worth citing, with the page number when known.',
+          },
+          relevance: { type: 'string', description: 'Why this file matters to the case.' },
+          coverage: { type: 'string', enum: ['full', 'partial'], description: "'full' if you read the whole file, otherwise 'partial'." },
+          coverageNote: { type: 'string', description: 'What was not covered, when coverage is partial.' },
+        },
+        required: ['summary', 'keyFacts', 'parties', 'dates', 'quotes', 'relevance', 'coverage'],
+      },
+    },
+    required: ['fileId', 'notes'],
+  },
+};
+
+export const GET_FILE_NOTES_TOOL: Anthropic.Tool = {
+  name: 'get_file_notes',
+  description:
+    'Get saved notes for files that have already been reviewed, without re-reading them. Re-read the file only when you need exact text.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      fileIds: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'The data-room file ids to get notes for.',
+      },
+    },
+    required: ['fileIds'],
   },
 };
 

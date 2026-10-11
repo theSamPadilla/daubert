@@ -1,3 +1,5 @@
+// Keep LABELS and KEY_INPUT in sync with backend/src/modules/ai/tool-labels.ts
+// (used by the conversation export).
 const LABELS: Record<string, string> = {
   web_search: 'Web search',
   get_case_data: 'Read case data',
@@ -22,6 +24,8 @@ const LABELS: Record<string, string> = {
   delete_label: 'Deleted label',
   move_label: 'Moved label',
   tether_label: 'Tethered label',
+  record_file_notes: 'Recorded file notes',
+  get_file_notes: 'Read file notes',
 };
 
 /** The input field that best identifies what a call was about, in order of preference. */

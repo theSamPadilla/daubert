@@ -304,6 +304,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations/{id}/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue a long conversation in a new one seeded with a summary
+         * @description Summarizes the source conversation and creates a new conversation seeded with that summary. The source conversation is left unchanged.
+         */
+        post: operations["continueConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export a conversation as PDF or DOCX
+         * @description Only the conversation owner may export.
+         */
+        post: operations["exportConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/conversations/{id}/chat": {
         parameters: {
             query?: never;
@@ -1251,6 +1291,40 @@ export interface paths {
         patch: operations["superadminUpdateLabeledEntity"];
         trace?: never;
     };
+    "/superadmin/tool-calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** AI agent tool calls across all orgs, newest first (superadmin only) */
+        get: operations["listToolCalls"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/superadmin/tool-calls/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tool call counts grouped by action and status (superadmin only) */
+        get: operations["getToolCallSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/superadmin/token-usage/overview": {
         parameters: {
             query?: never;
@@ -2045,6 +2119,27 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /**
+             * Format: date-time
+             * @description Timestamp of the oldest retained message, or null if the conversation has none (always null on create)
+             */
+            oldestMessageAt: string | null;
+            /** @description Estimated size of the conversation's context in tokens, as of the latest run */
+            contextTokens: number;
+            /** @description Summary of the source conversation this one was seeded with, or null if not a continuation */
+            seedSummary: string | null;
+            /**
+             * Format: uuid
+             * @description The conversation this one continues, or null if not a continuation
+             */
+            continuedFromConversationId: string | null;
+            /**
+             * Format: date-time
+             * @description When retention last purged messages from this conversation, or null if its history is complete
+             */
+            historyTruncatedAt: string | null;
+            /** @description Title of the source conversation, or null if not a continuation */
+            continuedFromTitle: string | null;
         };
         Message: {
             /** Format: uuid */
@@ -2073,8 +2168,17 @@ export interface components {
         };
         ChatSseEvent: {
             /** @enum {string} */
-            type?: "text_delta" | "tool_start" | "tool_done" | "graph_updated" | "production_updated" | "done" | "error";
-            data?: Record<string, never>;
+            type?: "text_delta" | "tool_start" | "tool_done" | "graph_updated" | "production_updated" | "context_usage" | "done" | "error";
+            /** @description Event payload. `context_usage` data is `{ tokens: integer }` (current context size in tokens). `error` data is `{ errorId, message, code? }` where `code` is one of `context_overflow`, `service_unavailable`, `unknown`. */
+            data?: {
+                /** @description context_usage events only */
+                tokens?: number;
+                /**
+                 * @description error events only
+                 * @enum {string}
+                 */
+                code?: "context_overflow" | "service_unavailable" | "unknown";
+            };
         };
         /** @enum {string} */
         EntityCategory: "exchange" | "mixer" | "bridge" | "protocol" | "individual" | "contract" | "government" | "custodian" | "other";
@@ -2917,6 +3021,46 @@ export interface components {
                 outputTokens: number;
             };
         };
+        ToolCallRow: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            orgId?: string | null;
+            orgName?: string | null;
+            /** Format: uuid */
+            caseId: string;
+            caseName?: string | null;
+            /** Format: uuid */
+            userId?: string | null;
+            userEmail?: string | null;
+            /** Format: uuid */
+            conversationId?: string | null;
+            conversationTitle?: string | null;
+            /** @enum {string} */
+            source: "chat" | "mcp";
+            agent?: string | null;
+            action: string;
+            input: unknown;
+            /** @enum {string} */
+            status: "ok" | "error";
+            summary?: {
+                [key: string]: unknown;
+            } | null;
+            backfilled: boolean;
+        };
+        ToolCallPage: {
+            items: components["schemas"]["ToolCallRow"][];
+            nextCursor: string | null;
+        };
+        ToolCallSummaryRow: {
+            action: string;
+            /** @enum {string} */
+            status: "ok" | "error";
+            /** Format: int64 */
+            count: number;
+        };
         OAuthConsentPreview: {
             /** @description The OAuth client identifier. */
             clientId: string;
@@ -3111,6 +3255,11 @@ export interface components {
             error: {
                 errorId: string;
                 message: string;
+                /**
+                 * @description Classification of the failure
+                 * @enum {string}
+                 */
+                code?: "context_overflow" | "service_unavailable" | "unknown";
             } | null;
             /** Format: date-time */
             createdAt: string;
@@ -3986,6 +4135,107 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Message"][];
                 };
+            };
+        };
+    };
+    continueConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new conversation */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversation"];
+                };
+            };
+            /** @description Caller does not own the conversation */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conversation not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A run is queued or running on the source conversation */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Summary generation failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    exportConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    format: "pdf" | "docx";
+                };
+            };
+        };
+        responses: {
+            /** @description Exported file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": string;
+                };
+            };
+            /** @description Invalid format */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller does not own the conversation */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conversation not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -6495,6 +6745,84 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listToolCalls: {
+        parameters: {
+            query?: {
+                orgId?: string;
+                caseId?: string;
+                conversationId?: string;
+                userId?: string;
+                action?: string;
+                status?: "ok" | "error";
+                from?: string;
+                to?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of tool calls */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolCallPage"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getToolCallSummary: {
+        parameters: {
+            query?: {
+                orgId?: string;
+                caseId?: string;
+                conversationId?: string;
+                userId?: string;
+                action?: string;
+                status?: "ok" | "error";
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Counts per action and status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolCallSummaryRow"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

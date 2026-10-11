@@ -9,6 +9,7 @@ import { CaseMemberEntity } from './case-member.entity';
 import { ConversationEntity } from './conversation.entity';
 import { DataRoomAccessLogEntity } from './data-room-access-log.entity';
 import { DataRoomFileEntity } from './data-room-file.entity';
+import { DataRoomFileNoteEntity } from './data-room-file-note.entity';
 import { DataRoomFolderEntity } from './data-room-folder.entity';
 import { DeclarantEntity } from './declarant.entity';
 import { DeclarantFileEntity } from './declarant-file.entity';
@@ -43,6 +44,7 @@ export const entities = [
   ConversationEntity,
   DataRoomAccessLogEntity,
   DataRoomFileEntity,
+  DataRoomFileNoteEntity,
   DataRoomFolderEntity,
   DeclarantEntity,
   DeclarantFileEntity,

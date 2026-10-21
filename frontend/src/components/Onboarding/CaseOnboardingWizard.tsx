@@ -21,8 +21,8 @@ import { Button, Badge, Field, Select, Textarea, Input } from '@/components/ui';
 import { ChainSelect } from '@/components/Graph/ChainSelect';
 import { DeclarantModal, type DeclarantDto } from '@/components/Declarants/DeclarantModal';
 import { applyDeclarant } from '@/components/Productions/DeclarantPicker';
-import { inspectInput } from '@/utils/addressParser';
 import { SUPPORTED_CHAINS } from '@/services/types';
+import { parseTokens } from '@/components/Onboarding/parseTokens';
 import {
   readOnboardingRecord,
   writeOnboardingRecord,
@@ -43,32 +43,6 @@ const STEPS: { id: WizardStep; label: string }[] = [
   { id: 'trace', label: 'Seed trace' },
   { id: 'declaration', label: 'Declaration' },
 ];
-
-// A token that parses to a usable wallet address, with its resolved family.
-interface ParsedToken {
-  raw: string;
-  address: string;
-  family: 'evm' | 'tron' | 'bitcoin' | 'solana' | 'unknown';
-  isTxHash: boolean;
-  valid: boolean;
-}
-
-function parseTokens(input: string): ParsedToken[] {
-  return input
-    .split(/[\s,]+/)
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .map((raw) => {
-      const info = inspectInput(raw);
-      if (info.kind === 'transaction') {
-        return { raw, address: info.txHash ?? raw, family: info.family, isTxHash: true, valid: false };
-      }
-      if (info.kind === 'address' && info.family !== 'unknown') {
-        return { raw, address: info.address ?? raw, family: info.family, isTxHash: false, valid: true };
-      }
-      return { raw, address: raw, family: 'unknown' as const, isTxHash: false, valid: false };
-    });
-}
 
 export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
   const router = useRouter();
@@ -454,19 +428,23 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
               <div>
                 <h2 className="text-lg font-semibold text-ink">Seed your first trace</h2>
                 <p className="mt-1 text-sm text-ink-muted">
-                  Paste one or more wallet addresses. We fetch the most recent activity and draw the
-                  graph.
+                  Paste one or more wallet addresses, one per line or separated by commas. We fetch
+                  the most recent activity and draw the graph.
                 </p>
               </div>
 
-              <div className="flex items-end gap-3">
+              <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <Field label="Wallet addresses">
-                    <Input
-                      type="text"
+                    {/* A textarea, not an input: single-line inputs strip pasted line breaks,
+                        which glues multiple addresses into one invalid token. */}
+                    <Textarea
                       value={addressInput}
                       onChange={(e) => setAddressInput(e.target.value)}
-                      placeholder="0x1234... , T9yD14..."
+                      placeholder={'0x1234...\n0xabcd...'}
+                      rows={3}
+                      spellCheck={false}
+                      className="font-mono"
                       disabled={seeding}
                     />
                   </Field>

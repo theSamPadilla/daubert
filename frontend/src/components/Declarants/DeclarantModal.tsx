@@ -142,6 +142,9 @@ export function DeclarantModal({
   const [extracting, setExtracting] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const extractInputRef = useRef<HTMLInputElement>(null);
+  // Counts enter/leave across nested children so the highlight doesn't flicker.
+  const dragDepth = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -216,11 +219,54 @@ export function DeclarantModal({
     extractInputRef.current?.click();
   };
 
-  const handleExtractFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleExtractFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     // Reset so re-selecting the same file fires change again.
     if (e.target) e.target.value = '';
-    if (!file || !source) return;
+    if (file) void extractFromFile(file);
+  };
+
+  const isFileDrag = (e: React.DragEvent) => e.dataTransfer?.types?.includes('Files');
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    if (!extracting) setIsDragging(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = extracting ? 'none' : 'copy';
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!isFileDrag(e)) return;
+    dragDepth.current -= 1;
+    if (dragDepth.current <= 0) {
+      dragDepth.current = 0;
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setIsDragging(false);
+    if (extracting) return;
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setUploadError('Drop a PDF file.');
+      return;
+    }
+    void extractFromFile(file);
+  };
+
+  const extractFromFile = async (file: File) => {
+    if (!source) return;
 
     setUploadError(null);
     setExtracting(true);
@@ -436,7 +482,14 @@ export function DeclarantModal({
           </div>
         }
       >
-        <div className="space-y-4">
+        <div
+          className="space-y-4"
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          data-testid="declarant-extract-dropzone"
+        >
           <input
             ref={extractInputRef}
             type="file"
@@ -451,12 +504,21 @@ export function DeclarantModal({
             </div>
           )}
 
-          <div className="flex flex-col items-center text-center gap-3 rounded-lg border border-dashed border-line px-4 py-8">
-            <FaFileArrowUp className="w-7 h-7 text-ink-faint" />
+          <div
+            className={`flex flex-col items-center text-center gap-3 rounded-lg border border-dashed px-4 py-8 transition-colors ${
+              isDragging ? 'border-brand bg-brand-soft' : 'border-line'
+            }`}
+          >
+            <FaFileArrowUp className={`w-7 h-7 ${isDragging ? 'text-brand' : 'text-ink-faint'}`} />
             <p className="text-sm text-ink-muted">
-              Upload a PDF{' '}
-              {source === 'cv' ? 'CV' : 'prior declaration'} and we&apos;ll extract the
-              declarant&apos;s details for you to review.
+              {isDragging ? (
+                <>Drop the PDF to extract.</>
+              ) : (
+                <>
+                  Drag a PDF {source === 'cv' ? 'CV' : 'prior declaration'} here, or choose one,
+                  and we&apos;ll extract the declarant&apos;s details for you to review.
+                </>
+              )}
             </p>
             {extracting ? (
               <div className="inline-flex items-center gap-2 text-sm text-ink-muted">

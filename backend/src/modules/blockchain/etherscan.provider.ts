@@ -292,9 +292,10 @@ export class EtherscanProvider implements BlockchainProvider {
   }
 
   async getAddressInfo(address: string): Promise<RawAddressInfo> {
-    const [{ classification, determined }, balanceHex] = await Promise.all([
+    // Etherscan's proxy module has no eth_getBalance; balance lives under account/balance.
+    const [{ classification, determined }, balanceWei] = await Promise.all([
       this.classifier.classifyDetailed(this.chain.id, address),
-      this.fetchApi<string>('proxy', 'eth_getBalance', { address, tag: 'latest' }),
+      this.fetchApi<string>('account', 'balance', { address, tag: 'latest' }),
     ]);
     // Unlike getTransaction, this result IS the finding — reporting a
     // wallet-vs-contract classification the chain never actually answered
@@ -305,7 +306,7 @@ export class EtherscanProvider implements BlockchainProvider {
     return {
       address,
       addressType: classification.addressType,
-      balance: balanceHex ? BigInt(balanceHex).toString() : '0',
+      balance: balanceWei ? BigInt(balanceWei).toString() : '0',
       ...(classification.tokenStandard ? { tokenStandard: classification.tokenStandard } : {}),
       ...(classification.symbol ? { symbol: classification.symbol } : {}),
       ...(classification.decimals !== undefined ? { decimals: classification.decimals } : {}),

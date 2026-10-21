@@ -73,7 +73,7 @@ interface RpcStubs {
   code?: Record<string, string>;
   /** address -> calldata -> eth_call result. A miss reverts. */
   call?: Record<string, Record<string, string>>;
-  /** address -> eth_getBalance result. */
+  /** address -> account/balance result (decimal wei string). */
   balance?: Record<string, string>;
 }
 
@@ -189,10 +189,19 @@ describe('EtherscanProvider', () => {
           }
           return mockResponse(200, { result: answer });
         }
-        case 'eth_getBalance': {
+        case 'balance': {
+          if (params.get('module') !== 'account') {
+            return mockResponse(200, {
+              status: '0',
+              message: 'NOTOK',
+              result: 'Error! Missing Or invalid Action name',
+            });
+          }
           const addr = (params.get('address') ?? '').toLowerCase();
           return mockResponse(200, {
-            result: stubs.balance?.[addr] ?? '0x0',
+            status: '1',
+            message: 'OK',
+            result: stubs.balance?.[addr] ?? '0',
           });
         }
         default:
@@ -321,7 +330,7 @@ describe('EtherscanProvider', () => {
 
     it('returns empty transfers and tokenTransfers for a receipt with no logs, leaving the native fields intact', async () => {
       installFetch({
-        tx: { ...TX_RESULT, value: '0xde0b6b3a7640000' },
+        tx: { ...TX_RESULT, value: '1000000000000000000' },
         receipt: { ...RECEIPT_RESULT, logs: [] },
         block: BLOCK_RESULT,
       });
@@ -444,7 +453,7 @@ describe('EtherscanProvider', () => {
       installFetch({
         code: { [USDC]: CONTRACT_CODE },
         call: ERC20_CALLS,
-        balance: { [USDC]: '0x0' },
+        balance: { [USDC]: '0' },
       });
 
       const info = await makeProvider().getAddressInfo(USDC);
@@ -461,7 +470,7 @@ describe('EtherscanProvider', () => {
     });
 
     it('reports no token standard for an EOA', async () => {
-      installFetch({ balance: { [EOA]: '0xde0b6b3a7640000' } });
+      installFetch({ balance: { [EOA]: '1000000000000000000' } });
 
       const info = await makeProvider().getAddressInfo(EOA);
 
@@ -479,7 +488,7 @@ describe('EtherscanProvider', () => {
     it('throws rather than reporting a confident wallet finding when eth_getCode fails', async () => {
       installFetch({
         code: { [EOA]: HTTP_FAILURE },
-        balance: { [EOA]: '0xde0b6b3a7640000' },
+        balance: { [EOA]: '1000000000000000000' },
       });
 
       await expect(makeProvider().getAddressInfo(EOA)).rejects.toThrow(
@@ -493,7 +502,7 @@ describe('EtherscanProvider', () => {
       installFetch({
         code: { [USDC]: CONTRACT_CODE },
         call: ERC20_CALLS,
-        balance: { [USDC]: '0x0' },
+        balance: { [USDC]: '0' },
       });
 
       const result = await makeProvider().classifyAddress(USDC);
@@ -513,16 +522,16 @@ describe('EtherscanProvider', () => {
       installFetch({
         code: { [USDC]: CONTRACT_CODE },
         call: ERC20_CALLS,
-        balance: { [USDC]: '0x0' },
+        balance: { [USDC]: '0' },
       });
 
       await makeProvider().classifyAddress(USDC);
 
-      expect(urls.some((u) => u.includes('action=eth_getBalance'))).toBe(false);
+      expect(urls.some((u) => u.includes('action=balance'))).toBe(false);
     });
 
     it('reports no token standard for an EOA', async () => {
-      installFetch({ balance: { [EOA]: '0xde0b6b3a7640000' } });
+      installFetch({ balance: { [EOA]: '1000000000000000000' } });
 
       const result = await makeProvider().classifyAddress(EOA);
 
@@ -536,7 +545,7 @@ describe('EtherscanProvider', () => {
     it('reports undetermined rather than throwing when eth_getCode fails', async () => {
       installFetch({
         code: { [EOA]: HTTP_FAILURE },
-        balance: { [EOA]: '0xde0b6b3a7640000' },
+        balance: { [EOA]: '1000000000000000000' },
       });
 
       const result = await makeProvider().classifyAddress(EOA);
@@ -581,7 +590,7 @@ describe('EtherscanProvider', () => {
 
       // Re-point the SAME spy rather than restoring it — restoring would detach
       // it from global.fetch and let the call escape to the network.
-      installFetch({ balance: { [EOA]: '0xde0b6b3a7640000' } });
+      installFetch({ balance: { [EOA]: '1000000000000000000' } });
 
       await expect(provider.getAddressInfo(EOA)).resolves.toEqual({
         address: EOA,

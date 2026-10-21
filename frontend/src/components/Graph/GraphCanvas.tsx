@@ -1,6 +1,7 @@
 import { forwardRef, useImperativeHandle, useState, useMemo, useEffect, useCallback } from 'react';
 import { Investigation, TraceLabel, LabelAnchor, TransactionEdge, EdgeBundle } from '../../types/investigation';
 import { useCytoscape, CytoscapeCallbacks, LabelControls } from '../../hooks/useCytoscape';
+import type { EntityNameLookup } from '../../hooks/cytoscapeSync';
 import { LabelEditPopover } from './LabelEditPopover';
 import { resolveLabelRenderedPosition, contextFromCy } from '@/lib/labelGeometry';
 import type { ExportTheme } from '@/lib/exportTheme';
@@ -35,6 +36,8 @@ interface GraphCanvasProps {
   onLabelContextMenu?: (traceId: string, labelId: string, x: number, y: number) => void;
   /** Resolves the shared on-chain classification for a wallet node's shape/badge. See useAddressClassifications. */
   lookupClassification?: (chain: string, address: string) => { addressType?: string; tokenStandard?: string | null } | undefined;
+  /** Names unlabeled wallet nodes from the labeled-entity registry. */
+  lookupEntityName?: EntityNameLookup;
 }
 
 /**
@@ -75,7 +78,7 @@ function buildEdgeAnchor(edge: TransactionEdge | EdgeBundle | { id: string; txHa
 }
 
 export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
-  ({ investigation, selectedNodeIds, selectedEdgeIds, callbacks, labelCallbacks, onLabelContextMenu, lookupClassification }, ref) => {
+  ({ investigation, selectedNodeIds, selectedEdgeIds, callbacks, labelCallbacks, onLabelContextMenu, lookupClassification, lookupEntityName }, ref) => {
     // Label editing state: which label is currently open in the edit popover.
     const [editingLabel, setEditingLabel] = useState<{ traceId: string; labelId: string } | null>(null);
     // Label selection state: which label is visually selected (outlined) on the canvas.
@@ -123,6 +126,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
       augmentedCallbacks,
       labelControls,
       lookupClassification,
+      lookupEntityName,
     );
 
     useImperativeHandle(ref, () => ({

@@ -4,6 +4,7 @@ import { createRoot, Root } from 'react-dom/client';
 import { createElement } from 'react';
 import { GraphCanvas, type GraphCanvasHandle } from '@/components/Graph/GraphCanvas';
 import { resolveAddressClassifications } from '@/hooks/useAddressClassifications';
+import { resolveEntityNameLookup } from '@/hooks/useLabeledEntities';
 import type { Investigation } from '@/types/investigation';
 import type { ExportTheme } from '@/lib/exportTheme';
 
@@ -35,7 +36,11 @@ export function useGraphSnapshot() {
     // writes were removed has nothing stored on it, so a mount with no lookup
     // renders it as a plain ellipse regardless of what the shared
     // classification registry actually knows.
-    const lookupClassification = await resolveAddressClassifications(investigation);
+    // Entity names likewise, so an exhibit names nodes exactly as the live graph does.
+    const [lookupClassification, lookupEntityName] = await Promise.all([
+      resolveAddressClassifications(investigation),
+      resolveEntityNameLookup(),
+    ]);
 
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;left:-10000px;top:0;width:1400px;height:900px;pointer-events:none;';
@@ -84,6 +89,7 @@ export function useGraphSnapshot() {
           callbacks: {}, // CytoscapeCallbacks is a bag of optional handlers;
                         // empty object is fine for a snapshot-only mount.
           lookupClassification,
+          lookupEntityName,
         }),
       );
 

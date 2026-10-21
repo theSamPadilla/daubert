@@ -5,7 +5,7 @@ import { apiClient } from '@/lib/api-client';
 import { CYTOSCAPE_STYLE } from './cytoscapeStyle';
 import { useCytoscapeOverlays } from './useCytoscapeOverlays';
 import { bindCytoscapeEvents } from './cytoscapeEvents';
-import { syncCytoscape } from './cytoscapeSync';
+import { syncCytoscape, type EntityNameLookup } from './cytoscapeSync';
 import { EXPORT_THEMES, type ExportTheme } from '@/lib/exportTheme';
 import html2canvas from 'html2canvas';
 import { renderExportLabelOverlay } from '@/lib/exportLabelOverlay';
@@ -86,6 +86,8 @@ export function useCytoscape(
   labelControls?: LabelControls,
   /** Resolves the shared on-chain classification for a wallet node's shape/badge. See useAddressClassifications. */
   lookupClassification?: (chain: string, address: string) => { addressType?: string; tokenStandard?: string | null } | undefined,
+  /** Names unlabeled wallet nodes from the labeled-entity registry. Like lookupClassification, its identity must change when the registry loads. */
+  lookupEntityName?: EntityNameLookup,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -189,9 +191,9 @@ export function useCytoscape(
   const syncToCytoscape = useCallback(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    syncCytoscape(cy, investigation, lookupClassification);
+    syncCytoscape(cy, investigation, lookupClassification, lookupEntityName);
     paintSelection();
-  }, [investigation, paintSelection, lookupClassification]);
+  }, [investigation, paintSelection, lookupClassification, lookupEntityName]);
 
   useEffect(() => {
     syncToCytoscape();

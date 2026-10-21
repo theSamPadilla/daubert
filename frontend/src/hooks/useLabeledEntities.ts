@@ -20,6 +20,22 @@ async function loadEntities() {
 }
 
 /**
+ * Loads the registry if needed and returns a wallet-to-entity-name lookup, for
+ * callers outside React (e.g. graph snapshots for exhibits) so they name nodes
+ * the same way the live graph does.
+ */
+export async function resolveEntityNameLookup(): Promise<(chain: string, address: string) => string | undefined> {
+  if (cachedEntities.length === 0) {
+    try {
+      await (fetchPromise ?? loadEntities());
+    } catch (err) {
+      console.error('Failed to fetch labeled entities:', err);
+    }
+  }
+  return (_chain, address) => cachedWalletMap.get(address.toLowerCase())?.name;
+}
+
+/**
  * Provides access to the labeled entities registry with a module-level cache.
  * The first mount triggers a fetch; subsequent mounts reuse the cached data.
  * Call `refresh()` to force a re-fetch (e.g., after admin creates a new entity).

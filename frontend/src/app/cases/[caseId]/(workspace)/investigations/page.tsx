@@ -37,6 +37,7 @@ import type { PanelMode } from '@/types/panel';
 import { useWalletTransactionAuthoring } from '@/hooks/useWalletTransactionAuthoring';
 import { useGraphContextMenu } from '@/hooks/useGraphContextMenu';
 import { useAddressClassifications } from '@/hooks/useAddressClassifications';
+import { useLabeledEntities } from '@/hooks/useLabeledEntities';
 
 function InvestigationsWorkspace() {
   const { caseId, activeInvestigationId, selectInvestigation, clearInvestigation } = useInvestigationUrlSync();
@@ -81,6 +82,11 @@ function InvestigationsWorkspace() {
   // every address in the investigation — feeds both the graph's node shapes
   // and the details panel's badges.
   const { lookup: lookupClassification } = useAddressClassifications(investigation);
+  const { entities: labeledEntities, lookupAddress } = useLabeledEntities();
+  // `lookupAddress` is stable and reads a module cache, so key the lookup on
+  // the entity list: the graph only re-syncs when the lookup's identity changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lookupEntityName = useCallback((_chain: string, address: string) => lookupAddress(address)?.name, [labeledEntities, lookupAddress]);
 
   const { selectedItem, setSelectedItem, clearSelection } = useSelectedItem(investigation);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
@@ -335,6 +341,7 @@ function InvestigationsWorkspace() {
                 labelCallbacks={{ addLabel, updateLabel, deleteLabel, moveLabel }}
                 onLabelContextMenu={handleLabelContextMenu}
                 lookupClassification={lookupClassification}
+                lookupEntityName={lookupEntityName}
               />
             )}
 

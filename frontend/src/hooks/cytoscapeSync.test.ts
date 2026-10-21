@@ -305,6 +305,48 @@ describe('syncCytoscape', () => {
     expect(call.data.displayLabel).toBe('Hot Wallet');
   });
 
+  describe('labeled entity names', () => {
+    const ADDR = '0x1a2a1c938ce3ec39b6d47113c7955baa9dd454f2';
+    const lookupEntityName = (_chain: string, address: string) =>
+      address.toLowerCase() === ADDR ? 'Ronin Bridge' : undefined;
+
+    it('names an unlabeled node from the registry, with the short address beneath', () => {
+      const w = wallet('w1', { label: ADDR, address: ADDR });
+      const cy = makeFakeCy();
+
+      syncCytoscape(cy, inv([trace('trace-a', { nodes: [w] })]), undefined, lookupEntityName);
+
+      const data = cy.__addCalls.find((c) => c.data.id === 'w1')!.data;
+      expect(data.displayLabel).toBe('Ronin Bridge');
+      expect(data.label).toBe('Ronin Bridge');
+      expect(data.hasCustomLabel).toBe(true);
+      expect(data.truncAddr).toBe('0x1a2a…54f2');
+    });
+
+    it('lets a custom label win over the registry name', () => {
+      const w = wallet('w1', { label: 'Bridge (hacked)', address: ADDR });
+      const cy = makeFakeCy();
+
+      syncCytoscape(cy, inv([trace('trace-a', { nodes: [w] })]), undefined, lookupEntityName);
+
+      const data = cy.__addCalls.find((c) => c.data.id === 'w1')!.data;
+      expect(data.displayLabel).toBe('Bridge (hacked)');
+      expect(data.label).toBe('Bridge (hacked)');
+    });
+
+    it('keeps the short address for a wallet the registry does not know', () => {
+      const other = '0xe708f17240732bbfa1baa8513f66b665fbc7ce10';
+      const w = wallet('w1', { label: other, address: other });
+      const cy = makeFakeCy();
+
+      syncCytoscape(cy, inv([trace('trace-a', { nodes: [w] })]), undefined, lookupEntityName);
+
+      const data = cy.__addCalls.find((c) => c.data.id === 'w1')!.data;
+      expect(data.displayLabel).toBe('0xe708…ce10');
+      expect(data.hasCustomLabel).toBe(false);
+    });
+  });
+
   it('12. aggregated BTC edge keeps sub-1 precision in its label (regression: "0 BTC")', () => {
     const g: Group = { id: 'g1', name: 'Group 1', traceId: 'trace-a', collapsed: true };
     const w1 = wallet('w1', { chain: 'bitcoin' });

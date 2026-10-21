@@ -10,7 +10,15 @@ type ClassificationLookup = (
   address: string,
 ) => { addressType?: string; tokenStandard?: string | null } | undefined;
 
-export function syncCytoscape(cy: Core, investigation: Investigation | null, lookup?: ClassificationLookup): void {
+/** Resolves a labeled-entity name for a wallet, if the registry knows it. */
+export type EntityNameLookup = (chain: string, address: string) => string | undefined;
+
+export function syncCytoscape(
+  cy: Core,
+  investigation: Investigation | null,
+  lookup?: ClassificationLookup,
+  lookupEntityName?: EntityNameLookup,
+): void {
   const inv = investigation;
   if (!inv) {
     cy.elements().remove();
@@ -132,7 +140,13 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null, loo
         const addr = node.address;
         const truncAddr = addr && addr.length > 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr || '';
         const hasCustomLabel = !!(node.label && node.label !== addr && node.label !== truncAddr);
-        const displayLabel = hasCustomLabel ? node.label : (truncAddr || node.label);
+        // A custom label always wins; otherwise a labeled entity names the node.
+        const entityName = !hasCustomLabel && addr ? lookupEntityName?.(node.chain, addr) : undefined;
+        const displayLabel = hasCustomLabel ? node.label : (entityName || truncAddr || node.label);
+        // `hasCustomLabel` in node data means "shows a name, with the short
+        // address beneath it" (overlays and PNG export read it), so an entity
+        // name gets the same treatment as a custom label.
+        const showsName = hasCustomLabel || !!entityName;
         const nodeColor = node.color || '#60a5fa';
 
         // Resolve address type / token standard from the shared classification
@@ -167,7 +181,7 @@ export function syncCytoscape(cy: Core, investigation: Investigation | null, loo
           : 'ellipse';
         const nodeShape = node.shape || addrTypeShape;
         targetNodes.set(node.id, {
-          data: { id: node.id, parent: parentId, traceId: trace.id, label: node.label, displayLabel, hasCustomLabel, truncAddr, color: nodeColor, textColor: contrastTextColor(nodeColor), size: node.size || 60, addressType: resolvedAddressType, nodeShape, tokenStandard: resolvedTokenStandard },
+          data: { id: node.id, parent: parentId, traceId: trace.id, label: entityName ?? node.label, displayLabel, hasCustomLabel: showsName, truncAddr, color: nodeColor, textColor: contrastTextColor(nodeColor), size: node.size || 60, addressType: resolvedAddressType, nodeShape, tokenStandard: resolvedTokenStandard },
           position: node.position,
         });
       });

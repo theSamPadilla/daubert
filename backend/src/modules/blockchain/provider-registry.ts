@@ -17,7 +17,8 @@ export class ProviderRegistry {
   private providers = new Map<string, BlockchainProvider>();
   private utxoProviders = new Map<string, UtxoProvider>();
   private solanaProviders = new Map<string, SolanaProvider>();
-  private rateLimiter = new RateLimiter(5, 5);
+  private tronscanRateLimiter = new RateLimiter(5, 5);
+  private etherscanRateLimiter: RateLimiter;
   private cache = new ResponseCache();
   private etherscanApiKey: string;
   private tronscanApiKey: string;
@@ -26,6 +27,13 @@ export class ProviderRegistry {
   constructor(private configService: ConfigService) {
     this.etherscanApiKey =
       this.configService.get<string>('ETHERSCAN_API_KEY') || '';
+    // Etherscan enforces its plan's cap over any one-second window, and a
+    // token bucket that allows a burst lets N calls leave in the same instant.
+    // A burst of 1 at 80% of the cap spaces calls evenly with jitter headroom,
+    // so no window ever sees more than the plan allows (3/s on the free plan).
+    const etherscanCallsPerSec =
+      Number(this.configService.get<string>('ETHERSCAN_MAX_CALLS_PER_SEC')) || 3;
+    this.etherscanRateLimiter = new RateLimiter(1, etherscanCallsPerSec * 0.8);
     this.tronscanApiKey =
       this.configService.get<string>('TRONSCAN_API_KEY') || '';
     this.heliusApiKey = this.configService.get<string>('HELIUS_API_KEY') || '';
@@ -56,14 +64,14 @@ export class ProviderRegistry {
       if (chainId === 'tron') {
         provider = new TronscanProvider(
           this.tronscanApiKey,
-          this.rateLimiter,
+          this.tronscanRateLimiter,
           this.cache,
         );
       } else {
         provider = new EtherscanProvider(
           config,
           this.etherscanApiKey,
-          this.rateLimiter,
+          this.etherscanRateLimiter,
           this.cache,
         );
       }

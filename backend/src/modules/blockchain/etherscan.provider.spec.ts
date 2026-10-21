@@ -150,6 +150,7 @@ function makeProvider(): EtherscanProvider {
     'test-key',
     new RateLimiter(1000, 1000),
     new ResponseCache(),
+    0,
   );
 }
 
@@ -581,6 +582,23 @@ describe('EtherscanProvider', () => {
       installNotokFetch('Invalid API Key (#err2)');
 
       await expect(makeProvider().getAddressInfo(EOA)).rejects.toThrow();
+    });
+
+    it('retries a per-second rate-limit rejection and returns the eventual answer', async () => {
+      const RATE_LIMITED = { status: '0', message: 'NOTOK', result: 'Max calls per sec rate limit reached (3/sec)' };
+      fetchSpy
+        .mockImplementationOnce(async () => mockResponse(200, RATE_LIMITED))
+        .mockImplementationOnce(async () => mockResponse(200, { status: '1', message: 'OK', result: [] }));
+
+      await expect(makeProvider().getTransactions(EOA)).resolves.toEqual([]);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives up after the retries when the limit persists', async () => {
+      installNotokFetch('Max calls per sec rate limit reached (3/sec)');
+
+      await expect(makeProvider().getTransactions(EOA)).rejects.toThrow(/rate limit/);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
     });
 
     it('does not cache the failure, so a later successful call still works', async () => {

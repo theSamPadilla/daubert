@@ -18,12 +18,21 @@ const TX_CACHE_TTL = 60 * 60 * 1000; // 1hr
 const TOKEN_META_TTL = 24 * 60 * 60 * 1000; // 24hr
 
 /**
- * Classification costs up to 6 rate-limited calls per contract on a shared
- * 5 req/s limiter, so a receipt touching many tokens could hold a request open
+ * Classification costs up to 6 rate-limited calls per contract on the shared
+ * Etherscan limiter, so a receipt touching many tokens could hold a request open
  * for a minute. Legs past this cap keep their decoded values and simply carry no
  * metadata — the same graceful degradation as a failed probe.
  */
 const MAX_CLASSIFIED_CONTRACTS = 25;
+
+const RATE_LIMIT_RETRIES = 2;
+const RATE_LIMIT_RETRY_DELAY_MS = 1100;
+
+/** Etherscan's per-second cap answers with `{status:'0', result:'Max ... rate limit reached ...'}`. */
+function isRateLimited(json: unknown): boolean {
+  const body = json as { status?: string; result?: unknown } | null;
+  return body?.status === '0' && typeof body.result === 'string' && /rate limit/i.test(body.result);
+}
 
 interface EtherscanResponse<T> {
   status: string;
@@ -48,7 +57,25 @@ export class EtherscanProvider implements BlockchainProvider {
     private apiKey: string,
     private rateLimiter: RateLimiter,
     private cache: ResponseCache,
+    private rateLimitRetryDelayMs = RATE_LIMIT_RETRY_DELAY_MS,
   ) {}
+
+  /**
+   * The limiter is per process, so another Cloud Run instance sharing the same
+   * API key can still push Etherscan over its per-second cap. A rate-limit
+   * rejection is transient: wait out the window and retry instead of failing
+   * the caller's whole request.
+   */
+  private async request(qs: string): Promise<any> {
+    for (let attempt = 0; ; attempt++) {
+      await this.rateLimiter.acquire();
+      const res = await fetch(`${ETHERSCAN_V2_BASE}?${qs}`);
+      if (!res.ok) throw new Error(`Etherscan API error: ${res.status}`);
+      const json = await res.json();
+      if (!isRateLimited(json) || attempt >= RATE_LIMIT_RETRIES) return json;
+      await new Promise((r) => setTimeout(r, this.rateLimitRetryDelayMs));
+    }
+  }
 
   private async fetchApi<T>(
     module: string,
@@ -71,13 +98,8 @@ export class EtherscanProvider implements BlockchainProvider {
     const cached = this.cache.get<T>(cacheKey);
     if (cached !== null) return cached;
 
-    await this.rateLimiter.acquire();
-
     const qs = new URLSearchParams(allParams).toString();
-    const res = await fetch(`${ETHERSCAN_V2_BASE}?${qs}`);
-    if (!res.ok) throw new Error(`Etherscan API error: ${res.status}`);
-
-    const json = await res.json();
+    const json = await this.request(qs);
 
     // Proxy module returns JSON-RPC format (no status/message)
     if (module === 'proxy') {

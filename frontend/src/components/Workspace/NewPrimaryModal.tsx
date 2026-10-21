@@ -2,7 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaRegFileWord, FaRegFilePdf, FaFilePen } from 'react-icons/fa6';
+import type { IconType } from 'react-icons';
+import {
+  FaRegFileWord,
+  FaRegFilePdf,
+  FaFilePen,
+  FaRegFileLines,
+  FaChartLine,
+  FaTimeline,
+  FaScaleBalanced,
+  FaCheck,
+} from 'react-icons/fa6';
 import type { components } from '@/generated/api-types';
 import { apiClient, type DeclarationFormat, type DataRoomFile } from '@/lib/api-client';
 import { useCaseContext } from '@/contexts/CaseContext';
@@ -15,6 +25,50 @@ type DeclarationFormatId = components['schemas']['DeclarationFormatId'];
 // Mirrors backend DOCX_MIME (backend/src/modules/data-room/data-room.service.ts)
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const PDF_MIME = 'application/pdf';
+
+const PRODUCTION_TYPES: {
+  id: ProductionType;
+  label: string;
+  description: string;
+  placeholder: string;
+  Icon: IconType;
+}[] = [
+  {
+    id: 'report',
+    label: 'Report',
+    description: 'Written findings with headings and tables',
+    placeholder: 'e.g. Flow of Funds Report',
+    Icon: FaRegFileLines,
+  },
+  {
+    id: 'chart',
+    label: 'Chart',
+    description: 'Line, bar, or pie chart of case data',
+    placeholder: 'e.g. Trust Account Balance',
+    Icon: FaChartLine,
+  },
+  {
+    id: 'chronology',
+    label: 'Chronology',
+    description: 'Dated timeline of events with sources',
+    placeholder: 'e.g. Transfer Timeline',
+    Icon: FaTimeline,
+  },
+  {
+    id: 'declaration',
+    label: 'Declaration',
+    description: 'Court-formatted expert declaration',
+    placeholder: 'e.g. Declaration of Jordan Avery',
+    Icon: FaScaleBalanced,
+  },
+  {
+    id: 'redline',
+    label: 'Redline',
+    description: 'Review a draft against the case record',
+    placeholder: 'e.g. Opposing Expert Report Review',
+    Icon: FaFilePen,
+  },
+];
 
 function formatBytes(raw: string | undefined): string {
   if (!raw) return '—';
@@ -130,7 +184,7 @@ export function NewPrimaryModal() {
     <Modal
       open
       onClose={closeNewPrimary}
-      maxWidth="max-w-sm"
+      maxWidth="max-w-md"
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={closeNewPrimary} disabled={submitting}>
@@ -184,7 +238,11 @@ export function NewPrimaryModal() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) handleSubmit(); }}
-            placeholder={tab === 'investigation' ? 'e.g. Funds tracing' : 'e.g. Flow of Funds Report'}
+            placeholder={
+              tab === 'investigation'
+                ? 'e.g. Funds tracing'
+                : PRODUCTION_TYPES.find((p) => p.id === productionType)?.placeholder
+            }
             className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
             autoFocus
           />
@@ -193,22 +251,40 @@ export function NewPrimaryModal() {
         {/* Production type selector */}
         {tab === 'production' && (
           <div>
-            <label className="block text-sm text-ink-muted mb-1.5">Type</label>
-            <div className="flex gap-2">
-              {(['report', 'chart', 'chronology', 'declaration', 'redline'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setProductionType(t)}
-                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
-                    productionType === t
-                      ? 'bg-brand text-white'
-                      : 'bg-surface text-ink-muted border border-line-strong hover:bg-surface-raised'
-                  }`}
-                >
-                  {t === 'redline' && <FaFilePen className="w-3 h-3" />}
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </button>
-              ))}
+            <label id="production-type-label" className="block text-sm text-ink-muted mb-1.5">
+              Type
+            </label>
+            <div role="radiogroup" aria-labelledby="production-type-label" className="space-y-1.5">
+              {PRODUCTION_TYPES.map(({ id, label, description, Icon }) => {
+                const selected = productionType === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setProductionType(id)}
+                    className={`w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      selected
+                        ? 'border-brand bg-brand-soft'
+                        : 'border-line-strong bg-surface hover:bg-surface-raised'
+                    }`}
+                  >
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
+                        selected ? 'bg-brand text-white' : 'bg-surface-raised text-ink-muted'
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-ink">{label}</span>
+                      <span className="block text-xs text-ink-muted">{description}</span>
+                    </span>
+                    {selected && <FaCheck className="h-3 w-3 shrink-0 text-brand" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

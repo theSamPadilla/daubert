@@ -348,7 +348,7 @@ function InvestigationsWorkspace() {
             {canMutate && (selectedNodeIds.length >= 2 || selectedEdgeIds.length >= 2) && (
               <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-20">
                 {selectedNodeIds.length >= 2 && (
-                  <div className="w-80 bg-surface-panel border border-line-strong rounded-lg shadow-2xl max-h-[60vh] flex flex-col">
+                  <div className="w-80 bg-canvas/95 backdrop-blur border border-canvas-line rounded-lg shadow-2xl max-h-[60vh] overflow-y-auto">
                     <BatchEditPanel
                       count={selectedNodeIds.length}
                       onRename={handleBatchRename}
@@ -370,7 +370,7 @@ function InvestigationsWorkspace() {
                   </div>
                 )}
                 {selectedEdgeIds.length >= 2 && (
-                  <div className="w-80 bg-surface-panel border border-line-strong rounded-lg shadow-2xl">
+                  <div className="w-80 bg-canvas/95 backdrop-blur border border-canvas-line rounded-lg shadow-2xl">
                     <EdgeBatchPanel
                       count={selectedEdgeIds.length}
                       onBundle={handleBundleEdges}

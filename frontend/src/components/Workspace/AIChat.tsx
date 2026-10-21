@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { FaArrowLeft, FaPlus, FaClockRotateLeft, FaXmark, FaChevronUp, FaChevronDown, FaPaperclip, FaTrash, FaArrowUp, FaImage } from 'react-icons/fa6';
+import { FaArrowLeft, FaPlus, FaClockRotateLeft, FaXmark, FaChevronUp, FaChevronDown, FaPaperclip, FaTrash, FaArrowUp, FaImage, FaCheck, FaCircleNotch, FaMinus } from 'react-icons/fa6';
 import { apiClient, ApiError, type AgentRun, type Conversation, type ChatMessage, type StartRunBody } from '@/lib/api-client';
 import { subscribeRunEvents } from '@/lib/run-events';
-import { ChatTurn } from './chatTurn';
+import { ChatTurn, type ActivityStep } from './chatTurn';
+import { actionLabel, keyInput } from './activityFormat';
 import ConversationExportMenu from './ConversationExportMenu';
 import { daysUntilPurge, purgeNotice } from './chatRetention';
 import { ContextBanner, ContinueButton, SeedSummaryCard } from './ContextBanner';
@@ -52,9 +53,11 @@ interface Attachment {
 
 interface LocalMessage {
   id: string;
-  role: 'user' | 'assistant' | 'status';
+  role: 'user' | 'assistant' | 'activity';
   text: string;
   isStreaming?: boolean;
+  /** Tool calls in an 'activity' row. */
+  steps?: ActivityStep[];
   /** Run error code, e.g. 'context_overflow'; drives the continue button on the bubble. */
   code?: string;
   attachments?: Pick<Attachment, 'name' | 'mediaType' | 'previewUrl'>[];
@@ -123,42 +126,41 @@ function formatRelativeDate(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Step text for a tool call, from the activity log's labels; raw ids say nothing to a reader. */
 function formatToolStatus(tool: ToolStatus): string {
-  switch (tool.name) {
-    case 'web_search':
-      return 'Searching the web';
-    case 'get_case_data':
-      return 'Reading investigation data';
-    case 'get_skill': {
-      const skill = (tool.input as any)?.name;
-      return skill ? `Loading ${skill}` : 'Loading skill';
-    }
-    case 'execute_script': {
-      const name = (tool.input as any)?.name;
-      return name ? `Running ${name}` : 'Running script';
-    }
-    case 'list_script_runs':
-      return 'Checking past scripts';
-    default:
-      return tool.name.replace(/_/g, ' ');
-  }
+  const label = actionLabel(tool.name);
+  const key = keyInput(tool.name, tool.input);
+  return key && !UUID_RE.test(key) ? `${label}: ${key}` : label;
 }
 
-function StatusMessage({ text }: { text: string }) {
+function ActivitySteps({ steps }: { steps: ActivityStep[] }) {
   return (
-    <div className="flex items-center gap-2 font-mono text-[11px] text-accent py-1 px-1">
-      <span
-        className="w-1.5 h-1.5 rounded-full bg-accent inline-block shrink-0"
-        style={{ animation: 'toolPulse 1.5s ease-in-out infinite' }}
-      />
-      <span>{text}</span>
-      <style>{`
-        @keyframes toolPulse {
-          0%, 100% { opacity: 0.3; }
-          50% { opacity: 1; }
-        }
-      `}</style>
-    </div>
+    <ul className="w-full space-y-1 rounded-xl border border-line bg-surface-raised/40 px-3 py-2">
+      {steps.map((s) => (
+        <li key={s.id} className="flex items-center gap-2 text-xs">
+          {s.state === 'running' ? (
+            <FaCircleNotch className="h-3 w-3 shrink-0 animate-spin text-brand" aria-label="Running" />
+          ) : s.state === 'done' ? (
+            <FaCheck className="h-3 w-3 shrink-0 text-brand" aria-label="Done" />
+          ) : (
+            <FaMinus className="h-3 w-3 shrink-0 text-ink-faint" aria-label="Stopped" />
+          )}
+          <span className={`truncate ${s.state === 'running' ? 'text-ink' : 'text-ink-muted'}`}>{s.text}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** True while a run is in flight but nothing on screen shows it working (the model is thinking). */
+function isIdleWhileStreaming(messages: LocalMessage[], streaming: boolean): boolean {
+  if (!streaming) return false;
+  return !messages.some(
+    (m) =>
+      (m.role === 'assistant' && m.isStreaming) ||
+      (m.role === 'activity' && m.steps?.some((s) => s.state === 'running')),
   );
 }
 
@@ -995,10 +997,10 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
               </p>
             )}
             {messages.map((m) => {
-              if (m.role === 'status') {
+              if (m.role === 'activity') {
                 return (
-                  <div key={m.id} className="flex justify-start">
-                    <StatusMessage text={m.text} />
+                  <div key={m.id} className="flex justify-start max-w-[85%]">
+                    <ActivitySteps steps={m.steps ?? []} />
                   </div>
                 );
               }
@@ -1042,6 +1044,12 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
                 </div>
               );
             })}
+            {isIdleWhileStreaming(messages, streaming) && (
+              <div className="flex items-center gap-2 px-1 text-xs text-ink-muted" role="status">
+                <FaCircleNotch className="h-3 w-3 animate-spin text-brand" />
+                Thinking…
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
 

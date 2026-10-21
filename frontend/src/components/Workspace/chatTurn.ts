@@ -1,10 +1,18 @@
+export interface ActivityStep {
+  id: string;
+  text: string;
+  state: 'running' | 'done' | 'stopped';
+}
+
 export interface TurnMessage {
   id: string;
-  role: 'assistant' | 'status';
+  role: 'assistant' | 'activity';
   text: string;
   isStreaming?: boolean;
   /** Error code carried by a failed run's error bubble, e.g. 'context_overflow'. */
   code?: string;
+  /** Tool calls in an 'activity' bubble, in the order the agent made them. */
+  steps?: ActivityStep[];
 }
 
 export type TurnSideEffect = 'graph' | 'production' | 'context' | null;
@@ -19,11 +27,16 @@ interface TurnDeps {
  * React: AIChat renders `[...base, ...turn.bubbles()]`, and the same model
  * serves live sends and re-attaching to a turn that is already running.
  * Bubbles are replaced, never mutated, so memoized rows re-render.
+ *
+ * Tool calls accumulate as steps in an 'activity' bubble instead of a status
+ * line that vanishes when the tool finishes, so the user can see what the
+ * agent has done so far. Consecutive tool calls share one bubble; text in
+ * between closes it, and the next tool call opens a new one.
  */
 export class ChatTurn {
   private items: TurnMessage[] = [];
   private curId = '';
-  private statusId: string | null = null;
+  private activityId: string | null = null;
   finished = false;
   /** Latest context size from a `context_usage` event; read it when apply() returns 'context'. */
   contextTokens: number | null = null;
@@ -42,7 +55,7 @@ export class ChatTurn {
   apply(type: string, data: any): TurnSideEffect {
     switch (type) {
       case 'text_delta': {
-        this.removeStatus();
+        this.closeActivity('done');
         const content: string = data?.content ?? '';
         const cur = this.current();
         if (cur && cur.isStreaming) {
@@ -55,12 +68,11 @@ export class ChatTurn {
       }
       case 'tool_start':
         this.finalizeOrDropCurrent();
-        this.showStatus(this.deps.formatToolStatus({ name: data?.name, input: data?.input }));
+        this.curId = '';
+        this.addStep(this.deps.formatToolStatus({ name: data?.name, input: data?.input }));
         return null;
       case 'tool_done':
-        this.removeStatus();
-        this.finalizeOrDropCurrent();
-        this.curId = '';
+        this.finishRunningStep();
         return null;
       case 'graph_updated':
         return 'graph';
@@ -72,11 +84,11 @@ export class ChatTurn {
         return 'context';
       case 'done':
         this.finished = true;
-        this.removeStatus();
+        this.closeActivity('done');
         this.finalizeOrDropCurrent();
         return null;
       case 'error': {
-        this.removeStatus();
+        this.closeActivity('stopped');
         const text: string = data?.errorId
           ? `${data.message} (ref: ${data.errorId})`
           : data?.message ?? 'Something went wrong.';
@@ -96,11 +108,16 @@ export class ChatTurn {
     }
   }
 
-  /** Final bubbles once following stops: drop empty and status bubbles, append the failure if any. */
+  /**
+   * Final bubbles once following stops: drop empty text bubbles, keep the
+   * activity (a step still running when following stopped is marked stopped,
+   * since nothing confirmed it finished), and append the failure if any.
+   */
   settle(failure: string | null): TurnMessage[] {
+    this.closeActivity(failure ? 'stopped' : 'done');
     const settled = this.items.flatMap((m) => {
       if (!m.isStreaming) return [m];
-      if (m.role === 'status' || !m.text) return [];
+      if (!m.text) return [];
       return [{ ...m, isStreaming: false }];
     });
     this.items = failure
@@ -124,16 +141,33 @@ export class ChatTurn {
     });
   }
 
-  private showStatus(text: string) {
-    this.removeStatus();
-    this.statusId = this.deps.newId();
-    this.items = [...this.items, { id: this.statusId, role: 'status', text, isStreaming: true }];
+  private addStep(text: string) {
+    const step: ActivityStep = { id: this.deps.newId(), text, state: 'running' };
+    const open = this.activityId ? this.items.find((m) => m.id === this.activityId) : undefined;
+    if (open) {
+      this.replace({ ...open, steps: [...(open.steps ?? []), step] });
+      return;
+    }
+    this.activityId = this.deps.newId();
+    this.items = [...this.items, { id: this.activityId, role: 'activity', text: '', isStreaming: true, steps: [step] }];
   }
 
-  private removeStatus() {
-    if (!this.statusId) return;
-    const id = this.statusId;
-    this.statusId = null;
-    this.items = this.items.filter((m) => m.id !== id);
+  private finishRunningStep() {
+    const open = this.activityId ? this.items.find((m) => m.id === this.activityId) : undefined;
+    if (!open?.steps) return;
+    const idx = open.steps.findIndex((s) => s.state === 'running');
+    if (idx < 0) return;
+    const steps = open.steps.map((s, i) => (i === idx ? { ...s, state: 'done' as const } : s));
+    this.replace({ ...open, steps });
+  }
+
+  /** Close the open activity bubble; steps still running end in `pending`. */
+  private closeActivity(pending: 'done' | 'stopped') {
+    if (!this.activityId) return;
+    const open = this.items.find((m) => m.id === this.activityId);
+    this.activityId = null;
+    if (!open) return;
+    const steps = (open.steps ?? []).map((s) => (s.state === 'running' ? { ...s, state: pending } : s));
+    this.replace({ ...open, isStreaming: false, steps });
   }
 }

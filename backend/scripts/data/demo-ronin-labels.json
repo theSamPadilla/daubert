@@ -1,0 +1,51 @@
+[
+  {
+    "name": "Ronin Bridge",
+    "category": "bridge",
+    "description": "Ethereum side of the Sky Mavis Ronin Bridge (Axie Infinity). Drained of 173,600 ETH and 25.5M USDC on March 23, 2022.",
+    "wallets": ["0x1a2a1c938ce3ec39b6d47113c7955baa9dd454f2"]
+  },
+  {
+    "name": "Ronin Bridge Exploiter",
+    "category": "other",
+    "description": "Received the forged Ronin Bridge withdrawals on March 23, 2022. Attributed by the FBI to the Lazarus Group; added to the OFAC SDN list on April 14, 2022.",
+    "wallets": ["0x098b716b8aaf21512996dc57eb0615e2383e2f96"],
+    "metadata": { "sanctioned": true, "sanctionsList": "OFAC SDN", "sanctionedOn": "2022-04-14" }
+  },
+  {
+    "name": "Ronin Exploiter Intermediary 1",
+    "category": "other",
+    "description": "Received USDC from the Ronin Bridge Exploiter on March 23, 2022, swapped it through the 1inch router, and returned ETH within the hour.",
+    "wallets": ["0xe708f17240732bbfa1baa8513f66b665fbc7ce10"]
+  },
+  {
+    "name": "Ronin Exploiter Intermediary 2",
+    "category": "other",
+    "description": "Received USDC from the Ronin Bridge Exploiter on March 23, 2022, swapped it through Uniswap V3, and returned ETH within the hour.",
+    "wallets": ["0x665660f65e94454a64b96693a67a41d440155617"]
+  },
+  {
+    "name": "USD Coin (USDC)",
+    "category": "contract",
+    "description": "Circle's USDC ERC-20 token contract on Ethereum.",
+    "wallets": ["0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"]
+  },
+  {
+    "name": "1inch Aggregation Router v4",
+    "category": "protocol",
+    "description": "1inch DEX aggregator router contract.",
+    "wallets": ["0x1111111254fb6c44bac0bed2854e76f90643097d"]
+  },
+  {
+    "name": "Uniswap V3 SwapRouter",
+    "category": "protocol",
+    "description": "Uniswap V3 swap router contract.",
+    "wallets": ["0xe592427a0aece92de3edee1f18e0157c05861564"]
+  },
+  {
+    "name": "Uniswap V3 USDC/WETH 0.05% Pool",
+    "category": "protocol",
+    "description": "Uniswap V3 liquidity pool for USDC/WETH at the 0.05% fee tier.",
+    "wallets": ["0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"]
+  }
+]

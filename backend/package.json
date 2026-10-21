@@ -16,6 +16,7 @@
     "scripts:remove-member": "ts-node scripts/remove-member.ts",
     "scripts:add-member": "ts-node scripts/add-member.ts",
     "scripts:change-role": "ts-node scripts/change-role.ts",
+    "scripts:seed-labels": "ts-node scripts/seed-labeled-entities.ts",
     "test": "NODE_OPTIONS=--no-node-snapshot jest",
     "test:watch": "NODE_OPTIONS=--no-node-snapshot jest --watch",
     "test:cov": "NODE_OPTIONS=--no-node-snapshot jest --coverage"

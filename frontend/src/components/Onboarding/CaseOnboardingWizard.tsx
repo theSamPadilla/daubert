@@ -206,17 +206,24 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
       setSeedError(null);
       setSeedAddressErrors([]);
       if (validTokens.length === 0) {
-        setSeedError('Enter at least one wallet address.');
+        setSeedError('Enter at least one wallet address or transaction hash.');
         return;
       }
       if (mixedFamilies) {
-        setSeedError('One chain per seed. Remove the addresses from the other chains.');
+        setSeedError('One chain per seed. Remove the inputs from the other chains.');
         return;
       }
-      const addresses = validTokens.map((t) => t.address);
-      const result = await seed(addresses, chain);
+      const addresses = validTokens.filter((t) => !t.isTxHash).map((t) => t.address);
+      const txHashes = validTokens.filter((t) => t.isTxHash).map((t) => t.address);
+      if (chain === 'bitcoin' && txHashes.length > 0) {
+        setSeedError(
+          'Bitcoin transactions cannot seed a trace: a UTXO transaction has no single sender. Paste one of its addresses instead.',
+        );
+        return;
+      }
+      const result = await seed({ addresses, txHashes }, chain);
       if (!result) {
-        setSeedError('We could not find any activity for those addresses. Check them and try again.');
+        setSeedError('We could not find any activity for those inputs. Check them and try again.');
         return;
       }
 
@@ -428,14 +435,15 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
               <div>
                 <h2 className="text-lg font-semibold text-ink">Seed your first trace</h2>
                 <p className="mt-1 text-sm text-ink-muted">
-                  Paste one or more wallet addresses, one per line or separated by commas. We fetch
-                  the most recent activity and draw the graph.
+                  Paste wallet addresses or transaction hashes, one per line or separated by commas.
+                  A transaction hash imports exactly that transaction; a wallet imports its most
+                  recent activity.
                 </p>
               </div>
 
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
-                  <Field label="Wallet addresses">
+                  <Field label="Wallets or transactions">
                     {/* A textarea, not an input: single-line inputs strip pasted line breaks,
                         which glues multiple addresses into one invalid token. */}
                     <Textarea
@@ -472,14 +480,10 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
                       {t.valid ? (
                         <>
                           <Badge tone="brand" className="shrink-0 uppercase">
-                            {t.family}
+                            {t.isTxHash ? `${t.family} tx` : t.family}
                           </Badge>
                           <span className="truncate font-mono text-ink-soft">{t.address}</span>
                         </>
-                      ) : t.isTxHash ? (
-                        <span className="text-redline">
-                          That looks like a transaction hash. Paste the wallet address instead.
-                        </span>
                       ) : (
                         <>
                           <Badge tone="danger" className="shrink-0">

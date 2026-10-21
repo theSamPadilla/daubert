@@ -4,8 +4,16 @@ import { parseTimestamp } from '@/utils/formatAmount';
 import type { components } from '@/generated/api-types';
 import { edgeIdentityKey } from '../generated/shared/edge-identity';
 import { usesCursorPagination } from '../generated/shared/chains';
+import { selectPrimaryTransfer } from '@/utils/selectPrimaryTransfer';
 
 type ImportItem = components['schemas']['ImportTransactionItem'];
+type TransactionDetail = components['schemas']['TransactionDetailResult'];
+
+/** What the seed step was given: wallets to pull recent activity for, and exact transactions. */
+export interface SeedInputs {
+  addresses: string[];
+  txHashes: string[];
+}
 
 /** Per-address fetch cap, most recent first. */
 export const SEED_TX_LIMIT = 100;
@@ -102,6 +110,38 @@ export function mapFetchedTx(tx: FetchedTx, chain: string): ImportItem {
 }
 
 /**
+ * Map a single transaction's detail to one import row, choosing the leg the
+ * same way Quick Add does (`selectPrimaryTransfer`) so a seeded transaction and
+ * a Quick-Added one produce the same edge and dedupe against each other.
+ * Returns null when nothing readable moved (e.g. value carried only by
+ * internal transfers, which are not fetched).
+ */
+export function mapTxDetail(detail: TransactionDetail, chain: string): ImportItem | null {
+  const legs = detail.transfers ?? [];
+  const primaryIndex = selectPrimaryTransfer(legs, detail.from);
+  const primary = primaryIndex >= 0 ? legs[primaryIndex] : undefined;
+  const legacy = detail.tokenTransfers[0];
+
+  const amount = primary?.amount ?? legacy?.amount ?? detail.amount;
+  if (!primary && !legacy && (!amount || amount === '0')) return null;
+
+  const item = mapFetchedTx(
+    {
+      from: primary?.from ?? legacy?.from ?? detail.from,
+      to: primary?.to ?? legacy?.to ?? detail.to,
+      txHash: detail.txHash,
+      timestamp: detail.timestamp,
+      amount,
+      token: primary?.token || legacy?.token || detail.token,
+      blockNumber: detail.blockNumber,
+    },
+    chain,
+  );
+  if (detail.solana) item.solana = detail.solana as ImportItem['solana'];
+  return item;
+}
+
+/**
  * Drop duplicate rows, preserving first-seen order. Keyed by the same
  * `edgeIdentityKey` the import/authoring paths use, so a BTC leg row keys on
  * `txid:in:i` / `txid:vout` instead of the generic `txHash-from-to` triple —
@@ -120,53 +160,66 @@ export function dedupeTxs(items: ImportItem[]): ImportItem[] {
 }
 
 /**
- * Fetch-first case seed pipeline. Fetches history for every address in
- * parallel, maps + dedupes the results, and ONLY THEN creates the
- * investigation, trace, and imports the transactions. If no address yields any
- * transaction, nothing is created and `SeedEmptyError` is thrown. A single
- * address failing (rate limit, bad address) is collected into `errors` and does
- * not abort the run as long as at least one address returns data.
+ * Fetch-first case seed pipeline. Fetches recent history for every wallet and
+ * the exact detail for every transaction hash, in parallel, maps + dedupes the
+ * results, and ONLY THEN creates the investigation, trace, and imports the
+ * transactions. If nothing yields a transaction, nothing is created and
+ * `SeedEmptyError` is thrown. A single input failing (rate limit, bad input)
+ * is collected into `errors` and does not abort the run as long as at least
+ * one input returns data.
  */
 export async function runSeed(
   caseId: string,
-  addresses: string[],
+  { addresses, txHashes }: SeedInputs,
   chain: string,
   onPhase?: (phase: SeedPhase) => void,
 ): Promise<SeedResult> {
   onPhase?.('fetching');
   const errors: SeedAddressError[] = [];
-  const settled = await Promise.allSettled(
-    addresses.map((a) =>
-      apiClient.fetchHistory(a, chain, {
-        sort: 'desc',
-        ...(usesCursorPagination(chain) ? { maxTotal: SEED_TX_LIMIT } : { offset: SEED_TX_LIMIT }),
-      }),
+  const failure = (reason: unknown) => (reason instanceof Error ? reason.message : 'Fetch failed');
+
+  const [historyResults, txResults] = await Promise.all([
+    Promise.allSettled(
+      addresses.map((a) =>
+        apiClient.fetchHistory(a, chain, {
+          sort: 'desc',
+          ...(usesCursorPagination(chain) ? { maxTotal: SEED_TX_LIMIT } : { offset: SEED_TX_LIMIT }),
+        }),
+      ),
     ),
-  );
+    Promise.allSettled(txHashes.map((h) => apiClient.getTransaction(h, chain))),
+  ]);
 
   const items: ImportItem[] = [];
-  settled.forEach((res, i) => {
+  historyResults.forEach((res, i) => {
     if (res.status === 'fulfilled') {
       items.push(...res.value.transactions.map((t) => mapFetchedTx(t as FetchedTx, chain)));
     } else {
-      errors.push({
-        address: addresses[i],
-        message: res.reason instanceof Error ? res.reason.message : 'Fetch failed',
-      });
+      errors.push({ address: addresses[i], message: failure(res.reason) });
     }
+  });
+  txResults.forEach((res, i) => {
+    if (res.status === 'rejected') {
+      errors.push({ address: txHashes[i], message: failure(res.reason) });
+      return;
+    }
+    const item = mapTxDetail(res.value, chain);
+    if (item) items.push(item);
+    else errors.push({ address: txHashes[i], message: 'No token or native value moved in this transaction' });
   });
 
   const deduped = dedupeTxs(items);
   if (deduped.length === 0) {
     onPhase?.('error');
-    throw new SeedEmptyError('No transactions found for the given address(es).');
+    throw new SeedEmptyError('No transactions found for the given input(s).');
   }
 
   onPhase?.('creating');
+  const inputs = [...txHashes, ...addresses];
   const traceName =
-    addresses.length > 1
-      ? `${shortAddress(addresses[0])} +${addresses.length - 1} more`
-      : shortAddress(addresses[0]);
+    inputs.length > 1
+      ? `${shortAddress(inputs[0])} +${inputs.length - 1} more`
+      : shortAddress(inputs[0]);
   const inv = await apiClient.createInvestigation(caseId, {
     name: 'Fund tracing',
     initialTraceName: traceName,
@@ -198,11 +251,11 @@ export function useCaseSeed(caseId: string) {
   const [result, setResult] = useState<SeedResult | null>(null);
 
   const seed = useCallback(
-    async (addresses: string[], chain: string) => {
+    async (inputs: SeedInputs, chain: string) => {
       setError(null);
       setResult(null);
       try {
-        const r = await runSeed(caseId, addresses, chain, setPhase);
+        const r = await runSeed(caseId, inputs, chain, setPhase);
         setResult(r);
         return r;
       } catch (e) {

@@ -1,9 +1,10 @@
-import { mapFetchedTx, dedupeTxs, runSeed, shortAddress, SeedEmptyError } from './useCaseSeed';
+import { mapFetchedTx, mapTxDetail, dedupeTxs, runSeed, shortAddress, SeedEmptyError } from './useCaseSeed';
 import { apiClient } from '@/lib/api-client';
 
 jest.mock('@/lib/api-client', () => ({
   apiClient: {
     fetchHistory: jest.fn(),
+    getTransaction: jest.fn(),
     createInvestigation: jest.fn(),
     createTrace: jest.fn(),
     importTransactions: jest.fn(),
@@ -106,6 +107,44 @@ describe('mapFetchedTx', () => {
   });
 });
 
+// Real-shaped get-transaction detail for the Ronin USDC theft: the outer call
+// is exploiter -> bridge with zero ETH; the value moved in the ERC-20 leg.
+const BRIDGE = '0x1a2a1c938ce3ec39b6d47113c7955baa9dd454f2';
+const EXPLOITER = '0x098b716b8aaf21512996dc57eb0615e2383e2f96';
+const USDC = { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', symbol: 'USDC', decimals: 6 };
+const USDC_THEFT_DETAIL = {
+  txHash: '0xed2c72ef1a552ddaec6dd1f5cddf0b59a8f37f82bdda5257d9c7c37db7bb9b08',
+  from: EXPLOITER,
+  to: BRIDGE,
+  chain: 'ethereum',
+  amount: '0',
+  timestamp: '2022-03-23T13:31:04.000Z',
+  blockNumber: 14442840,
+  token: { address: '0x', symbol: 'ETH', decimals: 18 },
+  tokenTransfers: [{ from: BRIDGE, to: EXPLOITER, amount: '25500000000000', token: USDC }],
+  transfers: [{ standard: 'erc20', from: BRIDGE, to: EXPLOITER, amount: '25500000000000', token: USDC, logIndex: 29 }],
+  isError: false,
+} as never;
+
+describe('mapTxDetail', () => {
+  it('maps the decoded token leg, not the zero-value outer call', () => {
+    const item = mapTxDetail(USDC_THEFT_DETAIL, 'ethereum');
+    expect(item).toMatchObject({
+      from: BRIDGE,
+      to: EXPLOITER,
+      amount: '25500000000000',
+      token: 'USDC',
+      tokenMeta: { address: USDC.address, decimals: 6 },
+      blockNumber: 14442840,
+    });
+  });
+
+  it('returns null when nothing readable moved', () => {
+    const detail = { ...(USDC_THEFT_DETAIL as object), tokenTransfers: [], transfers: [] } as never;
+    expect(mapTxDetail(detail, 'ethereum')).toBeNull();
+  });
+});
+
 describe('dedupeTxs', () => {
   it('drops duplicate txHash-from-to triples', () => {
     const a = { txHash: '0x1', from: '0xa', to: '0xb' } as never;
@@ -157,7 +196,7 @@ describe('runSeed', () => {
 
   it('is fetch-first: creates nothing when no address returns transactions', async () => {
     api.fetchHistory.mockResolvedValue({ transactions: [], chain: 'ethereum', address: '0xa' });
-    await expect(runSeed('case-1', ['0xa'], 'ethereum')).rejects.toThrow(SeedEmptyError);
+    await expect(runSeed('case-1', { addresses: ['0xa'], txHashes: [] }, 'ethereum')).rejects.toThrow(SeedEmptyError);
     expect(api.createInvestigation).not.toHaveBeenCalled();
     expect(api.createTrace).not.toHaveBeenCalled();
     expect(api.importTransactions).not.toHaveBeenCalled();
@@ -169,7 +208,7 @@ describe('runSeed', () => {
       .mockResolvedValueOnce({ transactions: [FETCHED_TX], chain: 'ethereum', address: '0xb' });
     api.createInvestigation.mockResolvedValue({ id: 'inv-1', traces: [{ id: 'trace-1' }] } as never);
     api.importTransactions.mockResolvedValue({ added: { nodes: 2, edges: 1 } });
-    const result = await runSeed('case-1', ['0xa', '0xb'], 'ethereum');
+    const result = await runSeed('case-1', { addresses: ['0xa', '0xb'], txHashes: [] }, 'ethereum');
     expect(result.investigationId).toBe('inv-1');
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].address).toBe('0xa');
@@ -180,7 +219,7 @@ describe('runSeed', () => {
     api.fetchHistory.mockResolvedValue({ transactions: [FETCHED_TX], chain: 'ethereum', address: '0xa' });
     api.createInvestigation.mockResolvedValue({ id: 'inv-1', traces: [{ id: 'trace-1' }] } as never);
     api.importTransactions.mockResolvedValue({ added: { nodes: 2, edges: 1 } });
-    const result = await runSeed('case-1', ['0xa'], 'ethereum');
+    const result = await runSeed('case-1', { addresses: ['0xa'], txHashes: [] }, 'ethereum');
     expect(result).toMatchObject({
       investigationId: 'inv-1',
       traceId: 'trace-1',
@@ -200,7 +239,7 @@ describe('runSeed', () => {
     api.createInvestigation.mockResolvedValue({ id: 'inv-1', traces: [{ id: 'trace-1' }] } as never);
     api.importTransactions.mockResolvedValue({ added: { nodes: 2, edges: 1 } });
     const phases: string[] = [];
-    await runSeed('case-1', ['0xa'], 'ethereum', (p) => phases.push(p));
+    await runSeed('case-1', { addresses: ['0xa'], txHashes: [] }, 'ethereum', (p) => phases.push(p));
     expect(phases).toEqual(['fetching', 'creating', 'importing', 'done']);
   });
 
@@ -208,7 +247,7 @@ describe('runSeed', () => {
     api.fetchHistory.mockResolvedValue({ transactions: [FETCHED_TX], chain: 'ethereum', address: '0xa' });
     api.createInvestigation.mockResolvedValue({ id: 'inv-1', traces: [{ id: 'trace-1' }] } as never);
     api.importTransactions.mockResolvedValue({ added: { nodes: 2, edges: 1 } });
-    await runSeed('case-1', ['0xa'], 'ethereum');
+    await runSeed('case-1', { addresses: ['0xa'], txHashes: [] }, 'ethereum');
     const sentItems = api.importTransactions.mock.calls[0][1];
     expect(typeof sentItems[0].token).toBe('string');
     expect(sentItems[0].token).toBe('USDC');
@@ -216,7 +255,7 @@ describe('runSeed', () => {
 
   it('fetches bitcoin with maxTotal (its provider ignores offset, paginating on its own cursor)', async () => {
     api.fetchHistory.mockResolvedValue({ transactions: [], chain: 'bitcoin', address: 'bc1qa' });
-    await expect(runSeed('case-1', ['bc1qa'], 'bitcoin')).rejects.toThrow(SeedEmptyError);
+    await expect(runSeed('case-1', { addresses: ['bc1qa'], txHashes: [] }, 'bitcoin')).rejects.toThrow(SeedEmptyError);
     expect(api.fetchHistory).toHaveBeenCalledWith(
       'bc1qa',
       'bitcoin',
@@ -228,7 +267,7 @@ describe('runSeed', () => {
 
   it('fetches non-bitcoin chains with offset (unchanged pre-existing behavior)', async () => {
     api.fetchHistory.mockResolvedValue({ transactions: [], chain: 'ethereum', address: '0xa' });
-    await expect(runSeed('case-1', ['0xa'], 'ethereum')).rejects.toThrow(SeedEmptyError);
+    await expect(runSeed('case-1', { addresses: ['0xa'], txHashes: [] }, 'ethereum')).rejects.toThrow(SeedEmptyError);
     expect(api.fetchHistory).toHaveBeenCalledWith(
       '0xa',
       'ethereum',
@@ -238,9 +277,36 @@ describe('runSeed', () => {
     expect(opts).not.toHaveProperty('maxTotal');
   });
 
+  it('seeds from a transaction hash alongside a wallet, naming the trace after the hash', async () => {
+    api.fetchHistory.mockResolvedValue({ transactions: [FETCHED_TX], chain: 'ethereum', address: '0xa' });
+    api.getTransaction.mockResolvedValue(USDC_THEFT_DETAIL);
+    api.createInvestigation.mockResolvedValue({ id: 'inv-1', traces: [{ id: 'trace-1' }] } as never);
+    api.importTransactions.mockResolvedValue({ added: { nodes: 4, edges: 2 } });
+    const hash = '0xed2c72ef1a552ddaec6dd1f5cddf0b59a8f37f82bdda5257d9c7c37db7bb9b08';
+
+    const result = await runSeed('case-1', { addresses: ['0xa'], txHashes: [hash] }, 'ethereum');
+
+    expect(api.getTransaction).toHaveBeenCalledWith(hash, 'ethereum');
+    expect(result.txCount).toBe(2);
+    const sent = api.importTransactions.mock.calls[0][1];
+    expect(sent.some((i) => i.txHash === hash && i.from === BRIDGE)).toBe(true);
+    expect(api.createInvestigation).toHaveBeenCalledWith('case-1', {
+      name: 'Fund tracing',
+      initialTraceName: `${shortAddress(hash)} +1 more`,
+    });
+  });
+
+  it('reports a transaction that moved nothing instead of drawing an empty edge', async () => {
+    api.getTransaction.mockResolvedValue({ ...(USDC_THEFT_DETAIL as object), tokenTransfers: [], transfers: [] } as never);
+    await expect(
+      runSeed('case-1', { addresses: [], txHashes: ['0xdead'] }, 'ethereum'),
+    ).rejects.toThrow(SeedEmptyError);
+    expect(api.createInvestigation).not.toHaveBeenCalled();
+  });
+
   it('fetches solana with maxTotal (cursor-paginated, like bitcoin)', async () => {
     api.fetchHistory.mockResolvedValue({ transactions: [], chain: 'solana', address: 'SoLwallet' });
-    await expect(runSeed('case-1', ['SoLwallet'], 'solana')).rejects.toThrow(SeedEmptyError);
+    await expect(runSeed('case-1', { addresses: ['SoLwallet'], txHashes: [] }, 'solana')).rejects.toThrow(SeedEmptyError);
     expect(api.fetchHistory).toHaveBeenCalledWith(
       'SoLwallet',
       'solana',

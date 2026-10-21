@@ -19,6 +19,7 @@ import { DeclarationLibraryService } from '../declaration-library/declaration-li
 import { DeclarantsService } from '../declarants/declarants.service';
 import { AddressClassificationsService } from '../address-classifications/address-classifications.service';
 import { CaseActivityService } from '../case-activity/case-activity.service';
+import { InvestigationsService } from '../investigations/investigations.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { AGENT_TOOLS, READ_ONLY_AGENT_TOOLS } from './tools';
 import { CaseRole } from '../../database/entities/case-member.entity';
@@ -45,6 +46,7 @@ const mockDeclarantsService = { listForOrg: jest.fn() };
 const mockTokenUsageService = { record: jest.fn() };
 const mockAddressClassificationsService = { lookupMany: jest.fn().mockResolvedValue(new Map()) };
 const mockCaseActivity = { record: jest.fn().mockResolvedValue(undefined) };
+const mockInvestigationsService = { create: jest.fn() };
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -89,6 +91,7 @@ describe('AiService — executeTool label cases', () => {
         { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
         { provide: CaseActivityService, useValue: mockCaseActivity },
+        { provide: InvestigationsService, useValue: mockInvestigationsService },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
@@ -107,6 +110,46 @@ describe('AiService — executeTool label cases', () => {
   function toolUse(name: string, input: Record<string, unknown>): Anthropic.ToolUseBlock {
     return { type: 'tool_use', id: 'tu_test', name, input } as Anthropic.ToolUseBlock;
   }
+
+  // ── create_investigation ───────────────────────────────────────────────────
+
+  describe('create_investigation', () => {
+    it('creates an investigation in the current case and returns its trace id', async () => {
+      mockInvestigationsService.create.mockResolvedValue({
+        id: 'inv-new', name: 'Trust account flow', traces: [{ id: 'trace-new', name: 'Bank wires' }],
+      });
+
+      const result = await (aiService as any).executeTool(
+        toolUse('create_investigation', { name: ' Trust account flow ', initialTraceName: 'Bank wires' }),
+        CASE_ID,
+        undefined,
+        'editor',
+      );
+
+      expect(mockInvestigationsService.create).toHaveBeenCalledWith(CASE_ID, {
+        name: 'Trust account flow',
+        initialTraceName: 'Bank wires',
+      });
+      expect(result).toEqual({
+        investigationId: 'inv-new',
+        name: 'Trust account flow',
+        traces: [{ traceId: 'trace-new', name: 'Bank wires' }],
+      });
+    });
+
+    it('refuses a viewer without creating anything', async () => {
+      const result = await (aiService as any).executeTool(
+        toolUse('create_investigation', { name: 'x' }), CASE_ID, undefined, 'viewer',
+      );
+      expect(result).toEqual({ error: expect.stringMatching(/editor access/) });
+      expect(mockInvestigationsService.create).not.toHaveBeenCalled();
+    });
+
+    it('is offered to editors but not to viewers', () => {
+      expect(AGENT_TOOLS.some((t) => t.name === 'create_investigation')).toBe(true);
+      expect(READ_ONLY_AGENT_TOOLS.some((t) => t.name === 'create_investigation')).toBe(false);
+    });
+  });
 
   // ── add_label ──────────────────────────────────────────────────────────────
 
@@ -521,6 +564,7 @@ describe('AiService — pickToolsForRole', () => {
         { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
         { provide: CaseActivityService, useValue: mockCaseActivity },
+        { provide: InvestigationsService, useValue: mockInvestigationsService },
         { provide: getRepositoryToken(MessageEntity), useValue: { find: jest.fn() } },
         { provide: getRepositoryToken(InvestigationEntity), useValue: { find: jest.fn(), findOneBy: jest.fn() } },
         { provide: getRepositoryToken(TraceEntity), useValue: { findOneBy: jest.fn(), save: jest.fn() } },
@@ -625,6 +669,7 @@ describe('AiService — token usage metering', () => {
         { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
         { provide: CaseActivityService, useValue: mockCaseActivity },
+        { provide: InvestigationsService, useValue: mockInvestigationsService },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
@@ -838,6 +883,7 @@ describe('AiService — prompt cache breakpoints', () => {
         { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
         { provide: CaseActivityService, useValue: mockCaseActivity },
+        { provide: InvestigationsService, useValue: mockInvestigationsService },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },
@@ -1010,6 +1056,7 @@ describe('AiService — runTurn lifecycle', () => {
         { provide: TokenUsageService, useValue: mockTokenUsageService },
         { provide: AddressClassificationsService, useValue: mockAddressClassificationsService },
         { provide: CaseActivityService, useValue: mockCaseActivity },
+        { provide: InvestigationsService, useValue: mockInvestigationsService },
         { provide: getRepositoryToken(MessageEntity), useValue: mockMessageRepo },
         { provide: getRepositoryToken(InvestigationEntity), useValue: mockInvestigationRepo },
         { provide: getRepositoryToken(TraceEntity), useValue: mockTraceRepo },

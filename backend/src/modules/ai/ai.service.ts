@@ -23,6 +23,7 @@ import { ScriptExecutionService } from './services/script-execution.service';
 import { LabeledEntitiesService } from '../labeled-entities/labeled-entities.service';
 import { EntityCategory } from '../../database/entities/labeled-entity.entity';
 import { ProductionsService } from '../productions/productions.service';
+import { InvestigationsService } from '../investigations/investigations.service';
 import { ProductionType } from '../../database/entities/production.entity';
 import { TracesService } from '../traces/traces.service';
 import { DataRoomService, AgentReadResult, FILE_NOTES_MAX_IDS } from '../data-room/data-room.service';
@@ -41,6 +42,7 @@ import {
   EXECUTE_SCRIPT_TOOL,
   LIST_SCRIPT_RUNS_TOOL,
   QUERY_LABELED_ENTITIES_TOOL,
+  CREATE_INVESTIGATION_TOOL,
   CREATE_PRODUCTION_TOOL,
   READ_PRODUCTION_TOOL,
   UPDATE_PRODUCTION_TOOL,
@@ -547,6 +549,7 @@ export class AiService {
     private readonly tokenUsageService: TokenUsageService,
     private readonly addressClassificationsService: AddressClassificationsService,
     private readonly caseActivity: CaseActivityService,
+    private readonly investigationsService: InvestigationsService,
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
     @InjectRepository(InvestigationEntity)
@@ -1013,7 +1016,7 @@ export class AiService {
 
           yield { type: 'tool_done', data: { name: toolUse.name } };
 
-          if (toolUse.name === EXECUTE_SCRIPT_TOOL.name) {
+          if (toolUse.name === EXECUTE_SCRIPT_TOOL.name || toolUse.name === CREATE_INVESTIGATION_TOOL.name) {
             yield { type: 'graph_updated', data: {} };
           }
 
@@ -1259,6 +1262,30 @@ export class AiService {
           ? (input.category as EntityCategory)
           : undefined;
         return this.labeledEntitiesService.findAll({ category, search: input.search });
+      }
+
+      case CREATE_INVESTIGATION_TOOL.name: {
+        if (!caseId) {
+          return { error: 'No case context. Ask the user to open a case.' };
+        }
+        // InvestigationsService.create has no role check of its own; this is the gate.
+        if (!roleAtLeast(viewerRole, 'editor')) {
+          return { error: 'Creating an investigation requires editor access to this case.' };
+        }
+        const input = toolUse.input as { name?: string; notes?: string; initialTraceName?: string };
+        if (!input.name?.trim()) {
+          return { error: 'name is required' };
+        }
+        const created = await this.investigationsService.create(caseId, {
+          name: input.name.trim(),
+          ...(input.notes ? { notes: input.notes } : {}),
+          ...(input.initialTraceName ? { initialTraceName: input.initialTraceName } : {}),
+        });
+        return {
+          investigationId: created.id,
+          name: created.name,
+          traces: (created.traces ?? []).map((t) => ({ traceId: t.id, name: t.name })),
+        };
       }
 
       case CREATE_PRODUCTION_TOOL.name: {

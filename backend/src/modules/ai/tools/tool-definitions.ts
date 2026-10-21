@@ -122,6 +122,21 @@ export const QUERY_LABELED_ENTITIES_TOOL: Anthropic.Tool = {
 
 // ---------- Productions ----------
 
+export const CREATE_INVESTIGATION_TOOL: Anthropic.Tool = {
+  name: 'create_investigation',
+  description:
+    'Create a new investigation in the current case, with one empty trace. Use it when the case has no investigation to hold the graph you need to build (for example a fiat flow reconstructed from bank records), or when the user asks for a separate investigation. Returns the investigation id and its trace id; then add nodes and edges with execute_script POSTing to /traces/{traceId}/import-transactions (load the graph-mutations skill first).',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      name: { type: 'string', description: 'Investigation name, e.g. "Trust account flow of funds"' },
+      notes: { type: 'string', description: 'Optional notes on what the investigation covers' },
+      initialTraceName: { type: 'string', description: 'Optional name for the first trace, e.g. "Bank wires"' },
+    },
+    required: ['name'],
+  },
+};
+
 export const CREATE_PRODUCTION_TOOL: Anthropic.Tool = {
   name: 'create_production',
   description:

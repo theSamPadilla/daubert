@@ -376,7 +376,7 @@ interface AIChatProps {
 }
 
 export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, onProductionUpdated }: AIChatProps) {
-  const { viewerRole, pendingChatPrompt, consumeChatPrompt } = useCaseContext();
+  const { viewerRole, pendingChatPrompt, consumeChatPrompt, reloadInvestigations } = useCaseContext();
   const canMutate = viewerRole === 'owner' || viewerRole === 'editor';
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -678,7 +678,11 @@ export function AIChat({ activeCaseId, activeInvestigationId, onGraphUpdated, on
         signal: sub.signal,
         onEvent: (type, data) => {
           const effect = turn.apply(type, data);
-          if (effect === 'graph') onGraphUpdated?.();
+          if (effect === 'graph') {
+            onGraphUpdated?.();
+            // The agent may have created an investigation the sidebar doesn't list yet.
+            reloadInvestigations();
+          }
           if (effect === 'production') onProductionUpdated?.();
           if (effect === 'context' && turn.contextTokens !== null) {
             const tokens = turn.contextTokens;

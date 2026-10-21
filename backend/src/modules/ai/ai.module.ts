@@ -29,6 +29,7 @@ import { ChatRetentionInternalController } from './retention/chat-retention-inte
 import { AuthModule } from '../auth/auth.module';
 import { LabeledEntitiesModule } from '../labeled-entities/labeled-entities.module';
 import { ProductionsModule } from '../productions/productions.module';
+import { InvestigationsModule } from '../investigations/investigations.module';
 import { ScriptModule } from '../script/script.module';
 import { TracesModule } from '../traces/traces.module';
 import { TokenUsageModule } from '../superadmin/token-usage/token-usage.module';
@@ -56,6 +57,7 @@ import { ExportModule } from '../export/export.module';
     AuthModule,
     LabeledEntitiesModule,
     ProductionsModule,
+    InvestigationsModule,
     ScriptModule,
     TracesModule,
     TokenUsageModule,

@@ -39,16 +39,29 @@ export function useInvestigationLoader({
   const onBeforeLoadRef = useRef(onBeforeLoad);
   onBeforeLoadRef.current = onBeforeLoad;
 
-  const loadInvestigation = useCallback(async (id: string) => {
-    setLoading(true);
-    onBeforeLoadRef.current?.();
+  // The last investigation object that came from the server. Auto-save skips
+  // it: writing a fresh snapshot straight back is redundant, and if the agent
+  // writes again within the debounce window the stale write-back erases it.
+  const serverSnapshotRef = useRef<Investigation | null>(null);
+
+  /**
+   * `background` refreshes in place: no loading state (which unmounts the
+   * graph) and no selection reset. Used for agent writes and manual refresh,
+   * where the user is looking at the same investigation.
+   */
+  const loadInvestigation = useCallback(async (id: string, { background = false } = {}) => {
+    if (!background) {
+      setLoading(true);
+      onBeforeLoadRef.current?.();
+    }
     try {
-      const inv = await apiClient.getInvestigation(id);
-      setInvestigation(normalizeInvestigation(inv));
+      const inv = normalizeInvestigation(await apiClient.getInvestigation(id));
+      serverSnapshotRef.current = inv;
+      setInvestigation(inv);
     } catch (err) {
       console.error('Failed to load investigation:', err);
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [setInvestigation]);
 
@@ -75,7 +88,7 @@ export function useInvestigationLoader({
   // Subscribe to graph-updated events from the agent
   useEffect(() => {
     setOnGraphUpdated(() => {
-      if (activeInvestigationId) loadInvestigation(activeInvestigationId);
+      if (activeInvestigationId) loadInvestigation(activeInvestigationId, { background: true });
     });
     return () => setOnGraphUpdated(undefined);
   }, [activeInvestigationId, loadInvestigation, setOnGraphUpdated]);
@@ -85,6 +98,7 @@ export function useInvestigationLoader({
   const saveTimeoutRef = useMemo(() => ({ current: null as ReturnType<typeof setTimeout> | null }), []);
   useEffect(() => {
     if (!investigation || loading) return;
+    if (investigation === serverSnapshotRef.current) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
       try {
@@ -115,7 +129,7 @@ export function useInvestigationLoader({
   }, [investigation, loading, saveTimeoutRef]);
 
   const reloadCurrent = useCallback(() => {
-    if (activeInvestigationId) loadInvestigation(activeInvestigationId);
+    if (activeInvestigationId) loadInvestigation(activeInvestigationId, { background: true });
   }, [activeInvestigationId, loadInvestigation]);
 
   const refreshScriptRuns = useCallback(async () => {

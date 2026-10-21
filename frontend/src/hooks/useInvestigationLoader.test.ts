@@ -11,9 +11,16 @@ jest.mock('@/lib/api-client', () => ({
   },
 }));
 
+const mockSetOnGraphUpdated = jest.fn();
 jest.mock('@/contexts/CaseContext', () => ({
-  useCaseContext: () => ({ setOnGraphUpdated: jest.fn() }),
+  useCaseContext: () => ({ setOnGraphUpdated: mockSetOnGraphUpdated }),
 }));
+
+/** The most recent callback the hook registered for agent graph updates. */
+function latestGraphUpdatedHandler(): () => void {
+  const calls = mockSetOnGraphUpdated.mock.calls.filter(([fn]) => typeof fn === 'function');
+  return calls[calls.length - 1][0];
+}
 
 jest.mock('@/utils/normalizeInvestigation', () => ({
   normalizeInvestigation: (x: any) => x,
@@ -72,6 +79,54 @@ it('reloads when activeInvestigationId changes', async () => {
   );
   rerender({ id: 'i1' });
   await waitFor(() => expect(apiClient.getInvestigation).toHaveBeenCalledWith('i1'));
+});
+
+it('refreshes in the background on an agent graph update: no loading state, selection kept', async () => {
+  jest.useRealTimers();
+  (apiClient.getInvestigation as jest.Mock).mockResolvedValue({ id: 'i1', traces: [] });
+  const onBeforeLoad = jest.fn();
+  const setInvestigation = jest.fn();
+  const { result } = renderHook(() =>
+    useInvestigationLoader({ activeInvestigationId: 'i1', investigation: null, setInvestigation, onBeforeLoad }),
+  );
+  await waitFor(() => expect(apiClient.getInvestigation).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(onBeforeLoad).toHaveBeenCalledTimes(1);
+
+  const loadingStates: boolean[] = [];
+  await act(async () => {
+    latestGraphUpdatedHandler()();
+    loadingStates.push(result.current.loading);
+  });
+
+  expect(apiClient.getInvestigation).toHaveBeenCalledTimes(2);
+  expect(loadingStates).toEqual([false]);
+  expect(result.current.loading).toBe(false);
+  expect(onBeforeLoad).toHaveBeenCalledTimes(1);
+});
+
+it('never auto-saves a snapshot that just came from the server', async () => {
+  const trace1 = { id: 't1', name: 'A', criteria: {}, nodes: [], edges: [], position: { x: 0, y: 0 } };
+  const fromServer = { id: 'i1', name: 'I', traces: [trace1] };
+  (apiClient.getInvestigation as jest.Mock).mockResolvedValue(fromServer);
+  jest.useRealTimers();
+  const setInvestigation = jest.fn();
+
+  const { rerender, result } = renderHook(({ i }) =>
+    useInvestigationLoader({ activeInvestigationId: 'i1', investigation: i, setInvestigation }),
+    { initialProps: { i: null as any } },
+  );
+  await waitFor(() => expect(apiClient.getInvestigation).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+
+  jest.useFakeTimers();
+  rerender({ i: fromServer });
+  await act(async () => { jest.advanceTimersByTime(1100); });
+  expect(apiClient.updateTrace).not.toHaveBeenCalled();
+
+  rerender({ i: { ...fromServer, traces: [{ ...trace1, name: 'Edited' }] } });
+  await act(async () => { jest.advanceTimersByTime(1100); });
+  expect(apiClient.updateTrace).toHaveBeenCalledTimes(1);
 });
 
 it('does NOT re-fire load when onBeforeLoad identity changes (ref pattern)', async () => {

@@ -6,6 +6,7 @@ import { ExportService } from './export.service';
 import { ProductionsService } from '../productions/productions.service';
 import { InvestigationsService } from '../investigations/investigations.service';
 import { DataRoomService } from '../data-room/data-room.service';
+import { CaseAccessService } from '../auth/case-access.service';
 import { applyTrackedChangesToDocx } from './docx-redline';
 
 jest.mock('./docx-redline', () => ({
@@ -77,6 +78,7 @@ describe('ExportController', () => {
         { provide: ProductionsService, useValue: mockProductionsService },
         { provide: InvestigationsService, useValue: mockInvestigationsService },
         { provide: DataRoomService, useValue: mockDataRoomService },
+        { provide: CaseAccessService, useValue: { assertAccess: jest.fn() } },
       ],
     }).compile();
 
@@ -734,5 +736,90 @@ describe('RedlineController', () => {
     const html = await controller.preview('prod-redline', 'triage', makeMockPrincipalReq());
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('Widmann Redline');
+  });
+});
+
+describe('ExportController exhibit with data room files', () => {
+  const CASE = '11111111-1111-4111-8111-111111111111';
+  const FILE = '22222222-2222-4222-8222-222222222222';
+  const RENDERED = Buffer.from('%PDF rendered');
+  const ORIGINAL = Buffer.from('%PDF original');
+  const MERGED = Buffer.from('%PDF merged');
+
+  let controller: ExportController;
+  let exportService: Record<string, jest.Mock>;
+  let dataRoom: Record<string, jest.Mock>;
+  let caseAccess: { assertAccess: jest.Mock };
+
+  beforeEach(async () => {
+    exportService = {
+      htmlToPdf: jest.fn().mockResolvedValue(RENDERED),
+      pdfPageCount: jest.fn().mockResolvedValue(4),
+      mergePdfs: jest.fn().mockResolvedValue(MERGED),
+    };
+    dataRoom = { getFileForExhibit: jest.fn() };
+    caseAccess = { assertAccess: jest.fn().mockResolvedValue({}) };
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [ExportController],
+      providers: [
+        { provide: ExportService, useValue: exportService },
+        { provide: ProductionsService, useValue: { findOne: jest.fn() } },
+        { provide: InvestigationsService, useValue: { findOne: jest.fn() } },
+        { provide: DataRoomService, useValue: dataRoom },
+        { provide: CaseAccessService, useValue: caseAccess },
+      ],
+    }).compile();
+    controller = module.get(ExportController);
+  });
+
+  const fileItem = { refType: 'file' as const, refId: FILE, caseId: CASE, title: 'Exhibit C', subtitle: 'Hale deposition' };
+
+  it('inserts an attached PDF verbatim after a rendered cover sheet', async () => {
+    dataRoom.getFileForExhibit.mockResolvedValue({ name: 'hale.pdf', mimeType: 'application/pdf', buffer: ORIGINAL });
+    const res = makeMockRes();
+
+    await controller.exportExhibit({ filename: 'ex', items: [fileItem] } as any, makeMockReq(), res);
+
+    expect(caseAccess.assertAccess).toHaveBeenCalledWith({ kind: 'user', userId: 'user-1' }, CASE);
+    expect(dataRoom.getFileForExhibit).toHaveBeenCalledWith(CASE, FILE, 'user-1');
+    const coverHtml = exportService.htmlToPdf.mock.calls[0][0] as string;
+    expect(coverHtml).toContain('Exhibit C');
+    expect(coverHtml).toContain('Attached: hale.pdf (4 pages)');
+    expect(exportService.mergePdfs).toHaveBeenCalledWith([RENDERED, ORIGINAL]);
+    expect(res._body).toBe(MERGED);
+  });
+
+  it('renders an image file as an exhibit page without merging', async () => {
+    dataRoom.getFileForExhibit.mockResolvedValue({ name: 'scan.png', mimeType: 'image/png', buffer: Buffer.from('png') });
+    const res = makeMockRes();
+
+    await controller.exportExhibit({ filename: 'ex', items: [fileItem] } as any, makeMockReq(), res);
+
+    expect(exportService.htmlToPdf.mock.calls[0][0]).toContain('src="data:image/png;base64,');
+    expect(exportService.mergePdfs).not.toHaveBeenCalled();
+    expect(res._body).toBe(RENDERED);
+  });
+
+  it('refuses a file item when the user lacks access to its case', async () => {
+    caseAccess.assertAccess.mockRejectedValue(new ForbiddenException('no access'));
+    await expect(
+      controller.exportExhibit({ filename: 'ex', items: [fileItem] } as any, makeMockReq(), makeMockRes()),
+    ).rejects.toThrow(ForbiddenException);
+    expect(dataRoom.getFileForExhibit).not.toHaveBeenCalled();
+  });
+
+  it('rejects a file item without a caseId', async () => {
+    const { caseId: _omit, ...noCase } = fileItem;
+    await expect(
+      controller.exportExhibit({ filename: 'ex', items: [noCase] } as any, makeMockReq(), makeMockRes()),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('reports an unreadable PDF as a bad request', async () => {
+    dataRoom.getFileForExhibit.mockResolvedValue({ name: 'locked.pdf', mimeType: 'application/pdf', buffer: ORIGINAL });
+    exportService.pdfPageCount.mockRejectedValue(new Error('encrypted'));
+    await expect(
+      controller.exportExhibit({ filename: 'ex', items: [fileItem] } as any, makeMockReq(), makeMockRes()),
+    ).rejects.toThrow(/could not be read as a PDF/);
   });
 });

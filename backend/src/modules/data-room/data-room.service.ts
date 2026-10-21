@@ -47,6 +47,12 @@ export const CHAT_UPLOADS_FOLDER = 'Chat uploads';
  */
 const REDLINE_MAX_BYTES = 20 * 1024 * 1024;
 
+/** Types an exhibit can carry verbatim: PDFs keep their pages, images become a page. */
+export const EXHIBIT_FILE_MIMES = new Set(['application/pdf', 'image/png', 'image/jpeg']);
+
+/** The exhibit composer buffers each file to merge it into the PDF. */
+const EXHIBIT_MAX_BYTES = 25 * 1024 * 1024;
+
 /** Shape returned to callers for a single data-room file. */
 export interface DataRoomFileDto {
   id: string;
@@ -571,6 +577,37 @@ export class DataRoomService {
     const buffer = await this.streamToBuffer(stream);
     await this.log(caseId, actorUserId, 'download', fileId);
     this.logger.log(`redline download caseId=${caseId} fileId=${fileId}`);
+    return { name: row.name, mimeType: row.mimeType, buffer };
+  }
+
+  /**
+   * Resolve a file to attach to an exhibit PDF. Scoped by `{ id, caseId }` so a
+   * file from a different case reads as not found; the caller must already
+   * have checked the actor's access to `caseId`. Only PDFs and PNG/JPEG images
+   * are eligible, at or under {@link EXHIBIT_MAX_BYTES}. Writes a `download`
+   * audit row (custody) before returning.
+   */
+  async getFileForExhibit(
+    caseId: string,
+    fileId: string,
+    actorUserId: string,
+  ): Promise<{ name: string; mimeType: string; buffer: Buffer }> {
+    const row = await this.fileRepo.findOne({ where: { id: fileId, caseId } });
+    if (!row) {
+      throw new NotFoundException('file_not_found');
+    }
+    if (!EXHIBIT_FILE_MIMES.has(row.mimeType)) {
+      throw new BadRequestException(
+        `"${row.name}" cannot be an exhibit: only PDF, PNG, and JPEG files can be attached.`,
+      );
+    }
+    if (Number(row.size) > EXHIBIT_MAX_BYTES) {
+      throw new BadRequestException(`"${row.name}" exceeds the 25MB exhibit file limit`);
+    }
+    const { stream } = await this.storage.download(row.objectKey);
+    const buffer = await this.streamToBuffer(stream);
+    await this.log(caseId, actorUserId, 'download', fileId);
+    this.logger.log(`exhibit download caseId=${caseId} fileId=${fileId}`);
     return { name: row.name, mimeType: row.mimeType, buffer };
   }
 

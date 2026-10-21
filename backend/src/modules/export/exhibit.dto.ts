@@ -3,11 +3,15 @@ import { Type } from 'class-transformer';
 import { FONT_FAMILIES, FONT_SIZES, FontFamily, FontSize } from './render-options';
 
 export class ExhibitItemDto {
-  @IsIn(['production', 'investigation'])
-  refType!: 'production' | 'investigation';
+  @IsIn(['production', 'investigation', 'file'])
+  refType!: 'production' | 'investigation' | 'file';
 
   @IsUUID()
   refId!: string;
+
+  // Data room files are scoped by case; required for refType 'file'.
+  @IsOptional() @IsUUID()
+  caseId?: string;
 
   @IsString() @MaxLength(200)
   title!: string;

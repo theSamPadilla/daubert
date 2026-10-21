@@ -692,8 +692,10 @@ export const apiClient = {
   exportExhibit: (
     filename: string,
     items: Array<{
-      refType: 'production' | 'investigation';
+      refType: 'production' | 'investigation' | 'file';
       refId: string;
+      /** Required for refType 'file' (data room files are case-scoped). */
+      caseId?: string;
       title: string;
       subtitle?: string;
       imageDataUrl?: string;

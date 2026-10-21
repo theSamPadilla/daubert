@@ -745,7 +745,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Compose multiple investigations and productions into a single exhibit PDF */
+        /** Compose investigations, productions, and data room files into a single exhibit PDF */
         post: operations["exportExhibit"];
         delete?: never;
         options?: never;
@@ -5135,9 +5135,17 @@ export interface operations {
                     filename: string;
                     items: {
                         /** @enum {string} */
-                        refType: "production" | "investigation";
-                        /** Format: uuid */
+                        refType: "production" | "investigation" | "file";
+                        /**
+                         * Format: uuid
+                         * @description Production, investigation, or data room file id.
+                         */
                         refId: string;
+                        /**
+                         * Format: uuid
+                         * @description Required for refType "file". PDFs are inserted page-for-page behind a cover sheet; images render as a page.
+                         */
+                        caseId?: string;
                         title: string;
                         subtitle?: string;
                         imageDataUrl?: string;

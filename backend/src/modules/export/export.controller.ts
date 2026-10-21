@@ -24,7 +24,8 @@ import { renderReportBody } from './templates/report';
 import { renderChronologyBody } from './templates/chronology';
 import { renderChartBody } from './templates/chart';
 import { renderGraphBody } from './templates/graph';
-import { validateDataUrl } from './templates/util';
+import { escapeHtml, validateDataUrl } from './templates/util';
+import { CaseAccessService } from '../auth/case-access.service';
 import { ExportExhibitDto } from './exhibit.dto';
 import { composeExhibitHtml } from './exhibit-composer';
 import {
@@ -44,6 +45,7 @@ export class ExportController {
     private readonly productionsService: ProductionsService,
     private readonly investigationsService: InvestigationsService,
     private readonly dataRoom: DataRoomService,
+    private readonly caseAccess: CaseAccessService,
   ) {}
 
   private getUserId(req: any): string {
@@ -261,11 +263,45 @@ export class ExportController {
   async exportExhibit(@Body() body: ExportExhibitDto, @Req() req: any, @Res() res: Response) {
     const userId = this.getUserId(req);
 
-    const composedItems = [] as { title: string; subtitle?: string; bodyHtml: string }[];
+    // Ordered parts: runs of HTML items render through Chrome as before; an
+    // attached PDF is inserted verbatim after its cover sheet, never re-rendered.
+    type ComposedItem = { title: string; subtitle?: string; bodyHtml: string };
+    type Part = { kind: 'html'; items: ComposedItem[] } | { kind: 'pdf'; bytes: Buffer };
+    const parts: Part[] = [];
+    const pushHtml = (it: ComposedItem) => {
+      const last = parts[parts.length - 1];
+      if (last?.kind === 'html') last.items.push(it);
+      else parts.push({ kind: 'html', items: [it] });
+    };
+    const checkedCases = new Set<string>();
 
     for (const item of body.items) {
       let bodyHtml: string;
-      if (item.refType === 'production') {
+      if (item.refType === 'file') {
+        if (!item.caseId) throw new BadRequestException('File item missing caseId');
+        if (!checkedCases.has(item.caseId)) {
+          await this.caseAccess.assertAccess({ kind: 'user', userId }, item.caseId);
+          checkedCases.add(item.caseId);
+        }
+        const file = await this.dataRoom.getFileForExhibit(item.caseId, item.refId, userId);
+        if (file.mimeType === 'application/pdf') {
+          let pages: number;
+          try {
+            pages = await this.exportService.pdfPageCount(file.buffer);
+          } catch {
+            throw new BadRequestException(`"${file.name}" could not be read as a PDF (it may be encrypted or damaged)`);
+          }
+          pushHtml({
+            title: item.title,
+            subtitle: item.subtitle,
+            bodyHtml: `<p class="exhibit-file-note">Attached: ${escapeHtml(file.name)} (${pages} page${pages === 1 ? '' : 's'})</p>`,
+          });
+          parts.push({ kind: 'pdf', bytes: file.buffer });
+          continue;
+        }
+        const dataUrl = `data:${file.mimeType};base64,${file.buffer.toString('base64')}`;
+        bodyHtml = `<img class="exhibit-file-img" src="${dataUrl}" alt="${escapeHtml(file.name)}" />`;
+      } else if (item.refType === 'production') {
         const p = await this.productionsService.findOne(item.refId, { kind: 'user', userId });
         const data = p.data as any;
         switch (p.type) {
@@ -290,15 +326,22 @@ export class ExportController {
         const inv = await this.investigationsService.findOne(item.refId, { kind: 'user', userId });
         bodyHtml = renderGraphBody(inv.name, item.imageDataUrl);
       }
-      composedItems.push({ title: item.title, subtitle: item.subtitle, bodyHtml });
+      pushHtml({ title: item.title, subtitle: item.subtitle, bodyHtml });
     }
 
     const renderOpts: RenderOptions = {
       fontFamily: body.fontFamily,
       fontSize: body.fontSize,
     };
-    const html = composeExhibitHtml(composedItems, renderOpts);
-    const pdf = await this.exportService.htmlToPdf(html, { landscape: false });
+    const rendered: Buffer[] = [];
+    for (const part of parts) {
+      rendered.push(
+        part.kind === 'html'
+          ? await this.exportService.htmlToPdf(composeExhibitHtml(part.items, renderOpts), { landscape: false })
+          : part.bytes,
+      );
+    }
+    const pdf = rendered.length === 1 ? rendered[0] : await this.exportService.mergePdfs(rendered);
     const safeName = (body.filename || 'exhibit').replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'exhibit';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${safeName}.pdf"`);

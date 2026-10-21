@@ -28,6 +28,14 @@ const EXHIBIT_STYLES = `
     display: block;
     margin: 12pt auto;
   }
+  .exhibit-file-img {
+    max-width: 100%;
+    max-height: 80vh;
+    object-fit: contain;
+    display: block;
+    margin: 12pt auto;
+  }
+  .exhibit-file-note { font-size: 11pt; color: #444; margin-top: 18pt; }
 `;
 
 export function composeExhibitHtml(items: ComposedItem[], opts?: RenderOptions): string {

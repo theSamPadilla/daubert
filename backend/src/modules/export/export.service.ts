@@ -181,6 +181,25 @@ export class ExportService implements OnModuleDestroy {
     return Buffer.from(await pdfDoc.save());
   }
 
+  /** Page count of a PDF; throws if pdf-lib cannot parse it. */
+  async pdfPageCount(pdf: Uint8Array): Promise<number> {
+    return (await PDFDocument.load(pdf)).getPageCount();
+  }
+
+  /**
+   * Concatenate PDFs in order, copying pages verbatim (no re-render), so an
+   * attached original keeps its exact content. Pure pdf-lib, no Chrome.
+   */
+  async mergePdfs(pdfs: Uint8Array[]): Promise<Buffer> {
+    const out = await PDFDocument.create();
+    for (const bytes of pdfs) {
+      const src = await PDFDocument.load(bytes);
+      const pages = await out.copyPages(src, src.getPageIndices());
+      pages.forEach((p) => out.addPage(p));
+    }
+    return Buffer.from(await out.save());
+  }
+
   async htmlToDocx(html: string): Promise<Buffer> {
     const result = await HTMLtoDOCX(html, undefined, {
       table: { row: { cantSplit: true } },

@@ -6,9 +6,10 @@ import { ExportService } from './export.service';
 import { ProductionsModule } from '../productions/productions.module';
 import { InvestigationsModule } from '../investigations/investigations.module';
 import { DataRoomModule } from '../data-room/data-room.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [ProductionsModule, InvestigationsModule, DataRoomModule],
+  imports: [ProductionsModule, InvestigationsModule, DataRoomModule, AuthModule],
   controllers: [ExportController, DeclarationFormatsController, RedlineController],
   providers: [ExportService],
   exports: [ExportService],

@@ -4,9 +4,9 @@ import Image from 'next/image';
 import {
   FaPlus, FaXmark, FaGripVertical,
   FaFileLines, FaChartLine, FaTableList, FaDiagramProject, FaFileSignature,
-  FaLayerGroup, FaMoon, FaSun,
+  FaLayerGroup, FaMoon, FaSun, FaRegFilePdf, FaRegFileImage,
 } from 'react-icons/fa6';
-import { apiClient, type Investigation, type Production } from '@/lib/api-client';
+import { apiClient, type DataRoomFile, type Investigation, type Production } from '@/lib/api-client';
 import { normalizeInvestigation } from '@/utils/normalizeInvestigation';
 import { useCaseContext } from '@/contexts/CaseContext';
 import { ExportModal, type ExportFormat } from '../Common/ExportModal';
@@ -21,10 +21,21 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   chart: <FaChartLine className="w-3.5 h-3.5" />,
   chronology: <FaTableList className="w-3.5 h-3.5" />,
   declaration: <FaFileSignature className="w-3.5 h-3.5" />,
+  PDF: <FaRegFilePdf className="w-3.5 h-3.5" />,
+  Image: <FaRegFileImage className="w-3.5 h-3.5" />,
 };
 
+/** Production types the exhibit endpoint can render; others would fail at export. */
+const EXHIBIT_PRODUCTION_TYPES = new Set(['report', 'chronology', 'chart']);
+
+/** Data room types an exhibit carries verbatim (mirrors backend EXHIBIT_FILE_MIMES). */
+const EXHIBIT_FILE_MIMES = new Set(['application/pdf', 'image/png', 'image/jpeg']);
+
+const fileDisplayType = (f: DataRoomFile) => (f.mimeType === 'application/pdf' ? 'PDF' : 'Image');
+const stripExtension = (name: string) => name.replace(/\.[a-z0-9]+$/i, '');
+
 type ItemRef = {
-  refType: 'production' | 'investigation';
+  refType: 'production' | 'investigation' | 'file';
   refId: string;
   title: string;
   subtitle?: string;
@@ -51,7 +62,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
   // (written analysis) → chronologies (sequence of facts) → charts (visuals).
   const PRODUCTION_TYPE_ORDER: Record<string, number> = { report: 0, chronology: 1, chart: 2 };
   const sortedProductions = useMemo(() => {
-    return productions.slice().sort((a, b) => {
+    return productions.filter((p) => EXHIBIT_PRODUCTION_TYPES.has(p.type)).sort((a, b) => {
       const ta = PRODUCTION_TYPE_ORDER[a.type] ?? 99;
       const tb = PRODUCTION_TYPE_ORDER[b.type] ?? 99;
       if (ta !== tb) return ta - tb;
@@ -59,6 +70,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
     });
   }, [productions]);
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
+  const [files, setFiles] = useState<DataRoomFile[]>([]);
   const [composition, setComposition] = useState<ItemRef[]>([]);
   const [exportOpen, setExportOpen] = useState(false);
   const { snapshot: graphSnapshot, dispose: disposeGraph } = useGraphSnapshot();
@@ -73,6 +85,12 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
     apiClient.getCase(caseId).then((c) => {
       setInvestigations(c.investigations || []);
     });
+    apiClient
+      .dataRoomListFiles(caseId)
+      .then((all) =>
+        setFiles(all.filter((f) => EXHIBIT_FILE_MIMES.has(f.mimeType)).sort((a, b) => a.name.localeCompare(b.name))),
+      )
+      .catch(() => setFiles([]));
   }, [open, caseId]);
 
   const isAdded = (refType: ItemRef['refType'], refId: string) =>
@@ -107,7 +125,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
     // service loads `relations: ['traces']` (investigations.service.ts:38-41).
     const finalItems = [] as ItemRef[];
     for (const it of composition) {
-      if (it.imageDataUrl) {
+      if (it.imageDataUrl || it.refType === 'file') {
         finalItems.push(it);
         continue;
       }
@@ -136,6 +154,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
       finalItems.map((it) => ({
         refType: it.refType,
         refId: it.refId,
+        ...(it.refType === 'file' ? { caseId } : {}),
         title: it.title,
         subtitle: it.subtitle,
         imageDataUrl: it.imageDataUrl,
@@ -223,6 +242,28 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
                   />
                 ))}
               </PickerSection>
+
+              <PickerSection
+                title="Data room"
+                count={files.length}
+                empty="No PDFs or images in the data room."
+              >
+                {files.map((f) => (
+                  <PickerRow
+                    key={f.id}
+                    icon={TYPE_ICONS[fileDisplayType(f)]}
+                    typeLabel={fileDisplayType(f)}
+                    name={f.name}
+                    added={isAdded('file', f.id)}
+                    onAdd={() => add({
+                      refType: 'file',
+                      refId: f.id,
+                      title: stripExtension(f.name),
+                      _displayType: fileDisplayType(f),
+                    })}
+                  />
+                ))}
+              </PickerSection>
             </div>
           </div>
 
@@ -230,7 +271,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
           <div className="border border-line-strong rounded-md bg-surface flex flex-col overflow-hidden">
             <div className="px-3 py-2 border-b border-line-strong/60 text-[11px] uppercase tracking-wider text-ink-muted font-medium flex items-center justify-between">
               <span>Composition</span>
-              {itemCount > 0 && <span className="text-ink-faint normal-case tracking-normal">{itemCount} page{itemCount === 1 ? '' : 's'}</span>}
+              {itemCount > 0 && <span className="text-ink-faint normal-case tracking-normal">{itemCount} item{itemCount === 1 ? '' : 's'}</span>}
             </div>
             <div className="flex-1 overflow-y-auto p-3">
               {composition.length === 0 ? (
@@ -238,7 +279,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
                   <FaLayerGroup className="w-7 h-7 text-ink-faint/60 mb-3" />
                   <p className="text-ink-muted text-sm font-medium">Build your exhibit</p>
                   <p className="text-ink-faint text-xs mt-1 max-w-[220px]">
-                    Add investigations and productions from the left. They'll each become a page in the final PDF.
+                    Add investigations, productions, and data room files from the left. Each starts on a new page; attached PDFs keep all their pages.
                   </p>
                 </div>
               ) : (
@@ -319,7 +360,7 @@ export function ExhibitBuilder({ open, onClose, caseId, caseName }: Props) {
         <footer className="px-6 py-3 border-t border-line-strong flex items-center justify-between gap-2">
           <p className="text-xs text-ink-faint">
             {itemCount > 0
-              ? 'Each item becomes one page in the PDF.'
+              ? 'Each item starts on a new page. Attached PDFs are included page for page.'
               : 'Add at least one item to continue.'}
           </p>
           <div className="flex items-center gap-2">

@@ -61,7 +61,7 @@
 
 /exports/exhibit:
   post:
-    summary: Compose multiple investigations and productions into a single exhibit PDF
+    summary: Compose investigations, productions, and data room files into a single exhibit PDF
     operationId: exportExhibit
     requestBody:
       required: true
@@ -78,8 +78,12 @@
                   type: object
                   required: [refType, refId, title]
                   properties:
-                    refType: { type: string, enum: [production, investigation] }
-                    refId:   { type: string, format: uuid }
+                    refType: { type: string, enum: [production, investigation, file] }
+                    refId:   { type: string, format: uuid, description: 'Production, investigation, or data room file id.' }
+                    caseId:
+                      type: string
+                      format: uuid
+                      description: Required for refType "file". PDFs are inserted page-for-page behind a cover sheet; images render as a page.
                     title:   { type: string }
                     subtitle: { type: string }
                     imageDataUrl: { type: string }

@@ -1,17 +1,40 @@
 import {
   CHAINS,
   CHAIN_IDS,
+  ON_CHAIN_CHAIN_IDS,
+  isOnChain,
+  chainFamily,
   explorerAddressUrl,
   explorerTxUrl,
   usesCursorPagination,
 } from '../generated/shared/chains';
 
 describe('chains registry', () => {
-  it('has exactly 7 chains with the expected ids', () => {
-    expect(CHAIN_IDS.sort()).toEqual(
-      ['arbitrum', 'base', 'bitcoin', 'ethereum', 'polygon', 'solana', 'tron'].sort(),
+  it('has exactly 8 chains with the expected ids', () => {
+    expect([...CHAIN_IDS].sort()).toEqual(
+      ['arbitrum', 'base', 'bitcoin', 'ethereum', 'fiat', 'polygon', 'solana', 'tron'].sort(),
     );
-    expect(Object.keys(CHAINS).length).toBe(7);
+    expect(Object.keys(CHAINS).length).toBe(8);
+  });
+
+  it('registers fiat as an off-chain chain', () => {
+    expect(CHAIN_IDS).toContain('fiat');
+    expect(chainFamily('fiat')).toBe('fiat');
+    expect(CHAINS.fiat.caseSensitiveAddresses).toBe(true);
+    expect(CHAINS.fiat.nativeCurrency).toEqual({ symbol: 'USD', decimals: 2 });
+  });
+
+  it('excludes off-chain chains from the on-chain list', () => {
+    expect(ON_CHAIN_CHAIN_IDS).not.toContain('fiat');
+    expect(ON_CHAIN_CHAIN_IDS).toEqual(CHAIN_IDS.filter((id) => id !== 'fiat'));
+    expect(isOnChain('ethereum')).toBe(true);
+    expect(isOnChain('fiat')).toBe(false);
+    expect(isOnChain('nope')).toBe(false);
+  });
+
+  it('returns no explorer link for fiat', () => {
+    expect(explorerAddressUrl('fiat', '4417')).toBe('');
+    expect(explorerTxUrl('fiat', 'FW2505020031')).toBe('');
   });
 
   it('has a bitcoin entry with family utxo, 8 decimals, case-sensitive addresses', () => {

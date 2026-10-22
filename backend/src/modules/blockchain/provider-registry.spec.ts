@@ -31,6 +31,12 @@ describe('ProviderRegistry', () => {
   });
 
   describe('get', () => {
+    it('throws an off-chain error for "fiat"', () => {
+      const registry = new ProviderRegistry(stubConfigService());
+
+      expect(() => registry.get('fiat')).toThrow(/off-chain/);
+    });
+
     it('still throws the UTXO-path guard error for "bitcoin"', () => {
       const registry = new ProviderRegistry(stubConfigService());
 

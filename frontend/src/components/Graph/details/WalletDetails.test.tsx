@@ -98,3 +98,24 @@ describe('WalletDetails — address type badge', () => {
     expect(screen.queryByText('ERC-20')).toBeNull();
   });
 });
+
+describe('WalletDetails — off-chain accounts', () => {
+  const props = {
+    onFetchHistory: jest.fn(),
+    lookupAddress: () => undefined,
+    lookupClassification: () => undefined,
+  };
+
+  it('hides Fetch Transactions and shows "Bank account" for a fiat account', () => {
+    const w = wallet({ chain: 'fiat', kind: 'account', address: 'ACCT-123' });
+    render(<WalletDetails wallet={w} {...props} />);
+    expect(screen.queryByText('Fetch Transactions')).toBeNull();
+    expect(screen.getByText('Bank account')).toBeTruthy();
+  });
+
+  it('still shows Fetch Transactions for an EVM wallet', () => {
+    render(<WalletDetails wallet={wallet()} {...props} />);
+    expect(screen.getByText('Fetch Transactions')).toBeTruthy();
+    expect(screen.queryByText('Bank account')).toBeNull();
+  });
+});

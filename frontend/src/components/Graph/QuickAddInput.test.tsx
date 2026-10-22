@@ -189,3 +189,12 @@ describe('QuickAddInput transaction prefill', () => {
     expect(prefill.amount).toBe('0');
   });
 });
+
+describe('QuickAddInput chain options', () => {
+  it('does not offer fiat in the chain dropdown', () => {
+    render(<QuickAddInput onResolveAddress={jest.fn()} onResolveTransaction={jest.fn()} />);
+    fireEvent.click(screen.getByText('Ethereum'));
+    expect(screen.getByText('Polygon')).toBeTruthy();
+    expect(screen.queryByText('Bank / Fiat')).toBeNull();
+  });
+});

@@ -1,5 +1,7 @@
 import { TransactionEdge } from '../types/investigation';
 
+const INTEGER_AMOUNT = /^-?\d+$/;
+
 /**
  * Normalise a token field that may be a plain string (e.g. "USDC" from AI
  * scripts) or a full object { symbol, decimals, address }.
@@ -134,4 +136,92 @@ export function formatHumanAmount(h: number): string {
   // wei-scale total never renders as "0".
   if (whole === 0 && !display) return h.toLocaleString('en-US', { maximumSignificantDigits: 4 });
   return (h < 0 ? '-' : '') + whole.toLocaleString('en-US') + (display ? '.' + display : '');
+}
+
+/**
+ * Format a fiat amount held in minor units (e.g. cents) as exact currency text.
+ * Scales with BigInt so values beyond Number.MAX_SAFE_INTEGER lose no precision;
+ * Intl only supplies the currency symbol and its position. A non-ISO currency
+ * code (Intl throws RangeError) falls back to "<amount> <code>".
+ */
+export function formatFiatAmount(rawAmount: string, decimals: number, currency: string): string {
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36 || !INTEGER_AMOUNT.test(rawAmount)) {
+    return `${rawAmount} ${currency}`;
+  }
+  const raw = BigInt(rawAmount);
+  const negative = raw < BigInt(0);
+  const digits = (negative ? -raw : raw).toString().padStart(decimals + 1, '0');
+  const whole = decimals > 0 ? digits.slice(0, -decimals) : digits;
+  const frac = decimals > 0 ? digits.slice(-decimals) : '';
+  const plain = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (frac ? `.${frac}` : '');
+  const sign = negative ? '-' : '';
+
+  let parts: Intl.NumberFormatPart[];
+  try {
+    parts = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).formatToParts(0);
+  } catch {
+    return `${sign}${plain} ${currency}`;
+  }
+  const body = parts
+    .map((p) => {
+      if (p.type === 'integer') return plain.split('.')[0];
+      if (p.type === 'fraction') return frac;
+      return p.value;
+    })
+    .join('');
+  return `${sign}${body}`;
+}
+
+/** True only for a fiat edge whose amount is an integer string of minor units and
+ * whose token decimals are a sane integer; legacy decimal amounts return false. */
+export function isExactFiat(e: { chain?: string; amount: unknown; token: TransactionEdge['token'] | string }): boolean {
+  if (e.chain !== 'fiat') return false;
+  if (!INTEGER_AMOUNT.test(String(e.amount))) return false;
+  const d = normalizeToken(e.token).decimals;
+  return Number.isInteger(d) && d >= 0 && d <= 36;
+}
+
+/** Display text for one edge amount: exact currency for fiat, token format otherwise. */
+export function formatEdgeAmount(e: { chain?: string; amount: unknown; token: TransactionEdge['token'] | string }): string {
+  const tok = normalizeToken(e.token);
+  if (isExactFiat(e)) return formatFiatAmount(String(e.amount), tok.decimals, tok.symbol);
+  return `${formatTokenAmount(String(e.amount), tok.decimals)} ${tok.symbol}`;
+}
+
+/** Exact BigInt total of fiat edges, or null unless the list is non-empty, every
+ * edge is exact fiat, and all share symbol and decimals. */
+export function sumExactFiat(edges: { chain?: string; amount: unknown; token: TransactionEdge['token'] | string }[]): string | null {
+  if (edges.length === 0 || !edges.every(isExactFiat)) return null;
+  const first = normalizeToken(edges[0].token);
+  if (!edges.every((e) => {
+    const t = normalizeToken(e.token);
+    return t.symbol === first.symbol && t.decimals === first.decimals;
+  })) return null;
+  const total = edges.reduce((sum, e) => sum + BigInt(String(e.amount)), BigInt(0));
+  return formatFiatAmount(total.toString(), first.decimals, first.symbol);
+}
+
+/** Convert a human decimal string ('400000.50') to minor units ('40000050'). */
+export function toMinorUnits(human: string, decimals: number): string | null {
+  const t = human.trim();
+  const m = /^(-?)(\d*)(?:\.(\d*))?$/.exec(t);
+  if (!m || (!m[2] && !m[3])) return null;
+  const frac = m[3] ?? '';
+  if (frac.length > decimals) return null;
+  const digits = ((m[2] || '') + frac.padEnd(decimals, '0')).replace(/^0+/, '') || '0';
+  return digits === '0' ? '0' : m[1] + digits;
+}
+
+/** Inverse of toMinorUnits; always `decimals` fraction digits. */
+export function fromMinorUnits(raw: string, decimals: number): string {
+  const neg = raw.startsWith('-');
+  const digits = (neg ? raw.slice(1) : raw).padStart(decimals + 1, '0');
+  const whole = decimals > 0 ? digits.slice(0, -decimals) : digits;
+  const frac = decimals > 0 ? '.' + digits.slice(-decimals) : '';
+  return (neg ? '-' : '') + whole + frac;
 }

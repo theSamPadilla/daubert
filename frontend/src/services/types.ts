@@ -1,4 +1,4 @@
-import { CHAINS } from '../generated/shared/chains';
+import { CHAINS, isOnChain } from '../generated/shared/chains';
 
 export interface ChainConfig {
   id: string;
@@ -20,4 +20,10 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = Object.fromEntries(
       explorerUrl: def.explorerUrl,
     },
   ]),
+);
+
+// Chains with an on-chain data source. Excludes off-chain rails (e.g. fiat),
+// which have nothing to fetch; SUPPORTED_CHAINS stays the full list for authoring forms.
+export const FETCHABLE_CHAINS: Record<string, ChainConfig> = Object.fromEntries(
+  Object.entries(SUPPORTED_CHAINS).filter(([id]) => isOnChain(id)),
 );

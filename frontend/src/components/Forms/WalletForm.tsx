@@ -40,6 +40,11 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
 
   const handleAddressChange = (raw: string) => {
     setAddress(raw);
+    // Fiat identifiers are opaque: no crypto parsing, no chain override.
+    if (chain === 'fiat') {
+      if (!labelTouched) setLabel(raw.trim());
+      return;
+    }
     const parsed = parseAddressInput(raw);
     if (parsed.address !== raw) {
       setAddress(parsed.address);
@@ -88,7 +93,10 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
     }
     setSaveError(null);
 
-    onSave(resolvedTraceId, { label, address, chain, size, notes, tags });
+    onSave(resolvedTraceId, {
+      label, address, chain, size, notes, tags,
+      ...(chain === 'fiat' ? { kind: 'account' as const } : wallet?.kind === 'account' ? { kind: undefined } : {}),
+    });
   };
 
   return (
@@ -159,7 +167,7 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
           value={address}
           onChange={(e) => handleAddressChange(e.target.value)}
           className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink placeholder:text-canvas-muted font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-          placeholder="0x... or block explorer URL"
+          placeholder={chain === 'fiat' ? 'Account number or identifier' : '0x... or block explorer URL'}
         />
       </div>
 
@@ -167,7 +175,14 @@ export function WalletForm({ wallet, traces, selectedTraceId, onSave, onDelete, 
         <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Chain</label>
         <select
           value={chain}
-          onChange={(e) => setChain(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setChain(next);
+            if (!labelTouched && address.trim()) {
+              const a = address.trim();
+              setLabel(next === 'fiat' || a.length <= 10 ? a : `${a.slice(0, 6)}...${a.slice(-4)}`);
+            }
+          }}
           className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
           {Object.values(SUPPORTED_CHAINS).map((c) => (

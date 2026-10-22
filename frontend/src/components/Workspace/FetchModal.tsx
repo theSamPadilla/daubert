@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { FaXmark } from 'react-icons/fa6';
 import { IconButton } from '@/components/ui';
 import { apiClient } from '@/lib/api-client';
-import { SUPPORTED_CHAINS } from '@/services/types';
+import { FETCHABLE_CHAINS } from '@/services/types';
 import { Trace, TransactionEdge } from '@/types/investigation';
 import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
 import { classifyBtcRow } from '@/utils/btcRowDisplay';
@@ -257,7 +257,7 @@ export function FetchModal({
                 onChange={(e) => setChain(e.target.value)}
                 className={fieldClass}
               >
-                {Object.values(SUPPORTED_CHAINS).map((c) => (
+                {Object.values(FETCHABLE_CHAINS).map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>

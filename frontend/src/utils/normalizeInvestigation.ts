@@ -25,6 +25,15 @@ export function normalizeInvestigation(inv: ApiInvestigation): Investigation {
       collapsed: t.collapsed,
       color: t.color || undefined,
       nodes: ((t.data as any)?.nodes || []).map((n: any) => {
+        // Fiat identifiers are opaque: never parse as a crypto address or derive an explorer URL.
+        if (n.chain === 'fiat') {
+          return {
+            ...n,
+            explorerUrl: '',
+            addressType: n.addressType || 'unknown',
+            tokenStandard: n.tokenStandard,
+          };
+        }
         const parsed = parseAddressInput(n.address);
         const address = parsed.chain ? parsed.address : n.address;
         const chain = parsed.chain || n.chain;

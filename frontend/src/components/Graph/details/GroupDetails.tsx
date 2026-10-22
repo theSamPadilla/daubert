@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { FaXmark, FaChevronDown, FaChevronRight } from 'react-icons/fa6';
 import { Group, Trace } from '@/types/investigation';
-import { formatHumanAmount, normalizeToken } from '@/utils/formatAmount';
+import { formatHumanAmount, normalizeToken, sumExactFiat } from '@/utils/formatAmount';
 import { GroupColorPicker } from '@/components/Common/GroupColorPicker';
 
 export function GroupDetails({
@@ -31,7 +31,7 @@ export function GroupDetails({
   // Aggregate external flows for the Flows tab
   const { inflows, outflows } = useMemo(() => {
     if (!trace) return { inflows: [] as any[], outflows: [] as any[] };
-    type Entry = { label: string; symbol: string; amount: number; usd: number };
+    type Entry = { label: string; symbol: string; amount: number; usd: number; edges: typeof trace.edges };
     const inMap = new Map<string, Entry>();
     const outMap = new Map<string, Entry>();
 
@@ -49,14 +49,14 @@ export function GroupDetails({
         const ext = trace.nodes.find((n) => n.id === edge.from);
         const key = `${edge.from}::${tok.symbol}`;
         const existing = inMap.get(key);
-        if (existing) { existing.amount += human; existing.usd += usd; }
-        else inMap.set(key, { label: ext?.label || ext?.address || edge.from, symbol: tok.symbol, amount: human, usd });
+        if (existing) { existing.amount += human; existing.usd += usd; existing.edges.push(edge); }
+        else inMap.set(key, { label: ext?.label || ext?.address || edge.from, symbol: tok.symbol, amount: human, usd, edges: [edge] });
       } else {
         const ext = trace.nodes.find((n) => n.id === edge.to);
         const key = `${edge.to}::${tok.symbol}`;
         const existing = outMap.get(key);
-        if (existing) { existing.amount += human; existing.usd += usd; }
-        else outMap.set(key, { label: ext?.label || ext?.address || edge.to, symbol: tok.symbol, amount: human, usd });
+        if (existing) { existing.amount += human; existing.usd += usd; existing.edges.push(edge); }
+        else outMap.set(key, { label: ext?.label || ext?.address || edge.to, symbol: tok.symbol, amount: human, usd, edges: [edge] });
       }
     }
     return { inflows: [...inMap.values()], outflows: [...outMap.values()] };
@@ -138,7 +138,7 @@ export function GroupDetails({
                 {inflows.map((f, i) => (
                   <div key={i} className="flex items-center justify-between gap-2">
                     <span className="text-xs text-canvas-muted truncate">{f.label}</span>
-                    <span className="text-xs text-emerald-300 shrink-0 font-mono">+{formatHumanAmount(f.amount)} {f.symbol}</span>
+                    <span className="text-xs text-emerald-300 shrink-0 font-mono">+{sumExactFiat(f.edges) ?? `${formatHumanAmount(f.amount)} ${f.symbol}`}</span>
                   </div>
                 ))}
               </div>
@@ -151,7 +151,7 @@ export function GroupDetails({
                 {outflows.map((f, i) => (
                   <div key={i} className="flex items-center justify-between gap-2">
                     <span className="text-xs text-canvas-muted truncate">{f.label}</span>
-                    <span className="text-xs text-red-300 shrink-0 font-mono">-{formatHumanAmount(f.amount)} {f.symbol}</span>
+                    <span className="text-xs text-red-300 shrink-0 font-mono">-{sumExactFiat(f.edges) ?? `${formatHumanAmount(f.amount)} ${f.symbol}`}</span>
                   </div>
                 ))}
               </div>

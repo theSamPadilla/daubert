@@ -36,14 +36,14 @@ import { z } from 'zod';
 import { BlockchainService } from '../../blockchain/blockchain.service';
 import { AuthSuccess } from '../mcp-auth.helper';
 import { errorResult, RESULT_CAP_BYTES, textResult } from './tool-utils';
-import { CHAIN_IDS } from '../../../generated/shared/chains';
+import { ON_CHAIN_CHAIN_IDS } from '../../../generated/shared/chains';
 // Reused rather than duplicated — read-tools.ts already imports pure utils
 // from the ai module the same way (stripTraceForAgent/filterTraceData), so
 // this is not a new cross-module precedent. investigation-data.utils.ts has
 // no Nest decorators/DI of its own; it's a plain TS util file.
 import { summarizeUtxo } from '../../ai/investigation-data.utils';
 
-const SUPPORTED_CHAINS = CHAIN_IDS;
+const SUPPORTED_CHAINS = ON_CHAIN_CHAIN_IDS;
 type Chain = (typeof SUPPORTED_CHAINS)[number];
 
 const chainSchema = z.enum(SUPPORTED_CHAINS);

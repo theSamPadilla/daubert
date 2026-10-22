@@ -3,7 +3,7 @@ import { FaSpinner } from 'react-icons/fa6';
 import { ChainSelect } from './ChainSelect';
 import { inspectInput } from '@/utils/addressParser';
 import { apiClient } from '@/lib/api-client';
-import { CHAIN_IDS } from '@/generated/shared/chains';
+import { ON_CHAIN_CHAIN_IDS } from '@/generated/shared/chains';
 import { selectPrimaryTransfer } from '@/utils/selectPrimaryTransfer';
 import type { WalletNode, TransactionEdge } from '@/types/investigation';
 
@@ -15,7 +15,7 @@ interface QuickAddInputProps {
 }
 
 // Derived from the shared chain registry (insertion order keeps ethereum first).
-const CHAIN_OPTIONS = CHAIN_IDS;
+const CHAIN_OPTIONS = ON_CHAIN_CHAIN_IDS;
 
 function truncate(addr: string): string {
   return addr.length <= 10 ? addr : `${addr.slice(0, 6)}...${addr.slice(-4)}`;

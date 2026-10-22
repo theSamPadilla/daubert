@@ -841,3 +841,31 @@ describe('handleSaveNewTransaction — decoded transfer fields', () => {
     expect(edge.tokenId).toBeUndefined();
   });
 });
+
+describe('handleSaveNewTransaction — fiat account keys', () => {
+  it('keeps case-variant fiat accounts distinct, and still merges case-variant EVM addresses', () => {
+    const { result } = renderHook(() => useHarness(inv([trace('trace-1')])));
+    act(() => {
+      result.current.handleSaveNewTransaction('trace-1', { from: 'acct-AB12', to: 'acct-ab12', chain: 'fiat' });
+    });
+    let t1 = result.current.investigation!.traces[0];
+    expect(t1.nodes).toHaveLength(2);
+    expect(t1.nodes.every((n) => n.kind === 'account' && n.label === n.address && n.explorerUrl === '')).toBe(true);
+    expect(t1.edges[0].from).not.toBe(t1.edges[0].to);
+
+    act(() => {
+      result.current.handleSaveNewTransaction('trace-1', {
+        from: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        chain: 'ethereum',
+      });
+    });
+    act(() => {
+      result.current.handleSaveNewTransaction('trace-1', {
+        from: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        chain: 'ethereum',
+      });
+    });
+    t1 = result.current.investigation!.traces[0];
+    expect(t1.nodes.filter((n) => n.chain === 'ethereum')).toHaveLength(1);
+  });
+});

@@ -9,7 +9,7 @@ import { AccessPrincipal } from '../auth/access-principal';
 import { CaseRole } from '../../database/entities/case-member.entity';
 import { FetchOptions } from '../blockchain/types';
 import { BlockchainService, TransactionResult } from '../blockchain/blockchain.service';
-import { explorerAddressUrl, explorerTxUrl } from '../../generated/shared/chains';
+import { explorerAddressUrl, explorerTxUrl, isOnChain } from '../../generated/shared/chains';
 import { CreateTraceDto } from './dto/create-trace.dto';
 import { UpdateTraceDto } from './dto/update-trace.dto';
 import { UpdateNodeDto } from './dto/update-node.dto';
@@ -33,8 +33,14 @@ import { normalizeLabels } from './label-schema';
  * `address` is byte-identical. Every map key, membership test, and endpoint
  * lookup in the import path must go through this one function; a single site
  * keying differently resolves to `undefined` and silently drops the edge.
+ *
+ * Fiat account identifiers are the exception: they are case-significant bank
+ * references (`acct-AB12` and `acct-ab12` are two accounts), so they are only
+ * trimmed, and they live under a `fiat:` namespace so an account named `abc`
+ * can never resolve to an on-chain node whose lowercased address is `abc`.
  */
-function addressKey(addr: string): string {
+function addressKey(addr: string, chain: string | undefined): string {
+  if (chain === 'fiat') return `fiat:${addr.trim()}`;
   return addr.trim().toLowerCase();
 }
 
@@ -205,33 +211,44 @@ export class TracesService {
     // Create new nodes inline
     const createdIds: string[] = [];
     if (dto.newNodes?.length) {
-      const existingAddresses = new Set(nodes.map((n) => n.address?.toLowerCase()));
-      const addressToId = new Map(nodes.map((n) => [n.address?.toLowerCase(), n.id]));
+      const existingAddresses = new Set(
+        nodes.map((n) => (n.address ? addressKey(n.address, n.chain) : undefined)),
+      );
+      const addressToId = new Map(
+        nodes.map((n) => [n.address ? addressKey(n.address, n.chain) : undefined, n.id]),
+      );
 
       let maxX = nodes.reduce((m, n) => Math.max(m, n.position?.x || 0), 0);
       let placed = 0;
 
       for (const def of dto.newNodes) {
-        const addrKey = def.address.toLowerCase();
+        const addrKey = addressKey(def.address, def.chain);
         if (existingAddresses.has(addrKey)) {
           // Address already exists — just add to group
           createdIds.push(addressToId.get(addrKey)!);
           continue;
         }
 
-        const explorerUrl = explorerAddressUrl(def.chain, def.address);
+        // Fiat accounts persist trimmed with case intact and carry `kind:
+        // 'account'`; on-chain wallets keep their legacy as-given value.
+        const isFiat = def.chain === 'fiat';
+        const address = isFiat ? def.address.trim() : def.address;
+        const explorerUrl = explorerAddressUrl(def.chain, address);
 
         const nodeId = crypto.randomUUID();
         const x = maxX + 150 + Math.floor(placed / 5) * 150;
         const y = 100 + (placed % 5) * 100;
         placed++;
 
-        const defaultLabel = `${def.address.slice(0, 6)}…${def.address.slice(-4)}`;
+        // A bank identifier is stored whole; the frontend masks it for display.
+        // Truncating it like a hex address would destroy the only identifier.
+        const defaultLabel = isFiat ? address : `${address.slice(0, 6)}…${address.slice(-4)}`;
         nodes.push({
           id: nodeId,
           label: def.label || defaultLabel,
-          address: def.address,
+          address,
           chain: def.chain,
+          ...(isFiat ? { kind: 'account' } : {}),
           color: def.color || null,
           notes: def.notes || '',
           tags: [],
@@ -451,6 +468,14 @@ export class TracesService {
   async importTransactions(id: string, dto: ImportTransactionsDto, principal: AccessPrincipal) {
     const trace = await this.findOne(id, principal, 'editor');
 
+    for (const tx of dto.transactions) {
+      if (tx.chain === 'fiat' && !/^\d+$/.test(tx.amount)) {
+        throw new BadRequestException(
+          'fiat amounts must be integer minor units (cents), e.g. "65000000" for $650,000.00',
+        );
+      }
+    }
+
     const data = (trace.data || {}) as {
       nodes?: any[];
       edges?: any[];
@@ -461,7 +486,7 @@ export class TracesService {
     const existingEdges: any[] = data.edges || [];
 
     const existingAddresses = new Set(
-      existingNodes.map((n: any) => (n.address ? addressKey(n.address) : undefined)),
+      existingNodes.map((n: any) => (n.address ? addressKey(n.address, n.chain) : undefined)),
     );
 
     // Resolve each edge's from/to nodeId to an address via a single-pass map
@@ -481,7 +506,7 @@ export class TracesService {
 
     const addressToId = new Map<string, string>();
     for (const n of existingNodes) {
-      if (n.address) addressToId.set(addressKey(n.address), n.id);
+      if (n.address) addressToId.set(addressKey(n.address, n.chain), n.id);
     }
 
     // Build cross-trace address map from sibling traces in the same investigation
@@ -491,8 +516,8 @@ export class TracesService {
       if (sibling.id === id) continue;
       const siblingNodes: any[] = (sibling.data as any)?.nodes || [];
       for (const n of siblingNodes) {
-        if (n.address && !addressToId.has(addressKey(n.address))) {
-          crossTraceAddressToId.set(addressKey(n.address), n.id);
+        if (n.address && !addressToId.has(addressKey(n.address, n.chain))) {
+          crossTraceAddressToId.set(addressKey(n.address, n.chain), n.id);
         }
       }
     }
@@ -556,7 +581,7 @@ export class TracesService {
       chain: string,
       customLabel?: string,
     ): string | undefined => {
-      const key = addressKey(addr);
+      const key = addressKey(addr, chain);
       if (!existingAddresses.has(key) && !crossTraceAddressToId.has(key)) {
         // Bitcoin and Solana only. `normalizeAddressForChain` lowercases EVM
         // addresses, and EVM nodes have always persisted the address exactly
@@ -565,21 +590,30 @@ export class TracesService {
         // preserve; routing it through the same trim-only normalization
         // (case survives — Solana base58 is case-significant) keeps a
         // whitespace-padded spelling from persisting unnormalized.
-        const address =
-          chain === 'bitcoin' || chain === 'solana' ? normalizeAddressForChain(addr, chain) : addr;
+        //
+        // Fiat account identifiers are trimmed and otherwise kept exactly:
+        // they are case-significant bank references with no shape to validate.
+        const isFiat = chain === 'fiat';
+        const address = isFiat
+          ? addr.trim()
+          : chain === 'bitcoin' || chain === 'solana'
+            ? normalizeAddressForChain(addr, chain)
+            : addr;
 
         const nodeId = crypto.randomUUID();
         const x = nextX + Math.floor(placed / 5) * 150;
         const y = nextY + (placed % 5) * 100;
         placed++;
 
-        const defaultLabel = `${address.slice(0, 6)}…${address.slice(-4)}`;
+        // A bank identifier is stored whole; the frontend masks it for display.
+        const defaultLabel = isFiat ? address : `${address.slice(0, 6)}…${address.slice(-4)}`;
 
         existingNodes.push({
           id: nodeId,
           label: customLabel || defaultLabel,
           address,
           chain,
+          ...(isFiat ? { kind: 'account' } : {}),
           notes: '',
           tags: [],
           position: { x, y },
@@ -614,7 +648,7 @@ export class TracesService {
         // The junction node dedups through the same address maps as wallets:
         // its "address" is the txid — globally unique lowercase hex, so the
         // lowercase map key is lossless.
-        const junctionKey = addressKey(plan.node.address);
+        const junctionKey = addressKey(plan.node.address, 'bitcoin');
         if (!existingAddresses.has(junctionKey) && !crossTraceAddressToId.has(junctionKey)) {
           const nodeId = crypto.randomUUID();
           const x = nextX + Math.floor(placed / 5) * 150;
@@ -664,9 +698,9 @@ export class TracesService {
         // Junction rows still name the fetched address in from/to, so an
         // investigator-supplied label for it should land on its leg's node.
         const labelFor = (addr: string): string | undefined => {
-          const k = addressKey(addr);
-          if (tx.from && k === addressKey(tx.from)) return tx.fromLabel;
-          if (tx.to && k === addressKey(tx.to)) return tx.toLabel;
+          const k = addressKey(addr, 'bitcoin');
+          if (tx.from && k === addressKey(tx.from, 'bitcoin')) return tx.fromLabel;
+          if (tx.to && k === addressKey(tx.to, 'bitcoin')) return tx.toLabel;
           return undefined;
         };
 
@@ -683,7 +717,7 @@ export class TracesService {
             vout?: number;
           },
         ) => {
-          const counterpartyKey = addressKey(counterpartyAddress);
+          const counterpartyKey = addressKey(counterpartyAddress, 'bitcoin');
           const counterpartyId = ensureAddressNode(
             counterpartyAddress,
             'bitcoin',
@@ -774,7 +808,7 @@ export class TracesService {
         // emits `from: ''` on incoming multi-input rows, which are junctions and
         // handled above) — never mint a node for it.
         if (chain === 'bitcoin' && !addr) continue;
-        const isFrom = addressKey(addr) === addressKey(tx.from);
+        const isFrom = addressKey(addr, chain) === addressKey(tx.from, chain);
         ensureAddressNode(addr, chain, isFrom ? tx.fromLabel : tx.toLabel);
       }
 
@@ -782,8 +816,8 @@ export class TracesService {
       const key = edgeIdentityKey(tx, tx.from, tx.to);
       if (existingTxKeys.has(key)) continue;
 
-      const fromKey = addressKey(tx.from);
-      const toKey = addressKey(tx.to);
+      const fromKey = addressKey(tx.from, chain);
+      const toKey = addressKey(tx.to, chain);
       const fromId = addressToId.get(fromKey) ?? crossTraceAddressToId.get(fromKey);
       const toId = addressToId.get(toKey) ?? crossTraceAddressToId.get(toKey);
       if (!fromId || !toId) continue;
@@ -811,7 +845,9 @@ export class TracesService {
         amount: tx.amount,
         token: isBtcLedgerRow
           ? btcToken()
-          : isSolanaContextRow
+          : tx.chain === 'fiat'
+            ? { address: '', symbol: tx.token || 'USD', decimals: tx.tokenMeta?.decimals ?? 2 }
+            : isSolanaContextRow
             ? solanaToken(tx)
             : tx.tokenMeta
               ? evmToken(tx)
@@ -856,6 +892,9 @@ export class TracesService {
     traces: TraceEntity[],
     dto: SearchBetweenDto,
   ): Promise<{ results: ImportTransactionItem[]; fetchedSide: 'A' | 'B'; failedAddresses: string[]; analyzedCount: number }> {
+    if (!isOnChain(dto.chain)) {
+      throw new BadRequestException('Search-between works on blockchains only; fiat is an off-chain chain.');
+    }
     const setA = this.resolveWalletSet(traces, dto.sideA, dto.chain);
     const setB = this.resolveWalletSet(traces, dto.sideB, dto.chain);
 

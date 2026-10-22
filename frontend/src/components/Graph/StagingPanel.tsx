@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TransactionEdge, Trace } from '@/types/investigation';
-import { formatTokenAmount } from '@/utils/formatAmount';
+import { formatEdgeAmount } from '@/utils/formatAmount';
 import { classifyBtcRow } from '@/utils/btcRowDisplay';
 import { classifySolanaRow } from '@/utils/classifySolanaRow';
 import { ChangeBadge } from '@/components/Graph/details/UtxoBreakdown';
@@ -137,7 +137,7 @@ export function StagingPanel({ items, traces, onAddToTrace, onClear }: StagingPa
             <BtcBadges item={item} />
             <SolBadges item={item} />
             <span className="ml-auto text-canvas-muted">
-              {formatTokenAmount(item.amount, item.token.decimals)} {item.token.symbol}
+              {formatEdgeAmount(item)}
             </span>
           </label>
         ))}

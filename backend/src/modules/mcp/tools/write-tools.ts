@@ -154,6 +154,11 @@ export const importTxItemSchema = z.object({
   toLabel: z.string().optional(),
   utxo: utxoContextSchema.optional(),
   solana: solanaContextSchema.optional(),
+  // Structured token context: when present, `amount` is in the token's
+  // smallest unit (wei, satoshi, cents) and `decimals` scales it.
+  tokenMeta: z
+    .object({ address: z.string(), decimals: z.number().int().min(0).max(36) })
+    .optional(),
 });
 
 @Injectable()
@@ -289,6 +294,7 @@ export class WriteToolsService {
             // validated the shape, and the DTO class is a plain data holder.
             if (t.utxo !== undefined) item.utxo = t.utxo;
             if (t.solana !== undefined) item.solana = t.solana;
+            if (t.tokenMeta !== undefined) item.tokenMeta = t.tokenMeta;
             return item;
           });
 

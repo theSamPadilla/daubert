@@ -9,6 +9,7 @@ import type { components } from '../../generated/api-types';
 import { Investigation } from '../../types/investigation';
 import { WalletGroupPicker } from './WalletGroupPicker';
 import { SearchResults } from './SearchResults';
+import { isOnChain } from '@/generated/shared/chains';
 import { ChainSelect } from '@/components/Graph/ChainSelect';
 import { Loader } from '@/components/Common/Loader';
 
@@ -47,7 +48,7 @@ function chainsInInvestigation(investigation: Investigation): string[] {
   const seen = new Set<string>();
   for (const trace of investigation.traces) {
     for (const node of trace.nodes) {
-      if (node.chain) seen.add(node.chain);
+      if (node.chain && isOnChain(node.chain)) seen.add(node.chain);
     }
   }
   return [...seen].sort();

@@ -1,7 +1,7 @@
 import { useState, useRef, ReactNode } from 'react';
 import { FaArrowUpRightFromSquare, FaTrash, FaCheck, FaXmark } from 'react-icons/fa6';
 import { TransactionEdge } from '@/types/investigation';
-import { formatHumanAmount, formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
+import { formatEdgeAmount, formatHumanAmount, normalizeToken, parseTimestamp, sumExactFiat } from '@/utils/formatAmount';
 import { buildTxExplorerUrl } from '@/utils/addressParser';
 import { GroupColorPicker } from '@/components/Common/GroupColorPicker';
 import { THICKNESS_OPTIONS, DEFAULT_EDGE_WIDTH } from './details/TransactionDetails';
@@ -85,7 +85,9 @@ export function MultiTxDetails({
     return map;
   }, new Map<string, number>());
 
-  const totalSummary = Array.from(tokenTotals.entries())
+  const exactFiatTotal = sumExactFiat(edges);
+
+  const totalSummary = exactFiatTotal ?? Array.from(tokenTotals.entries())
     .map(([sym, amt]) => `${formatHumanAmount(amt)} ${sym}`)
     .join(' + ');
 
@@ -200,7 +202,6 @@ export function MultiTxDetails({
           <h5 className="text-[10px] font-semibold text-canvas-muted uppercase">Transactions</h5>
           <div className="max-h-40 overflow-y-auto overflow-x-hidden rounded-lg bg-canvas-fill divide-y divide-canvas-line [scrollbar-width:thin]">
             {edges.map((e) => {
-              const tok = normalizeToken(e.token);
               const explorerUrl = buildTxExplorerUrl(e.chain, e.txHash || '');
               const HashTag = explorerUrl ? 'a' : 'span';
               const confirming = confirmDeleteId === e.id;
@@ -222,7 +223,7 @@ export function MultiTxDetails({
                   </HashTag>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-canvas-ink">
-                      {formatTokenAmount(String(e.amount), tok.decimals)} {tok.symbol}
+                      {formatEdgeAmount(e)}
                     </span>
                     {onDeleteTransaction && (
                       confirming ? (

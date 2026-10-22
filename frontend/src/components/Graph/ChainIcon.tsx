@@ -8,6 +8,7 @@ import {
   NetworkSolana,
 } from '@web3icons/react';
 import type { IconComponent } from '@web3icons/react';
+import { FaBuildingColumns } from 'react-icons/fa6';
 import { CHAINS } from '@/generated/shared/chains';
 
 const CHAIN_ICON_MAP: Record<string, IconComponent> = {
@@ -28,6 +29,7 @@ const CHAIN_ICON_MAP: Record<string, IconComponent> = {
 export function ChainIcon({ chainId, size = 16 }: { chainId: string; size?: number }) {
   const Icon = CHAIN_ICON_MAP[chainId];
   if (Icon) return <Icon variant="branded" size={size} />;
+  if (chainId === 'fiat') return <FaBuildingColumns size={size} className="text-canvas-muted flex-shrink-0" />;
   return (
     <span
       className="rounded-full bg-canvas-fill inline-block flex-shrink-0"
@@ -38,6 +40,7 @@ export function ChainIcon({ chainId, size = 16 }: { chainId: string; size?: numb
 
 /** Display name for a chain id, falling back to the raw id for unknown chains. */
 export function chainDisplayName(chainId: string): string {
+  if (chainId === 'fiat') return 'Bank / Fiat';
   return CHAINS[chainId]?.name ?? chainId;
 }
 

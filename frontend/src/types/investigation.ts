@@ -116,7 +116,7 @@ export interface WalletNode {
   addressType?: 'wallet' | 'contract' | 'unknown';
   explorerUrl?: string;
   /** 'txJunction' when this node stands for a Bitcoin transaction (many inputs/outputs) rather than a wallet. Absent/'wallet' for ordinary address nodes. */
-  kind?: 'wallet' | 'txJunction';
+  kind?: 'wallet' | 'txJunction' | 'account';
   /** Full UTXO ledger record for a txJunction node. Absent on ordinary wallets. */
   utxoTx?: UtxoContext;
   /** Set when the address is a token contract. Distinct from `addressType`,

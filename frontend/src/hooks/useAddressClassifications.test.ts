@@ -433,3 +433,11 @@ it('stops cleanly on a 429, marks nothing asked, and does not immediately retry 
 
   expect(classifyMock()).toHaveBeenCalledTimes(1);
 });
+
+it('collectAddressPairs skips off-chain (fiat) account nodes', async () => {
+  const { collectAddressPairs } = await import('./useAddressClassifications');
+  const inv = investigation([
+    { id: 't1', nodes: [node(A1, 'ethereum'), node('ACCT-123', 'fiat', { kind: 'account' })] },
+  ]);
+  expect(collectAddressPairs(inv)).toEqual([{ chain: 'ethereum', address: A1 }]);
+});

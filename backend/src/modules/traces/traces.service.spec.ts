@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { TracesService } from './traces.service';
 import { TraceEntity } from '../../database/entities/trace.entity';
 import { InvestigationEntity } from '../../database/entities/investigation.entity';
@@ -616,6 +616,274 @@ describe('TracesService', () => {
       const edge = savedData.edges.find((e: any) => e.txHash === '0xtx2');
       expect(edge.token).toBe('ETH');
       expect(edge.amount).toBe('1.5');
+    });
+  });
+
+  // ── Fiat (off-chain) flows ───────────────────────────────────────────────
+  //
+  // Bank account identifiers are case-significant and never shape-validated:
+  // they persist exactly as given (trimmed), key under a `fiat:` namespace so
+  // they cannot collide with on-chain addresses, and never get an explorer URL.
+
+  describe('fiat (off-chain) flows', () => {
+    const FIAT_WIRE = {
+      from: 'WESTLAND-TRUST-4417',
+      to: 'QUANTUM-EXCH-9921',
+      txHash: 'FW2505020031',
+      chain: 'fiat',
+      timestamp: '2025-05-02T00:00:00.000Z',
+      amount: '65000000',
+      token: 'USD',
+      tokenMeta: { address: '', decimals: 2 },
+      fromLabel: 'Westland Client Trust',
+      toLabel: 'Quantum Exchange Ltd.',
+    };
+
+    const fiatTrace = (nodes: any[] = [], edges: any[] = []) =>
+      ({
+        id: 'trace-1',
+        name: 'Main Trace',
+        investigationId: INV_ID,
+        data: { nodes, edges },
+      }) as unknown as TraceEntity;
+
+    const arrange = (trace: TraceEntity) => {
+      mockTraceRepo.findOneBy.mockResolvedValue(trace);
+      mockInvRepo.findOneBy.mockResolvedValue(investigation);
+      mockTraceRepo.find.mockResolvedValue([trace]);
+      mockTraceRepo.save.mockImplementation((e) => Promise.resolve(e));
+    };
+
+    const savedData = () => mockTraceRepo.save.mock.calls[0][0].data;
+
+    it('imports a wire as two account nodes and one cents-denominated USD edge', async () => {
+      arrange(fiatTrace());
+
+      const result = await service.importTransactions(
+        'trace-1',
+        { transactions: [FIAT_WIRE] } as any,
+        PRINCIPAL,
+      );
+
+      expect(result.added).toEqual({ nodes: 2, edges: 1 });
+      const { nodes, edges } = savedData();
+      const from = nodes.find((n: any) => n.address === 'WESTLAND-TRUST-4417');
+      const to = nodes.find((n: any) => n.address === 'QUANTUM-EXCH-9921');
+      expect(from).toMatchObject({
+        kind: 'account',
+        chain: 'fiat',
+        label: 'Westland Client Trust',
+        explorerUrl: '',
+      });
+      expect(to).toMatchObject({
+        kind: 'account',
+        chain: 'fiat',
+        label: 'Quantum Exchange Ltd.',
+        explorerUrl: '',
+      });
+      expect(edges).toHaveLength(1);
+      expect(edges[0]).toMatchObject({
+        from: from.id,
+        to: to.id,
+        txHash: 'FW2505020031',
+        chain: 'fiat',
+        amount: '65000000',
+      });
+      expect(edges[0].token).toEqual({ address: '', symbol: 'USD', decimals: 2 });
+    });
+
+    it('defaults a fiat row without tokenMeta to USD with 2 decimals', async () => {
+      arrange(fiatTrace());
+      const { tokenMeta: _omit, ...noMeta } = FIAT_WIRE;
+
+      await service.importTransactions('trace-1', { transactions: [noMeta] } as any, PRINCIPAL);
+
+      expect(savedData().edges[0].token).toEqual({ address: '', symbol: 'USD', decimals: 2 });
+    });
+
+    it('rejects a decimal fiat amount and writes nothing', async () => {
+      arrange(fiatTrace());
+
+      await expect(
+        service.importTransactions(
+          'trace-1',
+          { transactions: [{ ...FIAT_WIRE, amount: '650000.00' }] } as any,
+          PRINCIPAL,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockTraceRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('labels an unlabeled account with its full trimmed identifier', async () => {
+      arrange(fiatTrace());
+
+      await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            { ...FIAT_WIRE, from: '  WESTLAND-TRUST-4417  ', fromLabel: undefined, toLabel: undefined },
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      const { nodes } = savedData();
+      const from = nodes.find((n: any) => n.address === 'WESTLAND-TRUST-4417');
+      expect(from).toBeDefined();
+      expect(from.label).toBe('WESTLAND-TRUST-4417');
+      const to = nodes.find((n: any) => n.address === 'QUANTUM-EXCH-9921');
+      expect(to.label).toBe('QUANTUM-EXCH-9921');
+    });
+
+    it('keeps two identifiers that differ only by case as two nodes', async () => {
+      arrange(fiatTrace());
+
+      const result = await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            { ...FIAT_WIRE, from: 'acct-AB12', to: 'acct-ZZ01', txHash: 'W1' },
+            { ...FIAT_WIRE, from: 'acct-ab12', to: 'acct-ZZ01', txHash: 'W2' },
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      expect(result.added).toEqual({ nodes: 3, edges: 2 });
+      const addresses = savedData().nodes.map((n: any) => n.address);
+      expect(addresses).toEqual(expect.arrayContaining(['acct-AB12', 'acct-ab12', 'acct-ZZ01']));
+    });
+
+    it('never collides a fiat account with an on-chain node of the same spelling', async () => {
+      arrange(fiatTrace([{ id: 'evm-1', address: 'abc', chain: 'ethereum', label: 'EVM abc' }]));
+
+      const result = await service.importTransactions(
+        'trace-1',
+        { transactions: [{ ...FIAT_WIRE, from: 'ABC', to: 'abc', txHash: 'W3' }] } as any,
+        PRINCIPAL,
+      );
+
+      expect(result.added).toEqual({ nodes: 2, edges: 1 });
+      const { nodes, edges } = savedData();
+      const fiatNodes = nodes.filter((n: any) => n.chain === 'fiat');
+      expect(fiatNodes.map((n: any) => n.address).sort()).toEqual(['ABC', 'abc']);
+      expect(edges[0].from).not.toBe('evm-1');
+      expect(edges[0].to).not.toBe('evm-1');
+    });
+
+    it('reuses the existing account nodes when the wire is imported into a trace that holds them', async () => {
+      arrange(
+        fiatTrace([
+          { id: 'acct-1', address: 'WESTLAND-TRUST-4417', chain: 'fiat', kind: 'account', label: 'W' },
+          { id: 'acct-2', address: 'QUANTUM-EXCH-9921', chain: 'fiat', kind: 'account', label: 'Q' },
+        ]),
+      );
+
+      const first = await service.importTransactions(
+        'trace-1',
+        { transactions: [FIAT_WIRE] } as any,
+        PRINCIPAL,
+      );
+      expect(first.added).toEqual({ nodes: 0, edges: 1 });
+      const edge = savedData().edges[0];
+      expect(edge.from).toBe('acct-1');
+      expect(edge.to).toBe('acct-2');
+
+      const second = await service.importTransactions(
+        'trace-1',
+        { transactions: [FIAT_WIRE] } as any,
+        PRINCIPAL,
+      );
+      expect(second.added).toEqual({ nodes: 0, edges: 0 });
+    });
+
+    it('still lowercases EVM keys and dedupes case variants (regression)', async () => {
+      arrange(fiatTrace([{ id: 'evm-1', address: '0xaaa', chain: 'ethereum', label: 'A' }]));
+
+      const result = await service.importTransactions(
+        'trace-1',
+        {
+          transactions: [
+            {
+              from: '0xAAA',
+              to: '0xBbB',
+              txHash: '0xtx9',
+              chain: 'ethereum',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              amount: '1',
+              token: 'ETH',
+            },
+            {
+              from: '0xbbb',
+              to: '0xAaA',
+              txHash: '0xtx10',
+              chain: 'ethereum',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              amount: '1',
+              token: 'ETH',
+            },
+          ],
+        } as any,
+        PRINCIPAL,
+      );
+
+      expect(result.added).toEqual({ nodes: 1, edges: 2 });
+      const { nodes, edges } = savedData();
+      expect(nodes).toHaveLength(2);
+      expect(nodes.find((n: any) => n.id !== 'evm-1').kind).toBeUndefined();
+      expect(edges[0].from).toBe('evm-1');
+      expect(edges[1].to).toBe('evm-1');
+    });
+
+    it('refuses search-between on the fiat chain', async () => {
+      await expect(
+        service.searchBetween([fiatTrace()], {
+          sideA: { wallets: ['WESTLAND-TRUST-4417'] },
+          sideB: { wallets: ['QUANTUM-EXCH-9921'] },
+          chain: 'fiat',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.searchBetween([fiatTrace()], {
+          sideA: { wallets: ['WESTLAND-TRUST-4417'] },
+          sideB: { wallets: ['QUANTUM-EXCH-9921'] },
+          chain: 'fiat',
+        }),
+      ).rejects.toThrow(/off-chain/);
+      expect(mockBlockchainService.fetchHistory).not.toHaveBeenCalled();
+    });
+
+    it('creates an unlabeled fiat group member as an account labeled with its trimmed identifier', async () => {
+      arrange(fiatTrace([{ id: 'acct-1', address: 'acct-AB12', chain: 'fiat', kind: 'account', label: 'X' }]));
+
+      const group = await service.createGroup(
+        'trace-1',
+        {
+          name: 'Banks',
+          newNodes: [
+            { address: '  WESTLAND-TRUST-4417  ', chain: 'fiat' },
+            // Case variant of an existing fiat node: a distinct account.
+            { address: 'acct-ab12', chain: 'fiat' },
+            // Exact match of an existing fiat node: reused, not duplicated.
+            { address: 'acct-AB12', chain: 'fiat' },
+          ],
+        },
+        PRINCIPAL,
+      );
+
+      const { nodes } = savedData();
+      expect(nodes).toHaveLength(3);
+      const westland = nodes.find((n: any) => n.address === 'WESTLAND-TRUST-4417');
+      expect(westland).toMatchObject({
+        kind: 'account',
+        chain: 'fiat',
+        label: 'WESTLAND-TRUST-4417',
+        explorerUrl: '',
+      });
+      const variant = nodes.find((n: any) => n.address === 'acct-ab12');
+      expect(variant).toMatchObject({ kind: 'account', label: 'acct-ab12' });
+      expect(group.nodeIds).toEqual(expect.arrayContaining(['acct-1', westland.id, variant.id]));
+      expect(group.nodeIds).toHaveLength(3);
     });
   });
 

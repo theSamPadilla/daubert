@@ -80,15 +80,16 @@ Content-Type: application/json
 | `from` | string | yes | Sender address |
 | `to` | string | yes | Receiver address |
 | `txHash` | string | yes | Transaction hash |
-| `chain` | string | yes | Chain identifier (ethereum, polygon, arbitrum, base, tron, bitcoin, solana) |
+| `chain` | string | yes | Chain identifier (ethereum, polygon, arbitrum, base, tron, bitcoin, solana, or fiat for bank flows) |
 | `timestamp` | string | yes | Unix timestamp (seconds for EVM, milliseconds for Tron) or ISO string (Bitcoin, Solana) |
-| `amount` | string | yes | Human-readable amount (already divided by decimals) — **except** Bitcoin rows that carry `utxo` (satoshis) and Solana rows that carry `solana` (raw base units). See below. |
+| `amount` | string | yes | Human-readable amount (already divided by decimals) — **except** Bitcoin rows that carry `utxo` (satoshis) and Solana rows that carry `solana` (raw base units), and fiat rows (cents, with tokenMeta decimals 2; see "Fiat / off-chain flows"). See below. |
 | `token` | string | yes | Token symbol (e.g. "ETH", "USDT", "TRX", "BTC", "SOL") |
 | `blockNumber` | number | no | Block number |
 | `fromLabel` | string | no | Human-readable label for the sender node (e.g. "Wintermute", "Justin Sun") |
 | `toLabel` | string | no | Human-readable label for the receiver node |
 | `utxo` | object | no | UTXO provenance for Bitcoin rows (inputs/outputs/fee/junction). See the `bitcoin-apis` skill for the full shape and script pattern. |
 | `solana` | object | no | Per-transfer Solana provenance (transferIndex, feePayer, kind, mint, decimals, token accounts, spam evidence). See the `solana-apis` skill for the full shape and script pattern. |
+| `tokenMeta` | object | no | `{ address, decimals }`; makes `amount` raw smallest units. Required for fiat: `{ "address": "", "decimals": 2 }` |
 
 ### Response
 
@@ -204,6 +205,42 @@ const result = await importRes.json();
 console.log(`Imported: ${result.added.nodes} nodes, ${result.added.edges} edges`);
 ```
 
+## Fiat / off-chain flows
+
+Bank wires and other off-chain money movements are first-class graph edges on the `fiat` chain. Use this when building a graph from bank records (statements, wire confirmations) instead of blockchain data.
+
+- If the case has no investigation yet, call the `create_investigation` tool first (it is a tool call, not a script). It returns `{ investigationId, name, traces: [{ traceId, name }] }`. Use the returned `traceId` as `TRACE_ID` in your script.
+- Import wires through the same `POST {API_URL}/traces/{traceId}/import-transactions` endpoint, with these fields:
+  * `chain`: `'fiat'`
+  * `from` / `to`: account identifiers, exact case preserved (e.g. `'WESTLAND-TRUST-4417'`)
+  * `txHash`: the wire reference. It must be unique per wire, because edges dedupe on `txHash` + `from` + `to`.
+  * `timestamp`: ISO 8601 string
+  * `amount`: string in cents (minor units), e.g. `'65000000'` for $650,000.00
+  * `token`: `'USD'` (or another ISO currency code)
+  * `tokenMeta`: `{ "address": "", "decimals": 2 }`
+  * `fromLabel` / `toLabel`: always set, naming the account holder and bank
+
+```json
+{
+  "transactions": [
+    {
+      "from": "WESTLAND-TRUST-4417",
+      "to": "QUANTUM-EXCH-9921",
+      "txHash": "FW2505020031",
+      "chain": "fiat",
+      "timestamp": "2025-05-02T00:00:00Z",
+      "amount": "65000000",
+      "token": "USD",
+      "tokenMeta": { "address": "", "decimals": 2 },
+      "fromLabel": "Westland Capital LLC Client Trust (First Meridian Bank)",
+      "toLabel": "Quantum Exchange Ltd."
+    }
+  ]
+}
+```
+
+Fiat nodes cannot be fetched from any provider or classified, and their identifiers are not shape-validated. Never call blockchain fetch tools or scripts (Etherscan, Tronscan, Esplora, Helius) for them.
+
 ## Create a Group
 
 Groups visually cluster nodes within a trace. Use `get_investigation` to find node IDs first.
@@ -239,7 +276,7 @@ Content-Type: application/json
 | Field | Required | Description |
 |-------|----------|-------------|
 | `address` | yes | Wallet address |
-| `chain` | yes | Chain (ethereum, polygon, arbitrum, base, tron, bitcoin, solana) |
+| `chain` | yes | Chain (ethereum, polygon, arbitrum, base, tron, bitcoin, solana, fiat) |
 | `label` | no | Human-readable name (e.g. "Justin Sun") |
 | `color` | no | Hex color |
 | `shape` | no | `"ellipse"` (default), `"rectangle"`, `"roundrectangle"`, `"diamond"`, `"hexagon"`, `"triangle"` |
@@ -399,7 +436,7 @@ Returns `204 No Content`. Removes only the bundle metadata — the underlying ed
 
 ## Tips
 
-- Use `get_investigation` first to find the `traceId` for the target trace.
+- Use `get_investigation` first to find the `traceId` for the target trace. If the case has no investigation (or the data is bank records, not blockchain), see "Fiat / off-chain flows" above.
 - Deduplication is built in — safe to import overlapping data.
 - For large datasets (hundreds of transactions), batch into chunks of ~100 per POST call.
 - Load the `etherscan-apis`, `tronscan-apis`, `bitcoin-apis`, or `solana-apis` skill for exact endpoint formats on each chain family.

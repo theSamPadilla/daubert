@@ -122,4 +122,30 @@ describe('normalizeInvestigation', () => {
     expect(result.traces[0].edges[0].tokenStandard).toBe('erc721');
     expect(result.traces[0].edges[0].tokenId).toBe('42');
   });
+
+  it('leaves a fiat node with a BTC-looking identifier on the fiat chain', () => {
+    const addr = '1A2b3C4d5E6f7G8h9JkLmNoPqRsTuVwXy';
+    const inv = apiInvestigation([
+      apiTrace({ nodes: [{ id: 'n1', address: addr, chain: 'fiat', label: 'Bank' }], edges: [] }),
+    ]);
+
+    const node = normalizeInvestigation(inv).traces[0].nodes[0];
+
+    expect(node.chain).toBe('fiat');
+    expect(node.address).toBe(addr);
+    expect(node.explorerUrl).toBe('');
+  });
+
+  it('still normalizes an EVM node as before', () => {
+    const addr = '0x' + 'ab'.repeat(20);
+    const inv = apiInvestigation([
+      apiTrace({ nodes: [{ id: 'n1', address: addr, chain: 'ethereum' }], edges: [] }),
+    ]);
+
+    const node = normalizeInvestigation(inv).traces[0].nodes[0];
+
+    expect(node.chain).toBe('ethereum');
+    expect(node.address).toBe(addr);
+    expect(node.explorerUrl).toContain(addr);
+  });
 });

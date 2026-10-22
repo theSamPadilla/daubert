@@ -4,6 +4,7 @@ import { CopyButton } from '@/components/Common/CopyButton';
 import { WalletNode } from '@/types/investigation';
 import type { LabeledEntity } from '@/lib/api-client';
 import { ChainLabel } from '@/components/Graph/ChainIcon';
+import { isOnChain } from '@/generated/shared/chains';
 import type { AddressClassification } from '@/hooks/useAddressClassifications';
 
 const ADDRESS_TYPE_LABELS: Record<string, string> = {
@@ -78,7 +79,8 @@ export function WalletDetails({
   lookupClassification: (chain: string, address: string) => AddressClassification | undefined;
 }) {
   const hasAddress = !!wallet.address;
-  const classification = hasAddress ? lookupClassification(wallet.chain, wallet.address) : undefined;
+  const onChain = isOnChain(wallet.chain);
+  const classification = hasAddress && onChain ? lookupClassification(wallet.chain, wallet.address) : undefined;
   // TRAP: normalizeInvestigation.ts coerces the STORED addressType to the
   // literal string 'unknown' (never undefined), so a plain `?? ` chain would
   // let that truthy sentinel beat a real classification. `classification`
@@ -116,7 +118,7 @@ export function WalletDetails({
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <h4 className="text-xs font-semibold text-canvas-muted uppercase">{hasAddress ? 'Address' : 'Node'}</h4>
-        {hasAddress && (
+        {hasAddress && onChain && (
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${ADDRESS_TYPE_COLORS[addrType]}`}>
             {ADDRESS_TYPE_LABELS[addrType]}
           </span>
@@ -163,7 +165,7 @@ export function WalletDetails({
       {hasAddress && (
         <div>
           <h4 className="text-xs font-semibold text-canvas-muted uppercase mb-1">Chain</h4>
-          <ChainLabel chainId={wallet.chain} />
+          {onChain ? <ChainLabel chainId={wallet.chain} /> : <span className="text-sm">Bank account</span>}
         </div>
       )}
       {wallet.tags.length > 0 && (
@@ -219,12 +221,14 @@ export function WalletDetails({
       </div>
       {hasAddress && (
         <div className="pt-2 border-t border-canvas-line space-y-1.5">
-          <button
-            onClick={() => onFetchHistory(wallet.address, wallet.chain)}
-            className="w-full px-3 py-1.5 bg-canvas-fill hover:bg-white/10 text-canvas-ink rounded-lg text-sm transition-colors text-left"
-          >
-            Fetch Transactions
-          </button>
+          {onChain && (
+            <button
+              onClick={() => onFetchHistory(wallet.address, wallet.chain)}
+              className="w-full px-3 py-1.5 bg-canvas-fill hover:bg-white/10 text-canvas-ink rounded-lg text-sm transition-colors text-left"
+            >
+              Fetch Transactions
+            </button>
+          )}
           {/* Bundle row */}
           {(onBundleAllInbound || onBundleAllOutbound) && !pickingInboundBundleColor && !pickingBundleColor && (
             <div className="grid grid-cols-2 gap-1.5">

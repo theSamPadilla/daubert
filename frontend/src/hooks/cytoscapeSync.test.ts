@@ -520,4 +520,77 @@ describe('syncCytoscape', () => {
     expect(call.data.tokenStandard).toBeFalsy();
     expect(call.data.nodeShape).toBe('roundrectangle');
   });
+
+  describe('off-chain accounts and fiat edges', () => {
+    const usd = { address: '', symbol: 'USD', decimals: 2 };
+
+    it('24. account node: custom label, masked address, barrel shape', () => {
+      const a1 = wallet('a1', { kind: 'account', chain: 'fiat', address: 'WESTLAND-TRUST-4417', label: 'Westland Client Trust' });
+      const cy = makeFakeCy();
+      syncCytoscape(cy, inv([trace('trace-a', { nodes: [a1] })]));
+      const call = cy.__addCalls.find((c) => c.data.id === 'a1')!;
+      expect(call.data.displayLabel).toBe('Westland Client Trust');
+      expect(call.data.truncAddr).toBe('•••• 4417');
+      expect(call.data.hasCustomLabel).toBe(true);
+      expect(call.data.nodeShape).toBe('barrel');
+    });
+
+    it('25. unlabeled account (label equals address) shows the masked address', () => {
+      const a1 = wallet('a1', { kind: 'account', chain: 'fiat', address: 'WESTLAND-TRUST-4417', label: 'WESTLAND-TRUST-4417' });
+      const cy = makeFakeCy();
+      syncCytoscape(cy, inv([trace('trace-a', { nodes: [a1] })]));
+      const call = cy.__addCalls.find((c) => c.data.id === 'a1')!;
+      expect(call.data.displayLabel).toBe('•••• 4417');
+      expect(call.data.hasCustomLabel).toBe(false);
+    });
+
+    it('26. fiat edge label is exact currency text', () => {
+      const a1 = wallet('a1', { kind: 'account', chain: 'fiat', address: 'ACCT-1111' });
+      const a2 = wallet('a2', { kind: 'account', chain: 'fiat', address: 'ACCT-2222' });
+      const e1 = edge('e1', 'a1', 'a2', { chain: 'fiat', amount: '40000000', token: usd });
+      const cy = makeFakeCy();
+      syncCytoscape(cy, inv([trace('trace-a', { nodes: [a1, a2], edges: [e1] })]));
+      const call = cy.__addCalls.find((c) => c.data.id === 'e1')!;
+      expect(call.data.label).toContain('$400,000.00');
+    });
+
+    it('27. aggregated fiat edges sum exactly', () => {
+      const g: Group = { id: 'g1', name: 'Group 1', traceId: 'trace-a', collapsed: true };
+      const a1 = wallet('a1', { kind: 'account', chain: 'fiat', address: 'ACCT-1111' });
+      const a2 = wallet('a2', { kind: 'account', chain: 'fiat', address: 'ACCT-2222', groupId: 'g1' });
+      const a3 = wallet('a3', { kind: 'account', chain: 'fiat', address: 'ACCT-3333', groupId: 'g1' });
+      const e1 = edge('e1', 'a1', 'a2', { chain: 'fiat', amount: '40000000', token: usd });
+      const e2 = edge('e2', 'a1', 'a3', { chain: 'fiat', amount: '40000000', token: usd });
+      const cy = makeFakeCy();
+      syncCytoscape(cy, inv([trace('trace-a', { nodes: [a1, a2, a3], edges: [e1, e2], groups: [g] })]));
+      const agg = cy.__addCalls.find((c) => c.data.isAggregatedEdge)!;
+      expect(agg.data.label).toContain('$800,000.00');
+    });
+
+    it('28. collapsed bundle of fiat edges sums exactly', () => {
+      const a1 = wallet('a1', { kind: 'account', chain: 'fiat', address: 'ACCT-1111' });
+      const a2 = wallet('a2', { kind: 'account', chain: 'fiat', address: 'ACCT-2222' });
+      const e1 = edge('e1', 'a1', 'a2', { chain: 'fiat', amount: '40000000', token: usd });
+      const e2 = edge('e2', 'a1', 'a2', { chain: 'fiat', amount: '40000000', token: usd });
+      const bundle: EdgeBundle = { id: 'b1', traceId: 'trace-a', fromNodeId: 'a1', toNodeId: 'a2', token: 'USD', collapsed: true, edgeIds: ['e1', 'e2'] };
+      const cy = makeFakeCy();
+      syncCytoscape(cy, inv([trace('trace-a', { nodes: [a1, a2], edges: [e1, e2], edgeBundles: [bundle] })]));
+      const call = cy.__addCalls.find((c) => c.data.id === 'b1')!;
+      expect(call.data.label).toContain('$800,000.00');
+    });
+
+    it('29. fiat edge with a non-integer amount does not throw', () => {
+      const g: Group = { id: 'g1', name: 'Group 1', traceId: 'trace-a', collapsed: true };
+      const a1 = wallet('a1', { kind: 'account', chain: 'fiat', address: 'ACCT-1111' });
+      const a2 = wallet('a2', { kind: 'account', chain: 'fiat', address: 'ACCT-2222' });
+      const a3 = wallet('a3', { kind: 'account', chain: 'fiat', address: 'ACCT-3333', groupId: 'g1' });
+      const e1 = edge('e1', 'a1', 'a2', { chain: 'fiat', amount: '1.5', token: usd });
+      const e2 = edge('e2', 'a1', 'a3', { chain: 'fiat', amount: '1.5', token: usd });
+      const e3 = edge('e3', 'a1', 'a3', { chain: 'fiat', amount: '100', token: usd });
+      const bundle: EdgeBundle = { id: 'b1', traceId: 'trace-a', fromNodeId: 'a1', toNodeId: 'a2', token: 'USD', collapsed: true, edgeIds: ['e1'] };
+      const cy = makeFakeCy();
+      expect(() => syncCytoscape(cy, inv([trace('trace-a', { nodes: [a1, a2, a3], edges: [e1, e2, e3], groups: [g], edgeBundles: [bundle] })]))).not.toThrow();
+      expect(() => syncCytoscape(makeFakeCy(), inv([trace('trace-a', { nodes: [a1, a2], edges: [e1] })]))).not.toThrow();
+    });
+  });
 });

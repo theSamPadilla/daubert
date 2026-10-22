@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { FaArrowUpRightFromSquare } from 'react-icons/fa6';
 import { TransactionEdge, WalletNode } from '@/types/investigation';
 import { CopyButton } from '@/components/Common/CopyButton';
-import { formatTokenAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
+import { formatEdgeAmount, normalizeToken, parseTimestamp } from '@/utils/formatAmount';
 import { buildExplorerUrl, buildTxExplorerUrl } from '@/utils/addressParser';
 import { truncateMiddle } from '@/utils/utxoDisplay';
 import { UtxoBreakdown, ChangeBadge } from './UtxoBreakdown';
@@ -45,7 +45,7 @@ function TransactionHeader({
   onUpdate?: (updates: Partial<TransactionEdge>) => void;
 }) {
   const tok = normalizeToken(transaction.token);
-  const fallback = `${formatTokenAmount(transaction.amount, tok.decimals)} ${tok.symbol}`;
+  const fallback = formatEdgeAmount(transaction);
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(transaction.label || '');
 

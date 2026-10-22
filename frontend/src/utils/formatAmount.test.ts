@@ -1,4 +1,7 @@
-import { formatTokenAmount, formatHumanAmount } from './formatAmount';
+import {
+  formatTokenAmount, formatHumanAmount, formatFiatAmount,
+  isExactFiat, formatEdgeAmount, sumExactFiat, toMinorUnits, fromMinorUnits,
+} from './formatAmount';
 
 describe('formatTokenAmount', () => {
   it('renders sub-0.0001 BTC amounts with extended precision (5000 sats @ 8 decimals)', () => {
@@ -95,5 +98,77 @@ describe('formatHumanAmount', () => {
 
   it('does not introduce float-accumulation noise', () => {
     expect(formatHumanAmount(0.1 + 0.2)).toBe('0.3');
+  });
+});
+
+describe('formatFiatAmount', () => {
+  it('formats fiat minor units as exact currency', () => {
+    expect(formatFiatAmount('40000000', 2, 'USD')).toBe('$400,000.00');
+    expect(formatFiatAmount('8382790', 2, 'USD')).toBe('$83,827.90');
+    expect(formatFiatAmount('125000', 2, 'EUR')).toBe('€1,250.00');
+    expect(formatFiatAmount('5', 2, 'USD')).toBe('$0.05');
+  });
+
+  it('falls back to "<amount> <code>" for a non-ISO symbol', () => {
+    expect(formatFiatAmount('12345', 2, 'POINTS')).toBe('123.45 POINTS');
+  });
+
+  it('formats amounts beyond Number.MAX_SAFE_INTEGER exactly', () => {
+    expect(formatFiatAmount('123456789012345678', 2, 'USD')).toBe('$1,234,567,890,123,456.78');
+  });
+
+  it('handles negative amounts', () => {
+    expect(formatFiatAmount('-8382790', 2, 'USD')).toBe('-$83,827.90');
+  });
+});
+
+describe('formatFiatAmount guards', () => {
+  it.each([1e9, -1, 1.5])('falls back without throwing for decimals %s', (d) => {
+    expect(formatFiatAmount('100', d, 'USD')).toBe('100 USD');
+  });
+  it('falls back for a non-integer amount', () => {
+    expect(formatFiatAmount('1.5', 2, 'USD')).toBe('1.5 USD');
+  });
+});
+
+describe('fiat edge helpers', () => {
+  const usd = { address: '', symbol: 'USD', decimals: 2 };
+  const e = (amount: string, token: any = usd, chain = 'fiat') => ({ chain, amount, token });
+
+  it('isExactFiat requires fiat chain, integer amount and sane decimals', () => {
+    expect(isExactFiat(e('100'))).toBe(true);
+    expect(isExactFiat(e('1.5'))).toBe(false);
+    expect(isExactFiat(e('100', usd, 'ethereum'))).toBe(false);
+    expect(isExactFiat(e('100', { ...usd, decimals: 1e9 }))).toBe(false);
+    expect(isExactFiat(e('100', 'USD'))).toBe(true);
+  });
+
+  it('formatEdgeAmount formats fiat exactly and tokens normally', () => {
+    expect(formatEdgeAmount(e('40000000'))).toBe('$400,000.00');
+    expect(formatEdgeAmount(e('1500000', { address: '0x', symbol: 'USDC', decimals: 6 }, 'ethereum'))).toBe('1.5 USDC');
+  });
+
+  it('sumExactFiat sums one currency and returns null otherwise', () => {
+    expect(sumExactFiat([e('100'), e('250')])).toBe('$3.50');
+    expect(sumExactFiat([])).toBeNull();
+    expect(sumExactFiat([e('100'), e('100', { ...usd, symbol: 'EUR' })])).toBeNull();
+    expect(sumExactFiat([e('100'), e('1.5')])).toBeNull();
+  });
+});
+
+describe('toMinorUnits / fromMinorUnits', () => {
+  it('converts human amounts to minor units', () => {
+    expect(toMinorUnits('400000', 2)).toBe('40000000');
+    expect(toMinorUnits('400000.5', 2)).toBe('40000050');
+    expect(toMinorUnits('0.05', 2)).toBe('5');
+    expect(toMinorUnits('1.234', 2)).toBeNull();
+    expect(toMinorUnits('abc', 2)).toBeNull();
+    expect(toMinorUnits('-3.10', 2)).toBe('-310');
+  });
+  it('converts minor units back', () => {
+    expect(fromMinorUnits('8382790', 2)).toBe('83827.90');
+    expect(fromMinorUnits('5', 2)).toBe('0.05');
+    expect(fromMinorUnits('-310', 2)).toBe('-3.10');
+    expect(fromMinorUnits('7', 0)).toBe('7');
   });
 });

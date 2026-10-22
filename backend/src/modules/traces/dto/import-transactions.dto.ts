@@ -3,6 +3,9 @@ import {
   IsString,
   IsOptional,
   IsNumber,
+  IsInt,
+  Min,
+  Max,
   IsArray,
   IsBoolean,
   IsIn,
@@ -231,7 +234,9 @@ export class TokenMetaDto implements TokenMeta {
   @IsString()
   address: string;
 
-  @IsNumber()
+  @IsInt()
+  @Min(0)
+  @Max(36)
   decimals: number;
 }
 

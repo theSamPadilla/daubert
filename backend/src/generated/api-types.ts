@@ -1968,9 +1968,11 @@ export interface components {
             from: string;
             to: string;
             txHash: string;
+            /** @description Chain id, or `fiat` for bank/off-chain flows (accounts as from/to, wire reference as txHash). */
             chain: string;
             /** Format: date-time */
             timestamp: string;
+            /** @description Raw smallest units (wei, satoshi, cents) when tokenMeta, utxo, or solana is present (fiat: cents with tokenMeta.decimals 2); otherwise human-readable. */
             amount: string;
             token: string;
             blockNumber?: number;

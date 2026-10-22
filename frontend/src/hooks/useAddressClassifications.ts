@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
+import { isOnChain } from '@/generated/shared/chains';
 import { normalizeAddressForChain } from '@/generated/shared/address';
 import type { components } from '@/generated/api-types';
 import type { Investigation } from '@/types/investigation';
@@ -38,6 +39,8 @@ export function collectAddressPairs(investigation: Investigation): ChainAddressP
       // txJunction nodes carry a Bitcoin transaction id in `address`, not an
       // address — classifying one is meaningless and wastes a chain call.
       if (node.kind === 'txJunction') continue;
+      // Off-chain (fiat) accounts have no on-chain identity to classify.
+      if (!isOnChain(node.chain)) continue;
       const address = node.address?.trim();
       if (!address) continue;
       keys.add(pairKey(node.chain, address));

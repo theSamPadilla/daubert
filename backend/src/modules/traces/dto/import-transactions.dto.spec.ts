@@ -551,4 +551,25 @@ describe('ImportTransactionsDto through ValidationPipe({ whitelist, transform })
     );
     expect(result.transactions[2].utxo).toBeUndefined();
   });
+
+  it.each([37, 1.5, -1])('rejects tokenMeta.decimals %p', async (decimals) => {
+    const payload = {
+      transactions: [
+        { ...solItem(undefined), chain: 'fiat', tokenMeta: { address: '', decimals } },
+      ],
+    };
+
+    await expect(pipe.transform(payload, META)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('accepts tokenMeta.decimals 2', async () => {
+    const payload = {
+      transactions: [
+        { ...solItem(undefined), chain: 'fiat', tokenMeta: { address: '', decimals: 2 } },
+      ],
+    };
+
+    const result: ImportTransactionsDto = await pipe.transform(payload, META);
+    expect(result.transactions[0].tokenMeta).toEqual({ address: '', decimals: 2 });
+  });
 });

@@ -1,7 +1,7 @@
 import type { Core } from 'cytoscape';
 import type { Investigation } from '../types/investigation';
 import { contrastTextColor, formatShortDate } from './cytoscapeStyle';
-import { formatHumanAmount, formatTokenAmount, normalizeToken, parseTimestamp, tokenKey } from '../utils/formatAmount';
+import { formatEdgeAmount, formatFiatAmount, formatHumanAmount, isExactFiat, normalizeToken, parseTimestamp, sumExactFiat, tokenKey } from '../utils/formatAmount';
 
 /** Minimal shape `syncCytoscape` needs from a classification row — matches the
  * relevant fields of `AddressClassification` (see useAddressClassifications). */
@@ -138,6 +138,23 @@ export function syncCytoscape(
         }
 
         const addr = node.address;
+
+        // Off-chain account (bank/fiat): masked address, barrel shape, and no
+        // classification lookup (there is nothing on-chain to classify).
+        if (node.chain === 'fiat') {
+          const maskedAddr = addr ? '•••• ' + addr.slice(-4) : '';
+          const isCustom = !!(node.label && node.label !== addr && node.label !== maskedAddr);
+          // The labeled-entity registry is crypto-only (and lowercases addresses), so fiat never uses it.
+          const acctEntityName: string | undefined = undefined;
+          const acctLabel = isCustom ? node.label : (acctEntityName || maskedAddr || node.label);
+          const acctColor = node.color || '#60a5fa';
+          targetNodes.set(node.id, {
+            data: { id: node.id, parent: parentId, traceId: trace.id, label: acctEntityName ?? node.label, displayLabel: acctLabel, hasCustomLabel: isCustom || !!acctEntityName, truncAddr: maskedAddr, color: acctColor, textColor: contrastTextColor(acctColor), size: node.size || 60, addressType: 'unknown', nodeShape: node.shape || 'barrel', kind: 'account' },
+            position: node.position,
+          });
+          return;
+        }
+
         const truncAddr = addr && addr.length > 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr || '';
         const hasCustomLabel = !!(node.label && node.label !== addr && node.label !== truncAddr);
         // A custom label always wins; otherwise a labeled entity names the node.
@@ -187,7 +204,7 @@ export function syncCytoscape(
       });
 
       // Edges — re-route & aggregate for collapsed groups, skip bundled edges
-      const aggEdges = new Map<string, { src: string; tgt: string; human: number; sym: string; color: string; width?: number; edgeIds: string[]; oldestTs: number; newestTs: number; n: number }>();
+      const aggEdges = new Map<string, { src: string; tgt: string; human: number; sym: string; chain: string; decimals: number; rawSum: bigint; rawExact: boolean; color: string; width?: number; edgeIds: string[]; oldestTs: number; newestTs: number; n: number }>();
 
       trace.edges.forEach((edge) => {
         if (globalBundledEdgeIds.has(edge.id)) return; // rendered as bundle edge
@@ -207,6 +224,8 @@ export function syncCytoscape(
           const ex = aggEdges.get(key);
           if (ex) {
             ex.human += human;
+            if (isExactFiat(edge) && tok.decimals === ex.decimals) ex.rawSum += BigInt(String(edge.amount));
+            else ex.rawExact = false;
             ex.n++;
             ex.edgeIds.push(edge.id);
             if (!isNaN(edgeTs)) {
@@ -214,10 +233,11 @@ export function syncCytoscape(
               if (isNaN(ex.newestTs) || edgeTs > ex.newestTs) ex.newestTs = edgeTs;
             }
           } else {
-            aggEdges.set(key, { src: effFrom, tgt: effTo, human, sym: tok.symbol, color: edge.color || '#10b981', width: edge.width, edgeIds: [edge.id], oldestTs: edgeTs, newestTs: edgeTs, n: 1 });
+            const exact = isExactFiat(edge);
+            aggEdges.set(key, { src: effFrom, tgt: effTo, human, sym: tok.symbol, chain: edge.chain, decimals: tok.decimals, rawSum: exact ? BigInt(String(edge.amount)) : BigInt(0), rawExact: exact, color: edge.color || '#10b981', width: edge.width, edgeIds: [edge.id], oldestTs: edgeTs, newestTs: edgeTs, n: 1 });
           }
         } else {
-          const amountLabel = `${formatTokenAmount(edge.amount, tok.decimals)} ${tok.symbol}`;
+          const amountLabel = formatEdgeAmount(edge);
           const label = edge.label || amountLabel;
           const date = formatShortDate(edge.timestamp);
           targetEdges.set(edge.id, { data: { id: edge.id, source: edge.from, target: edge.to, traceId: trace.id, label, date, txHash: edge.txHash, color: edge.color || '#10b981', lineStyle: edge.lineStyle || 'solid', ...(edge.width ? { width: edge.width } : {}), ...(edge.hasArc ? { hasArc: true, arcOffset: edge.arcOffset ?? 0 } : {}) } });
@@ -225,7 +245,10 @@ export function syncCytoscape(
       });
 
       aggEdges.forEach((a, key) => {
-        const label = `${formatHumanAmount(a.human)} ${a.sym}${a.n > 1 ? ` (${a.n})` : ''}`;
+        const amountText = a.chain === 'fiat' && a.rawExact
+          ? formatFiatAmount(a.rawSum.toString(), a.decimals, a.sym)
+          : `${formatHumanAmount(a.human)} ${a.sym}`;
+        const label = `${amountText}${a.n > 1 ? ` (${a.n})` : ''}`;
         let dateRangeLabel = '';
         const oldestValid = !isNaN(a.oldestTs);
         const newestValid = !isNaN(a.newestTs);
@@ -251,7 +274,8 @@ export function syncCytoscape(
           const raw = parseFloat(String(e.amount)) || 0;
           totalHuman += tok.decimals > 0 ? raw / Math.pow(10, tok.decimals) : raw;
         });
-        const autoLabel = `${formatHumanAmount(totalHuman)} ${labelSym} (${bundleEdges.length})`;
+        const bundleAmountText = sumExactFiat(bundleEdges) ?? `${formatHumanAmount(totalHuman)} ${labelSym}`;
+        const autoLabel = `${bundleAmountText} (${bundleEdges.length})`;
         const label = bundle.label || autoLabel;
         const color = bundle.color || bundleEdges[0].color || '#f59e0b';
         const bundleWidth = bundle.width ?? bundleEdges[0].width;

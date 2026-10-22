@@ -5,7 +5,7 @@ import { ColorPicker } from '@/components/Common/ColorPicker';
 import { TagInput } from './TagInput';
 import { CopyButton } from '@/components/Common/CopyButton';
 import { SUPPORTED_CHAINS } from '@/services/types';
-import { parseTimestamp } from '@/utils/formatAmount';
+import { fromMinorUnits, parseTimestamp, toMinorUnits } from '@/utils/formatAmount';
 
 const inputClass =
   'w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink placeholder:text-canvas-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
@@ -41,6 +41,13 @@ function sanitizeNumeric(input: string): string {
   const firstDot = cleaned.indexOf('.');
   if (firstDot === -1) return cleaned;
   return cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+}
+
+/** Address equality: fiat account ids are case-sensitive, everything else is not. */
+function sameAddress(wallet: WalletNode, val: string): boolean {
+  return wallet.chain === 'fiat'
+    ? wallet.address.trim() === val.trim()
+    : wallet.address.toLowerCase() === val.toLowerCase();
 }
 
 function AddressField({
@@ -131,7 +138,7 @@ export function TransactionForm({
     // Already a wallet ID?
     if (allWallets.some((w) => w.wallet.id === val)) return val;
     // Match by address
-    const match = allWallets.find((w) => w.wallet.address.toLowerCase() === val.toLowerCase());
+    const match = allWallets.find((w) => sameAddress(w.wallet, val));
     return match ? match.wallet.id : val;
   };
 
@@ -139,7 +146,12 @@ export function TransactionForm({
   const [to, setTo] = useState(resolveToWalletId(source?.to || ''));
   const [txHash, setTxHash] = useState(source?.txHash || '');
   const [chain, setChain] = useState(source?.chain || 'ethereum');
-  const [amount, setAmount] = useState(source?.amount || '');
+  // Fiat edges store integer minor units (cents); the field edits dollars and cents.
+  const [amount, setAmount] = useState(() =>
+    source?.chain === 'fiat' && /^-?\d+$/.test(String(source.amount))
+      ? fromMinorUnits(String(source.amount), source.token?.decimals ?? 2)
+      : source?.amount || '',
+  );
   const [tokenSymbol, setTokenSymbol] = useState(source?.token?.symbol || (chain === 'tron' ? 'TRX' : 'ETH'));
   const [tokenAddress, setTokenAddress] = useState(source?.token?.address || '0x');
   const [tokenDecimals, setTokenDecimals] = useState(String(source?.token?.decimals ?? 0));
@@ -172,6 +184,15 @@ export function TransactionForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
+    let amountToSave = amount;
+    if (chain === 'fiat') {
+      const minor = toMinorUnits(amount, Number(tokenDecimals) || 0);
+      if (minor === null) {
+        setSaveError('Enter the amount as dollars and cents, e.g. 400000.00');
+        return;
+      }
+      amountToSave = minor;
+    }
     const fromTrace = findTraceForWallet(from);
     const toTrace = findTraceForWallet(to);
     const crossTrace = !!(fromTrace && toTrace && fromTrace !== toTrace);
@@ -210,7 +231,7 @@ export function TransactionForm({
       to,
       txHash,
       chain,
-      amount,
+      amount: amountToSave,
       token: {
         symbol: tokenSymbol,
         address: tokenAddress,
@@ -242,7 +263,7 @@ export function TransactionForm({
 
   // Check if value is an existing wallet (by ID or address)
   const isKnownWallet = (val: string) =>
-    allWallets.some((w) => w.wallet.id === val || w.wallet.address.toLowerCase() === val.toLowerCase());
+    allWallets.some((w) => w.wallet.id === val || sameAddress(w.wallet, val));
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
@@ -350,7 +371,19 @@ export function TransactionForm({
         <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Chain</label>
         <select
           value={chain}
-          onChange={(e) => setChain(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setChain(next);
+            if (next === 'fiat') {
+              setTokenSymbol('USD');
+              setTokenAddress('');
+              setTokenDecimals('2');
+            } else if (chain === 'fiat') {
+              setTokenSymbol(next === 'tron' ? 'TRX' : 'ETH');
+              setTokenAddress('0x');
+              setTokenDecimals('0');
+            }
+          }}
           className="w-full bg-canvas-fill border border-canvas-line rounded-lg px-3 py-2 text-sm text-canvas-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
           {Object.values(SUPPORTED_CHAINS).map((c) => (
@@ -361,7 +394,7 @@ export function TransactionForm({
 
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">Amount</label>
+          <label className="text-xs font-semibold text-canvas-muted uppercase block mb-1">{chain === 'fiat' ? `Amount (${tokenSymbol})` : 'Amount'}</label>
           <input
             type="text"
             inputMode="decimal"

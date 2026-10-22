@@ -21,7 +21,7 @@ import { Button, Badge, Field, Select, Textarea, Input } from '@/components/ui';
 import { ChainSelect } from '@/components/Graph/ChainSelect';
 import { DeclarantModal, type DeclarantDto } from '@/components/Declarants/DeclarantModal';
 import { applyDeclarant } from '@/components/Productions/DeclarantPicker';
-import { SUPPORTED_CHAINS } from '@/services/types';
+import { FETCHABLE_CHAINS } from '@/services/types';
 import { parseTokens } from '@/components/Onboarding/parseTokens';
 import {
   readOnboardingRecord,
@@ -462,7 +462,7 @@ export function CaseOnboardingWizard({ onSkip }: { onSkip: () => void }) {
                     <ChainSelect
                       tone="surface"
                       value={chain}
-                      options={Object.keys(SUPPORTED_CHAINS)}
+                      options={Object.keys(FETCHABLE_CHAINS)}
                       disabled={seeding}
                       onChange={(next) => {
                         setChain(next);

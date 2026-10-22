@@ -70,11 +70,13 @@ ImportTransactionItem:
       type: string
     chain:
       type: string
+      description: "Chain id, or `fiat` for bank/off-chain flows (accounts as from/to, wire reference as txHash)."
     timestamp:
       type: string
       format: date-time
     amount:
       type: string
+      description: "Raw smallest units (wei, satoshi, cents) when tokenMeta, utxo, or solana is present (fiat: cents with tokenMeta.decimals 2); otherwise human-readable."
     token:
       type: string
     blockNumber:

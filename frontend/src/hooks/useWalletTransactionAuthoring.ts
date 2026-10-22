@@ -16,8 +16,10 @@ import { normalizeAddressForChain } from '../generated/shared/address';
  * the node is chain-aware (see `normalizeAddressForChain`); only the lookup
  * key is uniform across chains.
  */
-function addressKey(addr: string): string {
-  return addr.trim().toLowerCase();
+function addressKey(addr: string, chain?: string): string {
+  // Fiat account ids are case-sensitive (acct-AB12 vs acct-ab12 are distinct),
+  // matching the backend's `fiat:<trimmed>` key.
+  return chain === 'fiat' ? 'fiat:' + addr.trim() : addr.trim().toLowerCase();
 }
 
 /** Bitcoin edges carry the structured token; built fresh per edge so no two
@@ -55,11 +57,13 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
     const ch = data.chain || 'ethereum';
     const raw = (data.address || '').trim();
     const addr = normalizeAddressForChain(raw, ch);
+    const isFiat = ch === 'fiat';
     const wallet: WalletNode = {
       id: crypto.randomUUID(),
-      label: data.label || 'New Node',
+      label: data.label || (isFiat && addr ? addr.trim() : 'New Node'),
       address: addr,
       chain: ch,
+      ...(isFiat ? { kind: 'account' as const } : {}),
       color: data.color || '#60a5fa',
       size: data.size,
       notes: data.notes || '',
@@ -67,7 +71,7 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
       position,
       parentTrace: traceId,
       addressType: addr ? 'unknown' : undefined,
-      explorerUrl: addr ? buildExplorerUrl(ch, addr) : undefined,
+      explorerUrl: isFiat ? '' : addr ? buildExplorerUrl(ch, addr) : undefined,
     };
     addWallet(traceId, wallet);
     setPanelMode({ type: 'none' });
@@ -76,27 +80,31 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
 
   const findOrCreateWallet = useCallback((address: string, chain: string, traceId: string): string => {
     const existing = allWallets.find(
-      (w) => addressKey(w.wallet.address) === addressKey(address)
+      (w) => addressKey(w.wallet.address, w.wallet.chain) === addressKey(address, chain)
     );
     if (existing) return existing.wallet.id;
 
     const normAddress = normalizeAddressForChain(address, chain);
     const walletId = crypto.randomUUID();
+    const isFiat = chain === 'fiat';
     const wallet: WalletNode = {
       id: walletId,
-      label: addressKey(normAddress) === addressKey(ZERO_ADDRESS)
+      label: isFiat
+        ? normAddress.trim()
+        : addressKey(normAddress) === addressKey(ZERO_ADDRESS)
         ? 'Null address'
         : normAddress.length > 10
           ? `${normAddress.slice(0, 6)}...${normAddress.slice(-4)}`
           : normAddress,
       address: normAddress,
       chain,
+      ...(isFiat ? { kind: 'account' as const } : {}),
       notes: '',
       tags: [],
       position: { x: Math.random() * 400, y: Math.random() * 400 },
       parentTrace: traceId,
       addressType: 'unknown',
-      explorerUrl: buildExplorerUrl(chain, normAddress),
+      explorerUrl: isFiat ? '' : buildExplorerUrl(chain, normAddress),
     };
     addWallet(traceId, wallet);
 
@@ -184,7 +192,7 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
       // `findOrCreateWallet` may have just minted. A self-transfer would otherwise
       // mint a second node for the same address.
       const toId =
-        leg.to.toLowerCase() === leg.from.toLowerCase()
+        addressKey(leg.to, transaction.chain) === addressKey(leg.from, transaction.chain)
           ? fromId
           : findOrCreateWallet(leg.to, transaction.chain, traceId);
 
@@ -238,7 +246,7 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
 
     const existingWalletAddresses = new Map<string, string>();
     investigation.traces.forEach((t) =>
-      t.nodes.forEach((n) => existingWalletAddresses.set(addressKey(n.address), n.id))
+      t.nodes.forEach((n) => existingWalletAddresses.set(addressKey(n.address, n.chain), n.id))
     );
 
     let maxX = 0;
@@ -270,15 +278,16 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
      */
     const ensureWalletNode = (addr: string, chain: string): string | undefined => {
       if (!addr) return undefined;
-      const key = addressKey(addr);
+      const key = addressKey(addr, chain);
       if (!existingWalletAddresses.has(key)) {
         const persisted = normalizeAddressForChain(addr, chain);
         const { x, y } = nextPosition();
         const wallet: WalletNode = {
           id: crypto.randomUUID(),
-          label: `${addr.slice(0, 6)}...${addr.slice(-4)}`,
+          label: chain === 'fiat' ? addr.trim() : `${addr.slice(0, 6)}...${addr.slice(-4)}`,
           address: persisted,
           chain,
+          ...(chain === 'fiat' ? { kind: 'account' as const, explorerUrl: '' } : {}),
           notes: '',
           tags: [],
           position: { x, y },
@@ -317,7 +326,7 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
 
         // The junction node dedups through the same address-keyed map as
         // wallets: its "address" is the txid — globally unique lowercase hex.
-        const junctionKey = addressKey(plan.node.address);
+        const junctionKey = addressKey(plan.node.address, 'bitcoin');
         let junctionId = existingWalletAddresses.get(junctionKey);
         if (!junctionId) {
           const { x, y } = nextPosition();
@@ -455,8 +464,8 @@ export function useWalletTransactionAuthoring(args: UseWalletTransactionAuthorin
         ensureWalletNode(addr, tx.chain);
       }
 
-      const fromId = existingWalletAddresses.get(addressKey(tx.from)) || tx.from;
-      const toId = existingWalletAddresses.get(addressKey(tx.to)) || tx.to;
+      const fromId = existingWalletAddresses.get(addressKey(tx.from, tx.chain)) || tx.from;
+      const toId = existingWalletAddresses.get(addressKey(tx.to, tx.chain)) || tx.to;
       // Solana's `solana` context (like BTC's `utxo`) rides along via this
       // spread — no per-transfer array to defensively copy, so unlike `utxo`
       // below it needs no extra handling.

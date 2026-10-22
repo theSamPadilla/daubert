@@ -11,6 +11,7 @@ import { SolanaProvider } from './solana-provider';
 import { RateLimiter } from './rate-limiter';
 import { ResponseCache } from './response-cache';
 import { CHAIN_CONFIGS } from './types';
+import { CHAINS, isOnChain } from '../../generated/shared/chains';
 
 @Injectable()
 export class ProviderRegistry {
@@ -42,8 +43,13 @@ export class ProviderRegistry {
   get(chainId: string): BlockchainProvider {
     let provider = this.providers.get(chainId);
     if (!provider) {
+      if (!CHAINS[chainId]) throw new Error(`Unknown chain: ${chainId}`);
+      if (!isOnChain(chainId)) {
+        throw new Error(
+          `${chainId} is an off-chain chain and has no blockchain provider`,
+        );
+      }
       const config = CHAIN_CONFIGS[chainId];
-      if (!config) throw new Error(`Unknown chain: ${chainId}`);
 
       // Bitcoin is in CHAIN_CONFIGS (derived from the shared registry) but has
       // no Etherscan/Tronscan-style provider — it uses the UTXO provider path

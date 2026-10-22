@@ -19,6 +19,7 @@ import {
   FaClockRotateLeft,
   FaTrash,
 } from 'react-icons/fa6';
+import { isOnChain } from '../../generated/shared/chains';
 import { type ContextMenuItem } from './ContextMenu';
 import { Investigation, TraceLabel, WalletNode, TransactionEdge, EdgeBundle } from '../../types/investigation';
 import { buildEdgeAnchor, resolveActiveTraceId } from './GraphCanvas';
@@ -168,7 +169,9 @@ export function buildGraphContextMenu(
         items.push(
           ...(isJunction ? [] : [
             { label: 'Edit Address', icon: icon(FaPenToSquare), onClick: () => setSelectedItem({ type: 'wallet', data: wd.wallet }) },
-            { label: 'Fetch History', icon: icon(FaClockRotateLeft), onClick: () => handleFetchHistory(wd.wallet.address, wd.wallet.chain) },
+            ...(isOnChain(wd.wallet.chain)
+              ? [{ label: 'Fetch History', icon: icon(FaClockRotateLeft), onClick: () => handleFetchHistory(wd.wallet.address, wd.wallet.chain) }]
+              : []),
           ]),
           {
             label: 'Attach label to this node',

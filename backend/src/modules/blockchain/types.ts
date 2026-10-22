@@ -224,14 +224,16 @@ export interface FetchOptions {
 // still throws — it exists only to fail loudly if a caller uses the wrong
 // path instead of routing through getUtxo().
 export const CHAIN_CONFIGS: Record<string, ChainConfig> = Object.fromEntries(
-  Object.entries(CHAINS).map(([id, def]) => [
-    id,
-    {
-      id: def.id,
-      name: def.name,
-      chainId: def.chainId,
-      nativeCurrency: def.nativeCurrency,
-      explorerUrl: def.explorerUrl,
-    },
-  ]),
+  Object.entries(CHAINS)
+    .filter(([, def]) => def.onChain)
+    .map(([id, def]) => [
+      id,
+      {
+        id: def.id,
+        name: def.name,
+        chainId: def.chainId,
+        nativeCurrency: def.nativeCurrency,
+        explorerUrl: def.explorerUrl,
+      },
+    ]),
 );

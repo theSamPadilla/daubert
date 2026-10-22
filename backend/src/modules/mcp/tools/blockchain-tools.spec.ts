@@ -19,6 +19,7 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 
 import { BlockchainService } from '../../blockchain/blockchain.service';
 import { AuthSuccess } from '../mcp-auth.helper';
@@ -437,6 +438,17 @@ describe('BlockchainToolsService', () => {
       // The returned row's utxo is still summarized (counts, not arrays).
       expect(parsed.transactions[0].utxo.inputs).toBe(50);
       expect(parsed.transactions[0].utxo.outputs).toBe(50);
+    });
+
+    it('rejects chain "fiat" at the schema level and still accepts "ethereum"', () => {
+      const { server } = buildService();
+      const tool = (server as any)._registeredTools['blockchain_fetch_history'];
+      const schema = tool.inputSchema;
+      // SDK may store a zod object or a raw shape; normalise to an object schema.
+      const objSchema = typeof schema.safeParse === 'function' ? schema : z.object(schema);
+
+      expect(objSchema.safeParse({ address: '4417', chain: 'fiat' }).success).toBe(false);
+      expect(objSchema.safeParse({ address: '0xabc', chain: 'ethereum' }).success).toBe(true);
     });
 
     it('accepts chain "bitcoin" at the schema level (derived from CHAIN_IDS)', async () => {
